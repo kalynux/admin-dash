@@ -1,0 +1,260 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Native widgets (number spinners, scrollbars, date pickers, autofill)
+       follow this, not our tokens — without it they stay light on dark. */
+    color-scheme: light;
+
+    /* ── Type ───────────────────────────────────────────────────────────── */
+    --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+      Roboto, Helvetica, Arial, sans-serif;
+    --font-display: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+
+    /* ── Surfaces & ink (light) ─────────────────────────────────────────── */
+    --background: 0 0% 100%;
+    --foreground: 174 25% 9%;
+    --card: 0 0% 100%;
+    --card-foreground: 174 25% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 174 25% 9%;
+
+    /* ── Bold market green ──────────────────────────────────────────────── */
+    --primary: 161 88% 22%;
+    --primary-foreground: 150 55% 97%;
+    --secondary: 152 24% 96%;
+    --secondary-foreground: 174 22% 16%;
+    --muted: 160 16% 95%;
+    --muted-foreground: 193 13% 39%;
+    --accent: 152 46% 93%;
+    --accent-foreground: 162 90% 17%;
+
+    /* ── Semantic ───────────────────────────────────────────────────────── */
+    --destructive: 0 82% 55%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 152 74% 34%;
+    --success-foreground: 150 55% 97%;
+    --warning: 33 92% 46%;
+    --warning-foreground: 40 90% 97%;
+    --info: 199 89% 42%;
+    --info-foreground: 200 90% 97%;
+
+    /* ── Lines & focus ──────────────────────────────────────────────────── */
+    --border: 156 20% 88%;
+    --input: 156 20% 86%;
+    --ring: 160 84% 30%;
+    --radius: 0.75rem;
+
+    /* ── Sidebar ────────────────────────────────────────────────────────── */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 174 20% 24%;
+    --sidebar-primary: 161 88% 22%;
+    --sidebar-primary-foreground: 150 55% 97%;
+    --sidebar-accent: 152 46% 93%;
+    --sidebar-accent-foreground: 162 90% 17%;
+    --sidebar-border: 156 20% 88%;
+    --sidebar-ring: 160 84% 30%;
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    --background: 174 30% 6%;
+    --foreground: 150 20% 96%;
+    --card: 172 26% 9%;
+    --card-foreground: 150 20% 96%;
+    --popover: 172 28% 8%;
+    --popover-foreground: 150 20% 96%;
+
+    --primary: 152 72% 45%;
+    --primary-foreground: 165 92% 8%;
+    --secondary: 168 18% 16%;
+    --secondary-foreground: 150 20% 96%;
+    --muted: 168 16% 15%;
+    --muted-foreground: 150 13% 65%;
+    --accent: 165 32% 17%;
+    --accent-foreground: 150 32% 92%;
+
+    --destructive: 0 72% 47%;
+    --destructive-foreground: 0 0% 98%;
+    --success: 152 66% 45%;
+    --success-foreground: 165 92% 8%;
+    --warning: 36 92% 55%;
+    --warning-foreground: 40 30% 10%;
+    --info: 199 85% 55%;
+    --info-foreground: 200 40% 10%;
+
+    --border: 165 20% 17%;
+    --input: 165 20% 19%;
+    --ring: 152 72% 45%;
+
+    --sidebar-background: 174 34% 5%;
+    --sidebar-foreground: 150 16% 80%;
+    --sidebar-primary: 152 72% 48%;
+    --sidebar-primary-foreground: 165 92% 8%;
+    --sidebar-accent: 165 32% 15%;
+    --sidebar-accent-foreground: 150 32% 92%;
+    --sidebar-border: 165 20% 16%;
+    --sidebar-ring: 152 72% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    /* Prevent the browser from nudging the scroll position when the sticky
+       mobile subheader collapses/expands. That nudge fires a scroll event that
+       otherwise feeds back into the reveal logic and makes it flicker on slow
+       scrolls. Lists append below the fold, so anchoring isn't needed. */
+    overflow-anchor: none;
+  }
+
+  /* Display voice — every heading across every page inherits this without
+     touching a single page component. */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  ::selection {
+    background: hsl(var(--primary) / 0.9);
+    color: hsl(var(--primary-foreground));
+  }
+}
+
+/* ── Safe-area helpers (notch / home indicator) ─────────────────────────────
+   Plain CSS so they're always present regardless of Tailwind's content scan.
+   `env(safe-area-inset-*)` resolves to 0 outside standalone/notched contexts,
+   so these are inert on ordinary desktop and non-notched devices. */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+.h-safe-bottom {
+  height: env(safe-area-inset-bottom);
+}
+/* Existing markup already references this class name on the mobile tab bar. */
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Custom scrollbar — brand-tinted */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.22);
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.4);
+}
+
+/* Smooth transitions */
+* {
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Focus ──────────────────────────────────────────────────────────────────
+   Every interactive thing, not just the form controls. The previous list left
+   out `a`, which is what a table cell's record link is — so tabbing down a
+   list of two hundred rows moved a focus ring nobody could see. `[tabindex]`
+   catches the two roving containers we make focusable on purpose: a table that
+   overflows horizontally, and the content region a skip link jumps to.
+
+   `:focus-visible`, never `:focus`, so a pointer click does not leave a ring
+   behind it. */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* A programmatic focus target — the content region after a skip or a route
+   change — is announced, not decorated. The ring would be a lie: nothing there
+   is actionable, and it would fire on every navigation. */
+[data-focus-silent]:focus-visible {
+  outline: none;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────────
+   An operations console is read, not watched. When the operator has asked the
+   OS for less movement, everything decorative stops.
+
+   `0.01ms` rather than `none`: Radix drives its exit transitions off
+   `animationend`/`transitionend`, and an animation that never runs never fires
+   one — a dialog would then stay mounted forever. A duration this short
+   completes immediately and still emits the event.
+
+   `!important` because the durations it overrides are Tailwind utilities, which
+   land in the same cascade layer with equal specificity. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Animation utilities */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slide-in {
+  animation: slideIn 0.4s ease-out;
+}

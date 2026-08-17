@@ -1,0 +1,1001 @@
+/**
+ * Central Error Code Registry
+ *
+ * Rules:
+ * - All codes must follow `DOMAIN_SCREAMING_SNAKE_CASE` naming.
+ * - Generic codes (NOT_FOUND, FORBIDDEN, etc.) are FORBIDDEN in service layer.
+ *   They may only be used inside middleware as router-level / catch-all fallbacks.
+ * - INTERNAL_SERVER_ERROR is assigned automatically by the global error handler
+ *   for unknown/non-operational errors.
+ * - Object.freeze prevents mutation at runtime.
+ */
+
+type DomainPrefix =
+    | 'AUTH'
+    | 'PAYMENT'
+    | 'BOOKING'
+    | 'TICKET'
+    | 'DIGITAL'
+    | 'WHATSAPP'
+    | 'TELEGRAM'
+    | 'GOOGLE'
+    | 'INTEGRATION'
+    | 'DATABASE'
+    | 'ORDER'
+    | 'REFUND'
+    | 'CONFIG'
+    | 'MAIL'
+    | 'VENDOR'
+    | 'CATALOG'
+    | 'ANALYTICS'
+    | 'DELIVERY'
+    | 'GEO'
+    | 'CONNECTION'
+    | 'BILLING'
+    | 'EARNINGS'
+    | 'COD'
+    | 'INVENTORY'     // what an agency warehouses, per depot
+    | 'STOCK'         // the two-sided stock-adjustment request flow
+    | 'SYSTEM'        // operations surface: maintenance mode, cache controls
+    | 'INTERNAL'      // INTERNAL_SERVER_ERROR
+    | 'NOT'           // NOT_FOUND — router-level only
+    | 'REQUEST'       // body-parser rejections — global handler only (Phase 16)
+    | 'RATE'          // RATE_LIMIT_EXCEEDED — rate-limit middleware only (Phase 16)
+    | 'VALIDATION';   // VALIDATION_ERROR — ZodError catch in global handler only
+
+// Compile-time check: every key must start with a known domain prefix.
+// Usage: type Check = ValidCode<'AUTH_INVALID_CREDENTIALS'> // 'AUTH_INVALID_CREDENTIALS'
+export type ValidCode<T extends string> = T extends `${DomainPrefix}_${string}` ? T : never;
+
+export const ERROR_CODES = Object.freeze({
+    // ── AUTH ──────────────────────────────────────────────────────────────────
+    AUTH_INVALID_CREDENTIALS: 'AUTH_INVALID_CREDENTIALS',
+    AUTH_TOKEN_EXPIRED: 'AUTH_TOKEN_EXPIRED',
+    AUTH_TOKEN_INVALID: 'AUTH_TOKEN_INVALID',
+    AUTH_MISSING_TOKEN: 'AUTH_MISSING_TOKEN',
+    AUTH_ROLE_NOT_FOUND: 'AUTH_ROLE_NOT_FOUND',
+    AUTH_ROLE_ALREADY_EXISTS: 'AUTH_ROLE_ALREADY_EXISTS',
+    AUTH_ROLE_REQUIRED: 'AUTH_ROLE_REQUIRED',
+    AUTH_ACCOUNT_NOT_FOUND: 'AUTH_ACCOUNT_NOT_FOUND',
+    AUTH_PHONE_TAKEN: 'AUTH_PHONE_TAKEN',
+    AUTH_EMAIL_TAKEN: 'AUTH_EMAIL_TAKEN',
+    AUTH_EMAIL_ALREADY_VERIFIED: 'AUTH_EMAIL_ALREADY_VERIFIED',
+    AUTH_EMAIL_MISSING: 'AUTH_EMAIL_MISSING',
+    AUTH_VERIFY_TOKEN_INVALID: 'AUTH_VERIFY_TOKEN_INVALID',
+    /**
+     * A password-reset token was absent, expired, malformed or already spent.
+     *
+     * Deliberately **one code for all four**. Telling a caller which of them applies tells
+     * an attacker whether a token they hold was ever real, and the remedy is identical in
+     * every case: ask for a new link. Distinct from `AUTH_VERIFY_TOKEN_INVALID` only so the
+     * client can put the right copy and the right "resend" button on the screen — the two
+     * flows land on different pages.
+     */
+    AUTH_RESET_TOKEN_INVALID: 'AUTH_RESET_TOKEN_INVALID',
+    AUTH_PROFILE_NOT_FOUND: 'AUTH_PROFILE_NOT_FOUND',
+    AUTH_UNSUPPORTED_ROLE: 'AUTH_UNSUPPORTED_ROLE',
+    AUTH_REFRESH_TOKEN_INVALID: 'AUTH_REFRESH_TOKEN_INVALID',
+    AUTH_SESSION_EXPIRED: 'AUTH_SESSION_EXPIRED',
+
+    /**
+     * The credential was minted before the account's password was changed.
+     *
+     * Its own code rather than `AUTH_SESSION_EXPIRED`, because the two ask the client for
+     * different things and one of them is a security message: "your session timed out" is a
+     * shrug, while "your password was changed" is what tells the person whose account was
+     * taken over that the eviction they asked for actually happened — or warns the one who
+     * did not ask for it. Raised at 401 on both credential paths, `requireAuth` (access) and
+     * `rotateRefreshToken` (refresh), which together are what makes a password change a
+     * revocation. See `core/auth/password-epoch.ts`.
+     *
+     * 401, not 403: unlike a suspension, re-authenticating is exactly the remedy.
+     */
+    AUTH_PASSWORD_CHANGED: 'AUTH_PASSWORD_CHANGED',
+    AUTH_USER_NOT_FOUND: 'AUTH_USER_NOT_FOUND',
+    AUTH_ROLE_PROFILE_NOT_FOUND: 'AUTH_ROLE_PROFILE_NOT_FOUND',
+    AUTH_FORBIDDEN: 'AUTH_FORBIDDEN',
+
+    /**
+     * The credentials were fine; the account is suspended.
+     *
+     * Deliberately distinct from AUTH_INVALID_CREDENTIALS. A suspended person who is
+     * told "wrong password" retries, resets, and eventually opens a ticket nobody can
+     * resolve — the platform knows exactly why they are locked out and saying so costs
+     * nothing, because the check runs only AFTER the password comparison, so it is not
+     * an oracle over accounts a caller cannot already authenticate to.
+     *
+     * Raised on three paths, which together are what makes a suspension take effect:
+     * login, refresh-token rotation, and every authenticated request (`requireAuth`).
+     */
+    AUTH_ACCOUNT_SUSPENDED: 'AUTH_ACCOUNT_SUSPENDED',
+
+    /**
+     * The vendor role entity is suspended, though the account itself is fine.
+     *
+     * Its own code rather than `AUTH_ACCOUNT_SUSPENDED`, because the two have different
+     * remedies and a client has to be able to say which happened: "your login is
+     * suspended" ends every session on every role, while "your shop is suspended" leaves
+     * the same person's customer account working. Raised by `requireAuth` and `login`.
+     */
+    AUTH_VENDOR_SUSPENDED: 'AUTH_VENDOR_SUSPENDED',
+
+    // ── PAYMENT ───────────────────────────────────────────────────────────────
+    PAYMENT_ORDER_NOT_FOUND: 'PAYMENT_ORDER_NOT_FOUND',
+    PAYMENT_ORDER_ALREADY_PAID: 'PAYMENT_ORDER_ALREADY_PAID',
+    PAYMENT_INVALID_ORDER_STATUS: 'PAYMENT_INVALID_ORDER_STATUS',
+    PAYMENT_GATEWAY_NOT_SUPPORTED: 'PAYMENT_GATEWAY_NOT_SUPPORTED',
+    PAYMENT_INITIATION_FAILED: 'PAYMENT_INITIATION_FAILED',
+    PAYMENT_VERIFICATION_FAILED: 'PAYMENT_VERIFICATION_FAILED',
+    PAYMENT_BOOKING_NOT_FOUND: 'PAYMENT_BOOKING_NOT_FOUND',
+    PAYMENT_BOOKING_CANCELLED: 'PAYMENT_BOOKING_CANCELLED',
+    PAYMENT_BOOKING_NO_PAYMENT_REQUIRED: 'PAYMENT_BOOKING_NO_PAYMENT_REQUIRED',
+    PAYMENT_BOOKING_ALREADY_PAID: 'PAYMENT_BOOKING_ALREADY_PAID',
+    PAYMENT_BOOKING_IN_PROGRESS: 'PAYMENT_BOOKING_IN_PROGRESS',
+    PAYMENT_TRANSACTION_NOT_FOUND: 'PAYMENT_TRANSACTION_NOT_FOUND',
+    PAYMENT_WEBHOOK_INVALID_PAYLOAD: 'PAYMENT_WEBHOOK_INVALID_PAYLOAD',
+    PAYMENT_MISSING_BOOKING_ID: 'PAYMENT_MISSING_BOOKING_ID',
+    PAYMENT_GATEWAY_NOT_IMPLEMENTED: 'PAYMENT_GATEWAY_NOT_IMPLEMENTED',
+    PAYMENT_CARD_DECLINED: 'PAYMENT_CARD_DECLINED',
+    PAYMENT_CART_NOT_FOUND: 'PAYMENT_CART_NOT_FOUND',
+    PAYMENT_CART_NO_PAYABLE_ORDERS: 'PAYMENT_CART_NO_PAYABLE_ORDERS',
+    PAYMENT_CART_MIXED_CURRENCY: 'PAYMENT_CART_MIXED_CURRENCY',
+    PAYMENT_REFERENCE_REQUIRED: 'PAYMENT_REFERENCE_REQUIRED',
+    PAYMENT_ORDER_IS_COD: 'PAYMENT_ORDER_IS_COD',
+    STRIPE_WEBHOOK_SIGNATURE_INVALID: 'STRIPE_WEBHOOK_SIGNATURE_INVALID',
+
+    // ── REFUND ────────────────────────────────────────────────────────────────
+    REFUND_NOT_ELIGIBLE: 'REFUND_NOT_ELIGIBLE',
+    REFUND_WINDOW_EXPIRED: 'REFUND_WINDOW_EXPIRED',
+    REFUND_POLICY_DISABLED: 'REFUND_POLICY_DISABLED',
+    REFUND_AMOUNT_EXCEEDS_MAX: 'REFUND_AMOUNT_EXCEEDS_MAX',
+    REFUND_ALREADY_FULLY_REFUNDED: 'REFUND_ALREADY_FULLY_REFUNDED',
+    REFUND_PAYMENT_NOT_FOUND: 'REFUND_PAYMENT_NOT_FOUND',
+    REFUND_ORDER_NOT_PAID: 'REFUND_ORDER_NOT_PAID',
+    REFUND_GATEWAY_FAILED: 'REFUND_GATEWAY_FAILED',
+    REFUND_GATEWAY_NOT_SUPPORTED: 'REFUND_GATEWAY_NOT_SUPPORTED',
+    /** The order a group payment names could not be loaded — its per-order ceiling is unknowable. */
+    REFUND_ORDER_NOT_FOUND: 'REFUND_ORDER_NOT_FOUND',
+    /**
+     * A COD order was never charged through a gateway, so there is nothing to refund.
+     * Its own code rather than falling through to `REFUND_PAYMENT_NOT_FOUND`, which reads
+     * as "the record is missing" when the truth is "this money never went through a
+     * gateway" — a different conversation with the customer.
+     */
+    REFUND_ORDER_IS_COD: 'REFUND_ORDER_IS_COD',
+    /**
+     * An administrator asked to refund outside the vendor's commercial policy without
+     * saying so. The override is available; it has to be deliberate and reasoned.
+     */
+    REFUND_POLICY_OVERRIDE_REQUIRED: 'REFUND_POLICY_OVERRIDE_REQUIRED',
+
+    // ── TICKET ────────────────────────────────────────────────────────────────
+    TICKET_NOT_FOUND: 'TICKET_NOT_FOUND',
+    TICKET_UPDATE_FAILED: 'TICKET_UPDATE_FAILED',
+    TICKET_ASSIGN_FAILED: 'TICKET_ASSIGN_FAILED',
+    TICKET_PRIORITY_UPDATE_FAILED: 'TICKET_PRIORITY_UPDATE_FAILED',
+    TICKET_CLOSE_FAILED: 'TICKET_CLOSE_FAILED',
+    TICKET_REOPEN_FAILED: 'TICKET_REOPEN_FAILED',
+    TICKET_GENERAL_UPDATE_FAILED: 'TICKET_GENERAL_UPDATE_FAILED',
+    TICKET_ACCESS_DENIED: 'TICKET_ACCESS_DENIED',
+    TICKET_FOLLOWER_LIMIT_EXCEEDED: 'TICKET_FOLLOWER_LIMIT_EXCEEDED',
+    TICKET_ATTACHMENT_LIMIT_EXCEEDED: 'TICKET_ATTACHMENT_LIMIT_EXCEEDED',
+    TICKET_ATTACHMENT_MISSING: 'TICKET_ATTACHMENT_MISSING',
+    TICKET_PRIORITY_LOCKED: 'TICKET_PRIORITY_LOCKED',
+    TICKET_INVALID_STATUS_TRANSITION: 'TICKET_INVALID_STATUS_TRANSITION',
+    TICKET_CLOSED: 'TICKET_CLOSED',
+    TICKET_WAITING_TARGET_NOT_PARTICIPANT: 'TICKET_WAITING_TARGET_NOT_PARTICIPANT',
+    TICKET_CUSTOMER_PRIVATE_NOTE_FORBIDDEN: 'TICKET_CUSTOMER_PRIVATE_NOTE_FORBIDDEN',
+    TICKET_REQUIRED_INFO_MISSING: 'TICKET_REQUIRED_INFO_MISSING',
+    TICKET_ENTITY_NOT_FOUND: 'TICKET_ENTITY_NOT_FOUND',
+
+    // ── DIGITAL DELIVERY ──────────────────────────────────────────────────────
+    DIGITAL_INVALID_ENTITLEMENT_ID: 'DIGITAL_INVALID_ENTITLEMENT_ID',
+    DIGITAL_ENTITLEMENT_NOT_FOUND: 'DIGITAL_ENTITLEMENT_NOT_FOUND',
+    DIGITAL_ENTITLEMENT_UNAUTHORIZED: 'DIGITAL_ENTITLEMENT_UNAUTHORIZED',
+    DIGITAL_ENTITLEMENT_REVOKED: 'DIGITAL_ENTITLEMENT_REVOKED',
+    DIGITAL_ENTITLEMENT_EXPIRED: 'DIGITAL_ENTITLEMENT_EXPIRED',
+    DIGITAL_ENTITLEMENT_ALREADY_REVOKED: 'DIGITAL_ENTITLEMENT_ALREADY_REVOKED',
+    DIGITAL_ENTITLEMENT_NOT_REVOKED: 'DIGITAL_ENTITLEMENT_NOT_REVOKED',
+    DIGITAL_DOWNLOAD_LIMIT_EXCEEDED: 'DIGITAL_DOWNLOAD_LIMIT_EXCEEDED',
+    DIGITAL_TOKEN_INVALID: 'DIGITAL_TOKEN_INVALID',
+
+    // ── MESSAGING CHANNEL CONNECTIONS ─────────────────────────────────────────
+    // Replaces the WHATSAPP_*_LINKED / TELEGRAM_LINK_* pairs the two predecessor
+    // mechanisms raised. Each is raised at exactly ONE status — `test:errors`
+    // censuses every createAppError site and fails if a code appears at two
+    // statuses that disagree on category.
+    //
+    // ⚠ `CONNECTION_CODE_*` here is about a messaging CODE. The bare
+    // `CONNECTION_*` family further down (`CONNECTION_NOT_FOUND`,
+    // `CONNECTION_ALREADY_EXISTS`, …) belongs to the vendor↔agency consensual
+    // linking domain in `modules/agency-connections` — an entirely different
+    // thing that happens to share the English word. The two do not overlap, and
+    // this module's non-code errors are `MESSAGING_*`-prefixed to keep it that
+    // way.
+    CONNECTION_CODE_INVALID: 'CONNECTION_CODE_INVALID',
+    CONNECTION_CODE_EXPIRED: 'CONNECTION_CODE_EXPIRED',
+    CONNECTION_CODE_ATTEMPTS_EXCEEDED: 'CONNECTION_CODE_ATTEMPTS_EXCEEDED',
+    CONNECTION_CODE_GENERATION_FAILED: 'CONNECTION_CODE_GENERATION_FAILED',
+    MESSAGING_IDENTITY_ALREADY_LINKED: 'MESSAGING_IDENTITY_ALREADY_LINKED',
+    MESSAGING_CONNECTION_NOT_FOUND: 'MESSAGING_CONNECTION_NOT_FOUND',
+    MESSAGING_IDENTITY_UNRESOLVED: 'MESSAGING_IDENTITY_UNRESOLVED',
+    WEBHOOK_SECRET_INVALID: 'WEBHOOK_SECRET_INVALID',
+
+    // ── PASSWORDLESS SIGN-IN (`/login` from a bot) ────────────────────────────
+    // The credentials a `/login` bot command hands out: a magic LINK (an opaque
+    // token) and an 8-character CODE, both for one session, both single-use.
+    //
+    // ⚠ These are 401s, not 400s, and the difference is deliberate: they are
+    // CREDENTIALS, and the remedy is to obtain another one rather than to fix a
+    // field. A client that files them as validation errors will highlight an
+    // input box when what the user needs is to send /login again.
+    //
+    // ⚠ `MAGIC_CODE_INVALID` is ONE code for four distinct situations — wrong
+    // code, unknown identifier, expired-and-swept, and a code/identifier
+    // mismatch. Splitting it would turn the redeem endpoint into a registration
+    // oracle answering "is this phone a customer here?" for any number anybody
+    // cares to type. See `messaging-login.service.ts`.
+    MAGIC_LINK_INVALID: 'MAGIC_LINK_INVALID',
+    MAGIC_LINK_EXPIRED: 'MAGIC_LINK_EXPIRED',
+    MAGIC_CODE_INVALID: 'MAGIC_CODE_INVALID',
+    MAGIC_CODE_EXPIRED: 'MAGIC_CODE_EXPIRED',
+    MAGIC_ATTEMPTS_EXCEEDED: 'MAGIC_ATTEMPTS_EXCEEDED',
+    MAGIC_CONTACT_UNVERIFIED: 'MAGIC_CONTACT_UNVERIFIED',
+    MAGIC_SESSION_GENERATION_FAILED: 'MAGIC_SESSION_GENERATION_FAILED',
+
+    // ── GOOGLE / INTEGRATIONS ─────────────────────────────────────────────────
+    GOOGLE_MISSING_CLIENT_ID: 'GOOGLE_MISSING_CLIENT_ID',
+    GOOGLE_MISSING_CLIENT_SECRET: 'GOOGLE_MISSING_CLIENT_SECRET',
+    GOOGLE_MISSING_REDIRECT_URI: 'GOOGLE_MISSING_REDIRECT_URI',
+    GOOGLE_PROFILE_FETCH_FAILED: 'GOOGLE_PROFILE_FETCH_FAILED',
+    GOOGLE_NO_ACCESS_TOKEN: 'GOOGLE_NO_ACCESS_TOKEN',
+    GOOGLE_NO_REFRESH_TOKEN: 'GOOGLE_NO_REFRESH_TOKEN',
+    GOOGLE_CALENDAR_NOT_CONNECTED: 'GOOGLE_CALENDAR_NOT_CONNECTED',
+    GOOGLE_EVENT_MISSING_ID: 'GOOGLE_EVENT_MISSING_ID',
+    GOOGLE_EVENT_MISSING_DATETIME: 'GOOGLE_EVENT_MISSING_DATETIME',
+    GOOGLE_TOKEN_ENCRYPTION_KEY_MISSING: 'GOOGLE_TOKEN_ENCRYPTION_KEY_MISSING',
+    GOOGLE_TOKEN_INVALID_FORMAT: 'GOOGLE_TOKEN_INVALID_FORMAT',
+    INTEGRATION_UNSUPPORTED_CALENDAR_PROVIDER: 'INTEGRATION_UNSUPPORTED_CALENDAR_PROVIDER',
+    // Raised inside a diagnostics probe and always caught by it — "this integration is
+    // unreachable" is an ANSWER from /system/integrations, never a failure of it.
+    INTEGRATION_PROBE_FAILED: 'INTEGRATION_PROBE_FAILED',
+
+    // ── DATABASE ──────────────────────────────────────────────────────────────
+    DATABASE_UNAVAILABLE: 'DATABASE_UNAVAILABLE',
+    DATABASE_CONNECTION_ERROR: 'DATABASE_CONNECTION_ERROR',
+    DATABASE_UNIQUE_CONSTRAINT_VIOLATION: 'DATABASE_UNIQUE_CONSTRAINT_VIOLATION',
+
+    // ── ORDER ─────────────────────────────────────────────────────────────────
+    ORDER_NOT_FOUND: 'ORDER_NOT_FOUND',
+    ORDER_PAYMENT_FAILED: 'ORDER_PAYMENT_FAILED',
+    ORDER_TERMINAL_STATE: 'ORDER_TERMINAL_STATE',
+    ORDER_INVALID_TRANSITION: 'ORDER_INVALID_TRANSITION',
+    ORDER_PAYMENT_REQUIRED: 'ORDER_PAYMENT_REQUIRED',
+    ORDER_PAYMENT_FAILED_STATE: 'ORDER_PAYMENT_FAILED_STATE',
+    ORDER_DISPUTE_HOLD: 'ORDER_DISPUTE_HOLD',
+    /**
+     * A manual dispute resolution had nothing to resolve. The webhook paths treat this as
+     * a harmless replay; an operator is told, because "resolved as won" for an order that
+     * was never disputed is a lie a support ticket gets closed on.
+     */
+    ORDER_DISPUTE_NOT_ACTIVE: 'ORDER_DISPUTE_NOT_ACTIVE',
+    ORDER_WRONG_TYPE: 'ORDER_WRONG_TYPE',
+    ORDER_DELIVERY_AGENCY_NOT_FOUND: 'ORDER_DELIVERY_AGENCY_NOT_FOUND',
+    ORDER_ITEM_NOT_FOUND: 'ORDER_ITEM_NOT_FOUND',
+    ORDER_ITEM_NOT_REASSIGNABLE: 'ORDER_ITEM_NOT_REASSIGNABLE',
+    SHIPMENT_NOT_FOUND: 'SHIPMENT_NOT_FOUND',
+    SHIPMENT_INVALID_STATUS_TRANSITION: 'SHIPMENT_INVALID_STATUS_TRANSITION',
+    SHIPMENT_REJECTION_NOT_ALLOWED: 'SHIPMENT_REJECTION_NOT_ALLOWED',
+    SHIPMENT_AGENT_NOT_IN_AGENCY: 'SHIPMENT_AGENT_NOT_IN_AGENCY',
+    SHIPMENT_ACCESS_DENIED: 'SHIPMENT_ACCESS_DENIED',
+    SHIPMENT_ALREADY_CONFIRMED: 'SHIPMENT_ALREADY_CONFIRMED',
+    SHIPMENT_CONFIRMATION_NOT_ALLOWED: 'SHIPMENT_CONFIRMATION_NOT_ALLOWED',
+    // The auto-generated tracking number collided on every attempt — see
+    // TrackingNumberGenerator. Effectively unreachable; it means a broken clock
+    // or RNG rather than bad luck.
+    SHIPMENT_TRACKING_NUMBER_GENERATION_FAILED: 'SHIPMENT_TRACKING_NUMBER_GENERATION_FAILED',
+    // Agent-acceptance workflow (shipment assignment offers)
+    SHIPMENT_OFFER_NOT_FOUND: 'SHIPMENT_OFFER_NOT_FOUND',
+    SHIPMENT_OFFER_NOT_PENDING: 'SHIPMENT_OFFER_NOT_PENDING',
+    SHIPMENT_OFFER_EXPIRED: 'SHIPMENT_OFFER_EXPIRED',
+    SHIPMENT_NOT_OFFERABLE: 'SHIPMENT_NOT_OFFERABLE',
+    SHIPMENT_ALREADY_HAS_AGENT: 'SHIPMENT_ALREADY_HAS_AGENT',
+    SHIPMENT_ALREADY_HAS_PENDING_OFFER: 'SHIPMENT_ALREADY_HAS_PENDING_OFFER',
+    SHIPMENT_NO_ELIGIBLE_AGENTS: 'SHIPMENT_NO_ELIGIBLE_AGENTS',
+    // No agent has accepted the shipment yet — it cannot be picked up.
+    SHIPMENT_AGENT_NOT_ASSIGNED: 'SHIPMENT_AGENT_NOT_ASSIGNED',
+    // Agent → agent reassignment (moving a shipment off its current agent).
+    SHIPMENT_NOT_REASSIGNABLE: 'SHIPMENT_NOT_REASSIGNABLE',
+    SHIPMENT_REASSIGNMENT_NOT_ALLOWED: 'SHIPMENT_REASSIGNMENT_NOT_ALLOWED',
+    SHIPMENT_REASSIGN_SAME_AGENT: 'SHIPMENT_REASSIGN_SAME_AGENT',
+    SHIPMENT_REASSIGN_REQUIRES_MANUAL_AGENT: 'SHIPMENT_REASSIGN_REQUIRES_MANUAL_AGENT',
+    SHIPMENT_REASSIGNMENT_CONFLICT: 'SHIPMENT_REASSIGNMENT_CONFLICT',
+    // Agent-initiated mid-delivery cancellation (releases the agent, resumes auto-assignment).
+    SHIPMENT_CANCEL_NOT_ALLOWED: 'SHIPMENT_CANCEL_NOT_ALLOWED',
+    SHIPMENT_CANCEL_CONFLICT: 'SHIPMENT_CANCEL_CONFLICT',
+    // The shipment moved between the read that validated the transition and the
+    // write — the other actor (agency vs agent, who now drive the same state
+    // machine) got there first. Retry from a fresh read.
+    SHIPMENT_STATUS_CONFLICT: 'SHIPMENT_STATUS_CONFLICT',
+    // Agent delivery-proof upload allowed only at/after the delivery outcome.
+    SHIPMENT_PROOF_NOT_ALLOWED: 'SHIPMENT_PROOF_NOT_ALLOWED',
+    SHIPMENT_PROOF_NOT_FOUND: 'SHIPMENT_PROOF_NOT_FOUND',
+    SHIPMENT_PROOF_FILE_REQUIRED: 'SHIPMENT_PROOF_FILE_REQUIRED',
+    ORDER_ALREADY_CANCELLED: 'ORDER_ALREADY_CANCELLED',
+    ORDER_NOT_CANCELLABLE: 'ORDER_NOT_CANCELLABLE',
+    ORDER_CANCEL_REQUIRES_REFUND: 'ORDER_CANCEL_REQUIRES_REFUND',
+    // Shared by order + booking customer cancellation (vendor cancellation_policy gate).
+    CANCELLATION_NOT_ALLOWED: 'CANCELLATION_NOT_ALLOWED',
+
+    // ── CONFIG / INFRA ────────────────────────────────────────────────────────
+    CONFIG_MISSING_WA_ACCESS_TOKEN: 'CONFIG_MISSING_WA_ACCESS_TOKEN',
+    CONFIG_MISSING_WA_PHONE_ID: 'CONFIG_MISSING_WA_PHONE_ID',
+    CONFIG_MISSING_STORAGE_PROVIDER: 'CONFIG_MISSING_STORAGE_PROVIDER',
+    CONFIG_MISSING_JWT_SECRET: 'CONFIG_MISSING_JWT_SECRET',
+    CONFIG_NOTIFICATION_CATALOG_INCOMPLETE: 'CONFIG_NOTIFICATION_CATALOG_INCOMPLETE',
+    CONFIG_INVALID_STORAGE_PROVIDER: 'CONFIG_INVALID_STORAGE_PROVIDER',
+    CONFIG_INVALID_GEO_PROVIDER: 'CONFIG_INVALID_GEO_PROVIDER',
+    // Boot assertions for the operations surface (Phase 14). Both are startup-only: a metric
+    // label space that outgrew its cap, and a Redis database with no cache-flush policy row.
+    CONFIG_METRICS_CARDINALITY_UNBOUNDED: 'CONFIG_METRICS_CARDINALITY_UNBOUNDED',
+    CONFIG_CACHE_POLICY_MISSING: 'CONFIG_CACHE_POLICY_MISSING',
+    // The environment validator (`config/env.ts`). Startup-only, and it carries EVERY problem
+    // at once rather than the first — an operator fixes one list instead of restarting five
+    // times to discover five missing variables.
+    CONFIG_INVALID_ENV: 'CONFIG_INVALID_ENV',
+    STORAGE_UPLOAD_FAILED: 'STORAGE_UPLOAD_FAILED',
+    UPLOAD_POLICY_VIOLATION: 'UPLOAD_POLICY_VIOLATION',
+
+    // ── GEO / GEOCODING (address search & reverse geocoding) ──────────────────
+    // Provider selected but its adapter/credentials are missing in this build.
+    GEO_PROVIDER_NOT_CONFIGURED: 'GEO_PROVIDER_NOT_CONFIGURED',
+    // Provider unreachable — network failure or timeout (fail soft; geo is off
+    // the critical path, so deliveries/checkout keep working).
+    GEO_PROVIDER_UNAVAILABLE: 'GEO_PROVIDER_UNAVAILABLE',
+    // Provider returned a non-2xx or unparseable response.
+    GEO_SEARCH_FAILED: 'GEO_SEARCH_FAILED',
+    // A new/edited business or headquarters address was submitted without a
+    // geocoded `geo` (a selected /api/geo/search result). Required so every
+    // physical location is mappable and its country verifiable.
+    ADDRESS_GEO_REQUIRED: 'ADDRESS_GEO_REQUIRED',
+    // A geocoded address resolves outside the profile's registered country
+    // (or its provider returned no country code, so it cannot be verified).
+    ADDRESS_COUNTRY_MISMATCH: 'ADDRESS_COUNTRY_MISMATCH',
+    // Attempt to change a profile country that is already set. Country is
+    // chosen during onboarding and immutable afterwards (tax/shipping policy).
+    PROFILE_COUNTRY_IMMUTABLE: 'PROFILE_COUNTRY_IMMUTABLE',
+
+    // ── MAIL ──────────────────────────────────────────────────────────────────
+    MAIL_TEMPLATE_NOT_FOUND: 'MAIL_TEMPLATE_NOT_FOUND',
+
+    // ── VENDORS ─────────────────────────────────────────────────────────────
+    VENDOR_UNSUPPORTED_FISCAL_CALENDAR: 'VENDOR_UNSUPPORTED_FISCAL_CALENDAR',
+
+    // ── CATALOG / INVENTORY (EXPANDED) ────────────────────────────────────────
+    CATALOG_INSUFFICIENT_STOCK: 'CATALOG_INSUFFICIENT_STOCK',
+    CATALOG_OVERSALE_NOT_ALLOWED: 'CATALOG_OVERSALE_NOT_ALLOWED',
+    CATALOG_INVALID_CSV_FORMAT: 'CATALOG_INVALID_CSV_FORMAT',
+    CATALOG_BULK_VALIDATION_FAILED: 'CATALOG_BULK_VALIDATION_FAILED',
+    CATALOG_RESERVATION_EXPIRED: 'CATALOG_RESERVATION_EXPIRED',
+    CATALOG_TRANSACTION_LIMIT_EXCEEDED: 'CATALOG_TRANSACTION_LIMIT_EXCEEDED',
+    // Products
+    CATALOG_PRODUCT_NOT_FOUND: 'CATALOG_PRODUCT_NOT_FOUND',
+    CATALOG_PRODUCT_ACCESS_DENIED: 'CATALOG_PRODUCT_ACCESS_DENIED',
+    CATALOG_PRODUCT_INVALID_STATE: 'CATALOG_PRODUCT_INVALID_STATE',
+    CATALOG_PRODUCT_INVALID_TITLE: 'CATALOG_PRODUCT_INVALID_TITLE',
+    CATALOG_PRODUCT_NO_DESCRIPTION: 'CATALOG_PRODUCT_NO_DESCRIPTION',
+    CATALOG_PRODUCT_ALREADY_PUBLISHED: 'CATALOG_PRODUCT_ALREADY_PUBLISHED',
+    CATALOG_PRODUCT_NO_VARIANTS: 'CATALOG_PRODUCT_NO_VARIANTS',
+    CATALOG_PRODUCT_NO_DEFAULT_VARIANT: 'CATALOG_PRODUCT_NO_DEFAULT_VARIANT',
+    CATALOG_PRODUCT_DIGITAL_NO_ASSET: 'CATALOG_PRODUCT_DIGITAL_NO_ASSET',
+    CATALOG_PRODUCT_SERVICE_NO_DURATION: 'CATALOG_PRODUCT_SERVICE_NO_DURATION',
+    CATALOG_PRODUCT_SERVICE_NO_CAPACITY: 'CATALOG_PRODUCT_SERVICE_NO_CAPACITY',
+    CATALOG_PRODUCT_SERVICE_NO_AVAILABILITY: 'CATALOG_PRODUCT_SERVICE_NO_AVAILABILITY',
+    CATALOG_PRODUCT_VARIANT_ZERO_PRICE: 'CATALOG_PRODUCT_VARIANT_ZERO_PRICE',
+    CATALOG_PRODUCT_NOT_DIGITAL: 'CATALOG_PRODUCT_NOT_DIGITAL',
+    CATALOG_PRODUCT_NO_DIGITAL_CONFIG: 'CATALOG_PRODUCT_NO_DIGITAL_CONFIG',
+    CATALOG_PRODUCT_NO_DELIVERY_AGENCY: 'CATALOG_PRODUCT_NO_DELIVERY_AGENCY',
+    /**
+     * The vendor is suspended, so none of their products may be on sale — a
+     * product-level activation blocker, so it applies to digital and service listings
+     * too. It is what stops an unrelated cascade (an agency problem resolved while the
+     * vendor is suspended) walking their listings back onto the storefront.
+     */
+    CATALOG_PRODUCT_VENDOR_SUSPENDED: 'CATALOG_PRODUCT_VENDOR_SUSPENDED',
+    CATALOG_PRODUCT_NO_PICKUP_LOCATION: 'CATALOG_PRODUCT_NO_PICKUP_LOCATION',
+    CATALOG_PRODUCT_INVALID_PICKUP_LOCATION: 'CATALOG_PRODUCT_INVALID_PICKUP_LOCATION',
+    // A warehouse cannot hold an unbounded quantity: `isInfiniteStock` and
+    // `pickup_location.source === 'agency_storage'` are mutually exclusive.
+    // Both an activation blocker and a hard refusal on the two write paths that
+    // could otherwise reach that combination on an already-active product.
+    CATALOG_PRODUCT_AGENCY_STORAGE_INFINITE_STOCK: 'CATALOG_PRODUCT_AGENCY_STORAGE_INFINITE_STOCK',
+    CATALOG_PRODUCT_VECTORISATION_PENDING: 'CATALOG_PRODUCT_VECTORISATION_PENDING',
+    CATALOG_PRODUCT_VECTORISATION_NOT_ELIGIBLE: 'CATALOG_PRODUCT_VECTORISATION_NOT_ELIGIBLE',
+    // Authoring mode (see product.model.ts ProductMode). A `simple` product is
+    // locked to exactly one variant and zero options; the advanced endpoints
+    // refuse it, and the simple endpoints refuse an advanced product.
+    CATALOG_PRODUCT_SIMPLE_MODE_LOCKED: 'CATALOG_PRODUCT_SIMPLE_MODE_LOCKED',
+    CATALOG_PRODUCT_NOT_SIMPLE_MODE: 'CATALOG_PRODUCT_NOT_SIMPLE_MODE',
+    // Variants
+    CATALOG_VARIANT_NOT_FOUND: 'CATALOG_VARIANT_NOT_FOUND',
+    CATALOG_VARIANT_ACCESS_DENIED: 'CATALOG_VARIANT_ACCESS_DENIED',
+    CATALOG_VARIANT_ARCHIVED: 'CATALOG_VARIANT_ARCHIVED',
+    CATALOG_VARIANT_INVALID_STOCK: 'CATALOG_VARIANT_INVALID_STOCK',
+    CATALOG_VARIANT_INVALID_PRICE: 'CATALOG_VARIANT_INVALID_PRICE',
+    CATALOG_VARIANT_COMPARE_PRICE_INVALID: 'CATALOG_VARIANT_COMPARE_PRICE_INVALID',
+
+    // ── Bargainable pricing ──────────────────────────────────────────────────
+    // A haggling window stored on the variant (`bargain: { minPrice, maxPrice }`),
+    // effective only while the parent product has `vectorisationEnabled === true`.
+    // Every rule lives in `catalog/domain/services/bargain-price.rule.ts`.
+    //
+    // Each code is raised at EXACTLY ONE status: `test:errors` censuses every
+    // createAppError site and fails when one code yields two categories. That is
+    // why the min/max ordering check exists only in the rule (422) and never in
+    // Zod (400) — the same violation arrives three ways, only one of which a
+    // schema can see.
+    CATALOG_VARIANT_BARGAIN_NOT_SUPPORTED: 'CATALOG_VARIANT_BARGAIN_NOT_SUPPORTED',
+    CATALOG_VARIANT_BARGAIN_RANGE_INVALID: 'CATALOG_VARIANT_BARGAIN_RANGE_INVALID',
+    CATALOG_VARIANT_BARGAIN_PRICE_MISMATCH: 'CATALOG_VARIANT_BARGAIN_PRICE_MISMATCH',
+    CATALOG_VARIANT_LIMIT_EXCEEDED: 'CATALOG_VARIANT_LIMIT_EXCEEDED',
+    CATALOG_VARIANT_NO_OPTIONS: 'CATALOG_VARIANT_NO_OPTIONS',
+    CATALOG_VARIANT_OPTION_EMPTY: 'CATALOG_VARIANT_OPTION_EMPTY',
+    CATALOG_VARIANT_INSUFFICIENT_STOCK: 'CATALOG_VARIANT_INSUFFICIENT_STOCK',
+    CATALOG_VARIANT_UNSUPPORTED_TYPE: 'CATALOG_VARIANT_UNSUPPORTED_TYPE',
+    CATALOG_VARIANT_NO_DIGITAL_ASSET: 'CATALOG_VARIANT_NO_DIGITAL_ASSET',
+    CATALOG_DIGITAL_VARIANT_LIMIT_EXCEEDED: 'CATALOG_DIGITAL_VARIANT_LIMIT_EXCEEDED',
+    // Service products carry config + price on a single variant — at most one allowed.
+    CATALOG_SERVICE_VARIANT_EXISTS: 'CATALOG_SERVICE_VARIANT_EXISTS',
+    CATALOG_VARIANT_INVALID_QUANTITY: 'CATALOG_VARIANT_INVALID_QUANTITY',
+    CATALOG_VARIANT_STOCK_ONLY_PHYSICAL: 'CATALOG_VARIANT_STOCK_ONLY_PHYSICAL',
+    CATALOG_VARIANT_RESERVATION_CONFLICT: 'CATALOG_VARIANT_RESERVATION_CONFLICT',
+    // Options
+    CATALOG_OPTION_NOT_FOUND: 'CATALOG_OPTION_NOT_FOUND',
+    CATALOG_OPTION_ACCESS_DENIED: 'CATALOG_OPTION_ACCESS_DENIED',
+    CATALOG_OPTION_LIMIT_EXCEEDED: 'CATALOG_OPTION_LIMIT_EXCEEDED',
+    CATALOG_OPTION_DUPLICATE_NAME: 'CATALOG_OPTION_DUPLICATE_NAME',
+    CATALOG_OPTION_REQUIRES_VALUES: 'CATALOG_OPTION_REQUIRES_VALUES',
+    CATALOG_OPTION_DUPLICATE_VALUE: 'CATALOG_OPTION_DUPLICATE_VALUE',
+    CATALOG_OPTION_VALUES_EXIST: 'CATALOG_OPTION_VALUES_EXIST',
+    CATALOG_OPTION_REQUIRES_NO_OPTIONS: 'CATALOG_OPTION_REQUIRES_NO_OPTIONS',
+    CATALOG_PRODUCT_INVALID_TYPE: 'CATALOG_PRODUCT_INVALID_TYPE',
+    CATALOG_VARIANT_SKU_EXISTS: 'CATALOG_VARIANT_SKU_EXISTS',
+    CATALOG_INVALID_OPTION_ID: 'CATALOG_INVALID_OPTION_ID',
+    CATALOG_INVALID_CSV: 'CATALOG_INVALID_CSV',
+    CATALOG_DIGITAL_ASSET_ALREADY_EXISTS: 'CATALOG_DIGITAL_ASSET_ALREADY_EXISTS',
+    CATALOG_DIGITAL_ASSET_MISSING: 'CATALOG_DIGITAL_ASSET_MISSING',
+    CATALOG_DIGITAL_CONFIG_MISSING: 'CATALOG_DIGITAL_CONFIG_MISSING',
+    CATALOG_FILE_TOO_LARGE: 'CATALOG_FILE_TOO_LARGE',
+    CATALOG_FILE_TYPE_INVALID: 'CATALOG_FILE_TYPE_INVALID',
+    CATALOG_DIGITAL_ASSET_MISSING_FILE: 'CATALOG_DIGITAL_ASSET_MISSING_FILE',
+    // Digital assets
+    CATALOG_DIGITAL_ASSET_NOT_FOUND: 'CATALOG_DIGITAL_ASSET_NOT_FOUND',
+    CATALOG_VARIANT_RESERVATION_NOT_FOUND: 'CATALOG_VARIANT_RESERVATION_NOT_FOUND',
+    // File / media
+    CATALOG_FILE_NOT_FOUND: 'CATALOG_FILE_NOT_FOUND',
+    CATALOG_FILE_ALREADY_ATTACHED: 'CATALOG_FILE_ALREADY_ATTACHED',
+    CATALOG_FILE_STILL_REFERENCED: 'CATALOG_FILE_STILL_REFERENCED',
+    CATALOG_IMAGE_LIMIT_EXCEEDED: 'CATALOG_IMAGE_LIMIT_EXCEEDED',
+    // Booking / service
+    CATALOG_BOOKING_PRODUCT_NOT_FOUND: 'CATALOG_BOOKING_PRODUCT_NOT_FOUND',
+    CATALOG_BOOKING_INVALID_PRODUCT_TYPE: 'CATALOG_BOOKING_INVALID_PRODUCT_TYPE',
+    CATALOG_BOOKING_MISSING_SERVICE_CONFIG: 'CATALOG_BOOKING_MISSING_SERVICE_CONFIG',
+    CATALOG_BOOKING_PRODUCT_NOT_ACTIVE: 'CATALOG_BOOKING_PRODUCT_NOT_ACTIVE',
+    CATALOG_BOOKING_INVALID_PRICE: 'CATALOG_BOOKING_INVALID_PRICE',
+    CATALOG_BOOKING_NOT_IMPLEMENTED: 'CATALOG_BOOKING_NOT_IMPLEMENTED',
+    // Bulk stock
+    CATALOG_BULK_LIMIT_EXCEEDED: 'CATALOG_BULK_LIMIT_EXCEEDED',
+    CATALOG_BULK_EMPTY: 'CATALOG_BULK_EMPTY',
+    CATALOG_BULK_TRANSACTION_LIMIT: 'CATALOG_BULK_TRANSACTION_LIMIT',
+    CATALOG_BULK_UPDATE_FAILED: 'CATALOG_BULK_UPDATE_FAILED',
+
+    // ── ANALYTICS ────────────────────────────────────────────────────────────
+    ANALYTICS_INVALID_DATE_RANGE: 'ANALYTICS_INVALID_DATE_RANGE',
+    ANALYTICS_UNSUPPORTED_TIMEZONE: 'ANALYTICS_UNSUPPORTED_TIMEZONE',
+    ANALYTICS_AGGREGATION_NOT_READY: 'ANALYTICS_AGGREGATION_NOT_READY',
+    ANALYTICS_DATE_RANGE_EXCEEDED: 'ANALYTICS_DATE_RANGE_EXCEEDED',
+
+    // ── DELIVERY ──────────────────────────────────────────────────────────────
+    DELIVERY_AGENCY_NOT_FOUND: 'DELIVERY_AGENCY_NOT_FOUND',
+    AGENCY_COVERAGE_AREA_INVALID: 'AGENCY_COVERAGE_AREA_INVALID',
+    DELIVERY_AGENT_NOT_FOUND: 'DELIVERY_AGENT_NOT_FOUND',
+    DELIVERY_AGENCY_ALREADY_EXISTS: 'DELIVERY_AGENCY_ALREADY_EXISTS',
+    /**
+     * A compare-and-set on `delivery_agencies.status` missed — the agency was not in the
+     * status the operation required. Two administrators holding one agency's screen open
+     * is the case: the loser is told the state moved rather than overwriting the winner.
+     */
+    DELIVERY_AGENCY_STATUS_CONFLICT: 'DELIVERY_AGENCY_STATUS_CONFLICT',
+    DELIVERY_ONBOARDING_STEP_INVALID: 'DELIVERY_ONBOARDING_STEP_INVALID',
+    DELIVERY_ONBOARDING_STEP_INCOMPLETE: 'DELIVERY_ONBOARDING_STEP_INCOMPLETE',
+    DELIVERY_ONBOARDING_ALREADY_COMPLETED: 'DELIVERY_ONBOARDING_ALREADY_COMPLETED',
+    DELIVERY_ONBOARDING_CONCURRENT_MODIFICATION: 'DELIVERY_ONBOARDING_CONCURRENT_MODIFICATION',
+    DELIVERY_POLICY_DOCUMENT_MISSING: 'DELIVERY_POLICY_DOCUMENT_MISSING',
+    DELIVERY_POLICY_DOCUMENT_TYPE_INVALID: 'DELIVERY_POLICY_DOCUMENT_TYPE_INVALID',
+    DELIVERY_AGENT_ALREADY_IN_AGENCY: 'DELIVERY_AGENT_ALREADY_IN_AGENCY',
+    DELIVERY_AGENT_NOT_IN_AGENCY: 'DELIVERY_AGENT_NOT_IN_AGENCY',
+    DELIVERY_AGENT_HAS_ACTIVE_SHIPMENTS: 'DELIVERY_AGENT_HAS_ACTIVE_SHIPMENTS',
+    DELIVERY_AGENCY_NOTIFICATION_NOT_FOUND: 'DELIVERY_AGENCY_NOTIFICATION_NOT_FOUND',
+    DELIVERY_AGENCY_NOTIFICATION_CHANNEL_NOT_VERIFIED: 'DELIVERY_AGENCY_NOTIFICATION_CHANNEL_NOT_VERIFIED',
+    DELIVERY_AGENCY_NOTIFICATION_DELIVERY_FAILED: 'DELIVERY_AGENCY_NOTIFICATION_DELIVERY_FAILED',
+    DELIVERY_AGENT_NOTIFICATION_NOT_FOUND: 'DELIVERY_AGENT_NOTIFICATION_NOT_FOUND',
+    DELIVERY_AGENT_NOTIFICATION_CHANNEL_NOT_VERIFIED: 'DELIVERY_AGENT_NOTIFICATION_CHANNEL_NOT_VERIFIED',
+    DELIVERY_AGENT_NOTIFICATION_DELIVERY_FAILED: 'DELIVERY_AGENT_NOTIFICATION_DELIVERY_FAILED',
+
+    // ── CUSTOMER NOTIFICATIONS (the fourth multi-channel stack) ───────────────
+    CUSTOMER_NOTIFICATION_NOT_FOUND: 'CUSTOMER_NOTIFICATION_NOT_FOUND',
+    CUSTOMER_NOTIFICATION_CHANNEL_NOT_VERIFIED: 'CUSTOMER_NOTIFICATION_CHANNEL_NOT_VERIFIED',
+    CUSTOMER_NOTIFICATION_DELIVERY_FAILED: 'CUSTOMER_NOTIFICATION_DELIVERY_FAILED',
+
+    // ── AGENT (the agent domain: profile, membership, availability, tracking) ──
+    AGENT_NOT_FOUND: 'AGENT_NOT_FOUND',
+    AGENT_NOT_ACTIVE: 'AGENT_NOT_ACTIVE',
+    AGENT_SUSPENDED: 'AGENT_SUSPENDED',
+    // Onboarding (locks once completed — edits then go through profile/settings)
+    AGENT_ONBOARDING_ALREADY_COMPLETED: 'AGENT_ONBOARDING_ALREADY_COMPLETED',
+    // Membership lifecycle
+    AGENT_MEMBERSHIP_NOT_FOUND: 'AGENT_MEMBERSHIP_NOT_FOUND',
+    AGENT_MEMBERSHIP_ALREADY_EXISTS: 'AGENT_MEMBERSHIP_ALREADY_EXISTS',
+    AGENT_MEMBERSHIP_NOT_PENDING: 'AGENT_MEMBERSHIP_NOT_PENDING',
+    AGENT_MEMBERSHIP_NOT_APPROVED: 'AGENT_MEMBERSHIP_NOT_APPROVED',
+    AGENT_MEMBERSHIP_ALREADY_APPROVED: 'AGENT_MEMBERSHIP_ALREADY_APPROVED',
+    AGENT_MEMBERSHIP_SUSPENDED: 'AGENT_MEMBERSHIP_SUSPENDED',
+    AGENT_MEMBERSHIP_NOT_SUSPENDED: 'AGENT_MEMBERSHIP_NOT_SUSPENDED',
+    AGENT_MEMBERSHIP_INVALID_TRANSITION: 'AGENT_MEMBERSHIP_INVALID_TRANSITION',
+    AGENT_MEMBERSHIP_LIMIT_REACHED: 'AGENT_MEMBERSHIP_LIMIT_REACHED',
+    AGENT_MEMBERSHIP_HAS_ACTIVE_SHIPMENTS: 'AGENT_MEMBERSHIP_HAS_ACTIVE_SHIPMENTS',
+    AGENT_TRANSFER_SAME_AGENCY: 'AGENT_TRANSFER_SAME_AGENCY',
+    // Availability / working state
+    AGENT_AVAILABILITY_INVALID_TRANSITION: 'AGENT_AVAILABILITY_INVALID_TRANSITION',
+    AGENT_AT_CAPACITY: 'AGENT_AT_CAPACITY',
+    // Tracking (business flag — geo-tracker enforces, jovi-mall owns)
+    AGENT_TRACKING_NOT_ALLOWED: 'AGENT_TRACKING_NOT_ALLOWED',
+    AGENT_DEVICE_LOCATION_DISABLED: 'AGENT_DEVICE_LOCATION_DISABLED',
+    AGENT_DEVICE_STATE_UNKNOWN: 'AGENT_DEVICE_STATE_UNKNOWN',
+    // Assignment eligibility (aggregate — details carry the failed rules)
+    AGENT_NOT_ELIGIBLE_FOR_ASSIGNMENT: 'AGENT_NOT_ELIGIBLE_FOR_ASSIGNMENT',
+    // COD threshold allocation (agent global pool ← contract sub-allocations)
+    AGENT_COD_THRESHOLD_OUT_OF_BOUNDS: 'AGENT_COD_THRESHOLD_OUT_OF_BOUNDS',
+    AGENT_COD_THRESHOLD_BELOW_ALLOCATED: 'AGENT_COD_THRESHOLD_BELOW_ALLOCATED',
+    CONTRACT_COD_THRESHOLD_OUT_OF_BOUNDS: 'CONTRACT_COD_THRESHOLD_OUT_OF_BOUNDS',
+    CONTRACT_COD_THRESHOLD_EXCEEDS_HEADROOM: 'CONTRACT_COD_THRESHOLD_EXCEEDS_HEADROOM',
+    CONTRACT_COD_THRESHOLD_BELOW_OUTSTANDING: 'CONTRACT_COD_THRESHOLD_BELOW_OUTSTANDING',
+    // Capacity
+    AGENT_CAPACITY_OUT_OF_BOUNDS: 'AGENT_CAPACITY_OUT_OF_BOUNDS',
+    AGENT_CAPACITY_BELOW_IN_USE: 'AGENT_CAPACITY_BELOW_IN_USE',
+    // Contract lifecycle
+    CONTRACT_NOT_FOUND: 'CONTRACT_NOT_FOUND',
+    CONTRACT_INVALID_TRANSITION: 'CONTRACT_INVALID_TRANSITION',
+    CONTRACT_HAS_OUTSTANDING_COD: 'CONTRACT_HAS_OUTSTANDING_COD',
+    CONTRACT_HAS_UNPAID_EARNINGS: 'CONTRACT_HAS_UNPAID_EARNINGS',
+    CONTRACT_TRANSITION_NOT_PERMITTED: 'CONTRACT_TRANSITION_NOT_PERMITTED',
+    // Status-change request workflow
+    CONTRACT_STATUS_REQUEST_NOT_FOUND: 'CONTRACT_STATUS_REQUEST_NOT_FOUND',
+    CONTRACT_STATUS_REQUEST_NOT_PENDING: 'CONTRACT_STATUS_REQUEST_NOT_PENDING',
+    CONTRACT_STATUS_REQUEST_ALREADY_PENDING: 'CONTRACT_STATUS_REQUEST_ALREADY_PENDING',
+    CONTRACT_STATUS_REQUEST_NOT_YOURS: 'CONTRACT_STATUS_REQUEST_NOT_YOURS',
+    // Coverage / contract terms
+    CONTRACT_COVERAGE_OUTSIDE_AGENT_RADIUS: 'CONTRACT_COVERAGE_OUTSIDE_AGENT_RADIUS',
+    CONTRACT_COVERAGE_REGION_NOT_COVERED: 'CONTRACT_COVERAGE_REGION_NOT_COVERED',
+    CONTRACT_COVERAGE_REGION_INVALID: 'CONTRACT_COVERAGE_REGION_INVALID',
+    CONTRACT_SHIPMENT_VALUE_EXCEEDED: 'CONTRACT_SHIPMENT_VALUE_EXCEEDED',
+    CONTRACT_FEE_SPLIT_INVALID: 'CONTRACT_FEE_SPLIT_INVALID',
+    // Terms negotiation. CONTRACT_TERMS_NOT_PROPOSED is the guard that makes a
+    // bare join-request work: terms nobody stated cannot be approved.
+    CONTRACT_TERMS_REQUIRED: 'CONTRACT_TERMS_REQUIRED',
+    CONTRACT_TERMS_NOT_PROPOSED: 'CONTRACT_TERMS_NOT_PROPOSED',
+    CONTRACT_TERMS_NOT_NEGOTIABLE: 'CONTRACT_TERMS_NOT_NEGOTIABLE',
+    CONTRACT_TERMS_LIVE_EDIT_NOT_ALLOWED: 'CONTRACT_TERMS_LIVE_EDIT_NOT_ALLOWED',
+    CONTRACT_TERMS_PROPOSAL_NOT_FOUND: 'CONTRACT_TERMS_PROPOSAL_NOT_FOUND',
+    CONTRACT_TERMS_PROPOSAL_NOT_PENDING: 'CONTRACT_TERMS_PROPOSAL_NOT_PENDING',
+    CONTRACT_TERMS_PROPOSAL_ALREADY_PENDING: 'CONTRACT_TERMS_PROPOSAL_ALREADY_PENDING',
+    CONTRACT_TERMS_PROPOSAL_NOT_YOURS: 'CONTRACT_TERMS_PROPOSAL_NOT_YOURS',
+    // Settlement (COD remittance under a contract). Thrown by AgentDepositService,
+    // which owns the settlement path; there is no separate settlement collection.
+    CONTRACT_SETTLEMENT_EXCEEDS_OUTSTANDING: 'CONTRACT_SETTLEMENT_EXCEEDS_OUTSTANDING',
+    // Platform gates (run BEFORE COD/capacity)
+    AGENT_KYC_NOT_VERIFIED: 'AGENT_KYC_NOT_VERIFIED',
+    AGENT_PLATFORM_BANNED: 'AGENT_PLATFORM_BANNED',
+    AGENT_PAYOUT_DETAILS_MISSING: 'AGENT_PAYOUT_DETAILS_MISSING',
+    // Service-to-service auth (geo-tracker → jovi-mall)
+    AGENT_SERVICE_TOKEN_INVALID: 'AGENT_SERVICE_TOKEN_INVALID',
+    AGENT_SERVICE_TOKEN_NOT_CONFIGURED: 'AGENT_SERVICE_TOKEN_NOT_CONFIGURED',
+
+    // ── AUTH — service-to-service (wi-admin → jovi-mall) ──────────────────────
+    // The internal admin API. A SEPARATE credential from the agent one above:
+    // geo-tracker and the admin service have different blast radii, so sharing one
+    // secret would make either compromise the other's.
+    AUTH_ADMIN_CALLER_TOKEN_INVALID: 'AUTH_ADMIN_CALLER_TOKEN_INVALID',
+    AUTH_ADMIN_CALLER_NOT_CONFIGURED: 'AUTH_ADMIN_CALLER_NOT_CONFIGURED',
+    /** The token verified but the caller named no administrator, or named one badly. */
+    AUTH_ADMIN_CALLER_ACTOR_MISSING: 'AUTH_ADMIN_CALLER_ACTOR_MISSING',
+
+    // ── CONNECTION (vendor <-> agency consensual linking) ─────────────────────
+    CONNECTION_NOT_FOUND: 'CONNECTION_NOT_FOUND',
+    CONNECTION_VENDOR_NOT_FOUND: 'CONNECTION_VENDOR_NOT_FOUND',
+    CONNECTION_ALREADY_EXISTS: 'CONNECTION_ALREADY_EXISTS',
+    CONNECTION_INVALID_STATUS_TRANSITION: 'CONNECTION_INVALID_STATUS_TRANSITION',
+    CONNECTION_NOT_PENDING: 'CONNECTION_NOT_PENDING',
+    CONNECTION_NOT_PAUSED: 'CONNECTION_NOT_PAUSED',
+    CONNECTION_NOT_REQUESTER: 'CONNECTION_NOT_REQUESTER',
+    CONNECTION_NOT_APPROVER: 'CONNECTION_NOT_APPROVER',
+    CONNECTION_WRONG_REAPPROVAL_PARTY: 'CONNECTION_WRONG_REAPPROVAL_PARTY',
+    CONNECTION_NOT_ACTIVE: 'CONNECTION_NOT_ACTIVE',
+
+    // ── CUSTOMER ──────────────────────────────────────────────────────────────
+    CUSTOMER_NOT_FOUND: 'CUSTOMER_NOT_FOUND',
+    CUSTOMER_ADDRESS_NOT_FOUND: 'CUSTOMER_ADDRESS_NOT_FOUND',
+    CUSTOMER_PAYMENT_METHOD_NOT_FOUND: 'CUSTOMER_PAYMENT_METHOD_NOT_FOUND',
+
+    // ── PAYMENT METHODS (per-user saved instruments) ──────────────────────────
+    PAYMENT_METHOD_NOT_FOUND: 'PAYMENT_METHOD_NOT_FOUND',
+    PAYMENT_METHOD_LIMIT_REACHED: 'PAYMENT_METHOD_LIMIT_REACHED',
+
+    // ── USER ──────────────────────────────────────────────────────────────────
+    USER_NOT_FOUND: 'USER_NOT_FOUND',
+    USER_INVALID_PASSWORD: 'USER_INVALID_PASSWORD',
+
+    /**
+     * A status write lost its compare-and-set: the account was not in the status the
+     * caller believed it was in.
+     *
+     * Same discipline as SHIPMENT_STATUS_CONFLICT, and for the same reason — two
+     * administrators can hold one user's screen open, and an unguarded write lets the
+     * loser's audit row claim a transition that never happened.
+     */
+    USER_STATUS_CONFLICT: 'USER_STATUS_CONFLICT',
+
+    /**
+     * The edit would leave the account with neither an email nor a phone.
+     *
+     * Both login identifiers are individually optional, but `login` resolves an account
+     * by one of them — clearing both makes the account permanently unreachable, with no
+     * self-service path back.
+     */
+    USER_CONTACT_REQUIRED: 'USER_CONTACT_REQUIRED',
+
+    // ── VENDOR ADMINISTRATION (wi-admin's `/api/internal/admin/vendors`) ──────
+    VENDOR_NOT_FOUND: 'VENDOR_NOT_FOUND',
+
+    /**
+     * The vendor was not in the status the caller believed it was in.
+     *
+     * The compare-and-set miss, and the exact counterpart of `USER_STATUS_CONFLICT`:
+     * two administrators can hold one vendor's screen open, and an unguarded write lets
+     * the loser's reason overwrite the winner's while their audit row claims a
+     * transition that never happened.
+     */
+    VENDOR_STATUS_CONFLICT: 'VENDOR_STATUS_CONFLICT',
+
+    /** Approving an already-approved vendor, or rejecting an already-rejected one. */
+    VENDOR_KYC_STATUS_CONFLICT: 'VENDOR_KYC_STATUS_CONFLICT',
+
+    /** Only a product currently on sale can be taken off it. */
+    VENDOR_PRODUCT_NOT_SUSPENDABLE: 'VENDOR_PRODUCT_NOT_SUSPENDABLE',
+
+    /**
+     * The product is suspended, but not by platform oversight — so this is not the
+     * endpoint that lifts it. A product an agency suspended over unpaid storage is
+     * that agency's to release.
+     */
+    VENDOR_PRODUCT_NOT_OVERSIGHT_SUSPENDED: 'VENDOR_PRODUCT_NOT_OVERSIGHT_SUSPENDED',
+
+    /** Unsuspend re-runs the activation gate; `details.blockers` carries the checklist. */
+    VENDOR_PRODUCT_UNSUSPEND_BLOCKED: 'VENDOR_PRODUCT_UNSUSPEND_BLOCKED',
+
+    // ── STORE ─────────────────────────────────────────────────────────────────
+    STORE_NOT_FOUND: 'STORE_NOT_FOUND',
+    STORE_SLUG_TAKEN: 'STORE_SLUG_TAKEN',
+
+    // ── MAGAZIN (agency business surface) ───────────────────────────────────────
+    MAGAZIN_NOT_FOUND: 'MAGAZIN_NOT_FOUND',
+    MAGAZIN_CONFLICT: 'MAGAZIN_CONFLICT',
+    // A headquarters entry was removed while products are still stored there.
+    // Deliberately NOT MAGAZIN_CONFLICT: that one means "your view is stale,
+    // refresh and retry", which would be a lie here — retrying changes nothing.
+    // Mirrors VENDOR_BUSINESS_ADDRESS_IN_USE on the vendor side.
+    MAGAZIN_LOCATION_IN_USE: 'MAGAZIN_LOCATION_IN_USE',
+
+    // ── AGENCY INVENTORY (what an agency stores, per depot) ─────────────────────
+    INVENTORY_STOCK_LEVEL_NOT_FOUND: 'INVENTORY_STOCK_LEVEL_NOT_FOUND',
+    // The depot named on an agency write is not one of the caller's own.
+    INVENTORY_LOCATION_UNKNOWN: 'INVENTORY_LOCATION_UNKNOWN',
+    // No stock row for (agency, product). Deliberately a 404, never a 403 —
+    // whether a given product id exists is not information this caller is owed.
+    INVENTORY_PRODUCT_NOT_STORED_HERE: 'INVENTORY_PRODUCT_NOT_STORED_HERE',
+    // Only an ACTIVE product can be storage-suspended, mirroring the
+    // delivery-agency cascade's rule that non-active products are left alone.
+    INVENTORY_PRODUCT_NOT_SUSPENDABLE: 'INVENTORY_PRODUCT_NOT_SUSPENDABLE',
+    INVENTORY_PRODUCT_NOT_AGENCY_SUSPENDED: 'INVENTORY_PRODUCT_NOT_AGENCY_SUSPENDED',
+    // Unsuspend re-runs the activation gate; `details.blockers` carries the checklist.
+    INVENTORY_PRODUCT_UNSUSPEND_BLOCKED: 'INVENTORY_PRODUCT_UNSUSPEND_BLOCKED',
+
+    // ── STOCK ADJUSTMENT REQUESTS (vendor ↔ agency, two-sided) ─────────────────
+    STOCK_REQUEST_NOT_FOUND: 'STOCK_REQUEST_NOT_FOUND',
+    STOCK_REQUEST_ALREADY_PENDING: 'STOCK_REQUEST_ALREADY_PENDING',
+    // A compare-and-set miss on resolve. A CONFLICT, never a not-found — the row
+    // exists, somebody else just resolved it. Callers must not re-read and retry.
+    STOCK_REQUEST_NOT_PENDING: 'STOCK_REQUEST_NOT_PENDING',
+    STOCK_REQUEST_NOT_YOURS: 'STOCK_REQUEST_NOT_YOURS',
+    // The product stopped being stored with this agency while the request stood.
+    STOCK_REQUEST_STALE: 'STOCK_REQUEST_STALE',
+    STOCK_REQUEST_NO_CHANGE: 'STOCK_REQUEST_NO_CHANGE',
+
+    // ── BLOG / EDITORIAL ──────────────────────────────────────────────────────
+    // Public reads produce only the first three; the rest are the editor's.
+    BLOG_ARTICLE_NOT_FOUND: 'BLOG_ARTICLE_NOT_FOUND',
+    /** 404 + `details.slug`: this URL's article moved. The FRONTEND owes the 301. */
+    BLOG_ARTICLE_MOVED: 'BLOG_ARTICLE_MOVED',
+    /** 410 + `details.categoryKey`: unpublished for good. Send the reader to the hub. */
+    BLOG_ARTICLE_GONE: 'BLOG_ARTICLE_GONE',
+    BLOG_ARTICLE_KEY_TAKEN: 'BLOG_ARTICLE_KEY_TAKEN',
+    BLOG_ARTICLE_NOT_PUBLISHABLE: 'BLOG_ARTICLE_NOT_PUBLISHABLE',
+    BLOG_ARTICLE_ALREADY_PUBLISHED: 'BLOG_ARTICLE_ALREADY_PUBLISHED',
+    /** A published article is archived, never deleted — its URL has inbound links. */
+    BLOG_ARTICLE_DELETE_NOT_ALLOWED: 'BLOG_ARTICLE_DELETE_NOT_ALLOWED',
+    BLOG_SLUG_TAKEN: 'BLOG_SLUG_TAKEN',
+    BLOG_SLUG_RESERVED: 'BLOG_SLUG_RESERVED',
+    BLOG_AUTHOR_NOT_FOUND: 'BLOG_AUTHOR_NOT_FOUND',
+    BLOG_AUTHOR_KEY_TAKEN: 'BLOG_AUTHOR_KEY_TAKEN',
+    BLOG_AUTHOR_IN_USE: 'BLOG_AUTHOR_IN_USE',
+
+    // ── VENDOR ────────────────────────────────────────────────────────────────
+    VENDOR_FISCAL_CALENDAR_INVALID: 'VENDOR_FISCAL_CALENDAR_INVALID',
+    VENDOR_BUSINESS_ADDRESS_IN_USE: 'VENDOR_BUSINESS_ADDRESS_IN_USE',
+    VENDOR_NOTIFICATION_NOT_FOUND: 'VENDOR_NOTIFICATION_NOT_FOUND',
+    VENDOR_NOTIFICATION_CHANNEL_NOT_VERIFIED: 'VENDOR_NOTIFICATION_CHANNEL_NOT_VERIFIED',
+    VENDOR_NOTIFICATION_DELIVERY_FAILED: 'VENDOR_NOTIFICATION_DELIVERY_FAILED',
+    VENDOR_ONBOARDING_CONCURRENT_MODIFICATION: 'VENDOR_ONBOARDING_CONCURRENT_MODIFICATION',
+    VENDOR_ONBOARDING_STEP_INCOMPLETE: 'VENDOR_ONBOARDING_STEP_INCOMPLETE',
+    VENDOR_ONBOARDING_STEP_INVALID: 'VENDOR_ONBOARDING_STEP_INVALID',
+    VENDOR_ONBOARDING_ALREADY_COMPLETED: 'VENDOR_ONBOARDING_ALREADY_COMPLETED',
+    VENDOR_CUSTOMER_NOT_FOUND: 'VENDOR_CUSTOMER_NOT_FOUND',
+    VENDOR_CUSTOMER_FLAG_NOT_FOUND: 'VENDOR_CUSTOMER_FLAG_NOT_FOUND',
+    VENDOR_CUSTOMER_FLAG_DUPLICATE: 'VENDOR_CUSTOMER_FLAG_DUPLICATE',
+    VENDOR_POLICY_DOCUMENT_MISSING: 'VENDOR_POLICY_DOCUMENT_MISSING',
+    VENDOR_POLICY_DOCUMENT_TYPE_INVALID: 'VENDOR_POLICY_DOCUMENT_TYPE_INVALID',
+
+    // ── ORDER ─────────────────────────────────────────────────────────────────
+    ORDER_CART_EMPTY: 'ORDER_CART_EMPTY',
+    ORDER_CART_INVALID: 'ORDER_CART_INVALID',
+    ORDER_PRODUCT_NOT_FOUND: 'ORDER_PRODUCT_NOT_FOUND',
+    ORDER_VENDOR_NOT_FOUND: 'ORDER_VENDOR_NOT_FOUND',
+    ORDER_NO_DELIVERY_AGENCY: 'ORDER_NO_DELIVERY_AGENCY',
+    /**
+     * A physical checkout resolved no geocoded drop-off.
+     *
+     * Deliberately NOT `ADDRESS_GEO_REQUIRED`, which is a **400** raised by
+     * `address-country.helper.ts` when a supplied address object carries no `geo` — a
+     * schema failure on a payload the caller sent. This one is a **422 business rule**: the
+     * request is well-formed (both address fields are optional), and the rule is that a
+     * physical order must have somewhere to go. Sharing one code would make its category
+     * depend on which site raised it, which is what `test:errors`' census refuses.
+     *
+     * `details.reason` separates the two causes: `no_delivery_address` (nothing selected
+     * and no default) versus `selected_address_not_geocoded` (an address the customer DID
+     * choose, typed by hand rather than picked from `GET /api/geo/search`).
+     */
+    ORDER_DELIVERY_ADDRESS_REQUIRED: 'ORDER_DELIVERY_ADDRESS_REQUIRED',
+
+    // ── CART ──────────────────────────────────────────────────────────────────
+    CART_VARIANT_REQUIRED: 'CART_VARIANT_REQUIRED',
+    CART_PRODUCT_NOT_FOUND: 'CART_PRODUCT_NOT_FOUND',
+    CART_SERVICE_PRODUCT_NOT_ALLOWED: 'CART_SERVICE_PRODUCT_NOT_ALLOWED',
+    CART_VARIANT_NOT_FOUND: 'CART_VARIANT_NOT_FOUND',
+    CART_VARIANT_PRODUCT_MISMATCH: 'CART_VARIANT_PRODUCT_MISMATCH',
+    CART_DIGITAL_QUANTITY_MUST_BE_ONE: 'CART_DIGITAL_QUANTITY_MUST_BE_ONE',
+    CART_MIXED_PRODUCT_TYPES: 'CART_MIXED_PRODUCT_TYPES',
+    CART_DIGITAL_LIMIT_REACHED: 'CART_DIGITAL_LIMIT_REACHED',
+    CART_NOT_FOUND: 'CART_NOT_FOUND',
+    CART_EMPTY_CHECKOUT: 'CART_EMPTY_CHECKOUT',
+    /**
+     * A variant-keyed cart operation named a line that is not in the cart.
+     *
+     * Distinct from `CART_VARIANT_NOT_FOUND`, which means the *variant* does not exist in
+     * the catalogue at all. Here the variant is real and simply is not in this cart — a
+     * stale tab, or a second device that already removed the line — and the client's remedy
+     * is to re-read the cart rather than to re-check the product.
+     */
+    CART_ITEM_NOT_FOUND: 'CART_ITEM_NOT_FOUND',
+
+    // ── BOOKING ───────────────────────────────────────────────────────────────
+    BOOKING_PRODUCT_NOT_FOUND: 'BOOKING_PRODUCT_NOT_FOUND',
+    BOOKING_USER_NOT_FOUND: 'BOOKING_USER_NOT_FOUND',
+    BOOKING_NOT_FOUND: 'BOOKING_NOT_FOUND',
+    BOOKING_UNAUTHORIZED: 'BOOKING_UNAUTHORIZED',
+    BOOKING_ALREADY_CANCELLED: 'BOOKING_ALREADY_CANCELLED',
+    BOOKING_CALENDAR_SYNC_FAILED: 'BOOKING_CALENDAR_SYNC_FAILED',
+    BOOKING_INVALID_STATUS_TRANSITION: 'BOOKING_INVALID_STATUS_TRANSITION',
+    BOOKING_PAYMENT_NOT_REQUIRED: 'BOOKING_PAYMENT_NOT_REQUIRED',
+    BOOKING_ALREADY_PAID: 'BOOKING_ALREADY_PAID',
+    BOOKING_INVALID_PAYMENT_METHOD: 'BOOKING_INVALID_PAYMENT_METHOD',
+    BOOKING_TERMINAL_STATE: 'BOOKING_TERMINAL_STATE',
+    BOOKING_SLOT_NOT_LOCKED: 'BOOKING_SLOT_NOT_LOCKED',
+    BOOKING_SLOT_LOCKED: 'BOOKING_SLOT_LOCKED',
+    BOOKING_FORBIDDEN: 'BOOKING_FORBIDDEN',
+    BOOKING_INVALID_SLOT_ID: 'BOOKING_INVALID_SLOT_ID',
+    BOOKING_NOT_RESCHEDULABLE: 'BOOKING_NOT_RESCHEDULABLE',
+    BOOKING_SLOT_FULL: 'BOOKING_SLOT_FULL',
+    /** No balance is outstanding on this booking. */
+    BOOKING_NO_BALANCE_DUE: 'BOOKING_NO_BALANCE_DUE',
+    /** The outstanding balance has already been settled. */
+    BOOKING_BALANCE_ALREADY_SETTLED: 'BOOKING_BALANCE_ALREADY_SETTLED',
+    /** A balance payment is already in flight with the gateway. */
+    BOOKING_BALANCE_PAYMENT_IN_PROGRESS: 'BOOKING_BALANCE_PAYMENT_IN_PROGRESS',
+    /** The booking must be completed before its balance can be settled. */
+    BOOKING_NOT_COMPLETED: 'BOOKING_NOT_COMPLETED',
+    /** An active booking already overlaps the requested interval (commit-time race). */
+    BOOKING_SLOT_UNAVAILABLE: 'BOOKING_SLOT_UNAVAILABLE',
+    /** The booking is past the point where it can be cancelled by its owner. */
+    BOOKING_NOT_CANCELLABLE: 'BOOKING_NOT_CANCELLABLE',
+
+    // ── AVAILABILITY RULES (service products) ─────────────────────────────────
+    AVAILABILITY_PRODUCT_NOT_FOUND: 'AVAILABILITY_PRODUCT_NOT_FOUND',
+    AVAILABILITY_RULE_NOT_FOUND: 'AVAILABILITY_RULE_NOT_FOUND',
+    AVAILABILITY_INVALID_PRODUCT_TYPE: 'AVAILABILITY_INVALID_PRODUCT_TYPE',
+    AVAILABILITY_INVALID_TIME_RANGE: 'AVAILABILITY_INVALID_TIME_RANGE',
+    AVAILABILITY_TIME_OVERLAP: 'AVAILABILITY_TIME_OVERLAP',
+    AVAILABILITY_FORBIDDEN: 'AVAILABILITY_FORBIDDEN',
+    /** `timezone` is not a resolvable IANA zone name. */
+    AVAILABILITY_INVALID_TIMEZONE: 'AVAILABILITY_INVALID_TIMEZONE',
+
+    // ── ADMIN ─────────────────────────────────────────────────────────────────
+    ADMIN_NOT_FOUND: 'ADMIN_NOT_FOUND',
+    ADMIN_FORBIDDEN: 'ADMIN_FORBIDDEN',
+
+    // ── BILLING (pricing plans & credit wallet) ───────────────────────────────
+    BILLING_PLAN_NOT_FOUND: 'BILLING_PLAN_NOT_FOUND',
+    BILLING_PLAN_INACTIVE: 'BILLING_PLAN_INACTIVE',
+    BILLING_PLAN_ROLE_MISMATCH: 'BILLING_PLAN_ROLE_MISMATCH',
+    BILLING_PLAN_CODE_EXISTS: 'BILLING_PLAN_CODE_EXISTS',
+    BILLING_PENDING_PLAN_EXISTS: 'BILLING_PENDING_PLAN_EXISTS',
+    BILLING_INSUFFICIENT_CREDITS: 'BILLING_INSUFFICIENT_CREDITS',
+    BILLING_LIMIT_EXCEEDED: 'BILLING_LIMIT_EXCEEDED',
+    BILLING_WALLET_CONFLICT: 'BILLING_WALLET_CONFLICT',
+    BILLING_TOPUP_NOT_FOUND: 'BILLING_TOPUP_NOT_FOUND',
+    BILLING_TOPUP_PACK_NOT_FOUND: 'BILLING_TOPUP_PACK_NOT_FOUND',
+    BILLING_TOPUP_INVALID_STATE: 'BILLING_TOPUP_INVALID_STATE',
+    BILLING_PLAN_PURCHASE_NOT_FOUND: 'BILLING_PLAN_PURCHASE_NOT_FOUND',
+    BILLING_PLAN_NOT_PURCHASABLE: 'BILLING_PLAN_NOT_PURCHASABLE',
+    BILLING_PURCHASE_INVALID_STATE: 'BILLING_PURCHASE_INVALID_STATE',
+
+    // ── EARNINGS (commission, escrow & payout ledger) ─────────────────────────
+    EARNINGS_INVALID_SPLIT: 'EARNINGS_INVALID_SPLIT',
+    EARNINGS_ALLOCATION_NOT_FOUND: 'EARNINGS_ALLOCATION_NOT_FOUND',
+    EARNINGS_ALREADY_COMPLETED: 'EARNINGS_ALREADY_COMPLETED',
+    EARNINGS_ORDER_NOT_CONFIRMABLE: 'EARNINGS_ORDER_NOT_CONFIRMABLE',
+    EARNINGS_FORBIDDEN: 'EARNINGS_FORBIDDEN',
+    EARNINGS_PAYOUT_ALREADY_PENDING: 'EARNINGS_PAYOUT_ALREADY_PENDING',
+    EARNINGS_PAYOUT_METHOD_MISSING: 'EARNINGS_PAYOUT_METHOD_MISSING',
+    EARNINGS_PAYOUT_NO_AVAILABLE_BALANCE: 'EARNINGS_PAYOUT_NO_AVAILABLE_BALANCE',
+    EARNINGS_PAYOUT_BELOW_MINIMUM: 'EARNINGS_PAYOUT_BELOW_MINIMUM',
+    EARNINGS_PAYOUT_REQUEST_NOT_FOUND: 'EARNINGS_PAYOUT_REQUEST_NOT_FOUND',
+    EARNINGS_PAYOUT_REQUEST_NOT_PENDING: 'EARNINGS_PAYOUT_REQUEST_NOT_PENDING',
+
+    // ── COD (cash on delivery: collection, cash liabilities, reconciliation) ──
+    COD_NOT_AVAILABLE_FOR_DIGITAL: 'COD_NOT_AVAILABLE_FOR_DIGITAL',
+    COD_AGENCY_NOT_SUPPORTED: 'COD_AGENCY_NOT_SUPPORTED',
+    COD_ORDER_AMOUNT_EXCEEDS_LIMIT: 'COD_ORDER_AMOUNT_EXCEEDS_LIMIT',
+    COD_COLLECTION_NOT_FOUND: 'COD_COLLECTION_NOT_FOUND',
+    COD_COLLECTION_ALREADY_COLLECTED: 'COD_COLLECTION_ALREADY_COLLECTED',
+    COD_COLLECTION_NOT_COLLECTIBLE: 'COD_COLLECTION_NOT_COLLECTIBLE',
+    COD_INVALID_CODE: 'COD_INVALID_CODE',
+    COD_CODE_ATTEMPTS_EXCEEDED: 'COD_CODE_ATTEMPTS_EXCEEDED',
+    COD_CODE_RESEND_TOO_SOON: 'COD_CODE_RESEND_TOO_SOON',
+    COD_AGENT_NOT_ASSIGNED: 'COD_AGENT_NOT_ASSIGNED',
+    COD_AGENT_EXPOSURE_EXCEEDED: 'COD_AGENT_EXPOSURE_EXCEEDED',
+    COD_AGENT_TRUST_TOO_LOW: 'COD_AGENT_TRUST_TOO_LOW',
+    COD_AGENT_HAS_OUTSTANDING_CASH: 'COD_AGENT_HAS_OUTSTANDING_CASH',
+    COD_DEPOSIT_INVALID_AMOUNT: 'COD_DEPOSIT_INVALID_AMOUNT',
+    COD_DEPOSIT_EXCEEDS_BALANCE: 'COD_DEPOSIT_EXCEEDS_BALANCE',
+    COD_DEPOSIT_NOT_FOUND: 'COD_DEPOSIT_NOT_FOUND',
+    COD_DEPOSIT_ALREADY_RESOLVED: 'COD_DEPOSIT_ALREADY_RESOLVED',
+    COD_DEPOSIT_REFERENCE_REQUIRED: 'COD_DEPOSIT_REFERENCE_REQUIRED',
+    /** Direct-to-platform deposit for cash the agency has already remitted. */
+    COD_DEPOSIT_AGENCY_ALREADY_SETTLED: 'COD_DEPOSIT_AGENCY_ALREADY_SETTLED',
+    COD_DEPOSIT_WRONG_RECIPIENT: 'COD_DEPOSIT_WRONG_RECIPIENT',
+    COD_REMITTANCE_INVALID_AMOUNT: 'COD_REMITTANCE_INVALID_AMOUNT',
+    COD_REMITTANCE_EXCEEDS_LIABILITY: 'COD_REMITTANCE_EXCEEDS_LIABILITY',
+    COD_REMITTANCE_NOT_FOUND: 'COD_REMITTANCE_NOT_FOUND',
+    COD_REMITTANCE_ALREADY_RESOLVED: 'COD_REMITTANCE_ALREADY_RESOLVED',
+    COD_DISCREPANCY_NOT_FOUND: 'COD_DISCREPANCY_NOT_FOUND',
+    COD_DISCREPANCY_ALREADY_RESOLVED: 'COD_DISCREPANCY_ALREADY_RESOLVED',
+
+    // ── AUTH EXTENDED ─────────────────────────────────────────────────────────
+    AUTH_OAUTH_STATE_INVALID: 'AUTH_OAUTH_STATE_INVALID',
+    AUTH_OAUTH_STATE_EXPIRED: 'AUTH_OAUTH_STATE_EXPIRED',
+
+    // ── STORAGE ───────────────────────────────────────────────────────────────
+    STORAGE_FILE_NOT_FOUND: 'STORAGE_FILE_NOT_FOUND',
+    STORAGE_DELETE_FAILED: 'STORAGE_DELETE_FAILED',
+    STORAGE_QUOTA_EXCEEDED: 'STORAGE_QUOTA_EXCEEDED',
+    STORAGE_CLEANUP_FAILED: 'STORAGE_CLEANUP_FAILED',
+
+    // ── CATALOG EXTENDED ──────────────────────────────────────────────────────
+    CATALOG_DIGITAL_ASSET_ACCESS_DENIED: 'CATALOG_DIGITAL_ASSET_ACCESS_DENIED',
+    CATALOG_SHIPPING_NOT_FOUND: 'CATALOG_SHIPPING_NOT_FOUND',
+    CATALOG_SHIPPING_ACCESS_DENIED: 'CATALOG_SHIPPING_ACCESS_DENIED',
+
+    // ── COMMAND BUS ───────────────────────────────────────────────────────────
+    COMMAND_ALREADY_REGISTERED: 'COMMAND_ALREADY_REGISTERED',
+    COMMAND_NOT_FOUND: 'COMMAND_NOT_FOUND',
+
+    // ── WHATSAPP EXTENDED ─────────────────────────────────────────────────────
+    WHATSAPP_INVALID_PAYLOAD: 'WHATSAPP_INVALID_PAYLOAD',
+    WHATSAPP_POLICY_VIOLATION: 'WHATSAPP_POLICY_VIOLATION',
+    WHATSAPP_PROVIDER_REJECTED: 'WHATSAPP_PROVIDER_REJECTED',
+    WHATSAPP_VALIDATION_ERROR: 'WHATSAPP_VALIDATION_ERROR',
+    WHATSAPP_IDEMPOTENCY_REQUIRED: 'WHATSAPP_IDEMPOTENCY_REQUIRED',
+    WHATSAPP_DUPLICATE_MESSAGE: 'WHATSAPP_DUPLICATE_MESSAGE',
+    WHATSAPP_UNSUPPORTED_MESSAGE_TYPE: 'WHATSAPP_UNSUPPORTED_MESSAGE_TYPE',
+
+    // ── DIGITAL ASSET ─────────────────────────────────────────────────────────
+    DIGITAL_ASSET_NOT_FOUND: 'DIGITAL_ASSET_NOT_FOUND',
+    DIGITAL_ASSET_ACCESS_DENIED: 'DIGITAL_ASSET_ACCESS_DENIED',
+    DIGITAL_ASSET_IN_USE: 'DIGITAL_ASSET_IN_USE',
+
+    // ── DIGITAL ENTITLEMENT ───────────────────────────────────────────────────
+    DIGITAL_ENTITLEMENT_CONFIG_MISSING: 'DIGITAL_ENTITLEMENT_CONFIG_MISSING',
+    DIGITAL_ENTITLEMENT_CONFIG_INACTIVE: 'DIGITAL_ENTITLEMENT_CONFIG_INACTIVE',
+
+    // ── DEVELOPER TOOLS ── the operational surface wi-admin drives (Phase 12) ─
+    // Reached only through /api/internal/admin/dev-tools, never from /api/admin/*.
+    DEV_TOOLS_WORKER_UNKNOWN: 'DEV_TOOLS_WORKER_UNKNOWN',
+    DEV_TOOLS_WORKER_BUSY: 'DEV_TOOLS_WORKER_BUSY',
+    DEV_TOOLS_CACHE_DB_UNKNOWN: 'DEV_TOOLS_CACHE_DB_UNKNOWN',
+    DEV_TOOLS_CACHE_FLUSH_REFUSED: 'DEV_TOOLS_CACHE_FLUSH_REFUSED',
+    DEV_TOOLS_CACHE_UNAVAILABLE: 'DEV_TOOLS_CACHE_UNAVAILABLE',
+    // Phase 15 — the one new dangerous verb on that router.
+    DEV_TOOLS_OUTBOX_PRUNE_REFUSED: 'DEV_TOOLS_OUTBOX_PRUNE_REFUSED',
+
+    // ── SYSTEM ── the operations surface (Phase 14) ──────────────────────────
+    // `SYSTEM_MAINTENANCE_ACTIVE` is the ONLY 503 this service raises deliberately, and it is
+    // raised by middleware rather than a service — the one place a maintenance window turns
+    // into an HTTP response.
+    SYSTEM_MAINTENANCE_ACTIVE: 'SYSTEM_MAINTENANCE_ACTIVE',
+    SYSTEM_MAINTENANCE_REASON_REQUIRED: 'SYSTEM_MAINTENANCE_REASON_REQUIRED',
+
+    // ── SYSTEM ── developer tools (Phase 15) ─────────────────────────────────
+    /**
+     * Boot-time only. Raised by `assertExposedConfigSafe()` when the config whitelist names
+     * something credential-shaped — the process must die rather than serve it once.
+     */
+    SYSTEM_CONFIG_EXPOSURE_UNSAFE: 'SYSTEM_CONFIG_EXPOSURE_UNSAFE',
+    SYSTEM_LOGS_UNAVAILABLE: 'SYSTEM_LOGS_UNAVAILABLE',
+    SYSTEM_DB_INSPECT_UNAVAILABLE: 'SYSTEM_DB_INSPECT_UNAVAILABLE',
+    /** A Redis command that is not on the read-only allowlist. Should be unreachable. */
+    SYSTEM_REDIS_COMMAND_REFUSED: 'SYSTEM_REDIS_COMMAND_REFUSED',
+
+    // ── REQUEST — malformed BEFORE any schema sees it (Phase 16) ─────────────
+    // Express rejects these inside `express.json()`, so no route and no Zod schema is ever
+    // reached. Without them the global handler had no branch and a caller sending malformed
+    // JSON was told `500 INTERNAL_SERVER_ERROR — Something went wrong`: our fault reported
+    // for their payload, with nothing they could act on. Ported from wi-admin, which fixed
+    // this first (ADR-005 D-9 records that jovi-mall still had it).
+    //
+    // Distinct from VALIDATION_ERROR, which means the JSON parsed and then failed a rule.
+
+    /** The body is not parseable JSON at all. */
+    REQUEST_BODY_INVALID: 'REQUEST_BODY_INVALID',
+    /** The body exceeds the ceiling set on `express.json()` in `app.ts`. */
+    REQUEST_BODY_TOO_LARGE: 'REQUEST_BODY_TOO_LARGE',
+    /** An unsupported `Content-Type` or charset. */
+    REQUEST_MEDIA_TYPE_UNSUPPORTED: 'REQUEST_MEDIA_TYPE_UNSUPPORTED',
+
+    // ── RATE LIMITING (Phase 16) ─────────────────────────────────────────────
+    /**
+     * Raised by the rate-limit middleware only.
+     *
+     * Distinct from `COD_CODE_RESEND_TOO_SOON`, which is also a 429 but is a per-resource
+     * cooldown on one delivery code rather than a request-volume ceiling. A client backs off
+     * differently for each: this one clears on a clock, that one clears on a resend window.
+     */
+    RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
+
+    // ── MIDDLEWARE / ROUTER FALLBACKS — DO NOT USE IN SERVICES ───────────────
+    INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR',  // assigned by global handler
+    NOT_FOUND: 'NOT_FOUND',              // unmatched routes only
+    VALIDATION_ERROR: 'VALIDATION_ERROR',       // ZodError catch in handler only
+} as const);
+
+export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];

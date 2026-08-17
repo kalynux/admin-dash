@@ -1,0 +1,83 @@
+import '@testing-library/jest-dom/vitest';
+import { cleanup } from '@testing-library/react';
+import { afterEach, vi } from 'vitest';
+
+import { resetSessionListeners } from '@/lib/session-events';
+import { __resetPasswordPolicyWarning } from '@/lib/password-policy';
+import { __resetRuntimeI18n } from '@/i18n';
+import { __resetTranslatorWarnings } from '@/i18n/translator';
+import { __resetApiClientState } from '@/services/api';
+
+afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    // Module-level state that would otherwise leak between cases: a subscriber
+    // left over from an unmounted provider, an in-flight refresh flag stuck true,
+    // and the once-per-session dev warning.
+    resetSessionListeners();
+    __resetApiClientState();
+    __resetPasswordPolicyWarning();
+    // A test that mounts a French provider would otherwise leave the non-React
+    // snapshot in French for every later file sharing this worker.
+    __resetRuntimeI18n();
+    __resetTranslatorWarnings();
+    // Cookies persist across cases in jsdom otherwise, and the CSRF tests would
+    // start passing for the wrong reason.
+    for (const entry of document.cookie.split('; ')) {
+        const name = entry.split('=')[0];
+        if (name) document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+    }
+});
+
+// jsdom implements neither, and the shell reads both on first render.
+if (!window.matchMedia) {
+    window.matchMedia = ((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+}
+
+if (!window.ResizeObserver) {
+    window.ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+    } as unknown as typeof ResizeObserver;
+}
+
+// `input-otp` polls this on a timer to spot a password manager's badge
+// overlapping the field. jsdom has no layout, so it does not implement it — and
+// because the poll outlives the test, the rejection surfaces as an unhandled
+// error rather than a failure. Returning null reads as "nothing is on top".
+if (!document.elementFromPoint) {
+    document.elementFromPoint = () => null;
+}
+
+/**
+ * The Pointer Events API, enough of it for Radix.
+ *
+ * jsdom implements none of these three. `Select`, `DropdownMenu` and every other
+ * Radix component built on `Popper` calls them while opening, and the throw
+ * happens inside the library's own handler — so the symptom is not an error but a
+ * listbox that never appears and a `getByRole('option')` that cannot find
+ * anything. Every filtered list from Phase 5 onwards is a `Select`, so this
+ * belongs here rather than in one test file.
+ */
+if (!Element.prototype.hasPointerCapture) {
+    Element.prototype.hasPointerCapture = () => false;
+    Element.prototype.setPointerCapture = () => {};
+    Element.prototype.releasePointerCapture = () => {};
+}
+
+// Radix scrolls the highlighted option into view on open. jsdom has no layout and
+// no implementation, and the exception lands in the same place.
+if (!Element.prototype.scrollIntoView) {
+    Element.prototype.scrollIntoView = () => {};
+}
