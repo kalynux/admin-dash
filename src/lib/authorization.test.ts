@@ -113,9 +113,9 @@ describe('the composite guards behave as the contract describes', () => {
 
 describe('the tier fixtures match the documented levels', () => {
     it('holds the counts permissions.md states in prose', () => {
-        expect(TIER_1_PERMISSIONS.length).toBe(110);
-        expect(TIER_2_PERMISSIONS.length).toBe(93);
-        expect(TIER_3_PERMISSIONS.length).toBe(23);
+        expect(TIER_1_PERMISSIONS.length).toBe(113);
+        expect(TIER_2_PERMISSIONS.length).toBe(96);
+        expect(TIER_3_PERMISSIONS.length).toBe(24);
     });
 
     it('withholds from Admin exactly what the doc says it withholds', () => {
@@ -149,9 +149,18 @@ describe('the tier fixtures match the documented levels', () => {
         expect(heldFixture(3).has('money.payments.read')).toBe(true);
     });
 
-    it('leaves Support holding 23 permissions but only 11 usable ones', () => {
+    it('leaves Support holding 24 permissions but only 12 usable ones', () => {
         const unrouted = new Set<string>(UNROUTED_PERMISSION_NAMES);
         const usable = TIER_3_PERMISSIONS.filter((name) => !unrouted.has(name));
-        expect(usable.length).toBe(11);
+        expect(usable.length).toBe(12);
+    });
+
+    it('gives Support file resolution, which is the twelfth usable one', () => {
+        // Every tier holds it: the caller is already holding an id they were
+        // allowed to receive, so resolving it discloses nothing new. What keeps
+        // it narrow is the shape — an explicit id set, no listing form — not the
+        // tier. `files.orphans.read` is the listing and stays tier 1 only.
+        expect(heldFixture(3).has('files.resolve')).toBe(true);
+        expect(heldFixture(3).has('files.orphans.read')).toBe(false);
     });
 });

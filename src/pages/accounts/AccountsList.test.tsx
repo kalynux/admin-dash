@@ -89,7 +89,9 @@ describe('the directory', () => {
 
         list();
 
-        expect(await screen.findByText(/412 accounts/i)).toBeInTheDocument();
+        // Anchored on the sentence that follows it: the pager prints the total
+        // too, as "1–1 of 412 accounts", so a bare /412 accounts/ matches both.
+        expect(await screen.findByText(/412 accounts, ranked by/i)).toBeInTheDocument();
     });
 });
 
@@ -154,13 +156,17 @@ describe('states', () => {
         expect(screen.queryByRole('button', { name: /try again/i })).not.toBeInTheDocument();
     });
 
-    it('shows no pager over an empty list', async () => {
-        // An empty list reports pages: 0, not 1.
+    it('keeps the pager on screen, disabled, over an empty list', async () => {
+        // An empty list reports pages: 0, not 1 — so the pager renders but claims
+        // no page number, and both directions are dead.
         stubList([], { total: 0, pages: 0 });
 
         list();
 
         expect(await screen.findByText(/no accounts to show/i)).toBeInTheDocument();
-        expect(screen.queryByRole('navigation', { name: /pagination/i })).not.toBeInTheDocument();
+        expect(screen.getByRole('navigation', { name: /pagination/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
+        expect(screen.getByRole('button', { name: /previous/i })).toBeDisabled();
+        expect(screen.queryByText(/page \d+ of/i)).not.toBeInTheDocument();
     });
 });

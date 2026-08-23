@@ -252,14 +252,15 @@ describe('states', () => {
         ).toBeGreaterThan(0);
     });
 
-    it('renders no pager over a single page', async () => {
+    it('renders a disabled pager over a single page', async () => {
         stubList();
         list();
 
         await screen.findByRole('link', { name: 'Douala Fresh Market' });
-        // `pages: 1`. Rendering "page 1 of 1" is what a client that recomputes the
-        // count instead of reading `meta` ends up doing.
-        expect(screen.queryByRole('button', { name: /next/i })).not.toBeInTheDocument();
+        // `pages: 1` is read from `meta`, never recomputed — so the count line is
+        // honest and both directions are dead.
+        expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
+        expect(screen.getByRole('button', { name: /previous/i })).toBeDisabled();
     });
 
     it('renders a permission refusal as a refusal, not a fault', async () => {

@@ -8,7 +8,7 @@
  * draw that line themselves: `GET /permissions/catalog` requires no permission
  * because "the vocabulary is what a dashboard is written against"
  * (`authorization.md`), while `permissions.md` says in as many words *"Do not
- * hard-code the matrix below into the dashboard"*. So the 110 **names** live
+ * hard-code the matrix below into the dashboard"*. So the 113 **names** live
  * here as literal types — a typo becomes a compile error rather than a module
  * that silently never renders — and **who holds what** comes only from
  * `GET /permissions/me`, never from this file.
@@ -22,11 +22,11 @@ import type { AdminTier } from '@/types/auth.types';
 // ─── The catalogue ────────────────────────────────────────────────────────────
 
 /**
- * All 110 permissions, `family.resource.action`, in the doc's own family order.
+ * All 113 permissions, `family.resource.action`, in the doc's own family order.
  *
- * `†` in the comments marks the 28 that are **catalogued policy with no endpoint
+ * `†` in the comments marks the 27 that are **catalogued policy with no endpoint
  * built yet**. They are real grants — `/permissions/me` returns them, and twelve
- * of Support's twenty-three are among them — but no screen can exist for them.
+ * of Support's twenty-four are among them — but no screen can exist for them.
  * They are listed again in `UNROUTED_PERMISSION_NAMES` below, which is what the
  * type system uses to keep them out of navigation and gates.
  */
@@ -39,6 +39,7 @@ export const PERMISSION_NAMES = [
     'agents.tracking.set',
     'agents.cod_threshold.set',
     'agents.transfer',
+    'agents.contracts.manage',
 
     // agencies
     'agencies.read',
@@ -104,7 +105,9 @@ export const PERMISSION_NAMES = [
     'content.authors.write',
     'content.authors.delete',
 
-    // files — no endpoints yet, both †
+    // files — `resolve` is routed; the other two are † (this service accepts no
+    // multipart bodies, and the orphan listing is deliberately not mounted)
+    'files.resolve',
     'files.orphans.read',
     'files.delete',
 
@@ -117,6 +120,7 @@ export const PERMISSION_NAMES = [
     'users.suspend',
     'users.sessions.revoke',
     'users.password.reset',
+    'users.login_link.send',
     'users.roles.manage',
 
     // vendors
@@ -185,7 +189,7 @@ export const PERMISSION_NAMES = [
 ] as const;
 
 /**
- * The 28 marked `†` in the matrix: **decided policy, no endpoint**.
+ * The 27 marked `†` in the matrix: **decided policy, no endpoint**.
  *
  * Holding one does not mean a screen can be built. `docs/dashboard/
  * BACKEND-INTEGRATION-MATRIX.md` records them as gaps D5–D8, and the jovi-mall
@@ -220,16 +224,21 @@ export const UNROUTED_PERMISSION_NAMES = [
     'content.authors.write',
     'content.authors.delete',
 
-    // files — wi-admin accepts no multipart bodies anywhere
+    // files — wi-admin accepts no multipart bodies anywhere, and the orphan
+    // listing is deliberately unmounted. `files.resolve` is NOT here: it is
+    // routed as of the dashboard-request round, and is the one permission on
+    // this service every tier holds — see `docs/admin/api/files.md`.
     'files.orphans.read',
     'files.delete',
 
     // broadcast
     'broadcast.send',
 
-    // users — the three writes with no route (gap D6)
+    // users — the two writes with no route (gap D6, narrowed).
+    // `users.password.reset` left this list in the dashboard-request round:
+    // jovi-mall gained an administrator-initiated flow, so it is now routed at
+    // POST /users/:userId/password-reset-link.
     'users.sessions.revoke',
-    'users.password.reset',
     'users.roles.manage',
 
     // customers

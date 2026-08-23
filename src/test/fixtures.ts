@@ -1155,7 +1155,7 @@ export const TIER_1_PERMISSIONS: readonly string[] = [...PERMISSION_NAMES];
 /**
  * The seventeen an Admin does **not** hold: the four named in
  * `permissions.md` § "What Admin (tier 2) deliberately does not hold", plus the
- * whole `developer_tools` family. 110 − 17 = 93.
+ * whole `developer_tools` family. 113 − 17 = 96.
  */
 const TIER_2_EXCLUSIONS: readonly string[] = [
     'administrators.tier.set',
@@ -1164,22 +1164,25 @@ const TIER_2_EXCLUSIONS: readonly string[] = [
     'users.roles.manage',
 ];
 
-/** Admin — the operational level, including the money. 93 of 110. */
+/** Admin — the operational level, including the money. 96 of 113. */
 export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
     (name) => !TIER_2_EXCLUSIONS.includes(name) && !name.startsWith('developer_tools.'),
 );
 
 /**
- * Support. 23 of 110 — and **twelve of those are `†`**, so a Support
- * administrator holds twenty-three permissions and can use eleven.
+ * Support. 24 of 113 — and **twelve of those are `†`**, so a Support
+ * administrator holds twenty-four permissions and can use twelve.
  *
- * Transcribed from the ● marks in the Support column. The surprise worth
+ * Transcribed from the ● marks in the Support column. Two surprises worth
  * keeping: `money.payments.read` is held deliberately, because "did my payment
- * go through" is one of the commonest ticket questions.
+ * go through" is one of the commonest ticket questions; and `files.resolve` is
+ * held by **every** tier, because the caller already holds the file id, which
+ * means they already passed the guard on the record that carried it.
  */
 export const TIER_3_PERMISSIONS: readonly string[] = [
     'agents.read',
     'agencies.read',
+    'files.resolve',
     'money.payments.read',
     'orders.read',
     'orders.disputes.read',

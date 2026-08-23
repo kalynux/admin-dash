@@ -202,13 +202,14 @@ describe('sorting', () => {
 });
 
 describe('states', () => {
-    /** An empty list reports `pages: 0`, not 1 — so there is no pager to draw. */
-    it('draws no pager over an empty list', async () => {
+    /** An empty list reports `pages: 0`, not 1 — so the pager claims no page. */
+    it('draws a disabled pager over an empty list', async () => {
         stubTrail([], { total: 0, pages: 0 });
         renderTrail('/dashboard/audit');
 
         expect(await screen.findByText(/nothing on record/i)).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: /next/i })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
+        expect(screen.queryByText(/page \d+ of/i)).not.toBeInTheDocument();
     });
 
     it('distinguishes an empty trail from a filtered one with no matches', async () => {

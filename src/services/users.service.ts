@@ -235,3 +235,41 @@ export const PLATFORM_CODE_PHONE_TAKEN = 'AUTH_PHONE_TAKEN';
 export const PLATFORM_CODE_CONTACT_REQUIRED = 'USER_CONTACT_REQUIRED';
 /** 409 — the compare-and-set on `status` lost. Reload and look again. */
 export const PLATFORM_CODE_STATUS_CONFLICT = 'USER_STATUS_CONFLICT';
+
+// ─── Credential recovery, all four delegated ──────────────────────────────────
+
+/** 409 — no address on the requested channel. Telegram needs a `/connect` first. */
+export const PLATFORM_CODE_CHANNEL_UNAVAILABLE = 'USER_CHANNEL_UNAVAILABLE';
+
+/**
+ * 429 — too many links recently.
+ *
+ * `details.scope` is `party` or `administrator` and the two have **different
+ * remedies** — wait, versus ask a colleague — so the distinction has to survive
+ * to the screen rather than collapsing into one sentence. `details.
+ * retryAfterSeconds` carries the wait; there is no `Retry-After` header on this
+ * one, because the refusal originates in jovi-mall and reaches us as a forwarded
+ * `PLATFORM_OPERATION_REJECTED`.
+ */
+export const PLATFORM_CODE_CREDENTIAL_LINK_THROTTLED = 'USER_CREDENTIAL_LINK_THROTTLED';
+
+/**
+ * 409 — a sign-in link was asked for on an account that is not a customer.
+ *
+ * Structural rather than configurable: jovi-mall scopes every session that flow
+ * mints to `customer` as a literal. Send a password-reset link instead.
+ */
+export const PLATFORM_CODE_LOGIN_LINK_ROLE_UNSUPPORTED = 'USER_LOGIN_LINK_ROLE_UNSUPPORTED';
+
+/** 502 — the channel accepted the request and did not deliver. Try another. */
+export const PLATFORM_CODE_MESSAGING_DELIVERY_FAILED = 'MESSAGING_DELIVERY_FAILED';
+
+/**
+ * 409 — the party's account is suspended, so there is nothing to send them into.
+ *
+ * Note the status differs from the 403 the same code carries on jovi-mall's own
+ * login path. Unlike the anonymous self-service flow, which must stay silent,
+ * this one refuses loudly: an administrator looking at the account should know to
+ * reinstate it rather than wonder whether the message went.
+ */
+export const PLATFORM_CODE_PARTY_ACCOUNT_SUSPENDED = 'AUTH_ACCOUNT_SUSPENDED';

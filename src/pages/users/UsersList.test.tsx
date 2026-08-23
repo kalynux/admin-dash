@@ -228,12 +228,13 @@ describe('states', () => {
         expect(await screen.findByRole('button', { name: /try again/i })).toBeInTheDocument();
     });
 
-    it('renders no pager over a single page', async () => {
+    it('renders a disabled pager over a single page', async () => {
         stubList([userFixture()], { total: 1, pages: 1 });
         list();
 
         await screen.findByRole('link', { name: 'amina@example.cm' });
-        expect(screen.queryByRole('button', { name: /next/i })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
+        expect(screen.getByRole('button', { name: /previous/i })).toBeDisabled();
     });
 
     it('pages through a longer result set', async () => {

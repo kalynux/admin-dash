@@ -95,6 +95,13 @@ const platform = {
     AGENT_MEMBERSHIP_NOT_FOUND: 'These two are not working together',
     CONTRACT_NOT_FOUND: 'The platform has no such contract.',
     CONTRACT_INVALID_TRANSITION: 'The contract cannot move to that state from where it is.',
+    // The three administrative interventions are chosen to be ones the agency
+    // holds unilaterally, so this is a platform-side guard rather than something
+    // an operator can talk their way past — it is not a missing permission.
+    CONTRACT_TRANSITION_NOT_PERMITTED:
+        'The platform does not allow this party to make that change, whatever permission you hold here.',
+    CONTRACT_REQUEST_ALREADY_PENDING:
+        'A request is already open on this contract. It has to be answered before another can be raised.',
     CONTRACT_HAS_OUTSTANDING_COD:
         'The agent still owes this agency cash. It has to be settled before they can be moved.',
     CONTRACT_HAS_UNPAID_EARNINGS:
@@ -119,6 +126,22 @@ const platform = {
     USER_CONTACT_REQUIRED: 'An account must keep at least one login identifier',
     AUTH_EMAIL_TAKEN: 'That email already belongs to another account',
     AUTH_PHONE_TAKEN: 'That phone number already belongs to another account',
+
+    // ─── Credential recovery ─────────────────────────────────────────────────
+    // `USER_CREDENTIAL_LINK_THROTTLED` deliberately says nothing about who was
+    // throttled: `details.scope` is `party` or `administrator` and the two have
+    // different remedies, so the dialog appends the specific sentence. This is
+    // the floor for the case where scope is missing.
+    USER_CHANNEL_UNAVAILABLE:
+        'This person has no address on that channel. Telegram only works once they have connected the bot themselves.',
+    USER_CREDENTIAL_LINK_THROTTLED: 'Too many recovery links have been sent recently.',
+    USER_LOGIN_LINK_ROLE_UNSUPPORTED:
+        'Sign-in links are for customers only. Vendors, agencies and agents reach money and other people’s data, so send a password-reset link instead.',
+    MESSAGING_DELIVERY_FAILED:
+        'The channel accepted the request and did not deliver it. Nothing was sent — try another channel.',
+    // jovi-mall raises this at 409 here, where its own login path uses 403. The
+    // account has to be reinstated before there is anything to send them into.
+    AUTH_ACCOUNT_SUSPENDED: 'This account is suspended, so there is nothing to send them back into.',
 
     // ─── Billing ─────────────────────────────────────────────────────────────
     BILLING_PLAN_CODE_EXISTS: 'That code is already taken by another tier',

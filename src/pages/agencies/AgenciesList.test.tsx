@@ -180,13 +180,15 @@ describe('the two verification flags', () => {
 });
 
 describe('states', () => {
-    it('renders no pager when there is a single page', async () => {
+    it('renders a disabled pager when there is a single page', async () => {
         stubList([agencyFixture()], { total: 1, pages: 1 });
         list();
 
         await screen.findByText('Littoral Express Delivery');
 
-        expect(screen.queryByRole('navigation', { name: /pagination/i })).not.toBeInTheDocument();
+        expect(screen.getByRole('navigation', { name: /pagination/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
+        expect(screen.getByRole('button', { name: /previous/i })).toBeDisabled();
     });
 
     it('offers no retry on a permission denial', async () => {

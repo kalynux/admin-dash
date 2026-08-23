@@ -70,6 +70,10 @@ const platform = {
     AGENT_MEMBERSHIP_NOT_FOUND: 'Ces deux-là ne travaillent pas ensemble',
     CONTRACT_NOT_FOUND: 'La plateforme n’a aucun contrat de ce type.',
     CONTRACT_INVALID_TRANSITION: 'Le contrat ne peut pas passer à cet état depuis celui où il est.',
+    CONTRACT_TRANSITION_NOT_PERMITTED:
+        'La plateforme n’autorise pas cette partie à effectuer ce changement, quelle que soit l’autorisation que vous détenez ici.',
+    CONTRACT_REQUEST_ALREADY_PENDING:
+        'Une demande est déjà ouverte sur ce contrat. Elle doit être traitée avant qu’une autre puisse être déposée.',
     CONTRACT_HAS_OUTSTANDING_COD:
         'L’agent doit encore de l’argent à cette agence. Cela doit être soldé avant tout transfert.',
     CONTRACT_HAS_UNPAID_EARNINGS:
@@ -94,6 +98,17 @@ const platform = {
     USER_CONTACT_REQUIRED: 'Un compte doit conserver au moins un identifiant de connexion',
     AUTH_EMAIL_TAKEN: 'Cet e-mail appartient déjà à un autre compte',
     AUTH_PHONE_TAKEN: 'Ce numéro de téléphone appartient déjà à un autre compte',
+
+    // ─── Récupération d’accès ────────────────────────────────────────────────
+    USER_CHANNEL_UNAVAILABLE:
+        'Cette personne n’a aucune adresse sur ce canal. Telegram ne fonctionne qu’une fois qu’elle a elle-même connecté le bot.',
+    USER_CREDENTIAL_LINK_THROTTLED: 'Trop de liens de récupération ont été envoyés récemment.',
+    USER_LOGIN_LINK_ROLE_UNSUPPORTED:
+        'Les liens de connexion sont réservés aux clients. Les vendeurs, agences et livreurs accèdent à de l’argent et aux données d’autrui : envoyez plutôt un lien de réinitialisation.',
+    MESSAGING_DELIVERY_FAILED:
+        'Le canal a accepté la demande sans la délivrer. Rien n’a été envoyé — essayez un autre canal.',
+    AUTH_ACCOUNT_SUSPENDED:
+        'Ce compte est suspendu : il n’y a rien vers quoi le faire revenir.',
 
     // ─── Facturation ─────────────────────────────────────────────────────────
     BILLING_PLAN_CODE_EXISTS: 'Ce code est déjà pris par une autre formule',

@@ -193,11 +193,12 @@ describe('states', () => {
     });
 
     /** `pages: 0` on an empty list is the contract's rule, not `1`. */
-    it('renders no pager over an empty result', async () => {
+    it('renders a disabled pager over an empty result', async () => {
         panel(vi.fn().mockResolvedValue(page([], { total: 0, pages: 0 })));
 
         await screen.findByText('No administrator has acted on this vendor');
-        expect(screen.queryByRole('button', { name: /next/i })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
+        expect(screen.queryByText(/page \d+ of/i)).not.toBeInTheDocument();
     });
 });
 

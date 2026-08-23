@@ -2,8 +2,11 @@
  * Agent fixtures.
  *
  * Wire-shaped: what the server actually sends, not what `agents.md` says it
- * sends. Where those differ the fixture follows the server and says so — the
- * three snake_case sub-documents below are the clearest case.
+ * sends. Where those differ the fixture follows the server and says so.
+ *
+ * The three sub-documents that used to be the clearest case of that —
+ * `vehicle`, `device`, `trustSignals` — no longer are: the contract and the wire
+ * agree on all three as of the dashboard-request round.
  */
 
 import type {
@@ -65,13 +68,24 @@ export function troubledAgentFixture(overrides: Partial<Agent> = {}): Agent {
     });
 }
 
-/** A last-known position that exists and is stale. */
+/**
+ * A last-known position that exists, has a resolved place, and is stale.
+ *
+ * `coordinates` is `[longitude, latitude]` — GeoJSON order, so this is 9.70 E,
+ * 4.06 N and **not** a point in the Indian Ocean. Reversing it is the single
+ * easiest mistake to make against this field.
+ */
 export function lastKnownFixture(overrides: Partial<AgentLastKnown> = {}): AgentLastKnown {
     return {
-        status: 'in_transit',
+        status: 'streaming',
         position: { type: 'Point', coordinates: [9.7043, 4.0611] },
+        place: {
+            label: 'Bonapriso, Douala, Cameroun',
+            source: 'reverse_geocode:nominatim',
+            resolvedAt: '2026-08-15T05:12:04.000Z',
+        },
         reportedAt: '2026-08-15T05:12:00.000Z',
-        source: 'geo-tracker',
+        source: 'geo_tracker',
         isStale: true,
         ...overrides,
     };
@@ -80,9 +94,10 @@ export function lastKnownFixture(overrides: Partial<AgentLastKnown> = {}): Agent
 /**
  * The detail.
  *
- * `vehicle`, `device` and `trustSignals` are **snake_case on the wire** — the
- * controller assigns the Mongo sub-document whole rather than mapping it field by
- * field. Typed and fixtured as they actually ship.
+ * `vehicle`, `device` and `trustSignals` are camelCase and field-by-field
+ * documented in `agents.md` since the dashboard-request round. Note `vehicle.type`
+ * is `bike`·`car`·`van`·`truck` — the old fixture said `"motorcycle"`, which the
+ * superseded doc example taught and which was never a value the wire carried.
  */
 export function agentDetailFixture(overrides: Partial<AgentDetail> = {}): AgentDetail {
     return {
@@ -90,10 +105,10 @@ export function agentDetailFixture(overrides: Partial<AgentDetail> = {}): AgentD
         emailVerified: true,
         phoneVerified: true,
         vehicle: {
-            vehicle_type: 'motorcycle',
-            plate_number: 'LT-4471-CM',
+            type: 'bike',
+            plateNumber: 'LT-4471-CM',
             color: 'red',
-            photo_file_id: null,
+            photoFileId: null,
         },
         homeBase: { label: 'Bonapriso, Douala', serviceRadiusKm: 12 },
         kyc: {
@@ -122,30 +137,30 @@ export function agentDetailFixture(overrides: Partial<AgentDetail> = {}): AgentD
         },
         device: {
             platform: 'android',
-            app_version: '2.14.0',
-            location_permission: 'always',
-            location_services_enabled: true,
-            background_location_enabled: true,
-            battery_optimization_exempt: false,
-            push_enabled: true,
-            reported_at: '2026-08-15T05:12:00.000Z',
+            appVersion: '2.14.0',
+            locationPermission: 'always',
+            locationServicesEnabled: true,
+            backgroundLocationEnabled: true,
+            batteryOptimizationExempt: false,
+            pushEnabled: true,
+            reportedAt: '2026-08-15T05:12:00.000Z',
         },
         capacity: { max: 5, active: 1, reconciledAt: '2026-08-15T06:00:00.000Z' },
         cod: { trustScore: 82, maxThreshold: 150000 },
         trustSignals: {
-            on_time_rate: 0.94,
-            assignment_response_rate: 0.88,
-            completed_shipments: 412,
-            customer_rating_avg: 4.6,
-            customer_rating_count: 311,
-            agency_rating_avg: 4.4,
-            agency_rating_count: 52,
-            vendor_rating_avg: 4.7,
-            vendor_rating_count: 88,
-            cod_clean_return_count: 380,
-            cod_discrepancy_count: 2,
-            cod_volume_returned: 8410000,
-            computed_at: '2026-08-14T00:00:00.000Z',
+            onTimeRate: 0.94,
+            assignmentResponseRate: 0.88,
+            completedShipments: 412,
+            customerRatingAvg: 4.6,
+            customerRatingCount: 311,
+            agencyRatingAvg: 4.4,
+            agencyRatingCount: 52,
+            vendorRatingAvg: 4.7,
+            vendorRatingCount: 88,
+            codCleanReturnCount: 380,
+            codDiscrepancyCount: 2,
+            codVolumeReturned: 8410000,
+            computedAt: '2026-08-14T00:00:00.000Z',
         },
         settings: { autoAcceptAssignments: false, navigationApp: 'google_maps' },
         timezone: 'Africa/Douala',

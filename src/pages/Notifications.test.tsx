@@ -213,13 +213,14 @@ describe('the inbox', () => {
         expect(screen.queryByText(/nothing unread/i)).not.toBeInTheDocument();
     });
 
-    it('pages only when there is more than one page', async () => {
+    it('shows the pager disabled when there is only one page', async () => {
         stubList([notificationFixture()], { total: 1, pages: 1 });
 
         inbox();
 
         await screen.findByText('Cash discrepancy opened');
-        expect(screen.queryByRole('button', { name: /next/i })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
+        expect(screen.getByRole('button', { name: /previous/i })).toBeDisabled();
     });
 
     it('walks to the next page, and says where it is', async () => {

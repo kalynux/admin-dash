@@ -488,8 +488,27 @@ export const PLATFORM_CODE_COD_OUT_OF_BOUNDS = 'AGENT_COD_THRESHOLD_OUT_OF_BOUND
  */
 export const PLATFORM_CODE_CONTRACT_INVALID_TRANSITION = 'CONTRACT_INVALID_TRANSITION';
 
-/** `404` on `transfer`. The agent holds no live contract with the source agency. */
+/**
+ * `404` on `transfer`. The agent holds no live contract with the source agency.
+ *
+ * ⚠ This name exists in **both** key spaces, deliberately. wi-admin minted a
+ * registry code of the same name for `GET /contracts/:contractId` — `errors.md`
+ * explains why: that route is addressable and "not found" has to say *what*.
+ * The two cannot shadow each other, because `resolveErrorMessage` reaches
+ * `errors.platform.*` only on a platform rejection and skips `errors.codes.*` on
+ * the generic delegated code, so the rungs read different fields. The two
+ * sentences are worded differently on purpose, and a test asserts they differ.
+ */
 export const PLATFORM_CODE_CONTRACT_NOT_FOUND = 'CONTRACT_NOT_FOUND';
+
+/**
+ * `409` on a contract intervention. The transition exists but not for the party
+ * attempting it — a platform-side guard, not a missing permission here.
+ */
+export const PLATFORM_CODE_CONTRACT_TRANSITION_NOT_PERMITTED = 'CONTRACT_TRANSITION_NOT_PERMITTED';
+
+/** `409` on `terminate`. A status request is already open on the contract. */
+export const PLATFORM_CODE_CONTRACT_REQUEST_ALREADY_PENDING = 'CONTRACT_REQUEST_ALREADY_PENDING';
 
 /**
  * `409` on `transfer`. The agent already holds a live contract with the

@@ -65,7 +65,10 @@ describe('the queue', () => {
 
         queue();
 
-        expect(await screen.findByText(/143 payout requests/i)).toBeInTheDocument();
+        // Exact, not a substring: the pager prints the total too, as
+        // "1–1 of 143 payout requests", and matching that instead would prove
+        // nothing about the screen's own count line.
+        expect(await screen.findByText('143 payout requests')).toBeInTheDocument();
     });
 });
 
@@ -142,14 +145,16 @@ describe('states', () => {
         expect(screen.queryByRole('button', { name: /try again/i })).not.toBeInTheDocument();
     });
 
-    it('shows no pager over an empty queue', async () => {
-        // An empty list reports pages: 0, not 1.
+    it('shows a disabled pager over an empty queue', async () => {
+        // An empty list reports pages: 0, not 1 — so no page number is claimed.
         stubList([], { total: 0, pages: 0 });
 
         queue();
 
         expect(await screen.findByText(/no payout requests match/i)).toBeInTheDocument();
-        expect(screen.queryByRole('navigation', { name: /pagination/i })).not.toBeInTheDocument();
+        expect(screen.getByRole('navigation', { name: /pagination/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
+        expect(screen.queryByText(/page \d+ of/i)).not.toBeInTheDocument();
     });
 });
 

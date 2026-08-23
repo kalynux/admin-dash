@@ -74,79 +74,84 @@ export type AgentWorkingState = 'idle' | 'working' | 'at_capacity' | (string & {
 
 export const AGENT_WORKING_STATES = ['idle', 'working', 'at_capacity'] as const;
 
-// ─── Sub-documents that ship snake_case ───────────────────────────────────────
+// ─── The three nested sub-documents ───────────────────────────────────────────
 
 /**
- * ⚠ **`vehicle`, `device` and `trustSignals` ship `snake_case`.**
+ * The agent's vehicle. Documented field by field in `agents.md`.
  *
- * `agent.controller.ts:150, 226, 236` assign `agent.vehicle_info`, `agent.device`
- * and `agent.trust_signals` **whole** rather than mapping named fields, so the
- * storage casing reaches the wire — against `README.md`'s "wire fields are
- * camelCase … the translation happens in wi-admin and never leaks".
- *
- * The projections are enumerated field by field
- * (`agent.read.repository.ts:143-215`, pinned by the backend's own
- * `test-agents.ts:254-262`), so the key set is bounded and safe to type. It is
- * only the casing that drifts.
- *
- * `agents.md:144` documents `vehicle` as `{ type, plate }` and `:171` documents
- * `device` as `{ platform, appVersion }`. Neither is what ships. Typed as it
- * actually is; if the backend fixes the mapper these break, which is the correct
- * failure mode. Recorded in `docs/dashboard/DATA-EXPOSURE-REGISTER.md`.
+ * ⚠ **This block changed shape twice over in the dashboard-request round**, and
+ * the second half is easy to miss. It used to ship jovi-mall's raw sub-document
+ * (`vehicle_type`, `plate_number`, `color`, `photo_file_id`) while `agents.md`
+ * documented it as `{ type, plate }` — so the contract and the wire disagreed on
+ * the **field names** as well as the casing. Both are fixed now, and the names
+ * below are the ones actually served.
  */
 export interface AgentVehicle {
-    vehicle_type?: string | null;
+    /**
+     * `bike` · `car` · `van` · `truck`.
+     *
+     * Left open rather than a union: adding a member upstream is an additive,
+     * non-breaking change, so a closed vocabulary would break on a routine
+     * deploy. Note the old doc example showed `"motorcycle"`, which was never a
+     * real value — render through `humaniseEnum` and show anything unrecognised
+     * as given.
+     */
+    type?: string | null;
     /**
      * A licence plate — identifies a person off-platform.
      *
      * Detail screen only; never on a directory row.
      */
-    plate_number?: string | null;
+    plateNumber?: string | null;
     color?: string | null;
-    /** An opaque id. This dashboard resolves no file URLs. */
-    photo_file_id?: string | null;
+    /** Resolve through `GET /files?ids=` — see `files.service.ts`. */
+    photoFileId?: string | null;
 }
 
 /**
  * Device telemetry — an eight-field fingerprint of a named person's phone.
  *
- * See the note on `AgentVehicle` for the casing. Present because it answers a
- * genuine dispatch question — an agent whose location services are off cannot be
- * offered work, and `device_location_disabled` is a real `IneligibilityReason` —
- * but it is still a fingerprint. Rendered on the detail screen only, collapsed by
- * default, and framed as dispatch diagnostics rather than device information.
+ * Present because it answers a genuine dispatch question — an agent whose
+ * location services are off cannot be offered work, and `device_location_disabled`
+ * is a real `IneligibilityReason` — but it is still a fingerprint. Rendered on the
+ * detail screen only, collapsed by default, and framed as dispatch diagnostics
+ * rather than device information.
+ *
+ * The backend confirmed this projection is intended as-is at tier 3
+ * (DATA-EXPOSURE §4): a narrower Support view would make "why can this agent not
+ * be assigned" unanswerable at the tier that asks it most.
  */
 export interface AgentDevice {
     platform?: string | null;
-    app_version?: string | null;
-    location_permission?: string | null;
-    location_services_enabled?: boolean | null;
-    background_location_enabled?: boolean | null;
-    battery_optimization_exempt?: boolean | null;
-    push_enabled?: boolean | null;
-    reported_at?: string | null;
+    appVersion?: string | null;
+    locationPermission?: string | null;
+    locationServicesEnabled?: boolean | null;
+    backgroundLocationEnabled?: boolean | null;
+    batteryOptimizationExempt?: boolean | null;
+    pushEnabled?: boolean | null;
+    reportedAt?: string | null;
 }
 
 /**
- * The computed conduct record. See the note on `AgentVehicle` for the casing.
+ * The computed conduct record — thirteen keys, documented in `agents.md`.
  *
- * `agents.md` documents this only as `{ "…": "…" }`; the thirteen keys below are
- * the enumerated projection at `agent.read.repository.ts:196-209`.
+ * `computedAt` is what makes the rest readable: these are a batch job's figures,
+ * not live counters, so a rate that looks wrong may simply be yesterday's.
  */
 export interface AgentTrustSignals {
-    on_time_rate?: number | null;
-    assignment_response_rate?: number | null;
-    completed_shipments?: number | null;
-    customer_rating_avg?: number | null;
-    customer_rating_count?: number | null;
-    agency_rating_avg?: number | null;
-    agency_rating_count?: number | null;
-    vendor_rating_avg?: number | null;
-    vendor_rating_count?: number | null;
-    cod_clean_return_count?: number | null;
-    cod_discrepancy_count?: number | null;
-    cod_volume_returned?: number | null;
-    computed_at?: string | null;
+    onTimeRate?: number | null;
+    assignmentResponseRate?: number | null;
+    completedShipments?: number | null;
+    customerRatingAvg?: number | null;
+    customerRatingCount?: number | null;
+    agencyRatingAvg?: number | null;
+    agencyRatingCount?: number | null;
+    vendorRatingAvg?: number | null;
+    vendorRatingCount?: number | null;
+    codCleanReturnCount?: number | null;
+    codDiscrepancyCount?: number | null;
+    codVolumeReturned?: number | null;
+    computedAt?: string | null;
 }
 
 // ─── Tracking ─────────────────────────────────────────────────────────────────
@@ -158,35 +163,77 @@ export interface GeoPoint {
 }
 
 /**
+ * A resolved name for a position — reverse-geocoded server-side.
+ *
+ * Resolved **once per position** and stored beside it, never on read: geocoding
+ * per render would be a bill per operator who opens the tab, and would hand the
+ * same person's coordinates to a third-party provider once per *viewer* rather
+ * than once per *position*.
+ *
+ * ⚠ **It inherits the position's exposure and then some.** `[9.7043, 4.0511]`
+ * needs a tool to read; "Bonapriso, Douala" does not. So whatever decides whether
+ * to reveal the coordinates decides the same thing about this — they sit behind
+ * one reveal, not two.
+ */
+export interface AgentPlace {
+    label: string;
+    /**
+     * An **open** string naming the resolver, e.g. `reverse_geocode:nominatim`.
+     *
+     * Render it raw and never `switch` on it: a future "nearest landmark" or
+     * "agency coverage region" resolver would be an additive change.
+     */
+    source: string;
+    resolvedAt: string;
+}
+
+/**
  * ⚠ **A stale business mirror, not a live position.**
  *
  * `position` is written by geo-tracker's *best-effort* notifier. No assignment
- * rule reads it, and serving it as a live position is a bug. It is on this surface
- * for parity — jovi-mall's own admin detail already returns it, so dropping it
- * would be a silent break somebody re-adds as a missing-field report.
+ * rule reads it, and serving it as a live position is a bug. The live position
+ * lives in geo-tracker, behind Tracking Allow, and **wi-admin has no door to it**:
+ * every geo-tracker read requires a real platform user JWT and resolves per-agent
+ * visibility by looking that user up in `users` — and a wi-admin administrator has
+ * no `users` row, deliberately (ADR-004 D-1).
  *
- * The live position lives in geo-tracker, behind Tracking Allow, and **wi-admin
- * has no door to it**: every geo-tracker read requires a real platform user JWT
- * and resolves per-agent visibility by looking that user up in `users` — and a
- * wi-admin administrator has no `users` row, deliberately (ADR-004 D-1).
+ * ── This block was empty until the dashboard-request round ────────────────────
+ * `last_known_tracking_state` was the schema default (`status: "unknown"`,
+ * `position: null`) on **every agent in the database**, because geo-tracker POSTed
+ * its notifications to `/api/tracking/agent-state` and jovi-mall served no such
+ * path. Delivery is best-effort, so every notification was dropped and logged and
+ * neither side raised anything. jovi-mall serves that path now and the
+ * notification carries the agent's last fix, so this block has coordinates to hold
+ * for the first time (ADR-018 F-1).
  *
  * ── How this dashboard renders it ─────────────────────────────────────────────
  * As **"last seen"**, never as a live marker on a map — a marker would simply stop
- * moving and nobody would be told. `isStale` and `reportedAt` are shown *above*
- * the coordinates, and the coordinates themselves sit behind an explicit reveal.
+ * moving and nobody would be told. That refusal is *more* right now than it was
+ * when the field was empty: an empty panel is obviously empty, whereas a pin that
+ * has stopped moving is a live-looking lie. `isStale` and `reportedAt` are shown
+ * *above* the reveal; the coordinates **and the place label** sit behind it.
  *
  * ⚠ **This block ships unconditionally**, regardless of `AgentTracking['allowed']`
  * and with no permission of its own beyond `agents.read` — which **tier-3 Support
- * holds**. That is a backend exposure question, not a client one; see
- * `docs/dashboard/DATA-EXPOSURE-REGISTER.md`.
+ * holds**. Raised as DATA-EXPOSURE §1 and **decided**: it stays under
+ * `agents.read`, with no new permission and no audited read. A last-known position
+ * is a historical record, withholding it is harmful in exactly the situation an
+ * operator opens the screen for, and a denied tracking verdict means *do not track
+ * them now*, not *erase where they were*.
+ *
+ * There is **no `accuracyMetres`** and there will not be one soon: geo-tracker
+ * records no GPS accuracy anywhere, so adding it starts at a release of the agent
+ * mobile application (ADR-018 F-3).
  */
 export interface AgentLastKnown {
     /** Raw pass-through. Render as given; there is no closed vocabulary for it. */
     status: string;
     /** `null` when nothing was ever reported. */
     position: GeoPoint | null;
+    /** `null` when nothing resolved — never `""`, never a coordinate pair. */
+    place: AgentPlace | null;
     reportedAt: string | null;
-    /** e.g. `"geo-tracker"`. */
+    /** e.g. `"geo_tracker"`. */
     source: string | null;
     /**
      * Computed on read: `true` when the report is older than **two minutes**, or

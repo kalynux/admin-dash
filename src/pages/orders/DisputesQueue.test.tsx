@@ -117,12 +117,13 @@ describe('the queue', () => {
 });
 
 describe('states', () => {
-    it('renders no pager over an empty queue', async () => {
+    it('renders a disabled pager over an empty queue', async () => {
         stubQueue([], { total: 0, pages: 0 });
         queue();
 
         await screen.findByText(/no orders are under dispute/i);
-        expect(screen.queryByRole('button', { name: /next/i })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
+        expect(screen.queryByText(/page \d+ of/i)).not.toBeInTheDocument();
     });
 
     it('explains an empty result differently when a range is set', async () => {

@@ -49,24 +49,62 @@ interface DocEntry {
     status: string;
     category: string;
     meaning: string;
+    /**
+     * The prose between this row's nearest heading and its section's first table
+     * row. A section that makes a declaration once, for all its rows, is the doc
+     * author writing well — and a parser that only reads cells punishes that.
+     */
+    sectionPreamble: string;
 }
 
+const HEADING = /^#{1,6}\s/;
+/** A table row of any shape — including the header and the `|---|` separator. */
+const TABLE_ROW = /^\s*\|/;
+
+/**
+ * Walk the document line by line rather than with `matchAll`, so each row can
+ * carry the prose its section opened with.
+ */
 function parseRegistry(): DocEntry[] {
     const out: DocEntry[] = [];
     const seen = new Set<string>();
 
-    for (const match of doc.matchAll(REGISTRY_ROW)) {
-        const [, code, status, category, meaning] = match;
-        // The Overrides table repeats four codes with a "Category used" column.
-        // First occurrence wins: the registry is above it in the document.
-        if (seen.has(code)) continue;
-        seen.add(code);
-        out.push({
-            code,
-            status: status.trim(),
-            category: category.trim().replace(/`/g, ''),
-            meaning: meaning.trim(),
-        });
+    let preamble = '';
+    let inTable = false;
+
+    for (const line of doc.split('\n')) {
+        if (HEADING.test(line)) {
+            preamble = '';
+            inTable = false;
+            continue;
+        }
+
+        if (TABLE_ROW.test(line)) {
+            inTable = true;
+
+            // Reset the regex: it is `g`-flagged and shared across iterations.
+            REGISTRY_ROW.lastIndex = 0;
+            const match = REGISTRY_ROW.exec(line);
+            if (!match) continue;
+
+            const [, code, status, category, meaning] = match;
+            // The Overrides table repeats four codes with a "Category used"
+            // column. First occurrence wins: the registry is above it.
+            if (seen.has(code)) continue;
+            seen.add(code);
+            out.push({
+                code,
+                status: status.trim(),
+                category: category.trim().replace(/`/g, ''),
+                meaning: meaning.trim(),
+                sectionPreamble: preamble,
+            });
+            continue;
+        }
+
+        // Prose only counts before the section's first table. Anything after it
+        // is a footnote about the rows above, not a declaration over them.
+        if (!inTable) preamble += `${line}\n`;
     }
 
     return out;
@@ -81,20 +119,28 @@ const isBootTime = (entry: DocEntry) => entry.meaning.includes('**Boot-time.**')
  * Never appears as `error.code`. jovi-mall's verdicts arrive as
  * `details.platformCode` on a forwarded `PLATFORM_OPERATION_REJECTED`, which is
  * a different catalog with a different key space.
+ *
+ * **The section preamble counts as much as the cell.** `### Credential recovery`
+ * makes the declaration once, in prose above its table — *"Every one of these
+ * arrives as `details.platformCode`"* — and its rows do not repeat it. Reading
+ * cells alone would classify three codes that can never be `error.code` as
+ * client-reachable and demand `codes` copy for them.
  */
-const isPlatformCodeOnly = (entry: DocEntry) => entry.meaning.includes('`details.platformCode`');
+const isPlatformCodeOnly = (entry: DocEntry) =>
+    entry.meaning.includes('`details.platformCode`') ||
+    entry.sectionPreamble.includes('`details.platformCode`');
 
 const clientReachable = registry.filter((e) => !isBootTime(e) && !isPlatformCodeOnly(e));
 
 describe('the registry parses', () => {
     it('finds the whole published registry', () => {
-        // 62 rows today. A wildly different number means the parser stopped
+        // 74 rows today. A wildly different number means the parser stopped
         // matching, not that the contract shrank — fail loudly rather than
         // silently asserting over three rows.
-        expect(registry.length).toBeGreaterThanOrEqual(60);
+        expect(registry.length).toBeGreaterThanOrEqual(70);
     });
 
-    it('finds exactly ten boot-time codes and two platform-code-only ones', () => {
+    it('finds exactly ten boot-time codes and twelve platform-code-only ones', () => {
         expect(registry.filter(isBootTime).map((e) => e.code).sort()).toEqual([
             'AUDIT_CATALOG_INVALID',
             'AUDIT_COVERAGE_INCOMPLETE',
@@ -109,9 +155,32 @@ describe('the registry parses', () => {
         ]);
 
         expect(registry.filter(isPlatformCodeOnly).map((e) => e.code).sort()).toEqual([
+            'AUTH_ACCOUNT_SUSPENDED',
+            'BILLING_PENDING_PLAN_EXISTS',
+            'BILLING_PLAN_INACTIVE',
+            'BILLING_PLAN_ROLE_MISMATCH',
+            'CONTRACT_INVALID_TRANSITION',
+            'CONTRACT_TRANSITION_NOT_PERMITTED',
             'DEV_TOOLS_WORKER_BUSY',
             'DEV_TOOLS_WORKER_UNKNOWN',
+            'MESSAGING_DELIVERY_FAILED',
+            'USER_CHANNEL_UNAVAILABLE',
+            'USER_CREDENTIAL_LINK_THROTTLED',
+            'USER_LOGIN_LINK_ROLE_UNSUPPORTED',
         ]);
+    });
+
+    it('classifies a code declared only by its section preamble', () => {
+        // The narrow test for the section-aware path. `USER_CHANNEL_UNAVAILABLE`
+        // is platform-only *because of its section's prose* — its own row says
+        // nothing about `details.platformCode`. If someone reverts the parser to
+        // reading cells alone, this fails and the twelve-name list above fails
+        // with it, which is the point: one of them names the mechanism.
+        const entry = registry.find((e) => e.code === 'USER_CHANNEL_UNAVAILABLE');
+        expect(entry, 'USER_CHANNEL_UNAVAILABLE is missing from the registry').toBeDefined();
+        expect(entry!.meaning).not.toContain('`details.platformCode`');
+        expect(entry!.sectionPreamble).toContain('`details.platformCode`');
+        expect(isPlatformCodeOnly(entry!)).toBe(true);
     });
 });
 
@@ -208,6 +277,25 @@ function declaredPlatformCodes(): string[] {
     return [...found].sort();
 }
 
+/**
+ * The names that legitimately live in **both** key spaces.
+ *
+ * `CONTRACT_NOT_FOUND` is the only one. wi-admin minted it as its own registry
+ * code in the dashboard-request round — `errors.md` gives the reason:
+ * `/contracts/:contractId` is addressable and "not found" has to say *what*,
+ * because the neighbouring 404s on that screen are about agents and agencies.
+ * jovi-mall has carried a code of the same name all along, and it reaches us as
+ * `details.platformCode` on the agent-transfer write.
+ *
+ * The invariant this list relaxes is about **rung order**, and rung order is not
+ * at risk here: `resolveErrorMessage` reaches `errors.platform.*` only when
+ * `isPlatformRejection`, and skips `errors.codes.*` on the generic delegated
+ * code. The two rungs read different fields, so neither can shadow the other and
+ * the outcome is deterministic in both directions. What is left to protect is
+ * that the two sentences are not interchangeable — asserted below.
+ */
+const SHARED_CODE_NAMES: readonly string[] = ['CONTRACT_NOT_FOUND'];
+
 describe('the platform catalog', () => {
     const declared = declaredPlatformCodes();
 
@@ -236,13 +324,28 @@ describe('the platform catalog', () => {
         expect(Object.keys(fr.platform).filter((code) => !english.has(code))).toEqual([]);
     });
 
-    it('never collides with a wi-admin registry code', () => {
+    it('never collides with a wi-admin registry code, bar the declared one', () => {
         // The two key spaces are separate on purpose: `platformCode` is
         // jovi-mall's vocabulary and `code` is wi-admin's. A name in both would
         // make the ladder's rung order decide which sentence wins, silently.
         const registryCodes = new Set<string>(KNOWN_ERROR_CODES);
-        const collisions = Object.keys(en.platform).filter((code) => registryCodes.has(code));
+        const collisions = Object.keys(en.platform).filter(
+            (code) => registryCodes.has(code) && !SHARED_CODE_NAMES.includes(code),
+        );
         expect(collisions).toEqual([]);
+    });
+
+    it('gives the shared name a different sentence in each key space', () => {
+        // The relaxation above is safe only while the two sentences say
+        // different things. If they converge, one of them is redundant and the
+        // allowlist is hiding a mistake rather than recording a decision.
+        for (const code of SHARED_CODE_NAMES) {
+            const registry = (en.codes as Record<string, string>)[code];
+            const platform = (en.platform as Record<string, string>)[code];
+            expect(registry, `${code} is allowlisted but has no registry copy`).toBeTruthy();
+            expect(platform, `${code} is allowlisted but has no platform copy`).toBeTruthy();
+            expect(registry, `${code} reads identically in both catalogs`).not.toBe(platform);
+        }
     });
 });
 

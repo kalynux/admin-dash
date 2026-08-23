@@ -188,9 +188,23 @@ export function AgentTrackingPanel({
 /**
  * The last-known position, behind an explicit action.
  *
- * `isStale`, `reportedAt` and the relative age sit **above** the coordinates and
- * are shown without revealing anything — an operator can tell the record is four
+ * `isStale`, `reportedAt` and the relative age sit **above** the reveal and are
+ * shown without disclosing anything — an operator can tell the record is four
  * hours old before deciding whether to look at it at all.
+ *
+ * ── Why `place` is behind the same button, not shown beside the badge ─────────
+ * `agents.md` makes the argument and it is the right one: `[9.7043, 4.0511]`
+ * needs a tool to read, and "Bonapriso, Douala" does not. The label is the
+ * *more* revealing of the two, so gating the coordinates while printing the
+ * street name above them would be a gate in name only. One reveal, both fields,
+ * label first because it is the one an operator can actually use.
+ *
+ * ── Why there is still no map ─────────────────────────────────────────────────
+ * More right now than when this was written. The pipe behind this field had
+ * never worked — every agent carried the schema default — so the panel was
+ * rendering an empty record. It carries real coordinates now, which means a pin
+ * would look live and simply stop moving. An empty panel is obviously empty; a
+ * stationary marker is a lie.
  */
 export function LastKnownPositionReveal({
     lastKnown,
@@ -251,17 +265,45 @@ export function LastKnownPositionReveal({
                         <NotSet>No position has ever been reported for this agent.</NotSet>
                     </p>
                 ) : revealed ? (
-                    <div className="space-y-1 rounded-lg border p-3">
-                        <p className="text-muted-foreground text-xs">
-                            Longitude, latitude — GeoJSON order
-                        </p>
-                        <p className="font-mono text-sm select-all">
-                            {position.coordinates.join(', ')}
-                        </p>
+                    <div className="space-y-3 rounded-lg border p-3">
+                        {/*
+                          `place` is null when nothing resolved. That is a
+                          geocoder outcome, not an operational fact, so it is
+                          simply absent rather than labelled "unresolved" — the
+                          position below is the record either way.
+                        */}
+                        {lastKnown.place ? (
+                            <div className="space-y-1">
+                                <p className="text-muted-foreground text-xs">Resolved place</p>
+                                <p className="text-sm">{lastKnown.place.label}</p>
+                                <p className="text-muted-foreground text-xs">
+                                    {/*
+                                      An open string naming the resolver. Rendered
+                                      raw: a future "nearest landmark" resolver
+                                      would be additive, so nothing switches on it.
+                                    */}
+                                    {lastKnown.place.source} ·{' '}
+                                    {formatInstantInZone(lastKnown.place.resolvedAt, timeZone)}
+                                </p>
+                            </div>
+                        ) : null}
+                        <div className="space-y-1">
+                            <p className="text-muted-foreground text-xs">
+                                Longitude, latitude — GeoJSON order
+                            </p>
+                            <p className="font-mono text-sm select-all">
+                                {position.coordinates.join(', ')}
+                            </p>
+                        </div>
                     </div>
                 ) : (
                     <Button variant="outline" size="sm" onClick={() => setRevealed(true)}>
-                        Show last known position
+                        {/*
+                          The label names both fields, because the button
+                          discloses both and an operator should know that before
+                          pressing it.
+                        */}
+                        Show last known position and place
                     </Button>
                 )}
             </CardContent>

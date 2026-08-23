@@ -85,6 +85,16 @@ const codes = {
     PAYOUT_NOT_PENDING: 'This payout is no longer pending',
     ACCOUNT_OWNER_NOT_FOUND: 'No such account owner',
 
+    // ─── Delivery network ────────────────────────────────────────────────────
+    // Deliberately worded differently from the platform catalog's entry of the
+    // same name: this one answers `GET /contracts/:contractId` directly, that
+    // one arrives as `details.platformCode` on a delegated write. Two rungs of
+    // the ladder, two sentences, so the reader can tell which door refused.
+    CONTRACT_NOT_FOUND: 'No contract with that id',
+
+    // ─── Files ───────────────────────────────────────────────────────────────
+    FILE_NOT_FOUND: 'That file is no longer stored',
+
     // ─── Notifications ───────────────────────────────────────────────────────
     NOTIFICATION_NOT_FOUND: 'No such notification',
 
@@ -143,6 +153,11 @@ const codeHints = {
 
     PAYOUT_DESTINATION_ABSENT: 'This is an older record with no destination snapshot. Ask the beneficiary.',
     PAYOUT_NOT_PENDING: 'Reload to see its current state.',
+
+    CONTRACT_NOT_FOUND: 'Check the id, or open the contract from the agent or the agency.',
+    // Not a client bug and not worth an error banner: files are soft-deleted and
+    // swept, so a record legitimately outlives the picture it points at.
+    FILE_NOT_FOUND: 'The record that referenced it is still here; the file itself has been cleaned up.',
 
     SERVICE_DEPENDENCY_UNAVAILABLE:
         'Not your fault and not fixable from here. Try again shortly, and quote the reference if it persists.',

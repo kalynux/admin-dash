@@ -55,7 +55,7 @@ const catalog = {
             scoped: true,
         }),
     ],
-    total: 110,
+    total: 113,
 };
 
 function renderPage(tier: 1 | 2 | 3) {
@@ -107,7 +107,7 @@ describe('MyAccess', () => {
 
     it('counts what the caller holds against the catalogue total', async () => {
         renderPage(3);
-        expect(await screen.findByText(/23 of 110 permissions/i)).toBeInTheDocument();
+        expect(await screen.findByText(/24 of 113 permissions/i)).toBeInTheDocument();
     });
 
     it('surfaces a permission newer than this build rather than hiding it', async () => {

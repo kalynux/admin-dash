@@ -24,10 +24,18 @@ interface PagerProps {
 /**
  * Previous / next over an offset-paged list.
  *
+ * ── The control is always on screen ───────────────────────────────────────────
+ * It used to return `null` below two pages, which meant an operator looking at a
+ * short list could not tell whether the dashboard pages at all — the affordance
+ * appeared and vanished with the data. So it renders in every state and goes
+ * **disabled** instead of absent. That is the one thing a hidden control cannot
+ * say: *there is nothing further, and I checked*.
+ *
  * ── Two contract rules it exists to keep in one place ─────────────────────────
- * **An empty list reports `pages: 0`, not `1`.** Rendering "page 1 of 1" over
+ * **An empty list reports `pages: 0`, not `1`.** Rendering "Page 1 of 1" over
  * nothing is what a client that recomputes the count instead of reading `meta`
- * ends up doing, so this reads `meta.pages` and shows nothing at `0` or `1`.
+ * ends up doing — so at `0` the count line reads "No results" and the page
+ * counter is dropped entirely rather than asserting a page that does not exist.
  *
  * **`limit` is capped at 100 everywhere and there is no `?limit=all`**, so there
  * is no "show everything" affordance to offer. Paging is the only way through a
@@ -40,7 +48,8 @@ interface PagerProps {
  * primitive's `<nav aria-label="pagination">`.
  */
 export function Pager({ meta, onPageChange, noun = 'results', isBusy }: PagerProps) {
-    if (meta.pages <= 1) return null;
+    // `pages: 0` is the contract's empty-list answer, not a missing value.
+    const isEmpty = meta.pages <= 0;
 
     const first = (meta.page - 1) * meta.limit + 1;
     const last = Math.min(meta.page * meta.limit, meta.total);
@@ -53,7 +62,13 @@ export function Pager({ meta, onPageChange, noun = 'results', isBusy }: PagerPro
               reader hears it twice on every filter change.
             */}
             <p className="text-muted-foreground text-sm">
-                {formatCount(first)}–{formatCount(last)} of {formatCount(meta.total)} {noun}
+                {isEmpty ? (
+                    <>No {noun}</>
+                ) : (
+                    <>
+                        {formatCount(first)}–{formatCount(last)} of {formatCount(meta.total)} {noun}
+                    </>
+                )}
             </p>
 
             <Pagination className="mx-0 w-auto justify-end">
@@ -62,7 +77,7 @@ export function Pager({ meta, onPageChange, noun = 'results', isBusy }: PagerPro
                         <Button
                             variant="outline"
                             size="sm"
-                            disabled={meta.page <= 1 || isBusy}
+                            disabled={isEmpty || meta.page <= 1 || isBusy}
                             onClick={() => onPageChange(meta.page - 1)}
                         >
                             <ChevronLeft className="size-4" />
@@ -70,17 +85,23 @@ export function Pager({ meta, onPageChange, noun = 'results', isBusy }: PagerPro
                         </Button>
                     </PaginationItem>
 
-                    <PaginationItem>
-                        <span className="text-muted-foreground px-2 text-sm whitespace-nowrap">
-                            Page {formatCount(meta.page)} of {formatCount(meta.pages)}
-                        </span>
-                    </PaginationItem>
+                    {/*
+                      Omitted rather than shown as "Page 1 of 1" when there is
+                      nothing to page through — see the header note.
+                    */}
+                    {isEmpty ? null : (
+                        <PaginationItem>
+                            <span className="text-muted-foreground px-2 text-sm whitespace-nowrap">
+                                Page {formatCount(meta.page)} of {formatCount(meta.pages)}
+                            </span>
+                        </PaginationItem>
+                    )}
 
                     <PaginationItem>
                         <Button
                             variant="outline"
                             size="sm"
-                            disabled={meta.page >= meta.pages || isBusy}
+                            disabled={isEmpty || meta.page >= meta.pages || isBusy}
                             onClick={() => onPageChange(meta.page + 1)}
                         >
                             Next

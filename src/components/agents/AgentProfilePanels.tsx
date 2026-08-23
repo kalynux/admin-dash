@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
-import { formatCount, formatInstantInZone } from '@/lib/format';
+import { formatCount, formatInstantInZone, humaniseEnum } from '@/lib/format';
 import { isPlatformActor, type ActorStamp } from '@/types/actor.types';
 import type { AgentDetail } from '@/types/agents.types';
 import { CopyableId } from '@/components/common/CopyableId';
@@ -18,12 +18,17 @@ import { CopyableId } from '@/components/common/CopyableId';
 /**
  * The read-only panels of an agent's detail screen.
  *
- * ── Where the snake_case comes from ───────────────────────────────────────────
- * `vehicle`, `device` and `trustSignals` ship with **storage casing** — wi-admin's
- * controller assigns the Mongo sub-document whole rather than mapping it field by
- * field, so `README.md`'s camelCase promise leaks here. They are typed and read as
- * they actually ship; if the backend fixes the mapper these break loudly, which is
- * the right failure mode. Recorded in `docs/dashboard/DATA-EXPOSURE-REGISTER.md`.
+ * ── The casing leak is fixed ──────────────────────────────────────────────────
+ * `vehicle`, `device` and `trustSignals` used to ship jovi-mall's **storage
+ * casing**, because wi-admin's controller assigned the Mongo sub-document whole
+ * rather than mapping it field by field. All three are named-field mapped and
+ * documented in `agents.md` as of the dashboard-request round, so they are read
+ * in camelCase here (DATA-EXPOSURE §2, closed).
+ *
+ * `vehicle` moved further than the others: it was *documented* as `{type, plate}`
+ * while *serving* `{vehicle_type, plate_number, …}`, so the field names changed as
+ * well as the casing — and `type` really is the vehicle type (`bike`·`car`·`van`·
+ * `truck`), not the `"motorcycle"` the old example showed.
  */
 
 /** Identity, the reason for a status, and the two blocks that are state-keyed. */
@@ -211,9 +216,12 @@ export function AgentOverviewPanel({
                         <Definition label="Vehicle">
                             {agent.vehicle ? (
                                 [
-                                    agent.vehicle.vehicle_type,
+                                    // `bike` · `car` · `van` · `truck` — an open
+                                    // vocabulary, so anything unrecognised is
+                                    // humanised rather than dropped.
+                                    humaniseEnum(agent.vehicle.type),
                                     agent.vehicle.color,
-                                    agent.vehicle.plate_number,
+                                    agent.vehicle.plateNumber,
                                 ]
                                     .filter(Boolean)
                                     .join(' · ') || <NotSet />
@@ -306,45 +314,45 @@ export function AgentOperationalPanel({
                     {signals ? (
                         <DefinitionList>
                             <Definition label="On-time rate">
-                                <Rate value={signals.on_time_rate} />
+                                <Rate value={signals.onTimeRate} />
                             </Definition>
                             <Definition label="Assignment response rate">
-                                <Rate value={signals.assignment_response_rate} />
+                                <Rate value={signals.assignmentResponseRate} />
                             </Definition>
                             <Definition label="Completed shipments">
-                                <Count value={signals.completed_shipments} />
+                                <Count value={signals.completedShipments} />
                             </Definition>
                             <Definition label="Customer rating">
                                 <Rating
-                                    average={signals.customer_rating_avg}
-                                    count={signals.customer_rating_count}
+                                    average={signals.customerRatingAvg}
+                                    count={signals.customerRatingCount}
                                 />
                             </Definition>
                             <Definition label="Agency rating">
                                 <Rating
-                                    average={signals.agency_rating_avg}
-                                    count={signals.agency_rating_count}
+                                    average={signals.agencyRatingAvg}
+                                    count={signals.agencyRatingCount}
                                 />
                             </Definition>
                             <Definition label="Vendor rating">
                                 <Rating
-                                    average={signals.vendor_rating_avg}
-                                    count={signals.vendor_rating_count}
+                                    average={signals.vendorRatingAvg}
+                                    count={signals.vendorRatingCount}
                                 />
                             </Definition>
                             <Definition label="Clean cash returns">
-                                <Count value={signals.cod_clean_return_count} />
+                                <Count value={signals.codCleanReturnCount} />
                             </Definition>
                             <Definition label="Cash discrepancies">
-                                <Count value={signals.cod_discrepancy_count} />
+                                <Count value={signals.codDiscrepancyCount} />
                             </Definition>
                             <Definition label="Cash volume returned">
                                 {/* No currency accompanies this field anywhere — the
                                     number is printed without a symbol. */}
-                                <Count value={signals.cod_volume_returned} />
+                                <Count value={signals.codVolumeReturned} />
                             </Definition>
                             <Definition label="Computed at">
-                                {formatInstantInZone(signals.computed_at ?? null, timeZone) ?? '—'}
+                                {formatInstantInZone(signals.computedAt ?? null, timeZone) ?? '—'}
                             </Definition>
                         </DefinitionList>
                     ) : (
@@ -379,25 +387,25 @@ export function AgentOperationalPanel({
                                 {agent.device.platform ?? <NotSet />}
                             </Definition>
                             <Definition label="App version">
-                                {agent.device.app_version ?? <NotSet />}
+                                {agent.device.appVersion ?? <NotSet />}
                             </Definition>
                             <Definition label="Location permission">
-                                {agent.device.location_permission ?? <NotSet />}
+                                {agent.device.locationPermission ?? <NotSet />}
                             </Definition>
                             <Definition label="Location services">
-                                <YesNo value={agent.device.location_services_enabled} />
+                                <YesNo value={agent.device.locationServicesEnabled} />
                             </Definition>
                             <Definition label="Background location">
-                                <YesNo value={agent.device.background_location_enabled} />
+                                <YesNo value={agent.device.backgroundLocationEnabled} />
                             </Definition>
                             <Definition label="Exempt from battery optimisation">
-                                <YesNo value={agent.device.battery_optimization_exempt} />
+                                <YesNo value={agent.device.batteryOptimizationExempt} />
                             </Definition>
                             <Definition label="Push notifications">
-                                <YesNo value={agent.device.push_enabled} />
+                                <YesNo value={agent.device.pushEnabled} />
                             </Definition>
                             <Definition label="Reported at">
-                                {formatInstantInZone(agent.device.reported_at ?? null, timeZone) ??
+                                {formatInstantInZone(agent.device.reportedAt ?? null, timeZone) ??
                                     '—'}
                             </Definition>
                         </DefinitionList>

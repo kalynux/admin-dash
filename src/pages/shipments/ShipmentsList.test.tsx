@@ -188,11 +188,12 @@ describe('states', () => {
         expect(screen.queryByText(/results may be incomplete/i)).not.toBeInTheDocument();
     });
 
-    it('renders no pager over an empty result', async () => {
+    it('renders a disabled pager over an empty result', async () => {
         stubList([], { total: 0, pages: 0 });
         list();
 
         await screen.findByText(/no shipments yet/i);
-        expect(screen.queryByRole('button', { name: /next/i })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
+        expect(screen.queryByText(/page \d+ of/i)).not.toBeInTheDocument();
     });
 });

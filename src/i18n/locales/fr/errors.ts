@@ -75,6 +75,12 @@ const codes = {
     PAYOUT_NOT_PENDING: 'Ce versement n’est plus en attente',
     ACCOUNT_OWNER_NOT_FOUND: 'Titulaire de compte introuvable',
 
+    // ─── Réseau de livraison ─────────────────────────────────────────────────
+    CONTRACT_NOT_FOUND: 'Aucun contrat ne correspond à cet identifiant',
+
+    // ─── Fichiers ────────────────────────────────────────────────────────────
+    FILE_NOT_FOUND: 'Ce fichier n’est plus stocké',
+
     // ─── Notifications ───────────────────────────────────────────────────────
     NOTIFICATION_NOT_FOUND: 'Notification introuvable',
 
@@ -137,6 +143,10 @@ const codeHints = {
     PAYOUT_DESTINATION_ABSENT:
         'Il s’agit d’un ancien enregistrement sans destination. Renseignez-vous auprès du bénéficiaire.',
     PAYOUT_NOT_PENDING: 'Rechargez pour voir son état actuel.',
+
+    CONTRACT_NOT_FOUND: 'Vérifiez l’identifiant, ou ouvrez le contrat depuis le livreur ou l’agence.',
+    FILE_NOT_FOUND:
+        'L’enregistrement qui le référençait existe toujours ; le fichier lui-même a été supprimé.',
 
     SERVICE_DEPENDENCY_UNAVAILABLE:
         'Ce n’est pas de votre fait et cela ne se corrige pas d’ici. Réessayez sous peu, et citez la référence si cela persiste.',

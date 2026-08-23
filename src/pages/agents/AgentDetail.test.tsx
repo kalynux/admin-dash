@@ -166,6 +166,53 @@ describe('the last known position', () => {
         expect(screen.queryByText(/9\.7043/)).not.toBeInTheDocument();
     });
 
+    /**
+     * The load-bearing one. `place` is the *more* revealing of the two fields —
+     * coordinates need a tool to read and "Bonapriso, Douala" does not — so a
+     * gate that hid the numbers while printing the street name above them would
+     * be a gate in name only.
+     */
+    it('keeps the resolved place behind the same reveal as the coordinates', async () => {
+        stubDetail();
+        detail();
+
+        await userEvent.click(await screen.findByRole('tab', { name: /tracking/i }));
+
+        expect(screen.queryByText(/Bonapriso, Douala, Cameroun/)).not.toBeInTheDocument();
+
+        await userEvent.click(
+            await screen.findByRole('button', { name: /show last known position/i }),
+        );
+
+        expect(await screen.findByText(/Bonapriso, Douala, Cameroun/)).toBeInTheDocument();
+        // The resolver is an open string: rendered raw, never switched on.
+        expect(screen.getByText(/reverse_geocode:nominatim/)).toBeInTheDocument();
+    });
+
+    /**
+     * A geocoder that resolved nothing is not an operational fact, so it is
+     * absent rather than labelled — the position is the record either way.
+     */
+    it('reveals the coordinates alone when nothing resolved', async () => {
+        stubDetail(
+            agentDetailFixture({
+                tracking: {
+                    ...agentDetailFixture().tracking,
+                    lastKnown: lastKnownFixture({ place: null }),
+                },
+            }),
+        );
+        detail();
+
+        await userEvent.click(await screen.findByRole('tab', { name: /tracking/i }));
+        await userEvent.click(
+            await screen.findByRole('button', { name: /show last known position/i }),
+        );
+
+        expect(await screen.findByText(/9\.7043, 4\.0611/)).toBeInTheDocument();
+        expect(screen.queryByText(/resolved place/i)).not.toBeInTheDocument();
+    });
+
     it('says so when no position was ever reported, and offers no reveal', async () => {
         stubDetail(
             agentDetailFixture({

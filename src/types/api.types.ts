@@ -337,8 +337,8 @@ export const CLIENT_CODE_PREFIX = 'CLIENT_';
 /**
  * Every code wi-admin can put in `error.code` and a client can actually see.
  *
- * Transcribed from the registry in `docs/admin/api/errors.md`, which lists 62.
- * Twelve are excluded and the exclusions are the interesting part:
+ * Transcribed from the registry in `docs/admin/api/errors.md`, which lists 74.
+ * Twenty-two are excluded and the exclusions are the interesting part:
  *
  * - **Ten are boot-time.** The process exits before it listens, so they reach
  *   logs and never a browser (`AUTHZ_ROUTE_UNDECLARED`, `AUTHZ_GRANT_TABLE_INVALID`,
@@ -346,10 +346,17 @@ export const CLIENT_CODE_PREFIX = 'CLIENT_';
  *   `SYSTEM_CONFIG_EXPOSURE_UNSAFE`, `SYSTEM_FEATURE_FLAG_CATALOG_INVALID`,
  *   `CONFIG_INVALID_ENV`, `CONFIG_MISSING_SECRET`,
  *   `CONFIG_NOTIFICATION_COVERAGE_INCOMPLETE`).
- * - **Two are never `error.code` at all.** `DEV_TOOLS_WORKER_UNKNOWN` and
- *   `DEV_TOOLS_WORKER_BUSY` are jovi-mall's verdicts and arrive as
- *   `details.platformCode` on a `PLATFORM_OPERATION_REJECTED`. They belong to the
- *   platform catalog, not this one — `errors.md:288-289` says so in as many words.
+ * - **Twelve are never `error.code` at all.** They are jovi-mall's verdicts and
+ *   arrive as `details.platformCode` on a `PLATFORM_OPERATION_REJECTED`, so they
+ *   belong to the platform catalog (`error-platform.ts`, in each locale), not
+ *   this one: `DEV_TOOLS_WORKER_UNKNOWN`, `DEV_TOOLS_WORKER_BUSY`,
+ *   `CONTRACT_INVALID_TRANSITION`, `CONTRACT_TRANSITION_NOT_PERMITTED`,
+ *   `BILLING_PENDING_PLAN_EXISTS`, `BILLING_PLAN_INACTIVE`,
+ *   `BILLING_PLAN_ROLE_MISMATCH`, `MESSAGING_DELIVERY_FAILED`,
+ *   `AUTH_ACCOUNT_SUSPENDED`, `USER_CHANNEL_UNAVAILABLE`,
+ *   `USER_CREDENTIAL_LINK_THROTTLED`, `USER_LOGIN_LINK_ROLE_UNSUPPORTED`.
+ *   The last three are declared once in their section's prose rather than on
+ *   every row, which is why the parser reads section preambles too.
  *
  * `src/i18n/error-catalog.test.ts` parses the doc and diffs it against this
  * list, so a registry change upstream fails the suite instead of drifting.
@@ -409,6 +416,10 @@ export const KNOWN_ERROR_CODES = [
     'PAYOUT_DESTINATION_ABSENT',
     'PAYOUT_NOT_PENDING',
     'ACCOUNT_OWNER_NOT_FOUND',
+    // Delivery network
+    'CONTRACT_NOT_FOUND',
+    // Files
+    'FILE_NOT_FOUND',
     // Notifications
     'NOTIFICATION_NOT_FOUND',
     // Infrastructure

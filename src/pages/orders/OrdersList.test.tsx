@@ -204,12 +204,13 @@ describe('states', () => {
     });
 
     /** `pages: 0` on an empty list is the contract's rule, not `1`. */
-    it('renders no pager over an empty result', async () => {
+    it('renders a disabled pager over an empty result', async () => {
         stubList([], { total: 0, pages: 0 });
         list();
 
         await screen.findByText(/no orders yet/i);
-        expect(screen.queryByRole('button', { name: /next/i })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /next/i })).toBeDisabled();
+        expect(screen.queryByText(/page \d+ of/i)).not.toBeInTheDocument();
     });
 
     it('offers no retry on a permission denial', async () => {
