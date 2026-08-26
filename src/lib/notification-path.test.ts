@@ -43,11 +43,29 @@ describe('toDashboardPath', () => {
 
     it('returns null for a route this dashboard has not built', () => {
         // The service emits `actionPath` for surfaces that exist on its side and
-        // not on this one — tickets among them. Linking anyway would take an
-        // operator to a 404, which reads as a broken product; a row with no link
-        // is honest.
-        expect(toDashboardPath('/support/tickets/665f1c2a9b3e4a91c7d2e5f0')).toBeNull();
-        expect(toDashboardPath('/content/articles/665f1c2a9b3e4a91c7d2e5f0')).toBeNull();
+        // may not on this one. Linking anyway would take an operator to a 404,
+        // which reads as a broken product; a row with no link is honest.
+        //
+        // Support and content used to be the examples here. **They are built
+        // now**, and their routes were deliberately given the service's own
+        // shape — `/dashboard/support/tickets/:id`, not `/dashboard/support/:id`
+        // — precisely so these paths land on the screen rather than on a
+        // catch-all. See the assertion below.
+        expect(toDashboardPath('/broadcast/campaigns/665f1c2a9b3e4a91c7d2e5f0')).toBeNull();
+        expect(toDashboardPath('/customers/665f1c2a9b3e4a91c7d2e5f0')).toBeNull();
+    });
+
+    it('maps the two paths whose screens landed in the doc-sync round', () => {
+        // These are the exact strings the service emits. A route shortened for
+        // tidiness would still *match* the nav prefix and then render a 404 —
+        // which is why the routes carry the service's vocabulary rather than a
+        // nicer one.
+        expect(toDashboardPath('/support/tickets/665f1c2a9b3e4a91c7d2e5f0')).toBe(
+            '/dashboard/support/tickets/665f1c2a9b3e4a91c7d2e5f0',
+        );
+        expect(toDashboardPath('/content/articles/getting-paid-on-whatsapp')).toBe(
+            '/dashboard/content/articles/getting-paid-on-whatsapp',
+        );
     });
 
     it('refuses anything that would leave the application', () => {

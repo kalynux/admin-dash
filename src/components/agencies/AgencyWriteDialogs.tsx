@@ -22,6 +22,7 @@ import {
     PLATFORM_CODE_AGENCY_STATUS_CONFLICT,
     deactivateAgency,
     reactivateAgency,
+    rejectAgency,
     verifyAgency,
 } from '@/services/agencies.service';
 import { ApiError } from '@/types/api.types';
@@ -58,6 +59,18 @@ const optionalReason = z.object({
         .refine((value) => value.length === 0 || value.length >= REASON_MIN, {
             message: `Give at least ${REASON_MIN} characters, or leave it blank`,
         }),
+});
+
+/**
+ * Same bounds as `requiredReason`, different sentence — this one is shown to the
+ * **agency**, so the validation message says who is going to read it.
+ */
+const rejectionReason = z.object({
+    reason: z
+        .string()
+        .trim()
+        .min(REASON_MIN, 'Tell the agency what to fix — a reason is required')
+        .max(REASON_MAX, `Use at most ${REASON_MAX} characters`),
 });
 
 type ReasonValues = { reason: string };
@@ -167,6 +180,140 @@ export function VerifyAgencyDialog({
                         Verify agency
                     </Button>
                 </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+// ─── Reject ───────────────────────────────────────────────────────────────────
+
+/**
+ * `POST /agencies/:agencyId/reject` · **`agencies.verify`**.
+ *
+ * The other half of the review, and it holds the *same* permission as approval:
+ * `agencies.verify` is the review capability, named for its happy path. What
+ * separates the two verdicts is the audit action, not the grant.
+ *
+ * ── The reason is read by the agency, and that changes the copy ───────────────
+ * This is the one reason field on this surface that **leaves the building**. It
+ * is forwarded to jovi-mall and stored on the agency record, where the agency
+ * can read it — the deactivation reason next door is audit-only and its dialog
+ * says the opposite. So this asks for text written *for the applicant*, naming
+ * what to fix.
+ *
+ * ── It changes no status, and there is no un-reject ───────────────────────────
+ * jovi-mall leaves the agency at `pending_verification`. Nothing is deactivated
+ * and no cascade runs — a non-`active` agency is already refused by product
+ * activation, pickup resolution, COD eligibility and vendor default-agency
+ * selection, so this records a verdict rather than adding enforcement. The
+ * dialog says so, because "reject" reads as final and here it is not:
+ * `POST /verify` still accepts them once they fix what the reason named.
+ *
+ * Conflicts exactly as `verify` does — a colleague reaching a verdict first is a
+ * `409`, not a `404`.
+ */
+export function RejectAgencyDialog({
+    agency,
+    open,
+    onOpenChange,
+    onDone,
+}: {
+    agency: AgencyDetail;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onDone: () => void;
+}) {
+    const [formError, setFormError] = useState<unknown>(null);
+    const form = useForm<ReasonValues>({
+        resolver: zodResolver(rejectionReason),
+        defaultValues: { reason: '' },
+    });
+
+    async function submit(values: ReasonValues) {
+        setFormError(null);
+        try {
+            await rejectAgency(agency.id, { reason: values.reason.trim() });
+            notify.success('Verification rejected', {
+                description: 'The agency can see your reason and reapply once they have fixed it.',
+            });
+            onOpenChange(false);
+            onDone();
+        } catch (error) {
+            if (
+                error instanceof ApiError &&
+                error.platformCode === PLATFORM_CODE_AGENCY_STATUS_CONFLICT
+            ) {
+                const current = error.details?.currentStatus;
+                notify.warning('This agency is no longer pending verification', {
+                    description:
+                        typeof current === 'string'
+                            ? `It is now "${current}". Another administrator reached a verdict while this was open — reloading what it says now.`
+                            : 'Another administrator reached a verdict while this was open. Reloading what it says now.',
+                });
+                onOpenChange(false);
+                onDone();
+                return;
+            }
+            if (error instanceof ApiError) {
+                const fieldErrors = pickFieldErrors(error, SERVER_FIELDS);
+                if (fieldErrors.reason) {
+                    form.setError('reason', { message: fieldErrors.reason });
+                    return;
+                }
+            }
+            setFormError(error);
+        }
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>
+                        Reject {agencyDisplayName(agency)}&apos;s verification?
+                    </DialogTitle>
+                    <DialogDescription>
+                        This records a verdict. It does <strong>not</strong> deactivate the agency
+                        and nothing cascades — they stay pending verification.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <form onSubmit={form.handleSubmit(submit)} className="space-y-4">
+                    <p className="text-muted-foreground text-sm">
+                        <strong>The agency will read this reason.</strong> Write it for them, not
+                        for the audit trail: name what is wrong and what would fix it. They can
+                        reapply, and verifying them afterwards is the same button as before.
+                    </p>
+
+                    <FormField
+                        id="agency-reject-reason"
+                        label="Reason"
+                        error={form.formState.errors.reason?.message}
+                        hint="Forwarded to jovi-mall and stored on the agency, so the applicant sees it — unlike the deactivation reason, which stays in the audit trail."
+                    >
+                        {(field) => (
+                            <Textarea
+                                rows={3}
+                                maxLength={REASON_MAX}
+                                placeholder="Transport licence has expired — upload a current one and reapply."
+                                {...field}
+                                {...form.register('reason')}
+                            />
+                        )}
+                    </FormField>
+
+                    {formError ? <AuthFormError error={formError} /> : null}
+
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+                            Cancel
+                        </Button>
+                        <Button type="submit" disabled={form.formState.isSubmitting}>
+                            {form.formState.isSubmitting ? <InlineLoader /> : null}
+                            Reject verification
+                        </Button>
+                    </DialogFooter>
+                </form>
             </DialogContent>
         </Dialog>
     );

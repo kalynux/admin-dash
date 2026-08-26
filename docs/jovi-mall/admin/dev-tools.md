@@ -1,3 +1,12 @@
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call jovi-mall.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> Field names here are jovi-mall's **snake_case** storage casing; wi-admin's wire is **camelCase**.
+>
+> Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+<!-- /CONTEXT-BANNER -->
+
 # Developer tools — operations that change things
 
 `/api/internal/admin/dev-tools/*` · service-token only (`requireAdminCaller`) · **no public twin,

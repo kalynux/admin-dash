@@ -91,44 +91,53 @@ export function agencyDetailFixture(overrides: Partial<AgencyDetail> = {}): Agen
             verifiedBy: { id: '507f1f77bcf86cd799439011', source: 'admin', name: 'A. Mballa' },
         },
         /**
-         * `snake_case` throughout, because that is what actually ships — the
-         * controller assigns the sub-document whole rather than mapping fields.
-         * A camelCase fixture here would let the panel's tests pass against a
-         * shape the server never sends.
+         * **camelCase**, matching the named-field mapper that landed in the
+         * dashboard-request round. This fixture was `snake_case` while the
+         * controller assigned the sub-document whole; it moved with the wire.
+         *
+         * `agencies.md` documents every field, so this is transcribed from the
+         * contract rather than from the Mongo model.
          */
         policies: {
             pricing: {
-                storage_based: {
+                storageBased: {
                     enabled: true,
-                    monthly_storage_fee_per_sku: 250,
-                    pick_pack_fee_per_order: 500,
-                    local_delivery_fee: 1500,
-                    out_of_region_delivery_fee: 4000,
+                    monthlyStorageFeePerSku: 250,
+                    pickPackFeePerOrder: 500,
+                    localDeliveryFee: 1500,
+                    outOfRegionDeliveryFee: 4000,
                 },
-                pickup_based: {
+                pickupBased: {
                     enabled: false,
-                    base_rate_first_kg: 0,
-                    additional_per_kg: 0,
-                    out_of_region_surcharge: 0,
+                    baseRateFirstKg: 0,
+                    additionalPerKg: 0,
+                    outOfRegionSurcharge: 0,
                 },
-                additional_fees: {
-                    cod_handling_fee: { type: 'percentage', value: 2 },
-                    failed_delivery_fee: 1000,
-                    rto_fee: 2000,
+                additionalFees: {
+                    codHandlingFee: { type: 'percentage', value: 2 },
+                    failedDeliveryFee: 1000,
+                    rtoFee: 2000,
+                    peakSeasonSurcharge: null,
                 },
                 notes: null,
             },
-            returns: { payer: 'vendor', handling_fee: 750, return_window_days: 7, notes: null },
+            returns: { payer: 'vendor', handlingFee: 750, returnWindowDays: 7, notes: null },
             damage: {
-                claim_deadline_days: 3,
-                max_refund_per_item: 50000,
+                claimDeadlineDays: 3,
+                maxRefundPerItem: 50000,
                 inspector: 'agency',
-                investigation_fee: 1000,
+                investigationFee: 1000,
                 notes: null,
             },
-            cod: { enabled: true, max_order_amount: 500000 },
+            cod: { enabled: true, maxOrderAmount: 500000 },
         },
         policyVersion: 4,
+        /**
+         * New in the dashboard-request round: how many vendor connections are in
+         * `paused_reapproval` because a policy edit raised `policyVersion`.
+         * Non-zero here so the panel's warning path is the one under test.
+         */
+        policyVersionPausedConnections: 12,
         timezone: 'Africa/Douala',
         preferredLanguage: 'fr',
         ...overrides,

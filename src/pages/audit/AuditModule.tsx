@@ -10,13 +10,12 @@ import { AuditTrail } from '@/pages/audit/AuditTrail';
  * An implemented index child is mounted by `App.tsx` at *both* `index` and `*` —
  * both are needed, because a child `path="*"` does not match its parent's own
  * path and an `index` route cannot nest. That makes this module the owner of
- * every path under `/dashboard/audit` that its two static siblings
- * (`exports/*`, `legacy/*`) do not claim, so it must declare **its own
- * catch-all**: without one, `/dashboard/audit/nonsense` would render the trail
- * instead of a 404.
+ * every path under `/dashboard/audit` that its static sibling (`exports/*`)
+ * does not claim, so it must declare **its own catch-all**: without one,
+ * `/dashboard/audit/nonsense` would render the trail instead of a 404.
  *
- * React Router ranks the static sibling segments above this splat, which is what
- * keeps all three destinations reachable — the same arrangement Orders and its
+ * React Router ranks the static sibling segment above this splat, which is what
+ * keeps both destinations reachable — the same arrangement Orders and its
  * Disputes queue already rely on.
  */
 export function AuditModule() {

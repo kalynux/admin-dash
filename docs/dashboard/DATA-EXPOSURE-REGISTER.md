@@ -42,6 +42,33 @@ residue.
 
 ## 1. `tracking.lastKnown.position` — a person's coordinates, ungated and unaudited
 
+> ### ✅ ANSWERED 2026-08-17 — and the premise was not true
+>
+> **Backend note, added with BR-003's implementation.** See
+> [ADR-018](../ADR-018-DASHBOARD-BACKEND-REQUESTS.md) F-1 and D-2.
+>
+> **This block was empty on every agent in the database, so the disclosure described below was
+> not occurring.** geo-tracker POSTs its tracking-state notifications to
+> `TRACKING_STATE_NOTIFY_PATH`, whose published default is `/api/tracking/agent-state` —
+> jovi-mall served no such path. A receiver *had* been built, at
+> `POST /api/internal/agents/:agentId/tracking-state`, and the notifier has never called it.
+> Delivery is best-effort and a non-2xx is logged and dropped, so neither side raised anything
+> and `last_known_tracking_state` stayed at its schema default (`status: "unknown"`,
+> `last_position: null`) since the tracking lifecycle shipped.
+>
+> That is now fixed in both repositories, and geo-tracker's notification carries a `position` it
+> never carried — so the question below becomes live for the first time.
+>
+> **Decision on both asks: the block stays under `agents.read`. No new permission, no audited
+> read.** The product owner accepted the reading in the "deliberate product decision" paragraph
+> below — a last-known position is a historical record rather than live tracking, withholding it
+> is harmful in exactly the situation an operator opens the screen for, and a denied tracking
+> verdict means *do not track them now* rather than *erase where they were last seen*.
+>
+> `lastKnown.place` was added on the same terms and inherits the same gate.
+> `position.accuracyMetres` was **not** added: geo-tracker records no accuracy anywhere, so the
+> field would be `null` on every row in every circumstance.
+
 **Priority: high.**
 
 `GET /agents/:agentId` returns, under plain `agents.read`:
@@ -87,9 +114,65 @@ they were last seen. If your reading of the policy differs, say so and we will g
 2. Audit the disclosure, whichever way it is served. We cannot do this from the client — there is no
    endpoint to call.
 
+> ### 📌 Both asks were GRANTED — for a different field, at Phase 6.I (2026-08-22)
+>
+> **Backend note.** See [ADR-020](../ADR-020-ADMIN-DATA-DOOR.md) D-4 … D-6.
+>
+> `tracking.lastKnown` itself is **unchanged**: still `agents.read`, still unaudited, still
+> shipped with `isStale`. The 2026-08-17 answer above stands, and the product reasoning behind
+> it — a last-known position is a historical record, and a denied verdict means *do not track
+> them now* rather than *erase where they were last seen*.
+>
+> What changed is that the sentence *"the live position lives in geo-tracker and this service
+> has no door to it"* is **no longer true**. geo-tracker gained a service-caller authorization
+> path, so `GET /agents/:agentId/live-position` now exists — and it is precisely what asks 1
+> and 2 described:
+>
+> - **Its own permission** (`agents.tracking.read`; the delivery trail is
+>   `shipments.tracking.read`), rather than riding `agents.read`.
+> - **Audited on every call**, `agents.tracking.position.read`, with the row committed
+>   **before** the disclosure and its failure not caught — so with the audit store down,
+>   nothing is disclosed. Same posture as `GET /money/payouts/:payoutId/destination`.
+> - **A `reason` is required**, 3–200 characters, recorded on the row.
+> - **Tracking Allow gates it**, which the stale mirror deliberately is not: an agent who has
+>   not granted it answers `position: null, withheld: "tracking_allow_off"` — and no timestamp
+>   either, because that they are streaming is itself part of what the opt-out withholds.
+>
+> **Support holds both new permissions.** That was decided rather than defaulted — *"where is
+> my delivery right now"* is what a ticket asks — and the audit is the other half of the same
+> decision. Widening the audience and adding the record were one choice.
+>
+> **For the dashboard, the practical consequence is that these are two different fields
+> answering two different questions.** `tracking.lastKnown` is *where were they last seen*
+> (free, unaudited, safe to render on every detail load). `live-position` is *where are they
+> now* (a stated reason, an audit row per call, and a permission not everyone holds). The
+> reveal pattern you already built for `lastKnown` is the right shape for the new one too —
+> but every reveal is now a recorded event, so do not poll it behind the operator's back.
+>
+> `GET /shipments/:shipmentId/tracking-trail` is the third: a delivery's GPS trail, audited on
+> the same terms. Note there is deliberately **no** agent-scoped trail read anywhere — a trail
+> is reachable only by naming a delivery, on both sides of the boundary.
+
 ---
 
 ## 2. Five nested objects ship `snake_case`
+
+> ### ✅ FIXED 2026-08-17 — all five, and **this is a breaking change**
+>
+> Every one is named-field mapped and camelCase now, and each is documented field by field:
+> `agent.vehicle`, `agent.device` and `agent.trustSignals` in `agents.md`; `agency.policies` in
+> `agencies.md`; `contract.terms.{employment,remittance,feeSplit}` in the new `contracts.md`.
+>
+> **One correction beyond the casing:** `agent.vehicle` was *documented* as `{ type, plate }`
+> while *serving* `{ vehicle_type, plate_number, color, photo_file_id }` — the contract and the
+> wire disagreed on the field names too. It is now `{ type, plateNumber, color, photoFileId }`,
+> and `type` is the vehicle type (`bike` · `car` · `van` · `truck`), not the `"motorcycle"` the
+> old example showed.
+>
+> The projections stay wide on `agency.policies` (and now on the vendor's, item BR-008) with the
+> **mapper as the second lock** — a field added upstream reaches the read model and stops there.
+> One consequence for the dashboard: the forward-compatible "Other terms recorded" passthrough
+> will now always be empty, so it is belt-and-braces rather than a drift detector.
 
 **Priority: medium — a contract-conformance bug, not a privacy one.**
 
@@ -120,6 +203,18 @@ as considered exceptions *to the projection rule*; that argument does not extend
 
 ## 3. `PUT /agents/:agentId/cod-threshold` under-records its own audit row
 
+> ### ✅ FIXED 2026-08-17 — diagnosis confirmed exactly as written below
+>
+> `asState()` now reads **both** shapes — `cod.maxThreshold` on an agent and `maxThreshold` at
+> the top level on a `CodAllocation` — rather than branching on the action, so a future endpoint
+> answering either is covered without anybody remembering this.
+>
+> The two documentation errors rode along and are corrected: the gateway is annotated
+> `Promise<PlatformCodAllocation>` with the shape declared, and `agents.md` documents the real
+> response instead of "the updated agent". Your judgement that the response shape itself is good
+> is recorded there too — a fresh allocation tells a client the resulting headroom, where an
+> agent would have to be re-read.
+
 **Priority: medium — an audit-integrity bug.**
 
 The endpoint answers with a `CodAllocation` (`{ agentId, maxThreshold, allocated, headroom,
@@ -139,6 +234,17 @@ response shape itself is good — the fresh allocation is more useful to a clien
 ---
 
 ## 4. Residual personal data on `/agents`, by design but worth a second look
+
+> ### ✅ ANSWERED 2026-08-17 — confirmed intended as-is
+>
+> The tier-3 read scope on the agent detail stands. `device.*` and `homeBase.label` answer
+> genuine dispatch questions — `device_location_disabled` is a real ineligibility reason, and the
+> home base bounds the service radius — and a narrower Support projection would make "why can
+> this agent not be assigned" unanswerable at the tier that asks it most often.
+>
+> One change rode along from item 2: `device` and `trustSignals` are camelCase and documented
+> now, so what Support sees is at least legible in the contract.
+
 
 **Priority: low — recorded so the decision is explicit rather than inherited.**
 
@@ -165,6 +271,14 @@ a second client would not have it.
 
 ## 5. Agency business-identity documents
 
+> ### ✅ ANSWERED 2026-08-17 — no change, and none needed
+>
+> Business identifiers rather than personal ones, and appropriate for an administrator.
+> `policies.documents[]` is now documented in `agencies.md` as links to off-platform term
+> sheets that this service never fetches or previews — which is exactly what the dashboard does
+> with them.
+
+
 **Priority: low.**
 
 `GET /agencies/:agencyId` returns `kyc.registrationNumber` and `kyc.transportLicenseId` under
@@ -180,6 +294,31 @@ links and never fetches or previews them, since we resolve no file URLs anywhere
 ---
 
 ## 6. Three order writes return the whole raw platform document
+
+> ### ✅ FIXED 2026-08-20 — Phase 4 step 16 (4.B.4)
+>
+> All three writes now answer with an **`OrderDetailDto`**: the order is re-read through
+> `ORDER_DETAIL_PROJECTION` and mapped by `toOrderDetailDto` — so `delivery_address.coordinates`,
+> `raw_input` and `items[].delivery.pickup_location.address_snapshot` are excluded by the same two
+> locks that guard the read, and nothing snake_case leaves. `dispatch` keeps
+> `{ shipmentsAssigned, order }`; only the `order` half changed, and `0` is still a no-op rather
+> than an error.
+>
+> **The fix is one function, deliberately.** `readOrderDetail(orderId)` in
+> `order.controller.ts` is what `GET /orders/:orderId` answers through as well, so the write and
+> the read cannot disagree — which is the class this finding is, not just the instance. A field
+> added to the DTO reaches all four surfaces or none.
+>
+> **⚠ Keep the client-side mitigation.** `orders.service.ts` discarding `data` structurally, and
+> `OrderDetail.test.tsx` asserting stubbed coordinates never reach the DOM, are defence in depth
+> against the *next* delegated write — not a workaround for this one. They should survive the
+> fix. Adopting the returned DTO to save a refetch is a separate, optional change.
+>
+> Documentation corrected with it: `orders.md` in all three places (it described two of them as
+> "the updated order"), and `BACKEND-INTEGRATION-MATRIX.md`'s Phase 9 correction 1 and its
+> **camelCase** rule row, which carried dispatch as the one documented casing exception. There is
+> now no exception.
+
 
 **Priority: high.** Found in Phase 9 (orders and shipments).
 
@@ -224,6 +363,15 @@ problem.
 ---
 
 ## 7. The COD block on a shipment needs no `cod.*` permission
+
+> ### ✅ ANSWERED 2026-08-17 — confirmed intended
+>
+> A support agent answering "the driver says he never got the cash" needs the collection state,
+> and withholding it pushes them toward a surface they cannot reach. The delivery code itself
+> stays excluded twice over, and your note that the projection whitelist is the *only* guard —
+> because this service reads with the raw driver, which does not honour `select: false` — is
+> correct and worth keeping visible.
+
 
 **Priority: low — recorded for a decision, not as a fault.**
 

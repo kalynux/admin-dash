@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, BadgeCheck, Power, PowerOff } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, BadgeX, Power, PowerOff } from 'lucide-react';
 
 import { AccountPanel } from '@/components/accounts/AccountPanel';
 import { AgencyActivityPanel } from '@/components/agencies/AgencyActivityPanel';
@@ -14,6 +14,7 @@ import { AgencyRosterPanel } from '@/components/agencies/AgencyRosterPanel';
 import {
     DeactivateAgencyDialog,
     ReactivateAgencyDialog,
+    RejectAgencyDialog,
     VerifyAgencyDialog,
 } from '@/components/agencies/AgencyWriteDialogs';
 import { Can } from '@/components/auth/Can';
@@ -114,6 +115,7 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
 
     const [tab, setTab] = useState('overview');
     const [verifying, setVerifying] = useState(false);
+    const [rejecting, setRejecting] = useState(false);
     const [deactivating, setDeactivating] = useState(false);
     const [reactivating, setReactivating] = useState(false);
 
@@ -180,14 +182,32 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
                 <>
                     <Can permission="agencies.verify">
                         {canVerifyAgency(record) ? (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setVerifying(true)}
-                            >
-                                <BadgeCheck className="size-4" />
-                                Verify
-                            </Button>
+                            <>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setVerifying(true)}
+                                >
+                                    <BadgeCheck className="size-4" />
+                                    Verify
+                                </Button>
+                                {/*
+                                  The other verdict, behind the SAME permission.
+                                  `agencies.verify` is the review capability, named
+                                  for its happy path; the audit action is what
+                                  separates approving from refusing. Gated on the
+                                  same predicate because both are only reachable
+                                  while the agency is still pending.
+                                */}
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setRejecting(true)}
+                                >
+                                    <BadgeX className="size-4" />
+                                    Reject
+                                </Button>
+                            </>
                         ) : null}
                     </Can>
 
@@ -295,6 +315,12 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
                 agency={record}
                 open={verifying}
                 onOpenChange={setVerifying}
+                onDone={reconcile}
+            />
+            <RejectAgencyDialog
+                agency={record}
+                open={rejecting}
+                onOpenChange={setRejecting}
                 onDone={reconcile}
             />
             <DeactivateAgencyDialog

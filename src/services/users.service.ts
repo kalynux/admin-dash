@@ -26,6 +26,8 @@ import { toAuditPage, type AuditPage } from '@/services/audit.service';
 import type { Paginated } from '@/types/api.types';
 import type { AuditEntry } from '@/types/audit.types';
 import type {
+    CredentialLinkBody,
+    CredentialLinkResult,
     PlatformUser,
     SuspendUserBody,
     UpdateUserContactBody,
@@ -218,6 +220,71 @@ export function suspendUser(
  */
 export function restoreUser(userId: string, options?: RequestOptions): Promise<PlatformUser> {
     return api.post<PlatformUser>(`/users/${encodeURIComponent(userId)}/restore`, undefined, options);
+}
+
+// ─── Credential recovery — two sends, two permissions ─────────────────────────
+
+/**
+ * `POST /users/:userId/password-reset-link` · **`users.password.reset`** ·
+ * delegated · **tier 1 and 2 only**.
+ *
+ * Mints through jovi-mall's `PasswordResetService.issueResetLinkFor` — the same
+ * 32-byte token the self-service and bot flows use, redeemed at the same
+ * `POST /auth/reset-password`, carrying the same `password_changed_at` stamp
+ * that **evicts every live session** on redemption. Lives 30 minutes,
+ * single-use.
+ *
+ * **Every role.** A password belongs to the `users` row, and vendors and
+ * agencies are exactly the people who have one to forget.
+ *
+ * Issuing a second one for the same party **revokes the first**, so an operator
+ * who clicks twice leaves one live credential rather than two.
+ */
+export function sendPasswordResetLink(
+    userId: string,
+    body: CredentialLinkBody,
+    options?: RequestOptions,
+): Promise<CredentialLinkResult> {
+    return api.post<CredentialLinkResult>(
+        `/users/${encodeURIComponent(userId)}/password-reset-link`,
+        body,
+        options,
+    );
+}
+
+/**
+ * `POST /users/:userId/login-link` · **`users.login_link.send`** · delegated ·
+ * **tier 1 and 2 only**.
+ *
+ * Mints through jovi-mall's `MessagingLoginService` — the same session record
+ * the bot `/login` flow mints, with a magic link **and** an 8-character code for
+ * one session; using either kills the other. Lives 10 minutes, single-use.
+ *
+ * ⚠ **Customers only.** Anything else is
+ * `PLATFORM_CODE_LOGIN_LINK_ROLE_UNSUPPORTED`, and it is structural rather than
+ * configurable: jovi-mall scopes every session this flow mints to `customer` as
+ * a literal, because a vendor, agency or agent reaches money and other people's
+ * data. Offer a password-reset link instead — the screen should not present this
+ * on a non-customer at all.
+ *
+ * ── Why this is a separate permission from the reset link ─────────────────────
+ * A reset link grants nothing until the person chooses a password, and evicts
+ * every session when they do; its worst case is a locked-out user. A sign-in
+ * link **is** a session: whoever opens the message is signed in as that
+ * customer. Folding them together would mean a tier granted "help people back
+ * into their account" silently also got "sign in as a customer", with nothing in
+ * the trail to tell the two acts apart.
+ */
+export function sendLoginLink(
+    userId: string,
+    body: CredentialLinkBody,
+    options?: RequestOptions,
+): Promise<CredentialLinkResult> {
+    return api.post<CredentialLinkResult>(
+        `/users/${encodeURIComponent(userId)}/login-link`,
+        body,
+        options,
+    );
 }
 
 // ─── The platform codes a delegated user write can carry ──────────────────────

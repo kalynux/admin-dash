@@ -108,8 +108,8 @@ export const ERROR_CODES = Object.freeze({
 
     AUDIT_ENTRY_NOT_FOUND: 'AUDIT_ENTRY_NOT_FOUND',
     AUDIT_EXPORT_NOT_FOUND: 'AUDIT_EXPORT_NOT_FOUND',
-    /** The legacy admin-action feed is switched off via its feature flag. */
-    AUDIT_LEGACY_FEED_DISABLED: 'AUDIT_LEGACY_FEED_DISABLED',
+    // `AUDIT_LEGACY_FEED_DISABLED` was here — the 404 `GET /audit/legacy` answered when its
+    // feature flag was off. Deleted at Phase 5 Part D with the route, the module and the flag.
 
     /** The requested range exceeds `ADMIN_AUDIT_EXPORT_API_MAX_ROWS` — narrow it, or use the CLI. */
     AUDIT_EXPORT_TOO_LARGE: 'AUDIT_EXPORT_TOO_LARGE',
@@ -237,6 +237,37 @@ export const ERROR_CODES = Object.freeze({
     ADMIN_AUTH_CSRF_INVALID: 'ADMIN_AUTH_CSRF_INVALID',
     ADMIN_AUTH_PASSWORD_WEAK: 'ADMIN_AUTH_PASSWORD_WEAK',
 
+    // ── LIVE TRACKING (Phase 6.I · ADR-020) ───────────────────────────────────
+    //
+    // The three ways a live-tracking read fails that are not this service's own 4xx.
+    // They are separate codes rather than one because the remedies are different people:
+    // the first is an operator's deployment, the second is geo-tracker's scope
+    // configuration, and the third is somebody's pager.
+
+    /**
+     * `GEO_TRACKER_DATA_BASE_URL` / `GEO_TRACKER_ADMIN_TOKEN` are unset, so this deployment
+     * has no data door at all — a supported posture, and the default.
+     *
+     * A 503 rather than a 404: the routes exist and the capability is built. Telling a
+     * dashboard "no such endpoint" would send somebody to look for a missing deploy.
+     */
+    TRACKING_DOOR_UNCONFIGURED: 'TRACKING_DOOR_UNCONFIGURED',
+
+    /**
+     * geo-tracker refused the read. `details.upstreamCode` carries its code verbatim —
+     * `SERVICE_SCOPE_FORBIDDEN` (this credential does not hold the scope, with
+     * `details.scope` naming it), `SERVICE_TOKEN_INVALID` (the shared secret has drifted),
+     * `SERVICE_DOOR_NOT_CONFIGURED` (geo-tracker's half is closed).
+     *
+     * Passed through rather than collapsed because each of those is a one-line fix by a
+     * different person, and a generic "tracking unavailable" makes all three look like an
+     * outage.
+     */
+    TRACKING_DOOR_REFUSED: 'TRACKING_DOOR_REFUSED',
+
+    /** geo-tracker could not be reached, or did not answer in time. Retry; report nothing. */
+    TRACKING_DOOR_UNAVAILABLE: 'TRACKING_DOOR_UNAVAILABLE',
+
     // ── MONEY / ACCOUNTS (Phase 11) ───────────────────────────────────────────
 
     /**
@@ -298,6 +329,27 @@ export const ERROR_CODES = Object.freeze({
      */
     CONTRACT_NOT_FOUND: 'CONTRACT_NOT_FOUND',
 
+    // ── SUPPORT ───────────────────────────────────────────────────────────────
+
+    /**
+     * No such ticket — **or one outside the caller's tier scope**, deliberately
+     * indistinguishable.
+     *
+     * That conflation is the security property, not a shortcut. The ticket scope is folded
+     * into the query (`resource-scope.ts:20-29`), so a Support administrator asking for an
+     * Admin's ticket gets the same answer as one asking for an id that never existed. A 403
+     * would confirm the record exists, which is exactly what somebody probing another tier's
+     * queue wants to learn.
+     *
+     * Contrast `AUTHZ_PERMISSION_DENIED` on the same surface: that IS raised, for a ticket
+     * the caller can already see but may not act on. Concealing at that point protects
+     * nothing they do not already know.
+     */
+    TICKET_NOT_FOUND: 'TICKET_NOT_FOUND',
+
+    /** The ticket is already held by an administrator, so there is nothing to claim. */
+    TICKET_ALREADY_ASSIGNED: 'TICKET_ALREADY_ASSIGNED',
+
     // ── FILES ─────────────────────────────────────────────────────────────────
 
     /**
@@ -309,6 +361,99 @@ export const ERROR_CODES = Object.freeze({
      * omits unresolvable ids rather than raising; only the single-id route answers this.
      */
     FILE_NOT_FOUND: 'FILE_NOT_FOUND',
+
+    /**
+     * The hard delete's body did not repeat the id in its path.
+     *
+     * The `outbox.prune` precedent (Phase 5 D-9): make the operator restate the value that
+     * decides the blast radius. There it is the retention age; here it is the file id, because
+     * a file id is the whole of what this operation acts on and the operation cannot be undone.
+     * Raised at 400 — it is a body that failed a rule, not a state that moved.
+     */
+    FILE_DELETE_NOT_CONFIRMED: 'FILE_DELETE_NOT_CONFIRMED',
+
+    /**
+     * The deployment's storage provider cannot serve file contents at all (BR-011).
+     *
+     * ⚠ **A CONFIGURATION state, not an outage, and the two must be distinguishable** —
+     * that is the entire reason this is its own code rather than a
+     * `SERVICE_DEPENDENCY_UNAVAILABLE`. jovi-mall's `getDownloadStream` is implemented on
+     * the `local` provider and throws on `firebase` and `cloudinary`, so on those
+     * deployments the answer is a permanent "this platform cannot show private files"
+     * rather than "try again". A client that cannot tell them apart either shows a retry
+     * button that will never work, or sends an operator hunting an incident that is not
+     * happening.
+     *
+     * Raised at **409**, so the derived category is `business_rule` and the message
+     * survives the boundary filter — an `external_service` 5xx would have its message
+     * replaced by the registry default and its `details` dropped, losing the provider
+     * name that says *why*.
+     *
+     * Arrives from jovi-mall as `details.platformCode = 'STORAGE_DOWNLOAD_NOT_SUPPORTED'`
+     * on a `PLATFORM_OPERATION_REJECTED`, and is re-raised under this name by the file
+     * gateway. Branch on `error.code`.
+     */
+    FILE_CONTENT_NOT_SUPPORTED: 'FILE_CONTENT_NOT_SUPPORTED',
+
+    // ── CONTENT / EDITORIAL ───────────────────────────────────────────────────
+    //
+    // The `BLOG_` prefix is jovi-mall's, and it is kept deliberately. Ownership of
+    // `articles` and `article_authors` moved here at Phase 5 Part A (ADR-004 D-4), but
+    // jovi-mall's public reader still raises `BLOG_ARTICLE_MOVED` and `BLOG_ARTICLE_GONE`
+    // on the same records, and its `api-doc/public/articles.md` publishes them. Renaming
+    // this half to `CONTENT_*` would give one collection two error vocabularies split by
+    // which service answered — so the editor's codes keep the names they had, and a client
+    // that already handles them keeps working across the cutover.
+    //
+    // The two public codes are NOT here: nothing on this surface serves a reader.
+
+    /** No such article. Also raised for one that is soft-deleted. */
+    BLOG_ARTICLE_NOT_FOUND: 'BLOG_ARTICLE_NOT_FOUND',
+
+    /** The stable id is taken. Ids are permanent by contract, so this is not retryable. */
+    BLOG_ARTICLE_KEY_TAKEN: 'BLOG_ARTICLE_KEY_TAKEN',
+
+    /**
+     * Publishing was refused, and `details.blockers` says why — as a **checklist**, not a
+     * first failure. Telling an editor about one missing piece at a time, over three
+     * round-trips, is how a publish button earns a reputation for being broken.
+     */
+    BLOG_ARTICLE_NOT_PUBLISHABLE: 'BLOG_ARTICLE_NOT_PUBLISHABLE',
+
+    /** Already live. Publishing twice would be a no-op that looks like a state change. */
+    BLOG_ARTICLE_ALREADY_PUBLISHED: 'BLOG_ARTICLE_ALREADY_PUBLISHED',
+
+    /**
+     * Refused because the article has been published before — `published_at` is the test,
+     * not `status`, because an already-unpublished article was still live once.
+     *
+     * ⚠ Not a permission problem and not retryable. Once an address has been live it may
+     * have inbound links, and a 404 wastes them. The remedy is `archive`, which keeps the
+     * URL answering `410 Gone` with its category hub.
+     */
+    BLOG_ARTICLE_DELETE_NOT_ALLOWED: 'BLOG_ARTICLE_DELETE_NOT_ALLOWED',
+
+    /**
+     * Another article answers to this `(locale, slug)` — **including as a RETIRED slug**.
+     * A reused slug turns a permanent redirect into a wrong answer, which is worse than
+     * the 404 it was avoiding.
+     */
+    BLOG_SLUG_TAKEN: 'BLOG_SLUG_TAKEN',
+
+    /** `category`, `page` or `index` — each collides with a route rather than resolving. */
+    BLOG_SLUG_RESERVED: 'BLOG_SLUG_RESERVED',
+
+    BLOG_AUTHOR_NOT_FOUND: 'BLOG_AUTHOR_NOT_FOUND',
+    BLOG_AUTHOR_KEY_TAKEN: 'BLOG_AUTHOR_KEY_TAKEN',
+
+    /**
+     * The byline is credited on at least one article. `details.articleCount` says how many.
+     *
+     * This refusal is what makes `author` non-null on every published article: the public
+     * DTO resolves the byline by key, and a dangling reference would put an article
+     * carrying `BlogPosting` structured data on the site with no author node at all.
+     */
+    BLOG_AUTHOR_IN_USE: 'BLOG_AUTHOR_IN_USE',
 
     // ── CREDENTIAL RECOVERY ───────────────────────────────────────────────────
     //

@@ -258,7 +258,7 @@ function SubscribersPanel({
 
     // The plan is the subject of the page, so it needs no column of its own.
     const columns = useMemo(
-        () => subscriptionColumns({ timeZone, can, showPlan: false }),
+        () => subscriptionColumns({ timeZone, can, showPlan: false, detailLink: true }),
         [timeZone, can],
     );
 

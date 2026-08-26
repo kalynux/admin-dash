@@ -42,6 +42,7 @@ import type {
     DeactivateAgencyBody,
     PlatformAgency,
     ReactivateAgencyBody,
+    RejectAgencyBody,
 } from '@/types/agencies.types';
 import type {
     ContractEvent,
@@ -247,6 +248,41 @@ export function verifyAgency(
     return api.post<PlatformAgency>(
         `/agencies/${encodeURIComponent(agencyId)}/verify`,
         undefined,
+        options,
+    );
+}
+
+/**
+ * `POST /agencies/:agencyId/reject` · **`agencies.verify`** · delegated.
+ *
+ * The other half of the review. **It holds `agencies.verify`, not a permission
+ * of its own** — that permission is the *review capability*, named for its happy
+ * path, exactly as `vendors.kyc.review` and `agents.kyc.review` each cover both
+ * of their outcomes. The two verdicts are one action with two results, so what
+ * separates them is the **audit action** (`agencies.reject`).
+ *
+ * ⚠ **It changes no status.** jovi-mall leaves the agency at
+ * `pending_verification` — not deactivated, no cascade. A non-`active` agency is
+ * already refused by product activation, pickup resolution, COD eligibility and
+ * vendor default-agency selection, so this records a verdict rather than adding
+ * enforcement. There is deliberately **no un-reject**: `POST /verify` still
+ * accepts them once they fix what the reason named.
+ *
+ * ⚠ **`reason` reaches the agency.** It is forwarded to jovi-mall and stored on
+ * the agency record, unlike the deactivation reason, which lives only in the
+ * audit payload. The dialog must say so.
+ *
+ * Conflicts the same way `verify` does — a `409` means a colleague reached a
+ * verdict first, not that the agency is missing.
+ */
+export function rejectAgency(
+    agencyId: string,
+    body: RejectAgencyBody,
+    options?: RequestOptions,
+): Promise<PlatformAgency> {
+    return api.post<PlatformAgency>(
+        `/agencies/${encodeURIComponent(agencyId)}/reject`,
+        body,
         options,
     );
 }

@@ -85,9 +85,13 @@ describe('the click target', () => {
 
 describe('a row with nowhere to go', () => {
     it('renders no link when the path does not resolve to a built route', () => {
-        // `/support/tickets/…` is catalogued policy with no endpoint and no
-        // screen, so `toDashboardPath` refuses it rather than linking to a 404.
-        renderRow(notification({ actionPath: '/support/tickets/665f1c2a9b3e4a91' }));
+        // `/broadcast/…` is a surface this dashboard has no screen for, so
+        // `toDashboardPath` refuses it rather than linking to a 404.
+        //
+        // Support tickets used to be the example here and are **built now** —
+        // `notification-path.test.ts` asserts that `/support/tickets/:id` maps
+        // rather than being refused, which is why the example moved.
+        renderRow(notification({ actionPath: '/broadcast/campaigns/665f1c2a9b3e4a91' }));
 
         expect(screen.queryByRole('link')).not.toBeInTheDocument();
         expect(screen.getByText('An order was disputed')).toBeInTheDocument();

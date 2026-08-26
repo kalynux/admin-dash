@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/select';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { formatMoney } from '@/lib/format';
-import { listPlans } from '@/services/billing.service';
+import { getOwnerSubscriptions, listPlans } from '@/services/billing.service';
 import type { Plan } from '@/types/billing.types';
 
 interface ChangePlanDialogProps {
@@ -59,6 +59,20 @@ interface ChangePlanDialogProps {
  * not selectable**: `isActive: false` is a defined-but-not-purchasable tier, a
  * real state worth seeing, and hiding it would make a deliberate configuration
  * look like a missing record.
+ *
+ * ── Why it also reads the owner's own terms ───────────────────────────────────
+ * `GET /billing/subscriptions/:ownerType/:ownerId` answers `current` and
+ * `queued` already partitioned. `billing.md` says in as many words to
+ * *"check `queued` before assigning"*: a non-null value means the assign will
+ * be refused with `BILLING_PENDING_PLAN_EXISTS`, and that refusal sits on a
+ * completely ordinary path — assigning to an owner whose paid term has not
+ * lapsed produces a queued row rather than replacing the live one, so a second
+ * assignment hits it.
+ *
+ * Read here rather than in `AssignPlanDialog` because this is the screen that
+ * can still change its mind. The assignment dialog keeps its handler for the
+ * same code anyway: the queue can fill between this read and that write, and a
+ * pre-flight is a courtesy, never a guarantee.
  */
 export function ChangePlanDialog({
     ownerType,
@@ -82,7 +96,22 @@ export function ChangePlanDialog({
         listPlans({ role: ownerType, limit: 100 }, { signal }),
     );
 
+    /*
+      The owner's own terms, so the queued one can be named before the assign is
+      offered. Keyed on the owner rather than the role — unlike the catalogue,
+      this differs per row.
+
+      A failure here is deliberately NOT fatal to the dialog: the pre-flight is a
+      courtesy, and `AssignPlanDialog` still handles `BILLING_PENDING_PLAN_EXISTS`
+      if it happens. Blocking the whole assignment because a warning could not be
+      rendered would be the wrong trade.
+    */
+    const terms = useAsyncData(`/billing/subscriptions/${ownerType}/${ownerId}`, (signal) =>
+        getOwnerSubscriptions(ownerType, ownerId, { signal }),
+    );
+
     const rows = plans.data?.data ?? [];
+    const queued = terms.data?.queued ?? null;
 
     // Handed over: the assignment dialog owns the write from here.
     if (chosen) {
@@ -124,6 +153,23 @@ export function ChangePlanDialog({
                         limits it carries, and a mismatch is refused by the platform.
                     </DialogDescription>
                 </DialogHeader>
+
+                {/*
+                  Named before the picker, not after the failure. The platform
+                  refuses a second queued term, so an operator who reads this
+                  knows the assign will bounce before they choose a tier.
+                */}
+                {queued ? (
+                    <div className="border-warning/30 bg-warning/10 space-y-1 rounded-lg border px-3 py-2 text-sm">
+                        <p className="font-medium">A plan is already queued for this owner.</p>
+                        <p>
+                            {queued.plan.name ?? queued.plan.code ?? 'A tier'} starts when the
+                            current term lapses. The platform allows one queued term at a time, so
+                            assigning another will be refused until this one activates or is
+                            cancelled.
+                        </p>
+                    </div>
+                ) : null}
 
                 {plans.isLoading ? (
                     <InlineLoader />

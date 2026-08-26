@@ -659,6 +659,8 @@ export function permissionCatalogFixture(
             phase: 14,
         },
         {
+            // Routed since Phase 5 Part B, and `scoped:tickets` — kept here as
+            // the row-scope example, no longer as the "no endpoint" one.
             name: 'support.tickets.read',
             family: 'support',
             action: 'read',
@@ -668,7 +670,22 @@ export function permissionCatalogFixture(
             destructive: false,
             dualControl: false,
             scoped: true,
-            phase: 99,
+            phase: 5,
+        },
+        {
+            // One of the **four** remaining `†`: catalogued policy with no
+            // endpoint. Service-wide wording would block a tier-3 administrator
+            // configuring their own preferences, which they already may.
+            name: 'notifications.manage',
+            family: 'notifications',
+            action: 'write',
+            summary: 'Configure which events raise an administrator alert',
+            financial: false,
+            escalation: false,
+            destructive: false,
+            dualControl: false,
+            scoped: false,
+            phase: 13,
         },
     ];
 
@@ -677,6 +694,7 @@ export function permissionCatalogFixture(
             { family: 'system', permissions: ['system.health.read'] },
             { family: 'developer_tools', permissions: ['developer_tools.cache.flush'] },
             { family: 'support', permissions: ['support.tickets.read'] },
+            { family: 'notifications', permissions: ['notifications.manage'] },
         ],
         permissions,
         total: permissions.length,
@@ -812,11 +830,40 @@ export function vendorDetailFixture(overrides: Partial<VendorDetail> = {}): Vend
                 state: 'Littoral',
             },
         ],
+        /**
+         * **Content as well as presence**, since the dashboard-request round.
+         * The three booleans are now *derived* from the blocks below, so
+         * `hasSupportPolicy: false` is paired with `support: null` — a fixture
+         * where they disagreed would let a panel pass against a shape the
+         * server cannot send.
+         */
         policies: {
             policyVersion: 3,
             hasReturnPolicy: true,
             hasCancellationPolicy: true,
             hasSupportPolicy: false,
+            returns: {
+                returnEligible: true,
+                returnWindowDays: 14,
+                refundType: 'partial',
+                refundPercentage: 80,
+                returnShippingPayer: 'customer_reimbursed_if_defect',
+                refundProcessingDays: 5,
+                returnConditionNotes: 'Unopened packaging only',
+                // Administrator-controlled upstream, never vendor input.
+                inspector: 'platform',
+            },
+            cancellation: {
+                cancellable: true,
+                cancellationDeadline: 'before_dispatch',
+                cancellationDeadlineDays: null,
+                cancellationFeeType: 'percentage',
+                cancellationFeeValue: 10,
+                lateCancellationRefundType: 'partial',
+                lateCancellationRefundValue: 50,
+            },
+            support: null,
+            documents: [],
         },
         settings: {
             autoRedirectOrdersToAgency: false,
@@ -877,7 +924,16 @@ export function vendorProductFixture(overrides: Partial<VendorProduct> = {}): Ve
         mode: 'simple',
         hasVariants: false,
         suspension: null,
-        deliveryAgencyId: '665c0011223344556677889a',
+        /**
+         * **Replaces `deliveryAgencyId`** — a breaking rename. An object rather
+         * than an id removes an N+1 and a permission question: the catalogue tab
+         * needs `vendors.read` alone, so a caller without `agencies.read` could
+         * not have resolved the name.
+         */
+        deliveryAgency: {
+            id: '665c0011223344556677889a',
+            businessName: 'Littoral Express Delivery',
+        },
         lastOrderedAt: '2026-08-09T18:22:00.000Z',
         createdAt: '2026-01-20T07:00:00.000Z',
         updatedAt: '2026-08-10T13:02:41.008Z',
@@ -1144,18 +1200,18 @@ export function platformEarningsFixture(
  * reach.
  *
  * Two of the three are *derived* rather than transcribed, so there is less to
- * get wrong: the counts the document states in prose (110 / 93 / 23) are
- * asserted below, and `permissions.types.test.ts` already proves every name here
- * exists in the catalogue.
+ * get wrong: the counts (114 / 97 / 30) are asserted below, and
+ * `permissions.types.test.ts` already proves every name here exists in the
+ * catalogue — and that `permissions.md` states those same three numbers.
  */
 
-/** Developer. Holds all 110, and is the only level for which MFA is mandatory. */
+/** Developer. Holds all 114, and is the only level for which MFA is mandatory. */
 export const TIER_1_PERMISSIONS: readonly string[] = [...PERMISSION_NAMES];
 
 /**
  * The seventeen an Admin does **not** hold: the four named in
  * `permissions.md` § "What Admin (tier 2) deliberately does not hold", plus the
- * whole `developer_tools` family. 113 − 17 = 96.
+ * whole `developer_tools` family. 114 − 17 = 97.
  */
 const TIER_2_EXCLUSIONS: readonly string[] = [
     'administrators.tier.set',
@@ -1164,25 +1220,34 @@ const TIER_2_EXCLUSIONS: readonly string[] = [
     'users.roles.manage',
 ];
 
-/** Admin — the operational level, including the money. 96 of 113. */
+/** Admin — the operational level, including the money. 97 of 114. */
 export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
     (name) => !TIER_2_EXCLUSIONS.includes(name) && !name.startsWith('developer_tools.'),
 );
 
 /**
- * Support. 24 of 113 — and **twelve of those are `†`**, so a Support
- * administrator holds twenty-four permissions and can use twelve.
+ * Support. **30 of 114**, and every one of them is routed — Support holds none
+ * of the four `†` permissions, so a Support administrator can use everything
+ * they hold. That is new: the set was 24 with twelve unusable before Phase 5
+ * built the `support` and `content` surfaces.
  *
- * Transcribed from the ● marks in the Support column. Two surprises worth
+ * Transcribed from the ● marks in the Support column. Three surprises worth
  * keeping: `money.payments.read` is held deliberately, because "did my payment
- * go through" is one of the commonest ticket questions; and `files.resolve` is
+ * go through" is one of the commonest ticket questions; `files.resolve` is
  * held by **every** tier, because the caller already holds the file id, which
- * means they already passed the guard on the record that carried it.
+ * means they already passed the guard on the record that carried it; and both
+ * tracking reads are held by Support and **not** by Admin — answering "where is
+ * my parcel" is ticket work, and each read is audited.
+ *
+ * `files.content.read` joined at BR-011 on the same argument as the tracking
+ * reads: Support answers the delivery-proof disputes, and refusing them
+ * escalates every ticket to a tier holding less context. It is audited for the
+ * same reason too — the grant and the record were one decision.
  */
 export const TIER_3_PERMISSIONS: readonly string[] = [
     'agents.read',
+    'agents.tracking.read',
     'agencies.read',
-    'files.resolve',
     'money.payments.read',
     'orders.read',
     'orders.disputes.read',
@@ -1198,10 +1263,16 @@ export const TIER_3_PERMISSIONS: readonly string[] = [
     'support.tickets.attachments.read',
     'support.tickets.attachments.write',
     'support.reference.read',
+    'content.articles.read',
+    'content.articles.write',
+    'content.authors.read',
+    'content.authors.write',
+    'files.resolve',
+    'files.content.read',
     'users.read',
     'vendors.read',
-    'customers.read',
     'shipments.read',
+    'shipments.tracking.read',
     'audit.read',
     'notifications.read',
 ];

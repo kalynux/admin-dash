@@ -11,6 +11,7 @@ import {
     AgentOverviewPanel,
 } from '@/components/agents/AgentProfilePanels';
 import { AgentStateAxesGrid } from '@/components/agents/AgentStateAxes';
+import { AgentLiveTrackingPanel } from '@/components/agents/AgentLiveTrackingPanel';
 import { AgentTrackingPanel } from '@/components/agents/AgentTrackingPanel';
 import {
     BanAgentDialog,
@@ -248,6 +249,15 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
                         timeZone={timeZone}
                         reloadToken={reloadToken}
                     />
+                    {/*
+                      The geo-tracker data door, new at Phase 6.I. It sits under
+                      the same tab as the flag and the verdict because an operator
+                      asking "can this agent be dispatched" and one asking "where
+                      are they" open the same tab — but it is a **different
+                      permission** (`agents.tracking.read`, not `agents.read`)
+                      and gates itself, so the tab stays reachable without it.
+                    */}
+                    <AgentLiveTrackingPanel agentId={record.id} timeZone={timeZone} />
                 </TabsContent>
 
                 <TabsContent value="cod" className="space-y-4">

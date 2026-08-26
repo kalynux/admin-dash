@@ -113,6 +113,55 @@ export interface Subscription {
 }
 
 /**
+ * `GET /billing/subscriptions/:ownerType/:ownerId` — every term one owner holds,
+ * **partitioned by the platform's own determination of which is live**.
+ *
+ * ── Why this exists beside `GET /billing/subscriptions?ownerId=` ──────────────
+ * An owner holds several rows at once: one `active`, optionally one
+ * `pending_activation`, plus the history. The cross-owner list can be filtered
+ * to them, but it is **server-paginated** — so an owner's rows can straddle a
+ * page boundary, and a client grouping them groups *some* of their terms with no
+ * way to know that it did.
+ *
+ * And deciding which row is live is not a judgement a client should make.
+ * `status` is an open vocabulary this service never writes, so a client ranking
+ * it guesses, and its guess changes silently when a fifth value appears
+ * upstream. Here the answer comes from the row that says `active`.
+ *
+ * **Unpaginated on purpose** — an owner accumulates one term per renewal, single
+ * digits over a platform's lifetime.
+ */
+export interface OwnerSubscriptions {
+    owner: { type: string; id: string; name: string | null };
+    /**
+     * The row whose `status` is `active`.
+     *
+     * ⚠ **`null` means the owner has no active plan** — not "we could not
+     * determine it". The same fact `GET /accounts/:ownerType/:ownerId` reports by
+     * setting the subscription block's fields to `null` together.
+     */
+    current: Subscription | null;
+    /**
+     * The `pending_activation` row, or `null`.
+     *
+     * ⚠ **Check this before assigning.** A non-null value means
+     * `POST /billing/subscriptions/:ownerType/:ownerId` will answer
+     * `BILLING_PENDING_PLAN_EXISTS` — which is reachable on a completely
+     * ordinary path, not an edge case.
+     */
+    queued: Subscription | null;
+    /**
+     * Everything else, newest first by `createdAt`. A row with an
+     * **unrecognised** status lands here rather than being dropped.
+     *
+     * Ordered by `createdAt` rather than `startedAt` because `startedAt` is
+     * `null` on a queued row — sorting on it would put the thing that has not
+     * started yet among the oldest.
+     */
+    history: Subscription[];
+}
+
+/**
  * The four states a term can be in.
  *
  * Read from the model's enum (`subscriber-plan.model.ts:22,62`); `billing.md`

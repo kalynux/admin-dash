@@ -15,9 +15,9 @@ Design records: [`../ADR-003-GRANULAR-PERMISSIONS.md`](../ADR-003-GRANULAR-PERMI
 
 | Level (`tier`) | Label | Holds | Shape of the job |
 |---|---|---|---|
-| **1** | Developer | 113 of 113 | Everything, including the developer tools and every escalation-flagged action |
-| **2** | Admin | 96 of 113 | The operational tier — runs the platform day to day, including the money |
-| **3** | Support | 24 of 113 | Ticket work plus the read-only lookups needed to answer a ticket. Nothing financial, nothing destructive, no sight of the administrator directory |
+| **1** | Developer | 116 of 116 | Everything, including the developer tools and every escalation-flagged action |
+| **2** | Admin | 99 of 116 | The operational tier — runs the platform day to day, including the money |
+| **3** | Support | 30 of 116 | Ticket work, the lookups needed to answer a ticket, and editorial write on articles and bylines. Nothing financial, nothing destructive, and publishing stays a level above |
 
 A level is an administrator's **entire** authorization state. `tier` appears on the profile
 returned by `GET /auth/me`.
@@ -117,12 +117,36 @@ carries `financial`, because its *output* is the material a fraudulent payout in
 built from. `money.earnings.read` and `cod.overview.read` are unflagged and belong that way —
 do not reach for `financial` merely because a read concerns money.
 
+### Three reads are audited, and two of them are held by Support
+
+"Reads are not actions" is the rule, and it holds because a read leaves no state behind — so the
+permission gate is the whole control and a row per read would be volume with nothing to say.
+**Three permissions break it**, all for the same reason: their *output* **is** the disclosure.
+
+| Permission | What it discloses | Held by Support |
+|---|---|:-:|
+| `money.payouts.destination.read` | A beneficiary's account number | no (`financial`) |
+| `agents.tracking.read` | Where a person is, right now | **yes** |
+| `shipments.tracking.read` | Where a person went, over one delivery | **yes** |
+
+For a disclosure, "who *may*" is not the interesting question; **"who *did*, and how often"** is.
+An administrator who unmasks forty positions in an afternoon is doing something other than
+answering tickets, and nothing else in this service would ever see it.
+
+The two tracking permissions are **unflagged** and reach Support deliberately — *"where is my
+delivery right now"* is what a ticket asks, and refusing it to the tier that answers tickets
+escalates every one of them. **The audit is the other half of that decision**: on every
+coordinate-emitting read the row commits **before** the disclosure and its failure is not caught,
+so with the audit store unreachable nothing is disclosed. Widening the audience and adding the
+record were one decision, not two. See [ADR-020](../ADR-020-ADMIN-DATA-DOOR.md) D-5.
+
 ---
 
 ## The matrix
 
 ● granted  ·  not granted  ·  **†** = catalogued policy with **no endpoint built yet**
-(27 of 113 permissions; the policy is decided ahead of the surface, deliberately)
+(**4** of 116 permissions — down from 27, and the four that remain each have a written reason
+below. The policy is decided ahead of the surface, deliberately.)
 
 ### `agents`
 
@@ -133,6 +157,7 @@ do not reach for `financial` merely because a read concerns money.
 | `agents.ban` | write | ● | ● | · | destructive | Permanently ban an agent from the platform |
 | `agents.kyc.review` | write | ● | ● | · | — | Approve or reject an agent’s identity documents — this is what lets an agent work |
 | `agents.tracking.set` | write | ● | ● | · | — | Override an agent’s live-location tracking permission |
+| `agents.tracking.read` | read | ● | ● | ● | — | Read an agent’s live tracking state and live position from geo-tracker — every position read is recorded in the audit trail |
 | `agents.cod_threshold.set` | write | ● | ● | · | financial | Set how much cash on delivery an agent may hold before remitting |
 | `agents.transfer` | write | ● | ● | · | — | Move an agent from one delivery agency to another |
 | `agents.contracts.manage` | write | ● | ● | · | — | Suspend, reinstate or terminate one agent↔agency contract (never its terms) |
@@ -198,43 +223,111 @@ do not reach for `financial` merely because a read concerns money.
 | Permission | Action | 1 Dev | 2 Admin | 3 Support | Flags | Summary |
 |---|---|:-:|:-:|:-:|---|---|
 | `support.errors.lookup` | read | ● | ● | ● | — | Look up an error a vendor, agency, agent or customer hit, by its reference |
-| `support.tickets.read` † | read | ● | ● | ● | scoped:tickets | View support tickets |
-| `support.tickets.create` † | write | ● | ● | ● | — | Open a support ticket on someone’s behalf |
-| `support.tickets.update` † | write | ● | ● | ● | scoped:tickets | Edit a ticket’s subject, body, status or priority |
-| `support.tickets.assign` † | write | ● | ● | ● | — | Assign a ticket to an administrator, or take it from the unassigned queue |
-| `support.tickets.lifecycle` † | write | ● | ● | ● | scoped:tickets | Close and reopen tickets |
-| `support.tickets.followers.manage` † | write | ● | ● | ● | scoped:tickets | Add and remove ticket followers |
-| `support.tickets.notes.read` † | read | ● | ● | ● | scoped:tickets | Read internal notes on a ticket — never visible to the customer |
-| `support.tickets.notes.write` † | write | ● | ● | ● | scoped:tickets | Add an internal note to a ticket |
-| `support.tickets.attachments.read` † | read | ● | ● | ● | scoped:tickets | View files attached to a ticket |
-| `support.tickets.attachments.write` † | write | ● | ● | ● | scoped:tickets | Attach a file to a ticket, or remove one |
-| `support.reference.read` † | read | ● | ● | ● | — | Look up the orders and products a ticket can reference |
+| `support.tickets.read` | read | ● | ● | ● | scoped:tickets | View support tickets |
+| `support.tickets.create` | write | ● | ● | ● | — | Open a support ticket on someone’s behalf |
+| `support.tickets.update` | write | ● | ● | ● | scoped:tickets | Edit a ticket’s subject, body, status or priority |
+| `support.tickets.assign` | write | ● | ● | ● | — | Assign a ticket to an administrator, or take it from the unassigned queue |
+| `support.tickets.lifecycle` | write | ● | ● | ● | scoped:tickets | Close and reopen tickets |
+| `support.tickets.followers.manage` | write | ● | ● | ● | scoped:tickets | Add and remove ticket followers |
+| `support.tickets.notes.read` | read | ● | ● | ● | scoped:tickets | Read internal notes on a ticket — never visible to the customer |
+| `support.tickets.notes.write` | write | ● | ● | ● | scoped:tickets | Add an internal note to a ticket |
+| `support.tickets.attachments.read` | read | ● | ● | ● | scoped:tickets | View files attached to a ticket |
+| `support.tickets.attachments.write` | write | ● | ● | ● | scoped:tickets | Attach a file to a ticket, or remove one |
+| `support.reference.read` | read | ● | ● | ● | — | Look up the orders and products a ticket can reference |
 
-### `content`  — *no endpoints yet*
+### `content`
+
+Fourteen routes at `/api/v1/content` since Phase 5 Part A — the one ported family that **moved
+ownership** rather than delegating. This service writes `articles` and `article_authors`
+directly; jovi-mall keeps the Mongoose schema, the indexes and the public reader. Full contract
+in [content.md](content.md).
 
 | Permission | Action | 1 Dev | 2 Admin | 3 Support | Flags | Summary |
 |---|---|:-:|:-:|:-:|---|---|
-| `content.articles.read` † | read | ● | ● | · | — | View and preview articles, published or not |
-| `content.articles.write` † | write | ● | ● | · | — | Create and edit articles |
-| `content.articles.publish` † | write | ● | ● | · | — | Publish, unpublish and archive articles — this is what the public sees |
-| `content.articles.delete` † | write | ● | ● | · | destructive | Permanently delete an article |
-| `content.authors.read` † | read | ● | ● | · | — | View article authors |
-| `content.authors.write` † | write | ● | ● | · | — | Create and edit article authors |
-| `content.authors.delete` † | write | ● | ● | · | destructive | Permanently delete an article author |
+| `content.articles.read` | read | ● | ● | ● | — | View and preview articles, published or not |
+| `content.articles.write` | write | ● | ● | ● | — | Create and edit articles |
+| `content.articles.publish` | write | ● | ● | · | — | Publish, unpublish and archive articles — this is what the public sees |
+| `content.articles.delete` | write | ● | ● | · | destructive | Delete an unpublished article draft — refused once it has ever been published |
+| `content.authors.read` | read | ● | ● | ● | — | View article authors |
+| `content.authors.write` | write | ● | ● | ● | — | Create and edit article authors |
+| `content.authors.delete` | write | ● | ● | · | destructive | Delete an article byline no article credits |
+
+Support holds read and write and **not** publish or delete, so a Support administrator may fix a
+typo in live prose but cannot decide what the public sees. The four names are granted one by one
+rather than by family sweep: `allInFamily('content')` skips the two `destructive` deletes on its
+own but **not** `publish`, which carries no flag (Phase 5 P-1).
 
 ### `files`
 
 | Permission | Action | 1 Dev | 2 Admin | 3 Support | Flags | Summary |
 |---|---|:-:|:-:|:-:|---|---|
 | `files.resolve` | read | ● | ● | ● | — | Resolve file ids returned by this service into names, types and URLs |
-| `files.orphans.read` † | read | ● | ● | · | — | List uploaded files no record refers to |
-| `files.delete` † | write | ● | · | · | destructive | Permanently delete a file from storage — unrecoverable |
+| `files.content.read` | read | ● | ● | ● | **audited** | Open a file's contents, including delivery proofs and other private files |
+| `files.orphans.read` | read | ● | ● | · | — | List uploaded files no record refers to |
+| `files.library.read` | read | ● | ● | · | — | Browse every uploaded file on the platform, with its owner and what uses it |
+| `files.upload` | write | ● | ● | · | — | Upload a file to the platform as the administration |
+| `files.delete` | write | ● | · | · | destructive | Permanently delete a file from storage — unrecoverable |
 
-### `broadcast`  — *no endpoints yet*
+**`files.content.read` is a separate name from `files.resolve`, and the reason is the whole
+point of it.** Resolve is held by every tier because it discloses nothing the caller did not
+already have — they hold an id that arrived on a record they were allowed to read, and turning
+it into a name and a size adds nothing. **That reasoning stops at the metadata.** Opening the
+file discloses a delivery-proof photograph (a place, a time, usually a residence) or a vendor's
+saleable `digital/` product. Different acts get different names; the platform made the same call
+for `money.payouts.destination.read`.
+
+**Support holds it, and the audit row is the other half of that decision.** "The courier says
+they delivered it and I never got it" is a Support ticket and the proof photo is its answer —
+refusing them escalates every one to a tier that knows less about it. That is the same trade
+already made for `agents.tracking.read`. What bounds it is not the grant but the record: **every
+read commits an audit row before the bytes are fetched, and a failure of that write is not
+caught**, so with the audit store unreachable nothing is disclosed.
+
+⚠ **No `reason` is required**, unlike the two tracking disclosures — an operator opens many
+images inside one dispute, and a per-image prompt becomes a box somebody types "dispute" into
+forever. See [files.md](files.md#get-apiv1filesfileidcontent).
+
+**`files.library.read` is the mount's rule in its third instance: a listing gets its own name.**
+`files.resolve` is grantable to every tier on one argument — the caller already holds the id, so
+resolving it discloses nothing new — and **that argument does not survive enumeration.** A caller
+who can browse does not need to hold an id. `files.orphans.read` established the rule; the media
+library follows it, and draws the same line at Support for the same reason.
+
+⚠ **It is NOT audited, and the dashboard asked for the opposite.** Their case was good and is
+recorded rather than waved away: this route discloses something the other four cannot, because it
+enumerates. It was declined because ADR-006 D-5's exception test is *"the output IS the
+disclosure"* — true of a payout destination, a live position, a trail and a file's bytes, and not
+of a filename and a size — and because `files.orphans.read` already enumerates on this mount
+unaudited. Auditing a *browse* surface also dilutes the trail it is meant to protect: an operator
+paging a media picker would generate more rows in a minute than the four real disclosures do in a
+week. **Adding it later is purely additive** — a catalogued action and one line on the route. See
+[ADR-021](../ADR-021-ADMIN-MEDIA-LIBRARY.md) D-6.
+
+**`files.upload` is the first write path for files on this service, and it IS audited** — because
+it is a write, and every write here is. No exception argument was needed. The row matters more
+than most: jovi-mall stamps the file `ownerId: <X-Actor-Id>`, an id in *this* service's database
+that jovi-mall can never dereference, and it audits nothing on its own side because it
+authenticates a **service** rather than a person. This row is the only record of who uploaded it.
+
+⚠ **Support holds `content.articles.write` and not this**, so a Support administrator can fix a
+typo in a live article and cannot add a picture to it. That asymmetry is deliberate and matches
+the line every other `files.*` name draws; `test:files` § 5 pins it, because *"Support can already
+edit the article"* is exactly the argument that would widen it without anyone revisiting the
+enumeration question.
+
+### `messaging`
+
+Renamed from `broadcast` at Phase 5 Part C, along with its one permission. Nothing here
+fans out: one message, one recipient, no audience and no delivery record.
 
 | Permission | Action | 1 Dev | 2 Admin | 3 Support | Flags | Summary |
 |---|---|:-:|:-:|:-:|---|---|
-| `broadcast.send` † | write | ● | ● | · | — | Send a broadcast message to platform users |
+| `messaging.telegram.send` | write | ● | ● | · | — | Send one Telegram message to one connected account |
+
+A send cannot be recalled, so the audit row carries **the recipient and the full message
+body** (Phase 5 O-2) — the only useful question about an un-undoable act is what was said
+to whom. The body is operator-authored free text; the standard credential redaction and
+size cap still apply to it.
 
 ### `users`
 
@@ -258,18 +351,23 @@ do not reach for `financial` merely because a read concerns money.
 | `vendors.products.manage` | write | ● | ● | · | — | Take a vendor’s product off sale, or put it back, as platform oversight |
 | `vendors.settings.manage` | write | ● | ● | · | — | Change a vendor’s platform-governed order settings — not their commission |
 
-### `customers`  — *no endpoints yet*
-
-| Permission | Action | 1 Dev | 2 Admin | 3 Support | Flags | Summary |
-|---|---|:-:|:-:|:-:|---|---|
-| `customers.read` † | read | ● | ● | ● | — | Search customers and view their detail and order history |
-| `customers.suspend` † | write | ● | ● | · | — | Suspend or reinstate a customer |
+> **The `customers` family is gone** (Phase 5 Part D, [ADR-017](../ADR-017-PHASE-17-CLOSEOUT.md)
+> D-1). `customers.read` and `customers.suspend` were catalogued, **granted**, and backed no
+> route — the only pair on the unbuilt list in that state, which is why they were deleted rather
+> than left with a rationale: a granted permission with no endpoint appears in an
+> administrator's effective set and promises a surface that does not exist.
+>
+> **No capability was lost.** The `users` family already covers customers role-agnostically:
+> `GET /users?role=customer` is the directory, `GET /users/:userId` composes the `customer`
+> role-profile, `POST /users/:userId/{suspend,restore}` is the suspension (audited
+> `users.suspend` / `users.reinstate`), and order history is `orders.read?customerId=`.
 
 ### `shipments`
 
 | Permission | Action | 1 Dev | 2 Admin | 3 Support | Flags | Summary |
 |---|---|:-:|:-:|:-:|---|---|
 | `shipments.read` | read | ● | ● | ● | — | Search shipments and view their detail and assignment state |
+| `shipments.tracking.read` | read | ● | ● | ● | — | Read a delivery’s GPS trail and tracking events from geo-tracker — every trail read is recorded in the audit trail |
 | `shipments.reassign` | write | ● | ● | · | — | Manually move a shipment to a different agent or agency |
 | `shipments.cancel` | write | ● | ● | · | destructive | Cancel a shipment already in progress |
 
@@ -343,19 +441,42 @@ do not reach for `financial` merely because a read concerns money.
 | `developer_tools.outbox.prune` | write | ● | · | · | destructive | Permanently delete delivered outbound events past a retention age |
 ---
 
+## The four `†` permissions, and why each is unbuilt
+
+Every other catalogued name is behind a live route. These four are not, and each has a reason
+that is a **decision** rather than a backlog item — none of them has an implementation anywhere
+to port, so building one is new work with an open design question in front of it.
+
+| Permission | Why there is no endpoint | Record |
+|---|---|---|
+| `users.sessions.revoke` | jovi-mall issues **stateless JWTs with no session store**, so there is nothing to delete from. `users.suspend` covers the need it was catalogued for: a suspended user's next refresh is refused. Building this means giving jovi-mall a session store first | ADR-007 |
+| `users.roles.manage` | Removing a role has **no defined semantics** — it strands the Store a vendor owns, and nothing decides what happens to the catalogue, the orders or the payouts behind it. The question is a domain design, not a route | ADR-007 |
+| `notifications.manage` | Service-wide wording would block a tier-3 administrator configuring **their own** preferences, which they already may. Splitting the name is the prerequisite | ADR-013 D-9 |
+| `developer_tools.webhooks.redeliver` | **Every webhook mount in the platform is inbound.** There is no outbound delivery record to replay — jovi-mall's dispatcher owns its own retry, and geo-tracker's `/webhooks/node` dedups on `eventId` | ADR-012 |
+
+Two names left this list rather than staying on it, and the difference is worth knowing:
+`users.password.reset` was **built** during Phase 17 once the login-link work supplied the
+delivery channel ADR-007 said it was blocked on, and `customers.read` / `customers.suspend` were
+**deleted** at Phase 5 Part D — see the note in the matrix above for why a granted-but-unrouted
+name is not the same kind of thing as an ungranted one.
+
+---
+
 ## Composite guards
 
-Thirteen endpoints require **more than one** permission (`all` mode) because they compose data
-from two or three domains. A caller missing any one of them is refused.
+**Fifteen** endpoints require **more than one** permission (`all` mode) because they compose
+data from two or three domains. A caller missing any one of them is refused.
 
 | Endpoint | Requires |
 |---|---|
 | `GET /users/:userId/activity` | `users.read` + `audit.read` |
 | `GET /vendors/:vendorId/activity` | `vendors.read` + `audit.read` |
+| `GET /vendors/:vendorId/agencies` | `vendors.read` + `agencies.read` |
 | `GET /agencies/:agencyId/activity` | `agencies.read` + `audit.read` |
 | `GET /agencies/:agencyId/agents` | `agencies.read` + `agents.read` |
 | `GET /agents/:agentId/activity` | `agents.read` + `audit.read` |
 | `GET /agents/:agentId/contracts` | `agents.read` + `agencies.read` |
+| `GET /contracts/:contractId` | `agencies.read` + `agents.read` |
 | `GET /orders/:orderId/activity` | `orders.read` + `audit.read` |
 | `GET /shipments/:shipmentId/activity` | `shipments.read` + `audit.read` |
 | `GET /shipments/:shipmentId/offers` | `shipments.read` + `agents.read` |
@@ -369,11 +490,23 @@ plan and a COD liability as well as earnings, so gating it on `money.earnings.re
 be a side door onto billing and COD data. **No `accounts` permission family exists**, and none
 should be added.
 
+`GET /contracts/:contractId` is composite for the same reason, and it is the argument for
+`/contracts` existing as its own mount at all: a contract's payload names a party from **each**
+directory — an agent and an agency — so holding one directory's read permission is not enough
+to see it. (This row was missing from the table until BR-012, and the count above read
+"Thirteen". [ROUTE-MAP.md](../ROUTE-MAP.md) and [MIGRATION-2026-08.md](../MIGRATION-2026-08.md)
+§ 8 were both already right.)
+
 ### The one `any`-mode guard
 
 `GET /system/errors` accepts **any** of `developer_tools.logs.read`, `system.errors.read`,
 `support.errors.lookup` — and returns a *different projection* per level. See
 [system.md](system.md).
+
+**This one is not counted in the fifteen above**: fifteen `all`-mode guards plus this single
+`any`-mode one, sixteen in all. `GET /vendors/:vendorId/agencies` is the fifteenth, added by
+BR-018. ⚠ A page written before that says *fifteen* meaning "fourteen `all`-mode plus the
+`any`-mode one" — the same claim about a set one endpoint smaller.
 
 ---
 

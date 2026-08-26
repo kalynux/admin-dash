@@ -7,14 +7,11 @@ import {
     getAuditActionCatalog,
     getAuditEntry,
     listAuditExports,
-    listLegacyAudit,
 } from '@/services/audit.service';
 import {
     auditActionCatalogFixture,
     auditEntryDetailFixture,
     auditExportFixture,
-    legacyAuditEntryFixture,
-    legacyAuditMetaFixture,
 } from '@/test/audit-fixtures';
 import { stubFetch, successResponse, type FetchCall } from '@/test/utils';
 
@@ -122,31 +119,5 @@ describe('GET /audit/exports/:id/download', () => {
         expect(file.fileName).toBe('audit-july.ndjson');
         // Verify a download against this before trusting it.
         expect(file.sha256).toBe('9f2b8c1a');
-    });
-});
-
-describe('GET /audit/legacy', () => {
-    it('carries the four meta fields that say what this feed is', async () => {
-        stubFetch(() =>
-            successResponse([legacyAuditEntryFixture()], { meta: { ...legacyAuditMetaFixture() } }),
-        );
-
-        const page = await listLegacyAudit();
-
-        expect(page.meta.legacy).toBe(true);
-        expect(page.meta.sourceService).toBe('jovi-mall');
-        expect(page.meta.retiresAtCutover).toBe(true);
-        expect(page.meta.unportedEndpoints).toBe(37);
-    });
-
-    it('honours pages: 0 on an empty list rather than reporting page 1 of 1', async () => {
-        stubFetch(() => successResponse([], { meta: { total: 0, page: 1, limit: 20, pages: 0 } }));
-
-        const page = await listLegacyAudit();
-
-        expect(page.meta.pages).toBe(0);
-        // Absent extras degrade to a defensible default rather than `undefined`.
-        expect(page.meta.sourceService).toBeNull();
-        expect(page.meta.unportedEndpoints).toBeNull();
     });
 });

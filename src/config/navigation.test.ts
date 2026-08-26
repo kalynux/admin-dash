@@ -297,6 +297,13 @@ describe('permittedSections', () => {
         // **Audit has no Exports child for Support** — `audit.export` is withheld
         // from tier 3, and the child list is filtered by the same rule the module
         // list is.
+        //
+        // **Support desk holds both its modules**, which is the change Phase 5
+        // brought. Twelve of tier 3's twenty-nine permissions are `support.*` and
+        // four more are `content.*` — they may work every ticket in their scope,
+        // and may write articles and bylines while holding neither `publish` nor
+        // `delete`. Blog is visible because a container is reachable when
+        // anything inside it is.
         const sections = permittedSections(heldFixture(3));
 
         expect(
@@ -305,6 +312,7 @@ describe('permittedSections', () => {
             ['overview', ['home', 'notifications']],
             ['directories', ['users', 'vendors', 'agencies', 'agents']],
             ['operations', ['orders', 'shipments']],
+            ['support', ['support-tickets', 'content']],
             ['finance', ['money']],
             ['administration', ['audit']],
             ['platform', ['system']],
@@ -526,32 +534,26 @@ describe('the audit module', () => {
         expect([...requirement.permission].sort()).toEqual(['audit.export', 'audit.read']);
     });
 
-    it('gives Support the trail and the legacy feed, and no Exports tab', () => {
+    it('gives Support the trail and no Exports tab', () => {
         const children = permittedChildren(audit!, heldFixture(3));
 
-        expect(children.map((child) => child.id)).toEqual(['audit-trail', 'audit-legacy']);
+        expect(children.map((child) => child.id)).toEqual(['audit-trail']);
     });
 
-    it('gives an Admin all three', () => {
+    it('gives an Admin both', () => {
         const children = permittedChildren(audit!, heldFixture(2));
 
-        expect(children.map((child) => child.id)).toEqual([
-            'audit-trail',
-            'audit-exports',
-            'audit-legacy',
-        ]);
+        expect(children.map((child) => child.id)).toEqual(['audit-trail', 'audit-exports']);
     });
 
     it('refuses Support the exports route outright', () => {
         expect(canAccessRoute(heldFixture(3), '/dashboard/audit/exports')).toBe(false);
         expect(canAccessRoute(heldFixture(3), '/dashboard/audit')).toBe(true);
-        expect(canAccessRoute(heldFixture(3), '/dashboard/audit/legacy')).toBe(true);
     });
 
-    it('resolves each of the three paths to its own entry', () => {
+    it('resolves each of the two paths to its own entry', () => {
         expect(findNavEntry('/dashboard/audit')?.id).toBe('audit-trail');
         expect(findNavEntry('/dashboard/audit/exports')?.id).toBe('audit-exports');
-        expect(findNavEntry('/dashboard/audit/legacy')?.id).toBe('audit-legacy');
         // A detail route resolves to the entry that owns it, not to a sibling.
         expect(findNavEntry('/dashboard/audit/66bc4f0a1d2e3f4a5b6c7d8e')?.id).toBe('audit-trail');
         expect(findNavEntry('/dashboard/audit/exports/66bd1122334455667788990a')?.id).toBe(

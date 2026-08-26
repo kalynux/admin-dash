@@ -11,6 +11,7 @@ import {
     NotApplicable,
     NotSet,
 } from '@/components/common/DefinitionList';
+import { ResolvedFileViewer } from '@/components/files/FileViewer';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
@@ -80,15 +81,16 @@ export function ShipmentOverviewPanel({
                             label="Proof of delivery"
                             hint={
                                 <InfoHint label="About the proof">
-                                    An opaque file id. This service resolves no file URLs, so there
-                                    is nothing to open from here.
+                                    Delivery proofs live in a private storage tree, so they resolve
+                                    with no URL and cannot be rendered from one. Opening the photo
+                                    fetches the bytes through wi-admin, and{' '}
+                                    <strong>every open is recorded in the audit trail</strong> —
+                                    which is what lets Support hold the permission at all.
                                 </InfoHint>
                             }
                         >
                             {shipment.deliveryProofFileId ? (
-                                <span className="font-mono text-xs">
-                                    {shipment.deliveryProofFileId}
-                                </span>
+                                <ResolvedFileViewer fileId={shipment.deliveryProofFileId} />
                             ) : (
                                 <NotSet />
                             )}

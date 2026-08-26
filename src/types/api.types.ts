@@ -337,8 +337,16 @@ export const CLIENT_CODE_PREFIX = 'CLIENT_';
 /**
  * Every code wi-admin can put in `error.code` and a client can actually see.
  *
- * Transcribed from the registry in `docs/admin/api/errors.md`, which lists 74.
- * Twenty-two are excluded and the exclusions are the interesting part:
+ * Read from **two** registries, because they disagree:
+ * `docs/admin/api/errors.md` publishes 73 rows, and
+ * `docs/admin/error-codes.ts` — a verbatim copy of the backend's own source —
+ * declares **82**. The sixteen `errors.md` omits are the ones that landed with
+ * the modules it was never updated for (all ten `BLOG_*`, both `TICKET_*`,
+ * `FILE_DELETE_NOT_CONFIRMED`, the three `TRACKING_DOOR_*`), and they are
+ * included here because the service genuinely raises them.
+ *
+ * Twenty-two of the documented rows are excluded, and the exclusions are the
+ * interesting part:
  *
  * - **Ten are boot-time.** The process exits before it listens, so they reach
  *   logs and never a browser (`AUTHZ_ROUTE_UNDECLARED`, `AUTHZ_GRANT_TABLE_INVALID`,
@@ -408,7 +416,6 @@ export const KNOWN_ERROR_CODES = [
     'AUDIT_EXPORT_TOO_LARGE',
     'AUDIT_EXPORT_INCOMPLETE',
     'AUDIT_EXPORT_FILE_MISSING',
-    'AUDIT_LEGACY_FEED_DISABLED',
     // System and developer tools
     'DEV_TOOLS_DISABLED',
     'SYSTEM_ERROR_QUERY_TOO_BROAD',
@@ -418,8 +425,41 @@ export const KNOWN_ERROR_CODES = [
     'ACCOUNT_OWNER_NOT_FOUND',
     // Delivery network
     'CONTRACT_NOT_FOUND',
+    // Tracking — the geo-tracker data door.
+    // Three codes because the remedies are three different people: an
+    // operator's deployment, geo-tracker's scope configuration, and an on-call
+    // engineer. A single "tracking unavailable" makes all three look like an
+    // outage, which is exactly the confusion the split exists to prevent.
+    'TRACKING_DOOR_UNCONFIGURED',
+    'TRACKING_DOOR_REFUSED',
+    'TRACKING_DOOR_UNAVAILABLE',
+    // Support
+    'TICKET_NOT_FOUND',
+    'TICKET_ALREADY_ASSIGNED',
     // Files
     'FILE_NOT_FOUND',
+    'FILE_DELETE_NOT_CONFIRMED',
+    // ⚠ A CONFIGURATION state, not an outage, and the two must stay
+    // distinguishable — that is the whole reason it is its own code rather than
+    // a `SERVICE_DEPENDENCY_UNAVAILABLE`. jovi-mall implements the byte-reading
+    // primitive on the `local` storage provider and on neither of the other two,
+    // so on those deployments this is the permanent answer for **every** file
+    // until `STORAGE_PROVIDER` changes. Render the capability, never a retry
+    // button. Raised at 409 (`business_rule`) deliberately: at `external_service`
+    // the boundary filter would replace the message and drop `details`, losing
+    // the `platformCode` that says why.
+    'FILE_CONTENT_NOT_SUPPORTED',
+    // Content — the blog editor
+    'BLOG_ARTICLE_NOT_FOUND',
+    'BLOG_ARTICLE_KEY_TAKEN',
+    'BLOG_ARTICLE_NOT_PUBLISHABLE',
+    'BLOG_ARTICLE_ALREADY_PUBLISHED',
+    'BLOG_ARTICLE_DELETE_NOT_ALLOWED',
+    'BLOG_SLUG_TAKEN',
+    'BLOG_SLUG_RESERVED',
+    'BLOG_AUTHOR_NOT_FOUND',
+    'BLOG_AUTHOR_KEY_TAKEN',
+    'BLOG_AUTHOR_IN_USE',
     // Notifications
     'NOTIFICATION_NOT_FOUND',
     // Infrastructure

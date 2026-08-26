@@ -4,7 +4,9 @@ import {
     archivePlan,
     assignSubscription,
     createPlan,
+    getOwnerSubscriptions,
     getPlan,
+    getSubscription,
     listPlanSubscribers,
     listPlans,
     listSubscriptions,
@@ -288,5 +290,66 @@ describe('assignSubscription', () => {
         }).catch((e: unknown) => e);
 
         expect((error as ApiError).code).toBe('ACCOUNT_OWNER_NOT_FOUND');
+    });
+});
+
+describe('the two single-owner reads', () => {
+    it('asks the two-segment path and keeps the service’s own partition', async () => {
+        /**
+         * `current` / `queued` / `history` come from the service, not from a
+         * client ranking `status`. That matters: `status` is an open vocabulary
+         * wi-admin never writes, so a client ranking it guesses — and its guess
+         * changes silently when a fifth value appears upstream.
+         */
+        const calls = stubFetch(() =>
+            successResponse(
+                {
+                    owner: { type: 'vendor', id: '6650aa11bb22cc33dd44ee55', name: 'Douala Fresh' },
+                    current: subscriptionFixture({ status: 'active' }),
+                    queued: subscriptionFixture({ id: 'q1', status: 'pending_activation' }),
+                    history: [subscriptionFixture({ id: 'h1', status: 'expired' })],
+                },
+                { meta: { total: 3 } },
+            ),
+        );
+
+        const result = await getOwnerSubscriptions('vendor', '6650aa11bb22cc33dd44ee55');
+
+        expect(new URL(calls[0].url, 'http://localhost').pathname).toBe(
+            '/api/v1/billing/subscriptions/vendor/6650aa11bb22cc33dd44ee55',
+        );
+        expect(result.current?.status).toBe('active');
+        expect(result.queued?.id).toBe('q1');
+        expect(result.history).toHaveLength(1);
+    });
+
+    it('reads current: null as “no active plan”, not as a failure', async () => {
+        // An owner who has never had a plan answers `current: null` with an empty
+        // history — that is NOT `ACCOUNT_OWNER_NOT_FOUND`.
+        stubFetch(() =>
+            successResponse({
+                owner: { type: 'agent', id: '6660112233445566778899aa', name: null },
+                current: null,
+                queued: null,
+                history: [],
+            }),
+        );
+
+        const result = await getOwnerSubscriptions('agent', '6660112233445566778899aa');
+
+        expect(result.current).toBeNull();
+        expect(result.history).toEqual([]);
+    });
+
+    it('asks the one-segment path for a term by its own id', async () => {
+        // No collision with the owner-scoped read: two segments versus one, so
+        // Express separates them structurally rather than by declaration order.
+        const calls = stubFetch(() => successResponse(subscriptionFixture()));
+
+        await getSubscription('66d1aabbccddeeff00112233');
+
+        expect(new URL(calls[0].url, 'http://localhost').pathname).toBe(
+            '/api/v1/billing/subscriptions/66d1aabbccddeeff00112233',
+        );
     });
 });

@@ -1,3 +1,12 @@
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call geo-tracker.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> To build a tracking screen read [`TRACKING-DOORS.md`](../TRACKING-DOORS.md) instead.
+>
+> Start at [`_CONTEXT.md`](./_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../ROUTE-MAP.md).
+<!-- /CONTEXT-BANNER -->
+
 # Routing, Geocoding & ETA
 
 On-demand access to the active routing provider. Every endpoint is
@@ -117,3 +126,42 @@ An empty `sources` or `targets` returns `{"cells":[]}` without calling the provi
 | `401` | Missing/invalid token |
 | `501` | The active provider doesn't support this capability (e.g. OSRM geocoding) |
 | `502` | The upstream provider failed or returned no result |
+
+---
+
+## ETA on the broadcast path (and its throttle)
+
+The routing endpoints above are called explicitly. There is a second, implicit
+consumer: the tracking broadcaster enriches a `location_broadcast` with
+`etaSeconds` / `distanceMeters` whenever a destination is known for the watcher.
+
+**That path used to be nearly cold and no longer is.** Its only source of a
+destination was the optional `destination` on a viewer's `subscribe` frame, so in
+practice only purpose-built customer clients reached it. A session now carries the
+shipment's geocoded drop-off, pulled from jovi-mall — so **every** watcher of an
+agent with an open delivery has one, agencies and admins included.
+
+Left alone, the load would be **fixes × watchers** routing calls, and nothing under
+`internal/modules/routing` caches anything. `ETA_MIN_INTERVAL` is the floor.
+
+| | |
+|---|---|
+| Variable | `ETA_MIN_INTERVAL` |
+| Default | `30s` |
+| Scope | per `(agentID, destination)`, destination rounded to ~10 m |
+| `0` | disables the cache — one provider call per watcher per fix, the pre-existing behaviour |
+
+Three properties worth knowing before tuning it:
+
+- **The key excludes the agent's own position.** It changes with every fix, so
+  including it would make every lookup a miss and the cache a memory leak with
+  extra steps. Movement inside the window is what the interval trades away.
+- **Two watchers of one delivery share one call.** That is the point of keying on
+  the destination rather than on the watcher.
+- **A provider failure serves the last estimate rather than dropping the ETA.**
+  A field that vanishes and reappears is worse for a client than one that lags.
+  With nothing cached there is simply no ETA, exactly as before.
+
+The cache is **per instance and in memory**, so provider load scales with instance
+count. That is fine at the current one-host shape (`../docs/ADR-019-RELEASE-SHAPE.md`
+D-1) and is the thing to revisit if this service is ever scaled out.

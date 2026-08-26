@@ -130,7 +130,12 @@ describe('the inbox', () => {
         // The service emits `actionPath` for surfaces it has and this dashboard
         // does not. A link to a 404 reads as a broken product; the notification
         // still says what happened.
-        stubList([notificationFixture({ actionPath: '/support/tickets/665f1c2a9b3e4a91c7d2e5f0' })]);
+        //
+        // Support tickets used to be the example and are **built now**, with
+        // routes deliberately shaped like the service's own paths so they map.
+        stubList([
+            notificationFixture({ actionPath: '/broadcast/campaigns/665f1c2a9b3e4a91c7d2e5f0' }),
+        ]);
 
         inbox();
 

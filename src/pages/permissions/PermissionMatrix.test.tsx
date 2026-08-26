@@ -49,9 +49,9 @@ describe('the matrix', () => {
         stubBoth();
         render();
 
-        // `support.tickets.read` is one of the twenty-eight †. Holding it does not mean there
-        // is anywhere to use it, and a matrix that hid that would be lying by omission.
-        const row = (await screen.findByText('support.tickets.read')).closest('tr');
+        // `notifications.manage` is one of the four remaining †. Holding it does not mean
+        // there is anywhere to use it, and a matrix that hid that would be lying by omission.
+        const row = (await screen.findByText('notifications.manage')).closest('tr');
         expect(row).not.toBeNull();
         expect(within(row as HTMLElement).getByText(/no endpoint yet/i)).toBeInTheDocument();
     });

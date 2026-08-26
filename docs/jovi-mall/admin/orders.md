@@ -1,24 +1,44 @@
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call jovi-mall.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> Field names here are jovi-mall's **snake_case** storage casing; wi-admin's wire is **camelCase**.
+>
+> Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+<!-- /CONTEXT-BANNER -->
+
 # Order administration
 
-> **Two mounts, and they are not the same surface.**
+> **ONE mount. There were two, and the legacy one was deleted at the Phase 5 cutover.**
 >
-> - `/api/admin/orders` — the LEGACY dashboard mount, `requireAuth` + `requireRole(['admin'])`.
->   Serves the two dispute endpoints only. Alive until cutover.
 > - `/api/internal/admin/orders` — called by the **wi-admin backend**, never by a browser.
->   Serves those two *plus* the four capabilities Phase 10 added.
+>   All six capabilities: the two dispute endpoints plus the four Phase 10 added.
+> - ~~`/api/admin/orders`~~ — the legacy dashboard mount, `requireAuth` +
+>   `requireRole(['admin'])`, which served the two dispute endpoints only. **Deleted.**
 >
 > The dashboard talks to wi-admin's `/api/v1/orders`, which reads `jovi_mall` directly and
-> delegates each write to one of the calls below.
+> delegates each write to one of the calls below. That has been true since Phase 10; what
+> changed at cutover is that it is now the *only* way in.
 >
 > Design record: `../../../admin/docs/ADR-010-ORDERS-AND-SHIPMENTS.md`.
 
-## Why the four new endpoints are internal-only
+## Why the four newer endpoints were internal-only from the start
 
-The public mount's guard is `requireRole(['admin'])` on a platform `users` row — a
-credential that predates wi-admin's permission catalog entirely and knows nothing about
+The deleted public mount's guard was `requireRole(['admin'])` on a platform `users` row — a
+credential that predated wi-admin's permission catalog entirely and knew nothing about
 `orders.refund` being a `financial` permission held by tier 2 alone. A refund moves money
-through a payment gateway; it does not belong behind a role check that cannot express who
+through a payment gateway; it did not belong behind a role check that could not express who
 may issue one.
+
+**That argument is what the whole cutover generalised.** The other two endpoints were on the
+weak guard as well, for no better reason than that they were older, and the reasoning above
+applies to them identically. Phase 5 Part E finished the job: the surface is one mount, one
+guard, and one authorization model — wi-admin's, where a tier and a permission set exist.
+
+⚠ **The route headings below still say "both mounts" on the two dispute endpoints.** That now
+means *the same two routes that used to be on both* — read every path in this document under
+`/api/internal/admin/orders`. Left rather than rewritten because the distinction it draws
+(these two are older than Phase 10, those four are not) is a real one worth keeping.
 
 ## Authentication (internal mount)
 
@@ -139,16 +159,18 @@ Read-only. **Never throws on ineligibility** — it answers with a verdict.
   "remaining": 45000,
   "currency": "XAF",
   "gateway": "STRIPE",
-  "gatewayRefundSupported": true,    // only Stripe implements one
+  "gatewayRefundSupported": true,    // Stripe and NotchPay do; My-CoolPay has no refund API
   "isCod": false,
   "vendorPolicy": { /* what the VENDOR's own policy would allow — reported, not enforced */ },
   "overrides": ["return_window_expired"]   // which vendor gates a refund would cross
 }
 ```
 
-`gatewayRefundSupported` is reported **up front** on purpose: NotchPay and MyCoolPay are
-explicit placeholders, and discovering that after the button is pressed leaves a `pending`
-`RefundTransaction` behind and an operator who believes money moved.
+`gatewayRefundSupported` is reported **up front** on purpose: My-CoolPay has no refund endpoint
+at all, and discovering that after the button is pressed leaves a `pending` `RefundTransaction`
+behind and an operator who believes money moved. It is **derived from the gateway registry**
+(does the adapter implement `refundPayment`?) rather than from a list kept beside it, so this
+verdict and the guard that enforces it cannot drift apart.
 
 ---
 

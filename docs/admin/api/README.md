@@ -15,18 +15,21 @@ the dashboard's behalf and returns the result in its own envelope.
 | Document | Surface |
 |---|---|
 | **This file** | Base URL, envelope, authentication, CSRF, pagination, sorting, filtering, rate limits |
+| [../FRONTEND-CHANGELOG-phase-2-3.md](../FRONTEND-CHANGELOG-phase-2-3.md) | **What readiness Phases 2 and 3 changed for this dashboard.** No endpoint changed; Tracking Allow became reliable, the database screen's permanent phantom index drift is gone, and there is still no geo-tracker data door |
+| [../FRONTEND-CHANGELOG-phase-4-5.md](../FRONTEND-CHANGELOG-phase-4-5.md) | **What readiness Phases 4 and 5 changed for this dashboard — the largest instalment so far.** 🔴 Every note this service created was filed **public**; an expired approval was still approvable; `resolvedByUserId` → `resolvedBy`. Plus **three new modules** (`content`, `files` orphans + permanent delete, `messaging`), a deleted `GET /audit/legacy`, and the deleted `customers.*` permissions |
 | [errors.md](errors.md) | The complete error-code registry, the nine categories, and the exposure rule |
-| [permissions.md](permissions.md) | All 113 permissions, the three administrator levels, and the grant matrix |
+| [permissions.md](permissions.md) | All 111 permissions, the three administrator levels, and the grant matrix |
 | [health.md](health.md) | `/health/live`, `/health/ready` — unversioned probes |
 | [auth.md](auth.md) | `/auth` — login, MFA, refresh, sessions, own password |
 | [administrators.md](administrators.md) | `/administrators` — administrator management, levels, suspension, sessions |
 | [authorization.md](authorization.md) | `/permissions`, `/approvals` — the policy, and the four-eyes queue |
-| [audit.md](audit.md) | `/audit` — the audit trail, exports, and the legacy platform feed |
+| [audit.md](audit.md) | `/audit` — the audit trail and exports |
 | [users.md](users.md) | `/users` — platform user directory, suspension, login identifiers |
 | [vendors.md](vendors.md) | `/vendors` — vendor directory, KYC, catalogue, suspension, settings |
 | [agencies.md](agencies.md) | `/agencies` — delivery agencies, verification, rosters, contracts |
 | [agents.md](agents.md) | `/agents` — delivery agents, KYC, tracking, COD threshold, bans, transfer |
 | [contracts.md](contracts.md) | `/contracts` — one agent↔agency contract: the full terms, and the three administrative interventions |
+| [support.md](support.md) | `/support/tickets` — the support queue: assignment, lifecycle, followers, notes, attachments |
 | [orders.md](orders.md) | `/orders` — order directory, timeline, disputes, cancel, dispatch, refund |
 | [shipments.md](shipments.md) | `/shipments` — shipment directory, offer trail, reassign, cancel |
 | [cod.md](cod.md) | `/cod` — cash-on-delivery overview, holders, remittances, deposits, discrepancies, trust |
@@ -35,10 +38,24 @@ the dashboard's behalf and returns the result in its own envelope.
 | [accounts.md](accounts.md) | `/accounts` — one party's status, balances, activity, payouts, credits, cash ledger |
 | [system.md](system.md) | `/system` — health, dependencies, workers, queues, metrics, config, error journal |
 | [dev-tools.md](dev-tools.md) | `/dev-tools` — feature flags, worker triggers, outbox replay, maintenance mode |
+| [content.md](content.md) | `/content` — the marketing blog: article drafts, translations, the publish lifecycle, bylines |
 | [notifications.md](notifications.md) | `/notifications` — the administrator inbox and preferences |
-| [files.md](files.md) | `/files` — turning a `*FileId` this service returns into a name, a type and a URL |
+| [files.md](files.md) | `/files` — resolving a `*FileId` into a name, a type and a URL, plus the orphan listing and the permanent delete |
+| [messaging.md](messaging.md) | `/messaging` — one Telegram message to one connected account. Not a broadcast |
 
-**190 versioned endpoints** across 20 route groups, plus 2 unversioned health probes.
+**230 versioned endpoints** across 23 route groups, plus 2 unversioned health probes.
+
+Counted from a live `createApp()` boot, not from this table — re-counted 2026-08-22, when it
+rose by four: the geo-tracker data door (Phase 6.I / ADR-020) added
+`/agents/:agentId/{tracking-presence,live-position}` and
+`/shipments/:shipmentId/{tracking-trail,tracking-events}`. The route-group count is unchanged;
+they landed inside two existing groups. ⚠ The figure was **225 and stale by one** before that
+re-count, which is what a number written by hand next to a number produced by a boot does.
+
+It fell by one at Phase 5 Part D:
+`GET /audit/legacy` — the interim feed of administrative actions still performed ON jovi-mall —
+was deleted with the legacy surface it reported on. The route group count is unchanged because
+that feed was a **second** router on `/audit`, beside the real one.
 
 ---
 

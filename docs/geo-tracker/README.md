@@ -1,3 +1,12 @@
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call geo-tracker.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> To build a tracking screen read [`TRACKING-DOORS.md`](../TRACKING-DOORS.md) instead.
+>
+> Start at [`_CONTEXT.md`](./_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../ROUTE-MAP.md).
+<!-- /CONTEXT-BANNER -->
+
 # geo-tracker API Documentation
 
 This is the contract for **geo-tracker** ("Project B") — the live GPS tracking
@@ -22,15 +31,34 @@ the root (`/ws/track`, `/healthz`, not `/api/...`).
 - [routing.md](./routing.md) — route, distance-matrix, geocode, reverse-geocode, ETA (provider-agnostic)
 - [locations.md](./locations.md) — read an agent's last-known position over HTTP
 - [gps-persistence.md](./gps-persistence.md) — how GPS is stored: live position (Redis) vs. the temporary, downsampled checkpoint trail (Postgres), retention, partitioning, and cleanup
+- [service-data-door.md](./service-data-door.md) — **`/internal/*`, the SECOND authorization path.** Four reads for a **service caller** (wi-admin) rather than a viewer, gated by a configured scope set. Not a general integration surface, and inert unless `GEO_TRACKER_ADMIN_TOKEN` is set
 - [webhooks.md](./webhooks.md) — inbound lifecycle events from jovi-mall (HMAC-authenticated)
 - [agent-action-audit.md](./agent-action-audit.md) — inbound agent shipment-action events, recorded as an immutable spatial audit with captured GPS
 - [tracking-notifications.md](./tracking-notifications.md) — outbound tracking-state notifications to jovi-mall (geo-tracker → Project A)
 - [health.md](./health.md) — liveness/readiness probes and `/metrics`
 - [errors/README.md](./errors/README.md) — error response shape
+- [**FRONTEND-CHANGELOG-phase-2-3.md**](./FRONTEND-CHANGELOG-phase-2-3.md) — what the readiness Phases 2 and 3 changed for a client of this service. 🔴 **`permission_revoked.reason` is now a closed set of three** (it used to be the single literal `shipment_completed`, for every outcome), `subscribe` gained an optional `shipmentId`, and the ETA now resolves without you supplying a destination
+- [**FRONTEND-CHANGELOG-phase-4-5.md**](./FRONTEND-CHANGELOG-phase-4-5.md) — what the readiness Phases 4 and 5 changed. **Nothing on this service's wire moved**: the session TTL is now **72 h**, the durable trail is **plausibility-gated** (the heartbeat is not), and grant latency is unchanged on purpose. 🔴 The one required change comes from jovi-mall — its new **90-day absolute session cap** can refuse the token you handed the handshake, surfacing here as `permission_revoked` / `authorization_expired`
 
 ## Authorization model
 
-Who may see an agent's live location:
+**There are two authorization paths, and they ask different questions.** The one
+below is the viewer path, and it governs everything except `/internal/*`:
+
+| Path | Question | Credential | Resolved by |
+|---|---|---|---|
+| viewer (WS, `/tracking/*`, `/locations/*`) | *may this **viewer** see this **agent**?* | a jovi-mall user access token | jovi-mall, asked **as the viewer** |
+| service (`/internal/*`) | *does this **caller** hold this **scope**?* | a service credential | geo-tracker, against configured scopes |
+
+The second exists because a wi-admin administrator holds no jovi-mall `users`
+row, so the first cannot resolve them at all. It is a separate module, separate
+middleware and a separate path namespace on purpose — see
+[service-data-door.md](./service-data-door.md), and
+[`admin/docs/ADR-020`](../admin/ADR-020-ADMIN-DATA-DOOR.md) for the
+decision. Nothing below applies to it: it has no viewer, no role, and no
+per-agent visibility resolution.
+
+Who may see an agent's live location, on the **viewer** path:
 
 | Role | Sees |
 |---|---|
@@ -62,6 +90,7 @@ with the same agent (an agent may work for several agencies at once).
 |---|---|---|
 | jovi-mall access token (HS256 JWT) | WebSocket + HTTP routes | `Sec-WebSocket-Protocol: bearer, <token>` on WS; `Authorization: Bearer <token>` on HTTP |
 | HMAC-SHA256 signature | inbound webhooks (`/webhooks/node`, `/webhooks/agent-actions`) | `X-Node-Signature: <hex>` over the raw body |
+| service credential | the data door (`/internal/*`) — wi-admin only | `Authorization: Bearer <GEO_TRACKER_ADMIN_TOKEN>` |
 
 The same token you use against jovi-mall works here — geo-tracker verifies it
 with the shared signing secret. Tokens are short-lived; reconnect with a fresh

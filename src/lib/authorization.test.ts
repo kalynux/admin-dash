@@ -112,10 +112,12 @@ describe('the composite guards behave as the contract describes', () => {
 });
 
 describe('the tier fixtures match the documented levels', () => {
-    it('holds the counts permissions.md states in prose', () => {
-        expect(TIER_1_PERMISSIONS.length).toBe(113);
-        expect(TIER_2_PERMISSIONS.length).toBe(96);
-        expect(TIER_3_PERMISSIONS.length).toBe(24);
+    it('holds the counts permissions.md states', () => {
+        // Matrix and prose agree again since BR-013; `permissions.types.test.ts`
+        // is what keeps them that way.
+        expect(TIER_1_PERMISSIONS.length).toBe(114);
+        expect(TIER_2_PERMISSIONS.length).toBe(97);
+        expect(TIER_3_PERMISSIONS.length).toBe(30);
     });
 
     it('withholds from Admin exactly what the doc says it withholds', () => {
@@ -149,13 +151,17 @@ describe('the tier fixtures match the documented levels', () => {
         expect(heldFixture(3).has('money.payments.read')).toBe(true);
     });
 
-    it('leaves Support holding 24 permissions but only 12 usable ones', () => {
+    it('leaves Support holding 30 permissions, every one of them usable', () => {
+        // 24 held / 12 usable before Phase 5 built the `support` and `content`
+        // surfaces; 29 until `files.content.read` was granted to all three tiers
+        // at BR-011. Support holds none of the four `†` names, so there is
+        // nothing in their set they cannot reach.
         const unrouted = new Set<string>(UNROUTED_PERMISSION_NAMES);
         const usable = TIER_3_PERMISSIONS.filter((name) => !unrouted.has(name));
-        expect(usable.length).toBe(12);
+        expect(usable.length).toBe(30);
     });
 
-    it('gives Support file resolution, which is the twelfth usable one', () => {
+    it('gives Support file resolution, but not the orphan listing', () => {
         // Every tier holds it: the caller is already holding an id they were
         // allowed to receive, so resolving it discloses nothing new. What keeps
         // it narrow is the shape — an explicit id set, no listing form — not the

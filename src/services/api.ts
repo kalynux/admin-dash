@@ -511,9 +511,17 @@ export const api = {
      *
      * Not folded into `post`/`put` because changing their return type would touch
      * every existing call site to gain a field none of them want.
+     *
+     * ── `GET` is allowed, despite the name ────────────────────────────────────
+     * This is really "a request whose `meta` is part of the answer", and one
+     * **read** is shaped that way too: `GET /files/orphans` puts the cutoff
+     * jovi-mall actually applied in `meta.olderThan`, and that — not the value
+     * the caller sent — is what a screen must render. `api.list` cannot serve it
+     * because its `data` is `{ files: [...] }` rather than an array, and typing
+     * that as `T[]` would be a lie the compiler then propagates.
      */
     async mutate<T, TMeta = Record<string, unknown>>(
-        method: 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+        method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
         path: string,
         body?: unknown,
         options: RequestOptions = {},
@@ -605,12 +613,28 @@ export const api = {
     },
 
     /**
-     * A response whose payload is a file rather than JSON.
+     * A response whose payload is bytes rather than JSON.
      *
-     * Exactly one endpoint: `GET /audit/exports/:exportId/download`, which
-     * streams NDJSON. **Its errors still use the JSON envelope**, so those are
-     * parsed normally — including `410 AUDIT_EXPORT_FILE_MISSING`, which is what
-     * a multi-instance deployment returns when the file lives on another node.
+     * **Two endpoints, and they are the only two on the service:**
+     *
+     * | Route | Bytes | Notes |
+     * |---|---|---|
+     * | `GET /audit/exports/:exportId/download` | NDJSON | Carries `X-Content-SHA256`; verify against it |
+     * | `GET /files/:fileId/content` | The file itself | Added at BR-011. Carries `Content-Type` + `Content-Length` |
+     *
+     * **Their errors still use the JSON envelope**, so those are parsed normally
+     * — including `410 AUDIT_EXPORT_FILE_MISSING`, which is what a
+     * multi-instance deployment returns when the file lives on another node, and
+     * `409 FILE_CONTENT_NOT_SUPPORTED`, which is a *capability* answer rather
+     * than a fault.
+     *
+     * ── ⚠ `contentLength` is not decoration ──────────────────────────────────
+     * `/files/:fileId/content` is a **stream this service proxies**, so once the
+     * first byte is sent the status line is committed: a failure after that
+     * point closes the connection rather than answering a 5xx, and the caller
+     * sees a **truncated body, not an error**. wi-admin forwards
+     * `Content-Length` precisely so the caller can tell the difference. Compare
+     * it against `blob.size` before treating a short image as a corrupt one.
      *
      * ── It refreshes like everything else ─────────────────────────────────────
      * This method cannot go through `performRequest`, which parses a JSON body it
@@ -626,7 +650,14 @@ export const api = {
         path: string,
         options: RequestOptions = {},
         isRetry = false,
-    ): Promise<{ blob: Blob; fileName?: string; sha256?: string }> {
+    ): Promise<{
+        blob: Blob;
+        fileName?: string;
+        sha256?: string;
+        contentType?: string;
+        /** ⚠ Absent on a chunked response. Absent is "unknown", never "zero". */
+        contentLength?: number;
+    }> {
         const requestId = newRequestId();
         let response: Response;
         try {
@@ -658,11 +689,24 @@ export const api = {
         const disposition = response.headers.get('Content-Disposition') ?? '';
         const match = /filename="?([^"]+)"?/i.exec(disposition);
 
+        // `Number('')` is 0 and `Number(null)` is 0, either of which would read
+        // as "the body is empty" and turn every chunked response into a
+        // false truncation report. Parse only a header that is actually there.
+        const declaredLength = response.headers.get('Content-Length');
+        const contentLength =
+            declaredLength !== null && /^\d+$/.test(declaredLength)
+                ? Number(declaredLength)
+                : undefined;
+
         return {
             blob: await response.blob(),
             fileName: match?.[1],
             // Verify the download against this when it is recorded.
             sha256: response.headers.get('X-Content-SHA256') ?? undefined,
+            // jovi-mall's, verbatim. **It is the authority on what the bytes
+            // are** — do not infer a type from the filename extension.
+            contentType: response.headers.get('Content-Type') ?? undefined,
+            contentLength,
         };
     },
 };

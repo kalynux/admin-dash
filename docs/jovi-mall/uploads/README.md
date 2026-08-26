@@ -1,3 +1,12 @@
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call jovi-mall.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> Field names here are jovi-mall's **snake_case** storage casing; wi-admin's wire is **camelCase**.
+>
+> Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+<!-- /CONTEXT-BANNER -->
+
 # Files & Uploads (all roles)
 
 The `/api/files` surface is **shared by every authenticated role** (customer, vendor, agency, agent,
@@ -10,7 +19,7 @@ admin), with per-role size limits. Uploaded files are referenced elsewhere by th
 - **Response envelope**: standard `{ success, data, meta?, message? }` — see [../README.md](../README.md#the-response-envelope-read-this-first).
 
 > This is the role-neutral contract. Vendor-specific storage/quota details are in
-> [../vendor/storage.md](../vendor/storage.md) and [../vendor/file-management.md](../vendor/file-management.md).
+> ../vendor/storage.md (not mirrored here — `backend/jovi-mall/api-doc/vendor/storage.md`) and ../vendor/file-management.md (not mirrored here — `backend/jovi-mall/api-doc/vendor/file-management.md`).
 
 ## Endpoints
 
@@ -67,7 +76,7 @@ An unrecognised role falls back to the **customer** limit (100 MB).
 }
 ```
 
-> Exact metadata fields are owned by the file model — see [../vendor/file-management.md](../vendor/file-management.md).
+> Exact metadata fields are owned by the file model — see ../vendor/file-management.md (not mirrored here — `backend/jovi-mall/api-doc/vendor/file-management.md`).
 
 ### Where a file is stored
 
@@ -81,6 +90,27 @@ stored as `webp` still lands in `images/`).
 This is a storage-layout detail: always use the returned `id`/`url`, never a hand-built path.
 Purpose-scoped folders (product media, digital assets, delivery proofs, system files) belong to their
 own dedicated endpoints and carry their own role restrictions.
+
+### Rendering a `url` — do NOT set `crossOrigin`
+
+A public file's `url` points at the API host, so every dashboard renders it cross-origin. Render it
+with a plain tag:
+
+```html
+<img src={file.url} />          <!-- correct -->
+<img src={file.url} crossOrigin="anonymous" />   <!-- do not -->
+```
+
+Public file responses carry `Cross-Origin-Resource-Policy: cross-origin`, which is what lets a
+no-cors subresource load (a plain `<img>`, `<video>`, `<audio>`) paint from any origin — no CORS,
+no `Origin` header, nothing that has to be allowlisted. Every other response in this service keeps
+helmet's `same-origin`.
+
+Adding `crossOrigin` turns the load into a CORS request instead, which then requires the API to name
+your exact origin in `ALLOWED_ORIGINS` — a standing dependency on a backend env var for something as
+ordinary as an avatar, and one that fails on any client whose origin is not in that list (a packaged
+Capacitor build, a new subdomain, a preview deploy). The attribute buys only un-tainted canvas
+readback; if you need that, fetch the bytes through the API.
 
 ### Errors
 
@@ -171,5 +201,5 @@ and sorting.
   KYC, ticket attachments).
 
 ## Related
-- [../vendor/storage.md](../vendor/storage.md) · [../vendor/file-management.md](../vendor/file-management.md)
-- [../auth/README.md](../auth/README.md)
+- ../vendor/storage.md (not mirrored here — `backend/jovi-mall/api-doc/vendor/storage.md`) · ../vendor/file-management.md (not mirrored here — `backend/jovi-mall/api-doc/vendor/file-management.md`)
+- ../auth/README.md (not mirrored here — `backend/jovi-mall/api-doc/auth/README.md`)

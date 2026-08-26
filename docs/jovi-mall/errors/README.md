@@ -1,3 +1,12 @@
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call jovi-mall.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> Field names here are jovi-mall's **snake_case** storage casing; wi-admin's wire is **camelCase**.
+>
+> Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+<!-- /CONTEXT-BANNER -->
+
 # API Error Handling Guide
 
 This guide explains how frontend applications should handle and parse error responses from the Jovi Mall API. By standardizing our error formats, the frontend can reliably display appropriate feedback to users and trigger specific client-side UI flows based on explicit error codes.
@@ -222,7 +231,7 @@ pipeline codes — `FILE_TOO_LARGE`, `MIME_NOT_ALLOWED`, `TOO_MANY_FILES`, `QUOT
 `VIRUS_DETECTED`, `PERMISSION_DENIED`, `TOTAL_SIZE_EXCEEDED`, `DUPLICATE_FILE`,
 `MIME_TYPE_MISMATCH`, `POLYGLOT_DETECTED`, `UNDETECTABLE_TYPE` — **or `NO_FILES_UPLOADED`**,
 which the controller's cheap pre-pipeline gate raises through the same shape. See the
-[File Management API](../vendor/file-management.md#post-apifilesupload) for the full
+File Management API (not mirrored here — `backend/jovi-mall/api-doc/vendor/file-management.md`) for the full
 per-code reference.
 
 Always read `details.violations[]`, never the top-level `message` — it is the fixed string
@@ -241,7 +250,7 @@ The backend frequently includes context variables inside the `details` object fo
 
 ### 9. Vendor <-> Agency Connection Errors
 **Code:** `CONNECTION_INVALID_STATUS_TRANSITION` (Status `400`)
-Returned by the [Agency Connections](../vendor/agency-connections.md) API when an action (e.g.
+Returned by the Agency Connections (not mirrored here — `backend/jovi-mall/api-doc/vendor/agency-connections.md`) API when an action (e.g.
 `approve`, `terminate`) doesn't apply to the connection's current status.
 
 ```json
@@ -253,8 +262,8 @@ Returned by the [Agency Connections](../vendor/agency-connections.md) API when a
 }
 ```
 
-Other codes in this family — see [Agency Connections](../vendor/agency-connections.md) and
-[Vendor Connections](../agency/vendor-connections.md) for full context, no `details` payload:
+Other codes in this family — see Agency Connections (not mirrored here — `backend/jovi-mall/api-doc/vendor/agency-connections.md`) and
+Vendor Connections (not mirrored here — `backend/jovi-mall/api-doc/agency/vendor-connections.md`) for full context, no `details` payload:
 `CONNECTION_NOT_FOUND` (404), `CONNECTION_VENDOR_NOT_FOUND` (404), `CONNECTION_ALREADY_EXISTS`
 (409), `CONNECTION_NOT_PENDING` / `CONNECTION_NOT_PAUSED` / `CONNECTION_NOT_ACTIVE` (422),
 `CONNECTION_NOT_REQUESTER` / `CONNECTION_NOT_APPROVER` / `CONNECTION_WRONG_REAPPROVAL_PARTY` (403).
@@ -263,8 +272,8 @@ Other codes in this family — see [Agency Connections](../vendor/agency-connect
 
 The `COD_` family covers checkout eligibility, delivery-code verification, agent cash exposure,
 deposits, remittances and discrepancies. Role-specific context:
-[customer/orders.md](../customer/orders.md#cod), [agent/cod-cash.md](../agent/cod-cash.md),
-[agency/cod-cash-management.md](../agency/cod-cash-management.md), [admin/cod.md](../admin/cod.md).
+customer/orders.md (not mirrored here — `backend/jovi-mall/api-doc/customer/orders.md`), agent/cod-cash.md (not mirrored here — `backend/jovi-mall/api-doc/agent/cod-cash.md`),
+agency/cod-cash-management.md (not mirrored here — `backend/jovi-mall/api-doc/agency/cod-cash-management.md`), [admin/cod.md](../admin/cod.md).
 
 | Code | Status | When | `details` |
 |---|---|---|---|
@@ -301,8 +310,8 @@ deposits, remittances and discrepancies. Role-specific context:
 
 ### Agent ↔ agency contracts
 
-Full documentation: [agency/agent-roster.md](../agency/agent-roster.md) (canonical) and
-[agent/agency-membership.md](../agent/agency-membership.md).
+Full documentation: agency/agent-roster.md (not mirrored here — `backend/jovi-mall/api-doc/agency/agent-roster.md`) (canonical) and
+agent/agency-membership.md (not mirrored here — `backend/jovi-mall/api-doc/agent/agency-membership.md`).
 
 **The handshake** — request, approve, reject, withdraw:
 
@@ -374,8 +383,8 @@ means "not **active**"; the code predates the status rename), `AGENT_MEMBERSHIP_
 ## Agency storage: warehoused products and their stock
 
 The agency-facing product actions
-([Agency → Inventory](../agency/inventory.md)) and the two-sided stock flow
-([Agency](../agency/stock-requests.md) · [Vendor](../vendor/stock-requests.md)).
+(Agency → Inventory (not mirrored here — `backend/jovi-mall/api-doc/agency/inventory.md`)) and the two-sided stock flow
+(Agency (not mirrored here — `backend/jovi-mall/api-doc/agency/stock-requests.md`) · Vendor (not mirrored here — `backend/jovi-mall/api-doc/vendor/stock-requests.md`)).
 
 | Code | HTTP | Meaning | `details` |
 |---|---|---|---|
@@ -412,8 +421,10 @@ The agency-facing product actions
 
 ## Blog / editorial
 
-The public reader ([public/articles.md](../public/articles.md)) and the editor
-([admin/articles.md](../admin/articles.md)).
+The public reader (public/articles.md (not mirrored here — `backend/jovi-mall/api-doc/public/articles.md`)). The editor moved to wi-admin at
+Phase 5 Part A (`admin/docs/api/content.md`), and it raises these **same codes** from its own
+registry — deliberately, so a client sees one vocabulary across the cutover. The three below that
+a logged-out visitor can reach are still raised here, by the public reader.
 
 The first three are reachable by a **logged-out visitor**, so their `message` is written to be shown.
 

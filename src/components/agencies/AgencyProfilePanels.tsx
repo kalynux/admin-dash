@@ -249,7 +249,11 @@ export function AgencyPoliciesPanel({ agency }: { agency: AgencyDetail }) {
             <PricingBlock pricing={policies.pricing} />
             <ReturnsBlock returns={policies.returns} />
             <DamageBlock damage={policies.damage} />
-            <CodBlock cod={policies.cod} version={agency.policyVersion} />
+            <CodBlock
+                cod={policies.cod}
+                version={agency.policyVersion}
+                pausedConnections={agency.policyVersionPausedConnections}
+            />
 
             {policies.documents && policies.documents.length > 0 ? (
                 <section className="space-y-2">
@@ -291,53 +295,65 @@ function Amount({ value }: { value: number | null | undefined }) {
     return <>{formatCount(value)}</>;
 }
 
+/**
+ * ⚠ **Each inner block is independently `null`** when the agency has stored
+ * none, so each of the four renders an absence rather than assuming a shape.
+ * That is new with the camelCase mapper — the raw sub-document was always
+ * present, if empty.
+ */
 function PricingBlock({ pricing }: { pricing: AgencyPolicies['pricing'] }) {
+    if (!pricing) return <BlockAbsent title="Pricing" />;
+
     return (
         <section className="space-y-2">
             <h3 className="text-sm font-medium">Pricing</h3>
             <DefinitionList>
-                <Definition label="Storage-based">
-                    {pricing.storage_based?.enabled ? 'Offered' : 'Not offered'}
+                <Definition
+                    label="Storage-based"
+                    hint="Whether the agency warehouses stock at all — not a rate of zero."
+                >
+                    {pricing.storageBased?.enabled ? 'Offered' : 'Not offered'}
                 </Definition>
-                {pricing.storage_based?.enabled ? (
+                {pricing.storageBased?.enabled ? (
                     <>
                         <Definition label="Monthly storage, per SKU">
-                            <Amount value={pricing.storage_based.monthly_storage_fee_per_sku} />
+                            <Amount value={pricing.storageBased.monthlyStorageFeePerSku} />
                         </Definition>
                         <Definition label="Pick and pack, per order">
-                            <Amount value={pricing.storage_based.pick_pack_fee_per_order} />
+                            <Amount value={pricing.storageBased.pickPackFeePerOrder} />
                         </Definition>
                         <Definition label="Local delivery">
-                            <Amount value={pricing.storage_based.local_delivery_fee} />
+                            <Amount value={pricing.storageBased.localDeliveryFee} />
                         </Definition>
                         <Definition label="Out-of-region delivery">
-                            <Amount value={pricing.storage_based.out_of_region_delivery_fee} />
+                            <Amount value={pricing.storageBased.outOfRegionDeliveryFee} />
                         </Definition>
                     </>
                 ) : null}
 
                 <Definition label="Pickup-based">
-                    {pricing.pickup_based?.enabled ? 'Offered' : 'Not offered'}
+                    {pricing.pickupBased?.enabled ? 'Offered' : 'Not offered'}
                 </Definition>
-                {pricing.pickup_based?.enabled ? (
+                {pricing.pickupBased?.enabled ? (
                     <>
                         <Definition label="Base rate, first kg">
-                            <Amount value={pricing.pickup_based.base_rate_first_kg} />
+                            <Amount value={pricing.pickupBased.baseRateFirstKg} />
                         </Definition>
                         <Definition label="Each additional kg">
-                            <Amount value={pricing.pickup_based.additional_per_kg} />
+                            <Amount value={pricing.pickupBased.additionalPerKg} />
                         </Definition>
                         <Definition label="Out-of-region surcharge">
-                            <Amount value={pricing.pickup_based.out_of_region_surcharge} />
+                            <Amount value={pricing.pickupBased.outOfRegionSurcharge} />
                         </Definition>
                     </>
                 ) : null}
 
                 <Definition label="Cash-on-delivery handling">
-                    {pricing.additional_fees?.cod_handling_fee ? (
+                    {pricing.additionalFees?.codHandlingFee ? (
                         <>
-                            {formatCount(pricing.additional_fees.cod_handling_fee.value)}
-                            {pricing.additional_fees.cod_handling_fee.type === 'percentage'
+                            {formatCount(pricing.additionalFees.codHandlingFee.value)}
+                            {/* `type` decides how `value` reads. */}
+                            {pricing.additionalFees.codHandlingFee.type === 'percentage'
                                 ? '%'
                                 : ' flat'}
                         </>
@@ -346,26 +362,27 @@ function PricingBlock({ pricing }: { pricing: AgencyPolicies['pricing'] }) {
                     )}
                 </Definition>
                 <Definition label="Failed delivery">
-                    <Amount value={pricing.additional_fees?.failed_delivery_fee} />
+                    <Amount value={pricing.additionalFees?.failedDeliveryFee} />
                 </Definition>
                 <Definition label="Return to origin">
-                    <Amount value={pricing.additional_fees?.rto_fee} />
+                    <Amount value={pricing.additionalFees?.rtoFee} />
                 </Definition>
-                {pricing.additional_fees?.peak_season_surcharge !== undefined ? (
+                {pricing.additionalFees?.peakSeasonSurcharge !== undefined &&
+                pricing.additionalFees?.peakSeasonSurcharge !== null ? (
                     <Definition label="Peak-season surcharge">
-                        <Amount value={pricing.additional_fees.peak_season_surcharge} />
+                        <Amount value={pricing.additionalFees.peakSeasonSurcharge} />
                     </Definition>
                 ) : null}
 
-                {pricing.notes ? (
-                    <Definition label="Notes">{pricing.notes}</Definition>
-                ) : null}
+                {pricing.notes ? <Definition label="Notes">{pricing.notes}</Definition> : null}
             </DefinitionList>
         </section>
     );
 }
 
 function ReturnsBlock({ returns }: { returns: AgencyPolicies['returns'] }) {
+    if (!returns) return <BlockAbsent title="Returns" />;
+
     return (
         <section className="space-y-2">
             <h3 className="text-sm font-medium">Returns</h3>
@@ -374,10 +391,10 @@ function ReturnsBlock({ returns }: { returns: AgencyPolicies['returns'] }) {
                     <span className="capitalize">{returns.payer}</span>
                 </Definition>
                 <Definition label="Handling fee">
-                    <Amount value={returns.handling_fee} />
+                    <Amount value={returns.handlingFee} />
                 </Definition>
                 <Definition label="Return window">
-                    {returns.return_window_days} day{returns.return_window_days === 1 ? '' : 's'}
+                    {returns.returnWindowDays} day{returns.returnWindowDays === 1 ? '' : 's'}
                 </Definition>
                 {returns.notes ? <Definition label="Notes">{returns.notes}</Definition> : null}
             </DefinitionList>
@@ -386,15 +403,17 @@ function ReturnsBlock({ returns }: { returns: AgencyPolicies['returns'] }) {
 }
 
 function DamageBlock({ damage }: { damage: AgencyPolicies['damage'] }) {
+    if (!damage) return <BlockAbsent title="Damage claims" />;
+
     return (
         <section className="space-y-2">
             <h3 className="text-sm font-medium">Damage claims</h3>
             <DefinitionList>
                 <Definition label="Claim deadline">
-                    {damage.claim_deadline_days} day{damage.claim_deadline_days === 1 ? '' : 's'}
+                    {damage.claimDeadlineDays} day{damage.claimDeadlineDays === 1 ? '' : 's'}
                 </Definition>
                 <Definition label="Maximum refund, per item">
-                    <Amount value={damage.max_refund_per_item} />
+                    <Amount value={damage.maxRefundPerItem} />
                 </Definition>
                 <Definition
                     label="Inspected by"
@@ -406,7 +425,7 @@ function DamageBlock({ damage }: { damage: AgencyPolicies['damage'] }) {
                     label="Investigation fee"
                     hint="Also an administrator-controlled preset."
                 >
-                    <Amount value={damage.investigation_fee} />
+                    <Amount value={damage.investigationFee} />
                 </Definition>
                 {damage.notes ? <Definition label="Notes">{damage.notes}</Definition> : null}
             </DefinitionList>
@@ -417,32 +436,80 @@ function DamageBlock({ damage }: { damage: AgencyPolicies['damage'] }) {
 function CodBlock({
     cod,
     version,
+    pausedConnections,
 }: {
     cod: AgencyPolicies['cod'];
     version: number;
+    pausedConnections: number;
 }) {
     return (
         <section className="space-y-2">
             <h3 className="text-sm font-medium">Cash on delivery</h3>
             <DefinitionList>
-                <Definition label="Accepted">{cod.enabled ? 'Yes' : 'No'}</Definition>
-                <Definition
-                    label="Maximum order value"
-                    hint="The ceiling for a single cash-on-delivery order. Not the same as an agent's COD pool, which limits how much cash one person may be holding at once."
-                >
-                    {cod.max_order_amount === null ? (
-                        <NotSet>No limit</NotSet>
-                    ) : (
-                        <Amount value={cod.max_order_amount} />
-                    )}
-                </Definition>
+                {cod ? (
+                    <>
+                        <Definition label="Accepted">{cod.enabled ? 'Yes' : 'No'}</Definition>
+                        <Definition
+                            label="Maximum order value"
+                            hint="The ceiling for a single cash-on-delivery order. Not the same as an agent's COD pool, which limits how much cash one person may be holding at once."
+                        >
+                            {/* `null` is NO ceiling. Zero would block every COD order. */}
+                            {cod.maxOrderAmount === null ? (
+                                <NotSet>No limit</NotSet>
+                            ) : (
+                                <Amount value={cod.maxOrderAmount} />
+                            )}
+                        </Definition>
+                    </>
+                ) : (
+                    <Definition label="Accepted">
+                        <NotSet>The agency has stored no cash-on-delivery terms</NotSet>
+                    </Definition>
+                )}
                 <Definition
                     label="Policy version"
                     hint="Raised every time the agency edits any of these terms. Each raise pauses every connected vendor until they re-approve."
                 >
                     {version}
                 </Definition>
+                <Definition
+                    label="Connections awaiting re-approval"
+                    hint="Vendor connections sitting in paused_reapproval right now, because a policy edit raised the version. The vendor side counts the same collection from the other end."
+                >
+                    {/*
+                      The consequence of the field above, which previously had no
+                      reading anywhere on this screen. Zero is the healthy state
+                      and says so, rather than rendering a bare 0.
+                    */}
+                    {pausedConnections === 0 ? (
+                        <span className="text-muted-foreground text-sm">
+                            None — every connection is on the current version
+                        </span>
+                    ) : (
+                        <span className="text-warning text-sm font-medium">
+                            {formatCount(pausedConnections)} paused until the vendor re-approves
+                        </span>
+                    )}
+                </Definition>
             </DefinitionList>
+        </section>
+    );
+}
+
+/**
+ * One of the four policy blocks the agency has stored nothing for.
+ *
+ * Rendered rather than omitted: "this agency has agreed no return terms" is a
+ * commercially meaningful answer, and a silently missing heading reads as a
+ * screen that failed to load.
+ */
+function BlockAbsent({ title }: { title: string }) {
+    return (
+        <section className="space-y-2">
+            <h3 className="text-sm font-medium">{title}</h3>
+            <p className="text-muted-foreground text-sm">
+                The agency has stored no {title.toLowerCase()} terms.
+            </p>
         </section>
     );
 }

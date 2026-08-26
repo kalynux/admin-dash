@@ -64,7 +64,6 @@ const codes = {
     AUDIT_EXPORT_TOO_LARGE: 'Cette période couvre trop de lignes',
     AUDIT_EXPORT_INCOMPLETE: 'Cet export ne s’est pas terminé',
     AUDIT_EXPORT_FILE_MISSING: 'Ce fichier d’export n’est plus disponible',
-    AUDIT_LEGACY_FEED_DISABLED: 'Le flux d’activité hérité est désactivé',
 
     // ─── Système et outils de développement ──────────────────────────────────
     DEV_TOOLS_DISABLED: 'Les outils de développement sont désactivés',
@@ -78,8 +77,31 @@ const codes = {
     // ─── Réseau de livraison ─────────────────────────────────────────────────
     CONTRACT_NOT_FOUND: 'Aucun contrat ne correspond à cet identifiant',
 
+    // ─── Suivi, la porte de données geo-tracker ──────────────────────────────
+    TRACKING_DOOR_UNCONFIGURED: 'Le suivi en direct n’est pas activé sur ce déploiement',
+    TRACKING_DOOR_REFUSED: 'Le service de suivi a refusé cette lecture',
+    TRACKING_DOOR_UNAVAILABLE: 'Le service de suivi est injoignable',
+
+    // ─── Assistance ──────────────────────────────────────────────────────────
+    TICKET_NOT_FOUND: 'Ticket introuvable',
+    TICKET_ALREADY_ASSIGNED: 'Quelqu’un d’autre a déjà pris ce ticket',
+
+    // ─── Contenu ─────────────────────────────────────────────────────────────
+    BLOG_ARTICLE_NOT_FOUND: 'Aucun article ne correspond à cette clé',
+    BLOG_ARTICLE_KEY_TAKEN: 'Un autre article utilise déjà cette clé',
+    BLOG_ARTICLE_NOT_PUBLISHABLE: 'Cet article n’est pas prêt à être publié',
+    BLOG_ARTICLE_ALREADY_PUBLISHED: 'Cet article est déjà publié',
+    BLOG_ARTICLE_DELETE_NOT_ALLOWED: 'Un article publié ne peut pas être supprimé',
+    BLOG_SLUG_TAKEN: 'Une autre adresse web identique existe déjà',
+    BLOG_SLUG_RESERVED: 'Cette adresse web est réservée',
+    BLOG_AUTHOR_NOT_FOUND: 'Aucun auteur ne correspond à cette clé',
+    BLOG_AUTHOR_KEY_TAKEN: 'Un autre auteur utilise déjà cette clé',
+    BLOG_AUTHOR_IN_USE: 'Des articles créditent encore cet auteur',
+
     // ─── Fichiers ────────────────────────────────────────────────────────────
     FILE_NOT_FOUND: 'Ce fichier n’est plus stocké',
+    FILE_DELETE_NOT_CONFIRMED: 'Saisissez la confirmation exacte pour supprimer ce fichier',
+    FILE_CONTENT_NOT_SUPPORTED: 'Cette plateforme ne peut pas afficher les fichiers stockés',
 
     // ─── Notifications ───────────────────────────────────────────────────────
     NOTIFICATION_NOT_FOUND: 'Notification introuvable',
@@ -147,6 +169,8 @@ const codeHints = {
     CONTRACT_NOT_FOUND: 'Vérifiez l’identifiant, ou ouvrez le contrat depuis le livreur ou l’agence.',
     FILE_NOT_FOUND:
         'L’enregistrement qui le référençait existe toujours ; le fichier lui-même a été supprimé.',
+    FILE_CONTENT_NOT_SUPPORTED:
+        'Le mode de stockage de ce déploiement empêche d’ouvrir le contenu des fichiers ici. Rien n’est en panne — les informations ci-dessus restent exactes.',
 
     SERVICE_DEPENDENCY_UNAVAILABLE:
         'Ce n’est pas de votre fait et cela ne se corrige pas d’ici. Réessayez sous peu, et citez la référence si cela persiste.',

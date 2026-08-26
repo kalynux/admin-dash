@@ -1,6 +1,15 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Ban, Pencil, RotateCcw, RotateCw } from 'lucide-react';
+import {
+    ArrowLeft,
+    Ban,
+    KeyRound,
+    LogIn,
+    Pencil,
+    RotateCcw,
+    RotateCw,
+    Send,
+} from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
 import { ErrorState } from '@/components/common/DataState';
@@ -9,6 +18,11 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { EditIdentifiersDialog } from '@/components/users/EditIdentifiersDialog';
 import { RestoreUserDialog } from '@/components/users/RestoreUserDialog';
 import { RoleProfilesPanel } from '@/components/users/RoleProfilesPanel';
+import {
+    SendCredentialLinkDialog,
+    type CredentialLinkKind,
+} from '@/components/users/SendCredentialLinkDialog';
+import { SendTelegramDialog } from '@/components/users/SendTelegramDialog';
 import { SuspendUserDialog } from '@/components/users/SuspendUserDialog';
 import { SuspensionPanel } from '@/components/users/SuspensionPanel';
 import { UserActivityPanel } from '@/components/users/UserActivityPanel';
@@ -93,6 +107,13 @@ function UserDetailScreen({ userId }: { userId: string }) {
     const [editing, setEditing] = useState(false);
     const [suspending, setSuspending] = useState(false);
     const [restoring, setRestoring] = useState(false);
+    /**
+     * Which credential dialog is open, or `null`. One piece of state rather than
+     * two booleans, because the two sends are mutually exclusive and a pair of
+     * flags could represent "both open" — a state that has no meaning here.
+     */
+    const [sending, setSending] = useState<CredentialLinkKind | null>(null);
+    const [messaging, setMessaging] = useState(false);
     const [activityToken, setActivityToken] = useState(0);
 
     const user = useAsyncData(`/users/${userId}`, (signal) => getUser(userId, { signal }));
@@ -154,6 +175,70 @@ function UserDetailScreen({ userId }: { userId: string }) {
                       Which button is offered follows the record's status, so an
                       account can never be offered both at once.
                     */}
+                    {/*
+                      Credential recovery — two acts, two permissions, and the
+                      split is load-bearing. A reset link grants nothing until the
+                      person chooses a password; a sign-in link IS a session. A
+                      tier granted "help people back in" must not silently also
+                      get "sign in as a customer".
+
+                      Both are hidden on a suspended account: the platform refuses
+                      with AUTH_ACCOUNT_SUSPENDED, so offering them would be a
+                      button whose only outcome is an error.
+                    */}
+                    {record.status !== 'suspended' ? (
+                        <>
+                            <Can permission="users.password.reset">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setSending('password-reset')}
+                                >
+                                    <KeyRound className="size-4" />
+                                    Send reset link
+                                </Button>
+                            </Can>
+
+                            {/*
+                              Customers only — jovi-mall scopes every session this
+                              flow mints to `customer` as a literal, so on any other
+                              role the button's only outcome is
+                              USER_LOGIN_LINK_ROLE_UNSUPPORTED. Hidden rather than
+                              offered-and-refused.
+                            */}
+                            {/*
+                              One message, one person — NOT a broadcast, whatever
+                              the old `broadcast.send` name implied. There is no
+                              audience, no scheduling and no delivery record: the
+                              audit row is the only trace a send ever leaves, and
+                              it keeps the whole message body.
+                            */}
+                            <Can permission="messaging.telegram.send">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setMessaging(true)}
+                                >
+                                    <Send className="size-4" />
+                                    Message on Telegram
+                                </Button>
+                            </Can>
+
+                            {record.roles.includes('customer') ? (
+                                <Can permission="users.login_link.send">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setSending('login')}
+                                    >
+                                        <LogIn className="size-4" />
+                                        Send sign-in link
+                                    </Button>
+                                </Can>
+                            ) : null}
+                        </>
+                    ) : null}
+
                     <Can permission="users.suspend">
                         {record.status === 'suspended' ? (
                             <Button variant="outline" size="sm" onClick={() => setRestoring(true)}>
@@ -271,6 +356,29 @@ function UserDetailScreen({ userId }: { userId: string }) {
                 onOpenChange={setRestoring}
                 onRestored={reconcile}
             />
+            {/*
+              Keyed on `sending` so switching between the two kinds remounts the
+              form — a channel and a reason chosen for a reset link must not
+              carry over into a sign-in link, which is a materially different act.
+              Nothing about the user record changes, so this reloads the activity
+              feed rather than the account.
+            */}
+            <SendTelegramDialog
+                user={record}
+                open={messaging}
+                onOpenChange={setMessaging}
+                onSent={() => setActivityToken((token) => token + 1)}
+            />
+            {sending ? (
+                <SendCredentialLinkDialog
+                    key={sending}
+                    user={record}
+                    kind={sending}
+                    open
+                    onOpenChange={(next) => setSending(next ? sending : null)}
+                    onSent={() => setActivityToken((token) => token + 1)}
+                />
+            ) : null}
         </PageContainer>
     );
 }

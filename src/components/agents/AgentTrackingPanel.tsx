@@ -28,8 +28,14 @@ import type { AgentDetail, AgentLastKnown, TrackingDenyReason } from '@/types/ag
  *    account status and whether an approved contract exists. A screen reading the
  *    flag alone will disagree with dispatch.
  * 3. `tracking.lastKnown` is a **stale business mirror** written best-effort by
- *    geo-tracker. No assignment rule reads it, and the live position lives in
- *    geo-tracker, which this dashboard cannot reach at all.
+ *    geo-tracker. No assignment rule reads it.
+ *
+ * ⚠ **The live position is now reachable, and this file used to say it was not.**
+ * That was true for three phases and ADR-020 falsified it on 2026-08-22: the
+ * geo-tracker data door added `GET /agents/:agentId/{tracking-presence,live-position}`,
+ * behind `agents.tracking.read` and 🔴 audited. `AgentLiveTrackingPanel` renders
+ * them beside this one. The mirror below still answers a **different** question —
+ * *where were they last seen* rather than *where are they now* — so both stay.
  *
  * ── The reveal, and why it is not gated on the verdict ────────────────────────
  * `lastKnown.position` ships **unconditionally** — regardless of the flag,

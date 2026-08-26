@@ -21,12 +21,22 @@ export function subscriptionColumns({
     can,
     showPlan = true,
     rowAction,
+    detailLink = false,
 }: {
     timeZone: string;
     can: CanPredicate;
     showPlan?: boolean;
     /** A trailing actions cell. Omitted means no column at all. */
     rowAction?: (row: Subscription) => ReactNode;
+    /**
+     * Offer a link to `GET /billing/subscriptions/:subscriptionId`.
+     *
+     * Opt-in rather than always-on because the single-term read exists for a
+     * specific job — linking a colleague to one term, and giving a
+     * `paymentReference` quoted in a ticket somewhere to point — and a row that
+     * already shows everything but the reference does not need it.
+     */
+    detailLink?: boolean;
 }): Column<Subscription>[] {
     const columns: Column<Subscription>[] = [
         {
@@ -113,8 +123,25 @@ export function subscriptionColumns({
         },
     );
 
-    if (rowAction) {
-        columns.push({ id: 'actions', header: '', className: 'align-top', cell: rowAction });
+    if (rowAction || detailLink) {
+        columns.push({
+            id: 'actions',
+            header: '',
+            className: 'align-top',
+            cell: (row) => (
+                <div className="flex items-center justify-end gap-2">
+                    {detailLink ? (
+                        <Link
+                            to={`/dashboard/billing/subscriptions/${row.id}`}
+                            className="text-sm font-medium hover:underline"
+                        >
+                            View term
+                        </Link>
+                    ) : null}
+                    {rowAction?.(row)}
+                </div>
+            ),
+        });
     }
 
     return columns;

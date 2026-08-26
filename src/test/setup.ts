@@ -81,3 +81,42 @@ if (!Element.prototype.hasPointerCapture) {
 if (!Element.prototype.scrollIntoView) {
     Element.prototype.scrollIntoView = () => {};
 }
+
+/**
+ * Object URLs, which jsdom does not implement at all.
+ *
+ * `getFileContent` and `FileViewer` are built on them: `GET /files/:fileId/content`
+ * answers with bytes rather than a URL, because the request needs the session and
+ * an `<img>` tag cannot carry one — so the only way to render a delivery proof is
+ * to wrap the blob.
+ *
+ * ⚠ **`revokeObjectURL` is counted, not just swallowed.** The handle leaks for the
+ * lifetime of the document otherwise, and on a busy shipment queue that is an
+ * operator's whole session holding every proof photo they have opened. A stub that
+ * silently did nothing would let a missing revoke pass every test, so the pairing
+ * is observable: `__objectUrls` holds the ones still live.
+ */
+const liveObjectUrls = new Set<string>();
+let objectUrlSeq = 0;
+
+if (!URL.createObjectURL) {
+    URL.createObjectURL = (() => {
+        objectUrlSeq += 1;
+        const handle = `blob:http://localhost/test-object-url-${objectUrlSeq}`;
+        liveObjectUrls.add(handle);
+        return handle;
+    }) as typeof URL.createObjectURL;
+
+    URL.revokeObjectURL = ((handle: string) => {
+        liveObjectUrls.delete(handle);
+    }) as typeof URL.revokeObjectURL;
+}
+
+/** The object URLs created and not yet revoked. Assert against it in a test. */
+export function __liveObjectUrls(): string[] {
+    return [...liveObjectUrls];
+}
+
+afterEach(() => {
+    liveObjectUrls.clear();
+});

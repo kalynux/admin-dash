@@ -74,7 +74,6 @@ const codes = {
     AUDIT_EXPORT_TOO_LARGE: 'That range covers too many rows',
     AUDIT_EXPORT_INCOMPLETE: 'That export did not finish',
     AUDIT_EXPORT_FILE_MISSING: 'That export file is no longer available',
-    AUDIT_LEGACY_FEED_DISABLED: 'The legacy activity feed is switched off',
 
     // ─── System and developer tools ──────────────────────────────────────────
     DEV_TOOLS_DISABLED: 'Developer tools are switched off',
@@ -92,8 +91,36 @@ const codes = {
     // the ladder, two sentences, so the reader can tell which door refused.
     CONTRACT_NOT_FOUND: 'No contract with that id',
 
+    // ─── Tracking, the geo-tracker data door ─────────────────────────────────
+    // Not an error to hide behind a spinner: the door is inert by default, and a
+    // deployment that has not opened it is in a normal state.
+    TRACKING_DOOR_UNCONFIGURED: 'Live tracking is not enabled for this deployment',
+    TRACKING_DOOR_REFUSED: 'The tracking service refused this read',
+    TRACKING_DOOR_UNAVAILABLE: 'The tracking service could not be reached',
+
+    // ─── Support ─────────────────────────────────────────────────────────────
+    TICKET_NOT_FOUND: 'No such ticket',
+    TICKET_ALREADY_ASSIGNED: 'Somebody else has already taken this ticket',
+
     // ─── Files ───────────────────────────────────────────────────────────────
     FILE_NOT_FOUND: 'That file is no longer stored',
+    FILE_DELETE_NOT_CONFIRMED: 'Type the confirmation exactly to delete this file',
+    // Deliberately not phrased as a failure: on a deployment whose storage
+    // provider cannot read bytes this is the permanent, correct answer for every
+    // file, so "could not load" would send an operator hunting an outage.
+    FILE_CONTENT_NOT_SUPPORTED: 'This platform cannot display stored files',
+
+    // ─── Content ─────────────────────────────────────────────────────────────
+    BLOG_ARTICLE_NOT_FOUND: 'No article with that key',
+    BLOG_ARTICLE_KEY_TAKEN: 'Another article already uses that key',
+    BLOG_ARTICLE_NOT_PUBLISHABLE: 'This article is not ready to publish',
+    BLOG_ARTICLE_ALREADY_PUBLISHED: 'This article is already published',
+    BLOG_ARTICLE_DELETE_NOT_ALLOWED: 'A published article cannot be deleted',
+    BLOG_SLUG_TAKEN: 'Another article already uses that web address',
+    BLOG_SLUG_RESERVED: 'That web address is reserved',
+    BLOG_AUTHOR_NOT_FOUND: 'No author with that key',
+    BLOG_AUTHOR_KEY_TAKEN: 'Another author already uses that key',
+    BLOG_AUTHOR_IN_USE: 'Articles still credit this author',
 
     // ─── Notifications ───────────────────────────────────────────────────────
     NOTIFICATION_NOT_FOUND: 'No such notification',
@@ -158,6 +185,24 @@ const codeHints = {
     // Not a client bug and not worth an error banner: files are soft-deleted and
     // swept, so a record legitimately outlives the picture it points at.
     FILE_NOT_FOUND: 'The record that referenced it is still here; the file itself has been cleaned up.',
+    FILE_DELETE_NOT_CONFIRMED: 'The deletion is permanent, so the confirmation has to match exactly.',
+    // No "try again": on this storage provider it will never succeed.
+    FILE_CONTENT_NOT_SUPPORTED:
+        'How this deployment stores files means their contents cannot be opened here. Nothing is wrong — the file details above are still accurate.',
+
+    // The three tracking-door codes each need a different person, which is the
+    // entire reason there are three rather than one.
+    TRACKING_DOOR_UNCONFIGURED:
+        'This deployment has not opened the tracking service. The rest of this screen still works.',
+    TRACKING_DOOR_REFUSED:
+        'The tracking service answered and declined. Usually a permission it was never granted — quote the reference.',
+    TRACKING_DOOR_UNAVAILABLE:
+        'The tracking service did not answer. Not fixable from here — try again shortly and escalate if it persists.',
+
+    TICKET_ALREADY_ASSIGNED: 'Reload to see who holds it now.',
+    BLOG_ARTICLE_DELETE_NOT_ALLOWED:
+        'Once an article has been published it is archived rather than deleted, so links to it keep working.',
+    BLOG_AUTHOR_IN_USE: 'Reassign or remove those articles first.',
 
     SERVICE_DEPENDENCY_UNAVAILABLE:
         'Not your fault and not fixable from here. Try again shortly, and quote the reference if it persists.',

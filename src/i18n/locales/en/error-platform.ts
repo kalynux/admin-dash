@@ -137,6 +137,11 @@ const platform = {
     USER_CREDENTIAL_LINK_THROTTLED: 'Too many recovery links have been sent recently.',
     USER_LOGIN_LINK_ROLE_UNSUPPORTED:
         'Sign-in links are for customers only. Vendors, agencies and agents reach money and other people’s data, so send a password-reset link instead.',
+    // Distinct from MESSAGING_DELIVERY_FAILED next door on purpose: this one is
+    // 'there is nobody to send to' and retrying will not help, while that one is
+    // 'try again'. The legacy handler flattened both into one 400.
+    MESSAGING_CONNECTION_NOT_FOUND:
+        'They have not connected Telegram, so there is no chat to send to. Only accounts that ran /connect with the bot can be messaged.',
     MESSAGING_DELIVERY_FAILED:
         'The channel accepted the request and did not deliver it. Nothing was sent — try another channel.',
     // jovi-mall raises this at 409 here, where its own login path uses 403. The

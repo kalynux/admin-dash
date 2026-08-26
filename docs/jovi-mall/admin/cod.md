@@ -1,9 +1,37 @@
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call jovi-mall.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> Field names here are jovi-mall's **snake_case** storage casing; wi-admin's wire is **camelCase**.
+>
+> Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+<!-- /CONTEXT-BANNER -->
+
 # Admin — Cash on Delivery (COD) Oversight
+
+> ## ⚠️ This surface moved at the Phase 5 cutover — read this before the routes below
+>
+> **The public mount `/api/admin/cod` is DELETED.** It was served to any platform session
+> whose `users` row carried `roles: ['admin']` — jovi-mall's second authorization model, which
+> carried no tier, no permission set and no audit identity. That model is retired.
+>
+> **The routes themselves are unchanged and still live, at `/api/internal/admin/cod`**, behind
+> `requireAdminCaller` (a service token plus `X-Actor-*` headers, never a user session). One
+> factory always served both mounts, so every path, payload and response below is still exact —
+> only the prefix and the guard changed. **Every path in this document has been rewritten to
+> the internal prefix**, so what you read here is what the service answers.
+>
+> **If you are building a dashboard, this is not your document.** Call wi-admin's `/api/v1/cod` instead — it resolves the
+> administrator's tier and permissions, writes the audit row, and calls this surface on your
+> behalf. See [internal-service-api.md](./internal-service-api.md) for the door itself, and
+> `admin/docs/api/` in the wi-admin repository for the dashboard contract.
+
+---
 
 ## Base Path
 
 ```
-/api/admin/cod
+/api/internal/admin/cod
 ```
 
 ## Authentication
@@ -12,19 +40,19 @@
 
 ## Endpoints
 
-- [`GET /api/admin/cod/overview`](#overview) — platform-wide cash position
-- [`GET /api/admin/cod/remittances`](#list-remittances) — all agencies' remittances
-- [`POST /api/admin/cod/remittances/:id/confirm`](#confirm-remittance) — confirm cash receipt
-- [`POST /api/admin/cod/remittances/:id/reject`](#reject-remittance) — reject a declaration
-- [`GET /api/admin/cod/deposits`](#list-deposits) — every agent hand-over; the direct-payment queue
-- [`POST /api/admin/cod/deposits`](#record-direct-deposit) — record cash an agent paid the platform directly
-- [`POST /api/admin/cod/deposits/:id/confirm`](#confirm-deposit) — confirm a declared direct payment
-- [`POST /api/admin/cod/deposits/:id/reject`](#reject-deposit) — reject one
-- [`GET /api/admin/cod/discrepancies`](#list-discrepancies) — all cash flags
-- [`POST /api/admin/cod/discrepancies/:id/resolve`](#resolve-discrepancy) — close a flag
-- [`GET /api/admin/cod/agents`](#list-agents) — agents currently holding cash
-- [`POST /api/admin/cod/agents/:id/trust-adjustment`](#adjust-trust) — manual trust correction
-- [`GET /api/admin/cod/agencies`](#list-agencies) — agencies owing the platform cash
+- [`GET /api/internal/admin/cod/overview`](#overview) — platform-wide cash position
+- [`GET /api/internal/admin/cod/remittances`](#list-remittances) — all agencies' remittances
+- [`POST /api/internal/admin/cod/remittances/:id/confirm`](#confirm-remittance) — confirm cash receipt
+- [`POST /api/internal/admin/cod/remittances/:id/reject`](#reject-remittance) — reject a declaration
+- [`GET /api/internal/admin/cod/deposits`](#list-deposits) — every agent hand-over; the direct-payment queue
+- [`POST /api/internal/admin/cod/deposits`](#record-direct-deposit) — record cash an agent paid the platform directly
+- [`POST /api/internal/admin/cod/deposits/:id/confirm`](#confirm-deposit) — confirm a declared direct payment
+- [`POST /api/internal/admin/cod/deposits/:id/reject`](#reject-deposit) — reject one
+- [`GET /api/internal/admin/cod/discrepancies`](#list-discrepancies) — all cash flags
+- [`POST /api/internal/admin/cod/discrepancies/:id/resolve`](#resolve-discrepancy) — close a flag
+- [`GET /api/internal/admin/cod/agents`](#list-agents) — agents currently holding cash
+- [`POST /api/internal/admin/cod/agents/:id/trust-adjustment`](#adjust-trust) — manual trust correction
+- [`GET /api/internal/admin/cod/agencies`](#list-agencies) — agencies owing the platform cash
 
 ---
 
@@ -65,7 +93,7 @@ agency a refund.
 ---
 
 <a name="overview"></a>
-### GET /api/admin/cod/overview
+### GET /api/internal/admin/cod/overview
 
 **Success Response** (`200 OK`):
 ```json
@@ -88,7 +116,7 @@ agency a refund.
 ---
 
 <a name="list-remittances"></a>
-### GET /api/admin/cod/remittances
+### GET /api/internal/admin/cod/remittances
 
 **Description**: All agencies' remittances. Query: `status?` (`declared` | `confirmed` | `rejected`),
 `agencyId?`, `page?`, `limit?`.
@@ -99,7 +127,7 @@ agency a refund.
 ---
 
 <a name="confirm-remittance"></a>
-### POST /api/admin/cod/remittances/:id/confirm
+### POST /api/internal/admin/cod/remittances/:id/confirm
 
 **Description**: Confirm the platform physically received the declared cash. In one transaction:
 the remittance is resolved, the agency's liability falls by the amount, and the amount is applied
@@ -125,7 +153,7 @@ the escrow release of the earnings it backs.
 ---
 
 <a name="reject-remittance"></a>
-### POST /api/admin/cod/remittances/:id/reject
+### POST /api/internal/admin/cod/remittances/:id/reject
 
 **Description**: Reject a declaration (nothing arrived / amount mismatch). No money moves.
 Body: `{ "reason": "..." }` (required).
@@ -135,7 +163,7 @@ Body: `{ "reason": "..." }` (required).
 ---
 
 <a name="list-deposits"></a>
-### GET /api/admin/cod/deposits
+### GET /api/internal/admin/cod/deposits
 
 **Description**: Every agent cash hand-over, both routes. Query: `status?` (`declared` |
 `confirmed` | `rejected`), `recipient?` (`agency` | `platform`), `agencyId?`, `page?`, `limit?`.
@@ -150,7 +178,7 @@ a cash-chain fault, so it needs watching.
 ---
 
 <a name="record-direct-deposit"></a>
-### POST /api/admin/cod/deposits
+### POST /api/internal/admin/cod/deposits
 
 **Description**: Record cash an agent paid the **platform** directly — one step, since the platform
 is the receiving party. Settles both legs: the agent, their contract, **and** the agency (whose
@@ -181,7 +209,7 @@ collections are FIFO-settled, unlocking the earnings they back).
 ---
 
 <a name="confirm-deposit"></a>
-### POST /api/admin/cod/deposits/:id/confirm
+### POST /api/internal/admin/cod/deposits/:id/confirm
 
 **Description**: Confirm a direct-to-platform hand-over an agent declared. Same effect as recording
 one: both legs settle.
@@ -196,7 +224,7 @@ one: both legs settle.
 ---
 
 <a name="reject-deposit"></a>
-### POST /api/admin/cod/deposits/:id/reject
+### POST /api/internal/admin/cod/deposits/:id/reject
 
 **Description**: Reject a declared direct payment (nothing arrived / the reference doesn't match).
 No money moves. Body: `{ "reason": "..." }` (required).
@@ -204,7 +232,7 @@ No money moves. Body: `{ "reason": "..." }` (required).
 ---
 
 <a name="list-discrepancies"></a>
-### GET /api/admin/cod/discrepancies
+### GET /api/internal/admin/cod/discrepancies
 
 **Description**: All cash flags. Query: `status?` (`open` | `resolved` | `written_off`),
 `type?`, `agencyId?`, `agentId?`, `page?`, `limit?`.
@@ -227,7 +255,7 @@ No money moves. Body: `{ "reason": "..." }` (required).
 ---
 
 <a name="resolve-discrepancy"></a>
-### POST /api/admin/cod/discrepancies/:id/resolve
+### POST /api/internal/admin/cod/discrepancies/:id/resolve
 
 **Description**: Close a flag. `resolved` = recovered/explained; `written_off` = the platform ate
 the loss. Resolving unblocks the agency's rolling-reserve releases (and, for shortfalls, the
@@ -244,7 +272,7 @@ agent's COD assignments). Trust restoration is a separate, deliberate act — se
 ---
 
 <a name="list-agents"></a>
-### GET /api/admin/cod/agents
+### GET /api/internal/admin/cod/agents
 
 **Description**: Agents currently holding cash, largest holders first. Query: `page?`, `limit?`.
 
@@ -280,7 +308,7 @@ slice of this pool, and binds only that agency's dispatches, so no per-contract 
 ---
 
 <a name="adjust-trust"></a>
-### POST /api/admin/cod/agents/:id/trust-adjustment
+### POST /api/internal/admin/cod/agents/:id/trust-adjustment
 
 **Description**: Manual trust-score correction (e.g. restore points after a resolved discrepancy,
 or hard-drop a fraudulent agent to 0, which blocks all COD work). The movement is clamped to keep
@@ -301,7 +329,7 @@ the score in [0, 100] and appended to the agent's immutable trust history.
 ---
 
 <a name="list-agencies"></a>
-### GET /api/admin/cod/agencies
+### GET /api/internal/admin/cod/agencies
 
 **Description**: Agencies currently owing the platform cash, largest first. Query: `page?`, `limit?`.
 

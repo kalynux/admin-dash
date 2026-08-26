@@ -96,6 +96,18 @@ still the right call.
 > surface across jovi-mall and this service and **did not touch geo-tracker at all** — no door was
 > opened, not even for service-level health. A reader arriving at ADR-014 looking for one should
 > stop here.
+>
+> ⛔ **AMENDED — and the paragraph below is now HISTORY, not the standing answer.** Phase 15
+> opened a narrow **operations** door (ADR-015 D-5: `/healthz`, `/readyz`, `/metrics`, no
+> identity, no agent), and **Phase 6.I opened a scoped DATA door**
+> ([ADR-020](ADR-020-ADMIN-DATA-DOOR.md), 2026-08-22). The second exit named below — *"adding a
+> service-caller identity geo-tracker does not have"* — is the one that was taken; administrators
+> still hold **no** platform `users` row, which is the half of this decision that stands
+> unchanged.
+>
+> Kept rather than rewritten because the reasoning is still the reason the door is shaped the way
+> it is: the whole scope model exists because a caller with no viewer identity has nothing for
+> per-agent visibility to resolve against.
 
 
 The two gates, as implemented: the **live position** is gated on **Tracking Allow alone** —
@@ -187,6 +199,33 @@ so every historical deactivation is unrecoverable. `contract-history` is the onl
 history in it. This is stated so the empty feed is not filed as a bug.
 
 ### D-6 · Files are opaque ids on the wire
+
+> ⛔ **AMENDED 2026-08-25 by [ADR-021](ADR-021-ADMIN-MEDIA-LIBRARY.md) — the second sentence
+> below is no longer true without qualification.** wi-admin **does** now build public file
+> URLs, on exactly one route (`GET /api/v1/files/library`), from a verbatim copy of
+> jovi-mall's storage-tree classification and from `STORAGE_PROVIDER` / `STORAGE_LOCAL_URL`
+> configured on this side under identical names. The owner chose that knowingly over a
+> `POST /files/resolve` hop per page of a browse screen.
+>
+> **What still stands, and is most of this decision:** the DTOs still carry opaque ids,
+> every *other* file route still delegates, and this service still holds no bucket, no
+> credential and no signing key — it can compute a URL for a key it has already read, and
+> nothing more.
+>
+> ⚠ **What D-6 was protecting was never the arithmetic — it was two copies of one
+> configuration drifting silently**, and that risk is real and now contained rather than
+> avoided: `test:files` diffs the copied tree map against jovi-mall's source, and
+> `verify:files` asserts the URL built here is byte-identical to the one jovi-mall returns
+> for the same id. ADR-021 D-5 is the record. `STORAGE_LOCAL_URL` is now the **sixth**
+> cross-service shared value, and like the other five **a mismatch is silent**.
+>
+> Kept rather than rewritten because the reasoning is still why the reversal had to be
+> contained rather than merely decided.
+>
+> ⚠ Note also that *"the dashboard resolves them against jovi-mall"* was **already wrong
+> when written** — the dashboard talks to wi-admin and to nothing else — and was corrected
+> by the resolve route in the dashboard-request round. This entry has therefore been wrong
+> in two different ways; see `docs/api/files.md` for what is actually true.
 
 jovi-mall resolves `logo_file_id` / `avatar_file_id` through `resolveFileDetail`, which is
 storage-provider-aware. wi-admin has no storage layer and must not grow one — copying it

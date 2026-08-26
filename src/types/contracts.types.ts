@@ -113,51 +113,69 @@ export type ContractRemittanceCadence =
 // ─── The terms sub-documents ──────────────────────────────────────────────────
 
 /**
- * ⚠ **These three ship `snake_case`, and that is not a transcription error here.**
+ * **These three are camelCase and field-by-field since the dashboard-request
+ * round.**
  *
- * `contract.dto.ts:88-90` assigns `contract.employment`, `contract.remittance_terms`
- * and `contract.fee_split` **whole**, so the Mongo sub-documents reach the wire
- * with their storage casing intact — against `README.md`'s "wire fields are
- * camelCase … the translation happens in wi-admin and never leaks".
+ * They used to ship jovi-mall's raw Mongo sub-documents — `employment_type`,
+ * `day_of_week`, `agent_share_percent` — because `contract.dto.ts` assigned
+ * `contract.employment`, `contract.remittance_terms` and `contract.fee_split`
+ * whole, so the storage casing reached the wire against `README.md`'s promise
+ * that "the translation happens in wi-admin and never leaks".
  *
- * Typed as they actually ship rather than as documented. If the backend fixes the
- * mapper these types break, which is the correct failure mode; an aspirational
- * camelCase shape would render `undefined` today and nobody would notice.
- * Recorded in `docs/dashboard/DATA-EXPOSURE-REGISTER.md`.
+ * These types were pinned to the storage casing on purpose, so that they would
+ * **break loudly** when the mapper landed rather than silently rendering
+ * `undefined`. This is that break, taken — see
+ * `docs/dashboard/backend-requests/RESPONSE-2026-08-17.md` breaking change (1),
+ * which moved five nested blocks at once.
  */
 export interface ContractEmployment {
-    employment_type: ContractEmploymentType;
-    /** The agency's own internal reference for this agent — staff number, etc. */
-    employee_ref: string | null;
-    started_at: string | null;
-    /** Contract end for fixed-term engagements. `null` = open-ended. */
-    ends_at: string | null;
-}
-
-/** See the note on `ContractEmployment` — `snake_case` on the wire. */
-export interface ContractRemittanceTerms {
-    cadence: ContractRemittanceCadence;
-    /** For `weekly`/`biweekly`: 0 = Sunday … 6 = Saturday. `null` otherwise. */
-    day_of_week: number | null;
-    /** For `monthly`: 1–28, capped to avoid short-month ambiguity. `null` otherwise. */
-    day_of_month: number | null;
-    /** Grace before a settlement counts as late. Feeds the trust signal. */
-    grace_hours: number;
+    /**
+     * `employee` · `contractor` · `freelancer` — jovi-mall's vocabulary, left
+     * open rather than pinned.
+     *
+     * ⚠ Note the rename: this was `employment_type`, and it is `type` now.
+     */
+    type: ContractEmploymentType;
+    /** The agency's own internal reference for this agent — staff number, etc. Free text. */
+    employeeRef: string | null;
+    startedAt: string | null;
+    /** Contract end for fixed-term engagements. **`null` = open-ended**, which is most of them. */
+    endsAt: string | null;
 }
 
 /**
- * See the note on `ContractEmployment` — `snake_case` on the wire.
+ * See the note on `ContractEmployment` — camelCase since the dashboard-request
+ * round.
+ */
+export interface ContractRemittanceTerms {
+    cadence: ContractRemittanceCadence;
+    /**
+     * ⚠ **`0` is Sunday**, through 6 for Saturday. Meaningful only on a
+     * `weekly` cadence; `null` otherwise.
+     */
+    dayOfWeek: number | null;
+    /** For `monthly`: **1–28 only**, so February cannot skip a remittance. `null` otherwise. */
+    dayOfMonth: number | null;
+    /** How long after the due moment before the agent is late. Feeds the trust signal. */
+    graceHours: number | null;
+}
+
+/**
+ * See the note on `ContractEmployment` — camelCase since the dashboard-request
+ * round.
  *
- * **This is the one contract money block that states its currency.** `cod` and
- * `payment` below do not, which is why they are formatted without a symbol.
+ * ⚠ **This is the one contract money block that states its currency.** `cod`
+ * and `payment` on `ContractCore` do not, so a client rendering those has no
+ * symbol to print from the contract alone.
  */
 export interface ContractFeeSplit {
+    /** `percentage` · `flat` — **it decides which amount below is meaningful**. */
     model: 'percentage' | 'flat' | (string & {});
     /** 0–100. Set when `model` is `percentage`. */
-    agent_share_percent: number | null;
+    agentSharePercent: number | null;
     /** Set when `model` is `flat`. */
-    agent_flat_fee: number | null;
-    currency: string;
+    agentFlatFee: number | null;
+    currency: string | null;
 }
 
 // ─── The core, shared by both directions ──────────────────────────────────────
@@ -283,6 +301,112 @@ export interface AgentContract extends ContractCore {
         country: string | null;
     } | null;
 }
+
+/**
+ * `GET /contracts/:contractId` · `agencies.read` **+** `agents.read`, `all` mode.
+ *
+ * **The only addressable view of a contract**, and the third one: the same rows
+ * are readable from both ends as `RosterEntry` (an agency's roster) and
+ * `AgentContract` (an agent's list), each decorated with the party the reader
+ * does not already know. This carries **both** decorations, which is why it
+ * needs both permissions — the payload names a party from each directory, so
+ * holding one is not enough to see it.
+ *
+ * ── Why `/contracts` is a mount of its own ────────────────────────────────────
+ * A contract belongs to both an agent and an agency, and to neither. Hanging it
+ * off either directory would make the URL claim a primary party that does not
+ * exist, and would force a caller holding only a contract id — which is what a
+ * support ticket carries — to look up an agent first.
+ */
+export interface ContractDetail extends ContractCore {
+    /** ⚠ `null` when the joined row is missing — a broken state, preserved on purpose. */
+    agent: RosterEntry['agent'];
+    /**
+     * ⚠ `null` when the joined row is missing.
+     *
+     * Note this carries `businessName` — the Magazin's name, `null` where it has
+     * none — which `AgentContract['agency']` deliberately omits. `contactName`
+     * beside it is **a person**, the agency's contact individual, never the
+     * business. Do not substitute one for the other.
+     */
+    agency: (NonNullable<AgentContract['agency']> & { businessName: string | null }) | null;
+}
+
+// ─── The three administrative interventions ───────────────────────────────────
+
+/**
+ * The body all three contract writes take. **Strict** — an unknown key is a
+ * `400`, so an attempt to send `terms` is refused rather than silently ignored.
+ *
+ * ⚠ **These three freeze or end a relationship. They invent, alter and approve
+ * nothing.** Approving a pending contract, editing terms and adjusting
+ * `cod.threshold` are all refused by the service, each for its own reason — see
+ * `docs/admin/api/contracts.md` § "What they do NOT do". The case these serve is
+ * the one nothing else covered: an agency abusing an agent, or an agent under
+ * investigation, is a situation an administrator should be able to stop without
+ * transferring anybody.
+ */
+export interface ContractInterventionBody {
+    /** Required, trimmed, 3–500 characters. */
+    reason: string;
+}
+
+/**
+ * What `POST /contracts/:contractId/terminate` answers.
+ *
+ * ⚠ **A `200` here does not mean the contract ended.** Deactivation requires the
+ * counterparty's agreement **and** the cash conditions: the agent's outstanding
+ * COD settled, and what the agency owes them paid. When those are not met the
+ * contract does not move and a request is opened instead.
+ *
+ * **Branch on `contract`, never on the status.** `null` means requested; an
+ * object means done.
+ *
+ * There is no override, and there will not be one — ending a relationship that
+ * still owes an agent money is how that money stops being anybody's
+ * responsibility, and an administrator is exactly the party who could do it
+ * without either side noticing.
+ */
+export interface ContractTerminationResult {
+    /** `null` when the termination was only *requested*. */
+    contract: ContractDetail | null;
+    /** Present when the termination is waiting on the counterparty. */
+    pendingRequest: { id: string } | null;
+    blockers: ContractTerminationBlockers | null;
+}
+
+export interface ContractTerminationBlockers {
+    /** What the agent still owes this agency. */
+    outstandingCod: number;
+    /** What this agency still owes the agent. */
+    outstandingPayment: number;
+    /** Both balances settled. `false` means the contract cannot end yet. */
+    clear: boolean;
+}
+
+/** 409 — the contract is not in a status this verb can move it from. */
+export const PLATFORM_CODE_CONTRACT_INVALID_TRANSITION = 'CONTRACT_INVALID_TRANSITION';
+/** 409 — the transition exists, but not for the party attempting it. */
+export const PLATFORM_CODE_CONTRACT_TRANSITION_NOT_PERMITTED = 'CONTRACT_TRANSITION_NOT_PERMITTED';
+/** 409 — a termination request is already open on this contract. */
+export const PLATFORM_CODE_CONTRACT_REQUEST_ALREADY_PENDING = 'CONTRACT_REQUEST_ALREADY_PENDING';
+
+/**
+ * Which statuses each intervention is legal from, per `contracts.md`.
+ *
+ * Used to hide an affordance whose only outcome would be
+ * `CONTRACT_INVALID_TRANSITION` — the platform is still the authority, and the
+ * dialog still handles that code, because the status can move between the read
+ * and the write.
+ */
+export const CONTRACT_SUSPENDABLE_FROM: readonly ContractStatus[] = ['active', 'paused'];
+export const CONTRACT_REINSTATABLE_FROM: readonly ContractStatus[] = ['paused', 'suspended'];
+export const CONTRACT_TERMINABLE_FROM: readonly ContractStatus[] = [
+    'pending',
+    'active',
+    'paused',
+    'suspended',
+];
 
 // ─── Contract history ─────────────────────────────────────────────────────────
 

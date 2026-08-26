@@ -13,6 +13,7 @@ import {
     CancelShipmentDialog,
     ReassignShipmentDialog,
 } from '@/components/shipments/ShipmentWriteDialogs';
+import { ShipmentTrackingPanel } from '@/components/shipments/ShipmentTrackingPanel';
 import { TrackingOutboxPanel } from '@/components/shipments/TrackingOutboxPanel';
 import { Can } from '@/components/auth/Can';
 import { ErrorState } from '@/components/common/DataState';
@@ -131,6 +132,13 @@ function ShipmentDetailScreen({ shipmentId }: { shipmentId: string }) {
     const record = shipment.data;
     const canSeeOffers = can(['shipments.read', 'agents.read'], 'all');
     const canSeeActivity = can(['shipments.read', 'audit.read'], 'all');
+    /*
+      The geo-tracker data door, new at Phase 6.I. A separate permission from
+      `shipments.read` — reading where a courier travelled is a different act
+      from reading a shipment — so the tab is absent without it rather than
+      present and refusing.
+    */
+    const canSeeTracking = can('shipments.tracking.read');
     const cancellable = canCancelShipment(record);
 
     return (
@@ -189,6 +197,7 @@ function ShipmentDetailScreen({ shipmentId }: { shipmentId: string }) {
                     <TabsTrigger value="delivery">Delivery</TabsTrigger>
                     {canSeeOffers ? <TabsTrigger value="offers">Offers</TabsTrigger> : null}
                     <TabsTrigger value="cod">Cash on delivery</TabsTrigger>
+                    {canSeeTracking ? <TabsTrigger value="tracking">Tracking</TabsTrigger> : null}
                     {canSeeActivity ? <TabsTrigger value="activity">Activity</TabsTrigger> : null}
                 </TabsList>
 
@@ -208,6 +217,12 @@ function ShipmentDetailScreen({ shipmentId }: { shipmentId: string }) {
                             timeZone={timeZone}
                             can={can}
                         />
+                    </TabsContent>
+                ) : null}
+
+                {canSeeTracking ? (
+                    <TabsContent value="tracking">
+                        <ShipmentTrackingPanel shipmentId={record.id} timeZone={timeZone} />
                     </TabsContent>
                 ) : null}
 

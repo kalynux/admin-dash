@@ -6,6 +6,8 @@ import {
     listUserActivity,
     listUsers,
     restoreUser,
+    sendLoginLink,
+    sendPasswordResetLink,
     suspendUser,
     updateUserContact,
 } from '@/services/users.service';
@@ -304,5 +306,94 @@ describe('countUsers', () => {
 
         expect(calls[0].url).not.toContain('signal');
         expect(queryOf(calls[0]).get('limit')).toBe('1');
+    });
+});
+
+describe('credential recovery', () => {
+    /**
+     * The response shape both routes share. No token, no link, no unmasked
+     * destination — the endpoint sends, it does not disclose.
+     */
+    function sendResponse(overrides: Record<string, unknown> = {}) {
+        return successResponse({
+            kind: 'password_reset',
+            channel: 'whatsapp',
+            destinationMasked: '+2376••••4417',
+            expiresAt: '2026-08-17T11:42:00.000Z',
+            sentAt: '2026-08-17T11:12:00.000Z',
+            ...overrides,
+        });
+    }
+
+    it('posts only channel and reason — the body is strict and takes no destination', async () => {
+        // An extra key is a 400, not a silently ignored one. And there is no
+        // destination field by design: an operator who could type an address
+        // could mail a credential for somebody else's account to themselves.
+        const calls = stubFetch(() => sendResponse());
+
+        await sendPasswordResetLink('665f1c2a9b3e4a91c7d2e5f0', {
+            channel: 'whatsapp',
+            reason: 'Called in; cannot receive the self-service email',
+        });
+
+        const call = calls[calls.length - 1];
+        expect(call.method).toBe('POST');
+        expect(new URL(call.url, 'http://localhost').pathname).toBe(
+            '/api/v1/users/665f1c2a9b3e4a91c7d2e5f0/password-reset-link',
+        );
+        expect(JSON.parse(call.body as string)).toEqual({
+            channel: 'whatsapp',
+            reason: 'Called in; cannot receive the self-service email',
+        });
+    });
+
+    it('returns the masked destination and nothing that could be retyped', async () => {
+        stubFetch(() => sendResponse());
+
+        const result = await sendPasswordResetLink('665f1c2a9b3e4a91c7d2e5f0', {
+            channel: 'whatsapp',
+            reason: 'Locked out',
+        });
+
+        expect(result.destinationMasked).toBe('+2376••••4417');
+        expect(result.expiresAt).toBe('2026-08-17T11:42:00.000Z');
+        expect(JSON.stringify(result)).not.toMatch(/token|link|http/i);
+    });
+
+    it('sends the sign-in link to its own route, not the reset one', async () => {
+        // Two permissions, two audit actions: a reset link grants nothing until
+        // a password is chosen; a sign-in link IS a session.
+        const calls = stubFetch(() => sendResponse({ kind: 'login', channel: 'telegram' }));
+
+        await sendLoginLink('665f1c2a9b3e4a91c7d2e5f0', {
+            channel: 'telegram',
+            reason: 'Confirmed identity on the phone',
+        });
+
+        expect(new URL(calls[calls.length - 1].url, 'http://localhost').pathname).toBe(
+            '/api/v1/users/665f1c2a9b3e4a91c7d2e5f0/login-link',
+        );
+    });
+
+    it('surfaces the throttle scope, because the two remedies differ', async () => {
+        // `party` means a colleague would hit it too; `administrator` means they
+        // would not. Collapsing them into one message loses the only actionable
+        // half of the refusal.
+        stubFetch(() =>
+            errorResponse(429, 'PLATFORM_OPERATION_REJECTED', {
+                details: {
+                    platformCode: 'USER_CREDENTIAL_LINK_THROTTLED',
+                    scope: 'administrator',
+                    retryAfterSeconds: 120,
+                },
+            }),
+        );
+
+        await expect(
+            sendLoginLink('665f1c2a9b3e4a91c7d2e5f0', { channel: 'email', reason: 'Locked out' }),
+        ).rejects.toMatchObject({
+            platformCode: 'USER_CREDENTIAL_LINK_THROTTLED',
+            details: { scope: 'administrator', retryAfterSeconds: 120 },
+        });
     });
 });

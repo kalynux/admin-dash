@@ -6,6 +6,7 @@ import {
     listAgencies,
     listAgencyRoster,
     reactivateAgency,
+    rejectAgency,
     verifyAgency,
 } from '@/services/agencies.service';
 import { agencyFixture, rosterEntryFixture } from '@/test/agency-fixtures';
@@ -135,7 +136,30 @@ describe('the roster', () => {
     });
 });
 
-describe('the three writes', () => {
+describe('the four writes', () => {
+    it('posts the rejection reason to /reject, which the agency will read', async () => {
+        // The other half of the review, behind the SAME permission
+        // (`agencies.verify`) — what separates the verdicts is the audit action.
+        // Unlike the deactivation reason, this one is forwarded to jovi-mall and
+        // stored on the agency, which is why the dialog says the agency sees it.
+        const calls = stubFetch(() =>
+            successResponse({ id: 'a', status: 'pending_verification' }),
+        );
+
+        await rejectAgency('6650bb22cc33dd44ee55ff66', {
+            reason: 'Transport licence has expired',
+        });
+
+        const call = calls[calls.length - 1];
+        expect(call.method).toBe('POST');
+        expect(new URL(call.url, 'http://localhost').pathname).toBe(
+            '/api/v1/agencies/6650bb22cc33dd44ee55ff66/reject',
+        );
+        expect(JSON.parse(call.body as string)).toEqual({
+            reason: 'Transport licence has expired',
+        });
+    });
+
     it('sends no body at all when verifying', async () => {
         // The schema is strict — any field is a 400 — so `{}` would be wrong too.
         const calls = stubFetch(() => successResponse({ id: 'a', status: 'active' }));

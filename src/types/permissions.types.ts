@@ -8,7 +8,7 @@
  * draw that line themselves: `GET /permissions/catalog` requires no permission
  * because "the vocabulary is what a dashboard is written against"
  * (`authorization.md`), while `permissions.md` says in as many words *"Do not
- * hard-code the matrix below into the dashboard"*. So the 113 **names** live
+ * hard-code the matrix below into the dashboard"*. So the 114 **names** live
  * here as literal types — a typo becomes a compile error rather than a module
  * that silently never renders — and **who holds what** comes only from
  * `GET /permissions/me`, never from this file.
@@ -22,13 +22,18 @@ import type { AdminTier } from '@/types/auth.types';
 // ─── The catalogue ────────────────────────────────────────────────────────────
 
 /**
- * All 113 permissions, `family.resource.action`, in the doc's own family order.
+ * All 114 permissions, `family.resource.action`, in the doc's own family order.
  *
- * `†` in the comments marks the 27 that are **catalogued policy with no endpoint
- * built yet**. They are real grants — `/permissions/me` returns them, and twelve
- * of Support's twenty-four are among them — but no screen can exist for them.
- * They are listed again in `UNROUTED_PERMISSION_NAMES` below, which is what the
- * type system uses to keep them out of navigation and gates.
+ * The 114th is `files.content.read`, added at BR-011. `permissions.md`'s prose
+ * lagged the matrix by one for a day and was re-counted at BR-013; the guard now
+ * derives the tier totals from the matrix and checks the prose against them, so
+ * the two cannot drift apart again quietly.
+ *
+ * `†` in the comments marks the **four** that are catalogued policy with no
+ * endpoint built yet. They are real grants — `/permissions/me` returns them —
+ * but no screen can exist for them. They are listed again in
+ * `UNROUTED_PERMISSION_NAMES` below, which is what the type system uses to keep
+ * them out of navigation and gates.
  */
 export const PERMISSION_NAMES = [
     // agents
@@ -37,6 +42,7 @@ export const PERMISSION_NAMES = [
     'agents.ban',
     'agents.kyc.review',
     'agents.tracking.set',
+    'agents.tracking.read',
     'agents.cod_threshold.set',
     'agents.transfer',
     'agents.contracts.manage',
@@ -82,7 +88,7 @@ export const PERMISSION_NAMES = [
     'orders.intervene',
     'orders.refund',
 
-    // support — only `errors.lookup` has an endpoint; the eleven others are †
+    // support — nineteen routes since Phase 5 Part B; the whole family is routed
     'support.errors.lookup',
     'support.tickets.read',
     'support.tickets.create',
@@ -96,7 +102,7 @@ export const PERMISSION_NAMES = [
     'support.tickets.attachments.write',
     'support.reference.read',
 
-    // content — no endpoints yet, every one †
+    // content — fourteen routes at /content since Phase 5 Part A, moved off jovi-mall
     'content.articles.read',
     'content.articles.write',
     'content.articles.publish',
@@ -105,23 +111,31 @@ export const PERMISSION_NAMES = [
     'content.authors.write',
     'content.authors.delete',
 
-    // files — `resolve` is routed; the other two are † (this service accepts no
-    // multipart bodies, and the orphan listing is deliberately not mounted)
+    // files — all four routed. wi-admin still accepts no multipart body; these
+    // resolve, open, list and delete records that something else uploaded.
     'files.resolve',
+    // ⚠ Its own name, NOT `files.resolve`, and the split is load-bearing: every
+    // tier holds `files.resolve` on the reasoning that resolving an id you were
+    // already given discloses nothing new. That argument covers a name and a
+    // size; it does not cover a photograph of somebody's front door or a
+    // vendor's saleable `digital/` file. So opening bytes is a second
+    // permission and the only audited read in this family — fail-closed, the
+    // row committing before jovi-mall is asked. Do not fold the two together.
+    'files.content.read',
     'files.orphans.read',
     'files.delete',
 
-    // broadcast — no endpoints yet, †
-    'broadcast.send',
+    // messaging
+    'messaging.telegram.send',
 
     // users
     'users.read',
     'users.update',
     'users.suspend',
-    'users.sessions.revoke',
+    'users.sessions.revoke', // †
     'users.password.reset',
     'users.login_link.send',
-    'users.roles.manage',
+    'users.roles.manage', // †
 
     // vendors
     'vendors.read',
@@ -130,12 +144,9 @@ export const PERMISSION_NAMES = [
     'vendors.products.manage',
     'vendors.settings.manage',
 
-    // customers — no endpoints yet, both †
-    'customers.read',
-    'customers.suspend',
-
     // shipments
     'shipments.read',
+    'shipments.tracking.read',
     'shipments.reassign',
     'shipments.cancel',
 
@@ -162,7 +173,7 @@ export const PERMISSION_NAMES = [
 
     // notifications
     'notifications.read',
-    'notifications.manage',
+    'notifications.manage', // †
 
     // system
     'system.health.read',
@@ -175,7 +186,7 @@ export const PERMISSION_NAMES = [
     // developer_tools
     'developer_tools.workers.trigger',
     'developer_tools.outbox.replay',
-    'developer_tools.webhooks.redeliver',
+    'developer_tools.webhooks.redeliver', // †
     'developer_tools.catalogue.vectorise',
     'developer_tools.feature_flags.read',
     'developer_tools.feature_flags.set',
@@ -189,12 +200,18 @@ export const PERMISSION_NAMES = [
 ] as const;
 
 /**
- * The 27 marked `†` in the matrix: **decided policy, no endpoint**.
+ * The four marked `†` in the matrix: **decided policy, no endpoint**.
  *
- * Holding one does not mean a screen can be built. `docs/dashboard/
- * BACKEND-INTEGRATION-MATRIX.md` records them as gaps D5–D8, and the jovi-mall
- * legacy docs describe endpoints for several — **those are a different service
- * and are not reachable from this dashboard.**
+ * This list held 27 names until Phase 5 / Phase 17. All eleven `support.*`, all
+ * seven `content.*`, both `files.orphans.read` and `files.delete`, and
+ * `users.password.reset` are now routed; `broadcast.send`, `customers.read` and
+ * `customers.suspend` were **deleted from the catalogue** rather than left
+ * unrouted, which is a different kind of thing — see the note in the matrix.
+ *
+ * `permissions.md` § "The four † permissions" gives each survivor a reason that
+ * is a **decision** rather than a backlog item: none of the four has an
+ * implementation anywhere to port, so building one is new work with an open
+ * design question in front of it.
  *
  * They are excluded from `RoutedPermissionName`, so naming one in a nav item or
  * a permission gate does not compile. They are *not* excluded from
@@ -202,57 +219,17 @@ export const PERMISSION_NAMES = [
  * filtering them out would misreport what the caller holds.
  */
 export const UNROUTED_PERMISSION_NAMES = [
-    // support — tickets are Support's headline job and have no surface at all
-    'support.tickets.read',
-    'support.tickets.create',
-    'support.tickets.update',
-    'support.tickets.assign',
-    'support.tickets.lifecycle',
-    'support.tickets.followers.manage',
-    'support.tickets.notes.read',
-    'support.tickets.notes.write',
-    'support.tickets.attachments.read',
-    'support.tickets.attachments.write',
-    'support.reference.read',
-
-    // content — the blog editor
-    'content.articles.read',
-    'content.articles.write',
-    'content.articles.publish',
-    'content.articles.delete',
-    'content.authors.read',
-    'content.authors.write',
-    'content.authors.delete',
-
-    // files — wi-admin accepts no multipart bodies anywhere, and the orphan
-    // listing is deliberately unmounted. `files.resolve` is NOT here: it is
-    // routed as of the dashboard-request round, and is the one permission on
-    // this service every tier holds — see `docs/admin/api/files.md`.
-    'files.orphans.read',
-    'files.delete',
-
-    // broadcast
-    'broadcast.send',
-
-    // users — the two writes with no route (gap D6, narrowed).
-    // `users.password.reset` left this list in the dashboard-request round:
-    // jovi-mall gained an administrator-initiated flow, so it is now routed at
-    // POST /users/:userId/password-reset-link.
+    /** jovi-mall issues stateless JWTs with no session store to delete from. */
     'users.sessions.revoke',
+    /** Removing a role has no defined semantics — it strands the Store a vendor owns. */
     'users.roles.manage',
-
-    // customers
-    'customers.read',
-    'customers.suspend',
-
-    // notifications — no global source-configuration screen (gap D7)
+    /** Service-wide wording would block a tier-3 admin editing their *own* preferences. */
     'notifications.manage',
-
-    // developer_tools — use POST /dev-tools/outbox/replay instead (gap D8)
+    /** Every webhook mount in the platform is inbound; there is nothing to replay. */
     'developer_tools.webhooks.redeliver',
 ] as const;
 
-/** The 21 families, in the matrix's declaration order. */
+/** The 20 families, in the matrix's declaration order. */
 export const PERMISSION_FAMILIES = [
     'agents',
     'agencies',
@@ -263,10 +240,9 @@ export const PERMISSION_FAMILIES = [
     'support',
     'content',
     'files',
-    'broadcast',
+    'messaging',
     'users',
     'vendors',
-    'customers',
     'shipments',
     'administrators',
     'approvals',
@@ -279,14 +255,14 @@ export const PERMISSION_FAMILIES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Any of the 110. Use for what the *server* may send us. */
+/** Any of the 114. Use for what the *server* may send us. */
 export type PermissionName = (typeof PERMISSION_NAMES)[number];
 
-/** One of the 28 `†`. */
+/** One of the four `†`. */
 export type UnroutedPermissionName = (typeof UNROUTED_PERMISSION_NAMES)[number];
 
 /**
- * The 82 that gate a real endpoint. **Use for what *our code* asks for** — nav
+ * The 109 that gate a real endpoint. **Use for what *our code* asks for** — nav
  * items, `<Can>`, `RequirePermission` — so that gating a screen on a permission
  * whose endpoint does not exist is a `tsc` error.
  */
@@ -297,7 +273,7 @@ export type PermissionFamily = (typeof PERMISSION_FAMILIES)[number];
 /**
  * How to read a list of required permissions.
  *
- * `all` — holds every one. Thirteen endpoints are composite guards in this mode,
+ * `all` — holds every one. Fourteen endpoints are composite guards in this mode,
  * because they compose data from two or three domains.
  * `any` — holds at least one. Exactly one endpoint guards this way
  * (`GET /system/errors`), and it is also the right mode for *navigation*: a

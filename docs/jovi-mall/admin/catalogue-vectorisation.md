@@ -1,3 +1,41 @@
+<!-- OBSOLETE-BANNER -->
+> # 🔴 OBSOLETE — this capability moved to wi-admin
+>
+> **Everything below describes a surface that no longer exists.** It documents
+> `POST /api/admin/products/bulk-vectorise` on **jovi-mall**, behind `requireRole(['admin'])` on a
+> jovi-mall `users` row. That mount, that guard and that role were all deleted at Phase 5. Calling
+> the path on this page returns **404**.
+>
+> **Where it went:** `POST /api/v1/dev-tools/catalogue/vectorise` — this dashboard's own backend.
+> (jovi-mall still serves it internally at `/api/internal/admin/dev-tools/catalogue/vectorise`,
+> which is **wi-admin's** call to make, not yours.)
+>
+> | Read instead | |
+> |---|---|
+> | The live contract | [`../../admin/api/dev-tools.md`](../../admin/api/dev-tools.md) |
+> | Every route and permission | [`../../ROUTE-MAP.md`](../../ROUTE-MAP.md) § `/dev-tools` |
+>
+> ⚠ **Two things a UI must know.** The permission is
+> `developer_tools.catalogue.vectorise`, and the whole `developer_tools` family is **tier 1
+> (Developer) only, enforced at boot** — a tier-2 Admin cannot reach it at all. And the operation
+> is **synchronous**: it returns a full per-product summary, so the request is long-running.
+> Do not build it as fire-and-forget.
+>
+> *Kept rather than deleted so the next reader finds the redirect instead of re-deriving it.
+> Marked 2026-08-24.*
+<!-- /OBSOLETE-BANNER -->
+
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call jovi-mall.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> Field names here are jovi-mall's **snake_case** storage casing; wi-admin's wire is **camelCase**.
+>
+> Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+<!-- /CONTEXT-BANNER -->
+
+---
+
 # Admin — Catalogue & Vectorisation API
 
 Admin-only endpoints for catalogue management and the vectorisation pipeline.

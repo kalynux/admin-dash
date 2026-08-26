@@ -4,8 +4,6 @@ import type {
     AuditActionCatalogEntry,
     AuditEntryDetail,
     AuditExport,
-    LegacyAuditEntry,
-    LegacyAuditListMeta,
 } from '@/types/audit.types';
 
 /**
@@ -165,77 +163,5 @@ export function cliAuditExportFixture(overrides: Partial<AuditExport> = {}): Aud
     };
 }
 
-/** A `service` row: jovi-mall named a specific action. */
-export function legacyAuditEntryFixture(
-    overrides: Partial<LegacyAuditEntry> = {},
-): LegacyAuditEntry {
-    return {
-        id: '66b0aabbccddeeff00112233',
-        occurredAt: '2026-08-10T11:03:52.640Z',
-        correlationId: 'c1d2e3f4-1111-2222-3333-444455556666',
-        source: 'jovi-mall-legacy',
-        kind: 'service',
-        actor: {
-            kind: 'platform_admin',
-            // Rendered server-side so a client cannot present this as one of ours.
-            label: 'Legacy admin session (jovi-mall)',
-            userId: '6641aabbccddeeff00112233',
-            role: 'admin',
-            name: 'Jean Kamdem',
-            ip: '41.202.219.90',
-            userAgent: 'Mozilla/5.0',
-        },
-        request: {
-            method: 'POST',
-            path: '/api/admin/agencies/665c0011223344556677889a/deactivate',
-            statusCode: 200,
-            durationMs: 412,
-        },
-        action: 'DELIVERY_AGENCY_DEACTIVATED',
-        resource: { type: 'delivery_agency', id: '665c0011223344556677889a' },
-        params: { agencyId: '665c0011223344556677889a' },
-        query: null,
-        bodyKeys: ['reason'],
-        changes: { status: { from: 'active', to: 'inactive' } },
-        ...overrides,
-    };
-}
 
-/**
- * A `request` row: the coarse per-request record.
- *
- * The pair to the above, and the one a feed gets wrong. `action`, `resource` and
- * `changes` are **all null** — the middleware recorded what was called, not what
- * it meant — so a screen must not synthesise an action for it or render three
- * blanks where an explanation belongs.
- */
-export function legacyRequestRowFixture(
-    overrides: Partial<LegacyAuditEntry> = {},
-): LegacyAuditEntry {
-    return legacyAuditEntryFixture({
-        id: '66b0aabbccddeeff00112234',
-        kind: 'request',
-        action: null,
-        resource: null,
-        changes: null,
-        bodyKeys: [],
-        ...overrides,
-    });
-}
 
-export function legacyAuditMetaFixture(
-    overrides: Partial<LegacyAuditListMeta> = {},
-): LegacyAuditListMeta {
-    return {
-        total: 218,
-        page: 1,
-        limit: 20,
-        pages: 11,
-        legacy: true,
-        sourceService: 'jovi-mall',
-        retiresAtCutover: true,
-        // When this reaches 0 the feed and the shim behind it are deleted.
-        unportedEndpoints: 37,
-        ...overrides,
-    };
-}

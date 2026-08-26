@@ -1,3 +1,12 @@
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call geo-tracker.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> To build a tracking screen read [`TRACKING-DOORS.md`](../TRACKING-DOORS.md) instead.
+>
+> Start at [`_CONTEXT.md`](./_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../ROUTE-MAP.md).
+<!-- /CONTEXT-BANNER -->
+
 # GPS Persistence (the hybrid strategy)
 
 geo-tracker receives an agent's GPS every few seconds. It does **not** store
@@ -128,6 +137,7 @@ A background **maintainer** (runs every `CHECKPOINT_CLEANUP_INTERVAL`, default
 | Metric | Type | Meaning |
 |---|---|---|
 | `geotracker_checkpoints_written_total{kind}` | counter | checkpoints persisted, by `interval` / `movement` |
+| `geotracker_checkpoints_suppressed_total{kind}` | counter | checkpoints that were **due** but dropped for an implausible fix — read against `..._written_total`, never alone |
 | `geotracker_checkpoints_pruned_total` | counter | temporary checkpoints removed by cleanup |
 | `geotracker_checkpoint_partitions` | gauge | concrete monthly partitions currently present |
 
@@ -136,15 +146,34 @@ A background **maintainer** (runs every `CHECKPOINT_CLEANUP_INTERVAL`, default
 - The old per-fix breadcrumb table (`location_history`) is **no longer written**.
   The table is left in place for any historical rows; the location module is now
   Redis-only.
-- Checkpoints are **not** plausibility-gated: a rare spoofed/bad fix rejected
-  from the live position can still land in the temporary trail. It never reaches
-  the live position or a broadcast, and it is cleaned up with the rest.
+- Checkpoints **are** plausibility-gated, since plan step 4.C.1. The tracking
+  service asks the location module for a verdict (`Plausible` — the same judge
+  `RecordLocation` uses, so the trail and the live position can never disagree)
+  and passes it into the heartbeat; an implausible fix is dropped **after** the
+  dueness decision and before the write, so `..._suppressed_total` counts trail
+  entries actually lost rather than fixes that were never due. The checkpoint
+  cursor is deliberately **not** advanced, so the next believable fix checkpoints
+  immediately instead of waiting out another interval — a spoof must not be able
+  to thin the trail around itself.
+
+  Until then a spoofed/bad fix was refused the live position and accepted into
+  the trail, which is the record a delivery dispute is argued from.
+
+  **What is NOT gated is the heartbeat itself.** An implausible fix still counts
+  as the device reporting in — what is untrustworthy is the position, not the
+  fact of the report — so it still lifts an impaired session and still holds off
+  `gps_lost`. Gating liveness on it would turn a defence against bad data into a
+  denial of service against a real delivery.
+
+  A hot store that cannot answer yields a fail-open default (`(true, err)`),
+  matching what the live-position path has always done: a Redis wobble degrades
+  the gate rather than blacking out every trail on the platform.
 - The terminal stamp is now scoped to one shipment on both paths, so it no longer
   guesses at "the agent's most recent session" — but it can still be **missed**
   (a lost event, or a shipment that ends while geo-tracker is down). Such a
   session falls back to the end-time retention clock, so cleanup correctness does
   not depend on the stamp.
 - A session whose terminal event is lost **entirely** stays open until its Redis
-  TTL (`TRACKING_SESSION_TTL`, default 48 h) or the next
+  TTL (`TRACKING_SESSION_TTL`, default **72 h** since ADR-B01) or the next
   `agentHasActiveShipment: false` reconciles it away. Size the TTL above your
   longest plausible delivery.

@@ -1,3 +1,12 @@
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call geo-tracker.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> To build a tracking screen read [`TRACKING-DOORS.md`](../../TRACKING-DOORS.md) instead.
+>
+> Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+<!-- /CONTEXT-BANNER -->
+
 # Error Responses
 
 **Changed in Phase 16.** This service used to answer in **plain text** via Go's `http.Error`,
@@ -36,7 +45,7 @@ X-Request-ID: 3f9a…
 ### `error.category`
 
 The same nine values all three services use. See
-[jovi-mall's error guide](../../../jovi-mall/api-doc/errors/README.md) for the full table and
+[jovi-mall's error guide](../../jovi-mall/errors/README.md) for the full table and
 what a client should do with each.
 
 Two of them — `external_service` and `internal` — carry a **fixed generic message and no

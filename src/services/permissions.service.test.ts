@@ -23,7 +23,7 @@ describe('fetchMyPermissions', () => {
         expect(calls[0].url).toContain('/permissions/me');
         expect(result.tier).toBe(2);
         expect(result.tierLabel).toBe('Admin');
-        expect(result.permissions).toHaveLength(96);
+        expect(result.permissions).toHaveLength(97);
     });
 
     it('sends no CSRF header — it is a safe method', () => {
@@ -48,7 +48,7 @@ describe('the flags this service deliberately does not set', () => {
         // aged out in a background tab would land on a broken shell.
         expect(calls).toHaveLength(3);
         expect(calls[1].url).toContain('/auth/refresh');
-        expect(result.permissions).toHaveLength(113);
+        expect(result.permissions).toHaveLength(114);
     });
 
     it('lets a scoped session announce itself rather than swallowing the refusal', async () => {
@@ -85,14 +85,14 @@ describe('fetchPermissionCatalog', () => {
                         phase: 4,
                     },
                 ],
-                total: 113,
+                total: 114,
             }),
         );
 
         const catalog = await fetchPermissionCatalog();
 
         expect(calls[0].url).toContain('/permissions/catalog');
-        expect(catalog.total).toBe(113);
+        expect(catalog.total).toBe(114);
         expect(catalog.permissions[0].scoped).toBe(true);
     });
 
@@ -108,8 +108,8 @@ describe('fetchTierMatrix', () => {
         const calls = stubFetch(() =>
             successResponse({
                 tiers: [
-                    { tier: 1, label: 'Developer', permissions: ['administrators.create'], total: 113 },
-                    { tier: 2, label: 'Admin', permissions: ['agencies.read'], total: 96 },
+                    { tier: 1, label: 'Developer', permissions: ['administrators.create'], total: 114 },
+                    { tier: 2, label: 'Admin', permissions: ['agencies.read'], total: 97 },
                     { tier: 3, label: 'Support', permissions: ['agencies.read'], total: 23 },
                 ],
             }),
@@ -119,7 +119,7 @@ describe('fetchTierMatrix', () => {
 
         expect(calls[0].url).toContain('/permissions/tiers');
         expect(matrix.tiers).toHaveLength(3);
-        expect(matrix.tiers[0].total).toBe(113);
+        expect(matrix.tiers[0].total).toBe(114);
     });
 
     /**

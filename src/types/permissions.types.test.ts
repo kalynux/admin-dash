@@ -1,7 +1,7 @@
 /**
  * The transcription guard.
  *
- * `permissions.types.ts` copies 113 permission names out of
+ * `permissions.types.ts` copies 114 permission names out of
  * `docs/admin/api/permissions.md` by hand. A single typo there is invisible at
  * runtime — a permission that does not exist can never be held, so the screen it
  * gates simply never appears, for everybody, forever.
@@ -40,6 +40,15 @@ const doc = readFileSync(DOC_PATH, 'utf8');
  * (`| \`financial\` |`) cannot match.
  */
 const ROW = /^\| `([a-z_]+(?:\.[a-z_]+)+)`( †)? \|/gm;
+
+/**
+ * The same row, with its three tier columns — `| kind | ● | ● | · |`.
+ *
+ * Used to re-derive the per-tier totals from the matrix so the prose can be
+ * checked against them rather than transcribed a second time. Groups 3–5 are the
+ * tiers; group 2 is the optional ` †`.
+ */
+const TIER_ROW = /^\| `[a-z_]+(?:\.[a-z_]+)+`( †)? \| *[a-z]+ *\| *([●·]) *\| *([●·]) *\| *([●·]) *\|/gm;
 
 const FAMILY_HEADING = /^### `([a-z_]+)`/gm;
 
@@ -89,12 +98,44 @@ describe('the permission catalogue matches docs/admin/api/permissions.md', () =>
         );
     });
 
-    it('holds the counts the document states in prose', () => {
-        // permissions.md: "113 of 113", "27 of 113 permissions", 21 families.
-        expect(PERMISSION_NAMES.length).toBe(113);
-        expect(UNROUTED_PERMISSION_NAMES.length).toBe(27);
-        expect(PERMISSION_FAMILIES.length).toBe(21);
-        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(86);
+    it('holds the counts the document states, in the matrix and now in the prose', () => {
+        // Counted off the matrix. The prose agreed again from BR-013 (2026-08-25),
+        // when the tier table and the † note were re-counted for
+        // `files.content.read`; the assertion below pins that they still do, so
+        // the two cannot drift apart again silently.
+        expect(PERMISSION_NAMES.length).toBe(114);
+        expect(UNROUTED_PERMISSION_NAMES.length).toBe(4);
+        expect(PERMISSION_FAMILIES.length).toBe(20);
+        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(110);
+    });
+
+    /**
+     * The prose, checked against the matrix rather than assumed to follow it.
+     *
+     * This replaces the temporary assertion that pinned the *stale* counts and
+     * went red when BR-013 landed — which is what it was for: a comment saying
+     * "the doc disagrees" is invisible the day the doc is fixed, while a red
+     * test is a hand-off. Now that they agree, the useful thing to pin is the
+     * agreement.
+     */
+    it('states the same counts in prose that its matrix enumerates', () => {
+        // Groups 2–4 are the three tier columns; group 1 is the optional ` †`.
+        // Only the matrix rows carry tier cells, so the two tables that repeat a
+        // permission name — the audited-reads note and the † list — cannot be
+        // double-counted here.
+        const held = (tier: 2 | 3 | 4) =>
+            [...doc.matchAll(TIER_ROW)].filter((row) => row[tier] === '●').length;
+
+        // Sanity: the matrix must actually have been found, or every `toContain`
+        // below would be comparing against a zero somebody could not explain.
+        expect(held(2)).toBe(PERMISSION_NAMES.length);
+
+        expect(doc).toContain(`| **1** | Developer | ${held(2)} of ${PERMISSION_NAMES.length} |`);
+        expect(doc).toContain(`| **2** | Admin | ${held(3)} of ${PERMISSION_NAMES.length} |`);
+        expect(doc).toContain(`| **3** | Support | ${held(4)} of ${PERMISSION_NAMES.length} |`);
+        expect(doc).toContain(
+            `(**${UNROUTED_PERMISSION_NAMES.length}** of ${PERMISSION_NAMES.length} permissions`,
+        );
     });
 });
 

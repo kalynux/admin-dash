@@ -27,6 +27,7 @@ const catalog = {
         { family: 'users', permissions: ['users.read', 'users.suspend'] },
         { family: 'money', permissions: ['money.payments.read', 'money.payouts.mark_paid'] },
         { family: 'support', permissions: ['support.tickets.read'] },
+        { family: 'notifications', permissions: ['notifications.read', 'notifications.manage'] },
     ],
     permissions: [
         entry({}),
@@ -54,8 +55,19 @@ const catalog = {
             summary: 'View support tickets',
             scoped: true,
         }),
+        entry({
+            name: 'notifications.read',
+            family: 'notifications',
+            summary: 'Read the administrator inbox and platform alerts',
+        }),
+        entry({
+            name: 'notifications.manage',
+            family: 'notifications',
+            action: 'write',
+            summary: 'Configure which events raise an administrator alert',
+        }),
     ],
-    total: 113,
+    total: 114,
 };
 
 function renderPage(tier: 1 | 2 | 3) {
@@ -92,22 +104,34 @@ describe('MyAccess', () => {
     });
 
     it('says plainly which held permissions have no screen', async () => {
-        // The point of the page. Twelve of Support's twenty-three permissions are
-        // catalogued policy with no endpoint, so for them this is not a footnote.
-        renderPage(3);
+        // The point of the page. Admin holds two of the four catalogued-but-
+        // unrouted names (`users.sessions.revoke`, `notifications.manage`), so
+        // for them this is not a footnote.
+        //
+        // Asserted at tier 2 rather than tier 3 because **Support holds none of
+        // the four** since Phase 5 built the `support` and `content` surfaces —
+        // every one of their twenty-nine has a screen behind it.
+        renderPage(2);
 
-        expect(await screen.findByText(/12 of these have no screen yet/i)).toBeInTheDocument();
+        expect(await screen.findByText(/2 of these have no screen yet/i)).toBeInTheDocument();
 
         // Twice on purpose: once in the summary card, once beside the permission
         // itself in the family list, where the marker sits next to the summary of
         // what it would let you do if there were anywhere to do it.
-        expect(screen.getAllByText('support.tickets.read')).toHaveLength(2);
+        expect(screen.getAllByText('notifications.manage')).toHaveLength(2);
         expect(screen.getByText('no screen yet')).toBeInTheDocument();
+    });
+
+    it('tells Support every permission they hold has a screen', async () => {
+        renderPage(3);
+
+        expect(await screen.findByText('support.tickets.read')).toBeInTheDocument();
+        expect(screen.queryByText(/have no screen yet/i)).not.toBeInTheDocument();
     });
 
     it('counts what the caller holds against the catalogue total', async () => {
         renderPage(3);
-        expect(await screen.findByText(/24 of 113 permissions/i)).toBeInTheDocument();
+        expect(await screen.findByText(/30 of 114 permissions/i)).toBeInTheDocument();
     });
 
     it('surfaces a permission newer than this build rather than hiding it', async () => {

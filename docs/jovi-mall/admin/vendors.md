@@ -1,3 +1,12 @@
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call jovi-mall.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> Field names here are jovi-mall's **snake_case** storage casing; wi-admin's wire is **camelCase**.
+>
+> Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+<!-- /CONTEXT-BANNER -->
+
 # Vendor administration — the internal API
 
 > **This is not a dashboard surface.** Every endpoint here lives under
@@ -99,8 +108,9 @@ shown to the vendor it is about.
 
 > **Verification gates nothing today.** It is surfaced to agencies through
 > `agency-vendor-browse.dto.ts` as `kycVerified`, and it is now settable and explicable,
-> but no vendor behaviour depends on it. `requireLegitBusiness` remains dead code with zero
-> call sites.
+> but no vendor behaviour depends on it. `requireLegitBusiness` was the guard that would have
+> read it; it had zero call sites and was deleted on 2026-08-19, so nothing reads the flag on
+> the request path at all.
 
 `409 VENDOR_KYC_STATUS_CONFLICT` on a second approval or a second rejection.
 

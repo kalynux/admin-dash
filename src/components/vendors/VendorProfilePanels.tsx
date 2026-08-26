@@ -2,12 +2,13 @@ import { Link } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 
 import { Definition, DefinitionList, NotSet } from '@/components/common/DefinitionList';
+import { ResolvedFileViewer } from '@/components/files/FileViewer';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { VendorKycBadge } from '@/components/vendors/VendorKycBadge';
-import { formatCount, formatInstantInZone, formatMoney } from '@/lib/format';
+import { formatCount, formatInstantInZone, formatMoney, humaniseEnum } from '@/lib/format';
 import type { VendorDetail } from '@/types/vendors.types';
 import { vendorOnboardingLabel } from '@/types/vendors.types';
 import { CopyableId } from '@/components/common/CopyableId';
@@ -143,15 +144,35 @@ export function VendorStorePanel({ vendor, timeZone }: PanelProps) {
                             label="Branding"
                             hint={
                                 <InfoHint label="About branding">
-                                    Only the file ids are on this surface. wi-admin serves no files
-                                    and accepts no uploads, so there is nothing to render or replace
-                                    here.
+                                    These can be looked at but not changed:{' '}
+                                    <strong>wi-admin accepts no uploads on any route</strong>, so
+                                    replacing a logo is the vendor&rsquo;s own action. Both live in
+                                    public storage; opening one is still recorded.
                                 </InfoHint>
                             }
                         >
-                            {[store.logoFileId ? 'logo' : null, store.bannerFileId ? 'banner' : null]
-                                .filter(Boolean)
-                                .join(' · ') || <NotSet>Neither set</NotSet>}
+                            {store.logoFileId === null && store.bannerFileId === null ? (
+                                <NotSet>Neither set</NotSet>
+                            ) : (
+                                <div className="space-y-4">
+                                    {store.logoFileId ? (
+                                        <div className="space-y-1">
+                                            <p className="text-muted-foreground text-xs font-medium uppercase">
+                                                Logo
+                                            </p>
+                                            <ResolvedFileViewer fileId={store.logoFileId} />
+                                        </div>
+                                    ) : null}
+                                    {store.bannerFileId ? (
+                                        <div className="space-y-1">
+                                            <p className="text-muted-foreground text-xs font-medium uppercase">
+                                                Banner
+                                            </p>
+                                            <ResolvedFileViewer fileId={store.bannerFileId} />
+                                        </div>
+                                    ) : null}
+                                </div>
+                            )}
                         </Definition>
                         <Definition label="Created">
                             {formatInstantInZone(store.createdAt, timeZone) ?? '—'}
@@ -385,13 +406,18 @@ export function VendorAddressesPanel({ vendor }: { vendor: VendorDetail }) {
 }
 
 /**
- * Policies, as **presence rather than content**.
+ * Policies — **content as well as presence**, since the dashboard-request round.
  *
- * About thirty fields of the vendor's own commercial terms exist; the question a
- * detail screen asks is *have they set this up*. Editing them is deliberately not
- * offered — writing `policies` bumps `policyVersion`, which pauses every agency
- * connection pending reapproval, and that cascade belongs to the vendor's own
- * policy path.
+ * This panel used to render three booleans, because three booleans were all the
+ * service sent. `policies` now carries `returns`, `cancellation` and
+ * `support` themselves, and the booleans are *derived* from them — so the
+ * booleans stay as the summary line and each block renders underneath when the
+ * vendor has stored one.
+ *
+ * ⚠ **Still read-only, and that has not changed.** Writing `policies` bumps
+ * `policyVersion`, which pauses every one of the vendor's agency connections
+ * pending reapproval. That cascade belongs to the vendor's own policy path, not
+ * to platform oversight.
  */
 export function VendorPoliciesPanel({ vendor }: { vendor: VendorDetail }) {
     const policies = vendor.policies;
@@ -404,13 +430,25 @@ export function VendorPoliciesPanel({ vendor }: { vendor: VendorDetail }) {
             <CardContent className="space-y-4">
                 <DefinitionList>
                     <Definition label="Return policy">
-                        <VerifiedMark value={policies.hasReturnPolicy} trueLabel="Set" falseLabel="Not set" />
+                        <VerifiedMark
+                            value={policies.hasReturnPolicy}
+                            trueLabel="Set"
+                            falseLabel="Not set"
+                        />
                     </Definition>
                     <Definition label="Cancellation policy">
-                        <VerifiedMark value={policies.hasCancellationPolicy} trueLabel="Set" falseLabel="Not set" />
+                        <VerifiedMark
+                            value={policies.hasCancellationPolicy}
+                            trueLabel="Set"
+                            falseLabel="Not set"
+                        />
                     </Definition>
                     <Definition label="Support policy">
-                        <VerifiedMark value={policies.hasSupportPolicy} trueLabel="Set" falseLabel="Not set" />
+                        <VerifiedMark
+                            value={policies.hasSupportPolicy}
+                            trueLabel="Set"
+                            falseLabel="Not set"
+                        />
                     </Definition>
                     <Definition
                         label="Policy version"
@@ -426,9 +464,194 @@ export function VendorPoliciesPanel({ vendor }: { vendor: VendorDetail }) {
                     </Definition>
                 </DefinitionList>
 
+                {policies.returns ? (
+                    <section className="space-y-2 border-t pt-4">
+                        <h3 className="text-sm font-medium">Returns</h3>
+                        <DefinitionList>
+                            <Definition label="Returns accepted">
+                                {policies.returns.returnEligible ? 'Yes' : 'No'}
+                            </Definition>
+                            {policies.returns.returnEligible ? (
+                                <>
+                                    <Definition label="Window">
+                                        {policies.returns.returnWindowDays === null ? (
+                                            <NotSet />
+                                        ) : (
+                                            `${policies.returns.returnWindowDays} day${policies.returns.returnWindowDays === 1 ? '' : 's'}`
+                                        )}
+                                    </Definition>
+                                    <Definition label="Refund">
+                                        {/* `refundPercentage` is meaningful only on a partial refund. */}
+                                        {policies.returns.refundType === 'partial' &&
+                                        policies.returns.refundPercentage !== null
+                                            ? `${policies.returns.refundPercentage}% of the order`
+                                            : (humaniseEnum(policies.returns.refundType ?? '') ?? (
+                                                  <NotSet />
+                                              ))}
+                                    </Definition>
+                                    <Definition label="Return shipping paid by">
+                                        {humaniseEnum(policies.returns.returnShippingPayer ?? '') ?? (
+                                            <NotSet />
+                                        )}
+                                    </Definition>
+                                    <Definition label="Refund processing">
+                                        {policies.returns.refundProcessingDays === null ? (
+                                            <NotSet />
+                                        ) : (
+                                            `${policies.returns.refundProcessingDays} day${policies.returns.refundProcessingDays === 1 ? '' : 's'}`
+                                        )}
+                                    </Definition>
+                                    <Definition
+                                        label="Claims adjudicated by"
+                                        hint={
+                                            <InfoHint label="About the inspector">
+                                                Administrator-controlled upstream — it names who
+                                                settles a claim, and is not a term the vendor set.
+                                            </InfoHint>
+                                        }
+                                    >
+                                        {humaniseEnum(policies.returns.inspector ?? '') ?? (
+                                            <NotSet />
+                                        )}
+                                    </Definition>
+                                    {policies.returns.returnConditionNotes ? (
+                                        <Definition label="Conditions">
+                                            {policies.returns.returnConditionNotes}
+                                        </Definition>
+                                    ) : null}
+                                </>
+                            ) : null}
+                        </DefinitionList>
+                    </section>
+                ) : null}
+
+                {policies.cancellation ? (
+                    <section className="space-y-2 border-t pt-4">
+                        <h3 className="text-sm font-medium">Cancellation</h3>
+                        <DefinitionList>
+                            <Definition label="Cancellable">
+                                {policies.cancellation.cancellable ? 'Yes' : 'No'}
+                            </Definition>
+                            {policies.cancellation.cancellable ? (
+                                <>
+                                    <Definition label="Deadline">
+                                        {humaniseEnum(
+                                            policies.cancellation.cancellationDeadline ?? '',
+                                        ) ?? <NotSet />}
+                                        {policies.cancellation.cancellationDeadlineDays !== null
+                                            ? ` · ${policies.cancellation.cancellationDeadlineDays} days`
+                                            : ''}
+                                    </Definition>
+                                    <Definition label="Cancellation fee">
+                                        {/* `cancellationFeeType` decides how the value reads. */}
+                                        {policies.cancellation.cancellationFeeValue === null ? (
+                                            <NotSet>None</NotSet>
+                                        ) : policies.cancellation.cancellationFeeType ===
+                                          'percentage' ? (
+                                            `${policies.cancellation.cancellationFeeValue}%`
+                                        ) : (
+                                            formatCount(
+                                                policies.cancellation.cancellationFeeValue,
+                                            )
+                                        )}
+                                    </Definition>
+                                    <Definition label="Late cancellation refund">
+                                        {policies.cancellation.lateCancellationRefundValue ===
+                                        null ? (
+                                            <NotSet />
+                                        ) : policies.cancellation.lateCancellationRefundType ===
+                                          'partial' ? (
+                                            `${policies.cancellation.lateCancellationRefundValue}%`
+                                        ) : (
+                                            (humaniseEnum(
+                                                policies.cancellation.lateCancellationRefundType ??
+                                                    '',
+                                            ) ?? <NotSet />)
+                                        )}
+                                    </Definition>
+                                </>
+                            ) : null}
+                        </DefinitionList>
+                    </section>
+                ) : null}
+
+                {policies.support ? (
+                    <section className="space-y-2 border-t pt-4">
+                        <h3 className="text-sm font-medium">Support</h3>
+                        <DefinitionList>
+                            <Definition label="Channels">
+                                {policies.support.channels.length === 0 ? (
+                                    <NotSet />
+                                ) : (
+                                    <ul className="space-y-0.5 text-sm">
+                                        {policies.support.channels.map((channel) => (
+                                            <li key={`${channel.type}:${channel.contact}`}>
+                                                {humaniseEnum(channel.type) ?? channel.type}:{' '}
+                                                {channel.contact}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </Definition>
+                            <Definition label="Availability">
+                                {policies.support.availabilityDescription ??
+                                    humaniseEnum(policies.support.availability ?? '') ?? (
+                                        <NotSet />
+                                    )}
+                            </Definition>
+                            <Definition label="Languages">
+                                {policies.support.languages.length === 0 ? (
+                                    <NotSet />
+                                ) : (
+                                    policies.support.languages.join(', ')
+                                )}
+                            </Definition>
+                            <Definition label="Required to open a case">
+                                {policies.support.requiredInfo.length === 0 ? (
+                                    <NotSet />
+                                ) : (
+                                    policies.support.requiredInfo
+                                        .map((key) => humaniseEnum(key) ?? key)
+                                        .join(', ')
+                                )}
+                            </Definition>
+                            {policies.support.eligibilityNotes ? (
+                                <Definition label="Eligibility">
+                                    {policies.support.eligibilityNotes}
+                                </Definition>
+                            ) : null}
+                        </DefinitionList>
+                    </section>
+                ) : null}
+
+                {policies.documents && policies.documents.length > 0 ? (
+                    <section className="space-y-2 border-t pt-4">
+                        <h3 className="text-sm font-medium">Term sheets</h3>
+                        {/*
+                          Links to somewhere else entirely. Rendered as links and
+                          never fetched — this dashboard resolves no file URLs, and
+                          wi-admin never previews these either.
+                        */}
+                        <ul className="space-y-1 text-sm">
+                            {policies.documents.map((href) => (
+                                <li key={href}>
+                                    <a
+                                        href={href}
+                                        target="_blank"
+                                        rel="noreferrer noopener"
+                                        className="hover:underline"
+                                    >
+                                        {href}
+                                    </a>
+                                </li>
+                            ))}
+                        </ul>
+                    </section>
+                ) : null}
+
                 <p className="text-muted-foreground text-xs leading-relaxed">
-                    Whether each is configured, not what it says. The terms themselves are the
-                    vendor&apos;s and are edited by them.
+                    These terms are the vendor&apos;s own and are edited by them. Shown here so
+                    oversight can read what a customer was promised.
                 </p>
             </CardContent>
         </Card>

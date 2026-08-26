@@ -1,3 +1,12 @@
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call jovi-mall.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> Field names here are jovi-mall's **snake_case** storage casing; wi-admin's wire is **camelCase**.
+>
+> Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+<!-- /CONTEXT-BANNER -->
+
 # Saved Payment Methods API
 
 Reference for managing a user's **saved payment methods** — the tokenized cards / mobile-money / bank instruments used to **pre-fill the checkout page** on the frontend.
@@ -5,7 +14,7 @@ Reference for managing a user's **saved payment methods** — the tokenized card
 > [!IMPORTANT]
 > This is a **shared, role-agnostic** API mounted at `/api/me/payment-methods`. The **same endpoints, request bodies, and responses** work for **every** authenticated role (customer, vendor, admin, agent, agency). The owner is resolved from the auth token — a user only ever sees and manages **their own** methods.
 >
-> This file documents it from the **admin** perspective. The identical reference also lives in [customer](../customer/payment-methods.md), [vendor](../vendor/payment-methods.md), [agency](../agency/payment-methods.md), and [agent](../agent/payment-methods.md) folders.
+> This file documents it from the **admin** perspective. The identical reference also lives in customer (not mirrored here — `backend/jovi-mall/api-doc/customer/payment-methods.md`), vendor (not mirrored here — `backend/jovi-mall/api-doc/vendor/payment-methods.md`), agency (not mirrored here — `backend/jovi-mall/api-doc/agency/payment-methods.md`), and agent (not mirrored here — `backend/jovi-mall/api-doc/agent/payment-methods.md`) folders.
 
 ---
 
@@ -350,7 +359,7 @@ Permanently removes the method.
 | `VALIDATION_ERROR` | `400` | Request body failed schema validation. Inspect `error.details.fields`. |
 | `PAYMENT_METHOD_NOT_FOUND` | `404` | The referenced method does not exist or is not owned by the caller. |
 | `PAYMENT_METHOD_LIMIT_REACHED` | `409` | The 10-method-per-user cap was hit. |
-| `AUTH_MISSING_TOKEN` / `AUTH_TOKEN_INVALID` / `AUTH_TOKEN_EXPIRED` / `AUTH_SESSION_EXPIRED` | `401` | Authentication problem. See [auth docs](../auth/README.md). |
+| `AUTH_MISSING_TOKEN` / `AUTH_TOKEN_INVALID` / `AUTH_TOKEN_EXPIRED` / `AUTH_SESSION_EXPIRED` | `401` | Authentication problem. See auth docs (not mirrored here — `backend/jovi-mall/api-doc/auth/README.md`). |
 
 See [errors/README.md](../errors/README.md) for the full envelope and `details` shapes.
 

@@ -1,3 +1,12 @@
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call geo-tracker.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> To build a tracking screen read [`TRACKING-DOORS.md`](../TRACKING-DOORS.md) instead.
+>
+> Start at [`_CONTEXT.md`](./_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../ROUTE-MAP.md).
+<!-- /CONTEXT-BANNER -->
+
 # Live Tracking WebSocket
 
 The real-time channel: agents publish their position here, and authorized
@@ -137,11 +146,56 @@ A heartbeat also recovers an impaired session (`disconnected` / `degraded` /
 #### `subscribe` — viewers
 ```json
 { "type": "subscribe",
-  "payload": { "agentId": "<agentId>", "destination": { "latitude": 4.06, "longitude": 9.71 } } }
+  "payload": { "agentId": "<agentId>",
+               "shipmentId": "<shipmentId>",
+               "destination": { "latitude": 4.06, "longitude": 9.71 } } }
 ```
-`destination` is **optional**: supply it (a customer knows their own delivery
-address) and every broadcast to you is enriched with an ETA. Answered with
-`ack`, or `error` if you are not authorized to see that agent.
+Answered with `ack`, or `error` if you are not authorized to see that agent.
+
+**Both extra fields are optional, both are additive, and they are alternatives
+rather than a pair** — every client written before either existed is unaffected.
+They answer one question: *where is this viewer's ETA measured to?*
+
+| Field | What it does |
+|---|---|
+| `destination` | You state the target yourself. An **override**: nothing replaces it for the life of the subscription. |
+| `shipmentId` | The server resolves the target from that shipment's tracking session. Use it when the agent may be running several deliveries. |
+
+##### How the destination is resolved
+
+You no longer have to know a customer's address to get an ETA. The drop-off is
+pulled from jovi-mall when a delivery's tracking session opens, so an **agency or
+admin viewer that sends neither field still gets `etaSeconds`** — which was
+previously impossible, since no such client has ever sent a `destination`.
+
+First hit wins:
+
+| | Rule | Result |
+|---|---|---|
+| ① | you sent `destination` | that point, always |
+| ② | you sent `shipmentId` | that shipment's drop-off — and **nothing** if that shipment has no open session |
+| ③ | you sent neither, and the agent has **exactly one** open session | that delivery's drop-off |
+| ④ | otherwise | no ETA |
+
+Two properties are deliberate and worth relying on:
+
+- **③ refuses to guess.** An agent running several deliveries has several
+  drop-offs, and nothing in "watch agent X" says which one you mean. An ETA to
+  the wrong address is worse than none — it is wrong in a way that looks right —
+  so a multi-drop agent yields no ETA unless you scope with `shipmentId`.
+- **② does not fall back to ③.** If you name a shipment that has no session, you
+  get no ETA rather than a different delivery's.
+
+**The ETA can arrive late, and that is normal.** The drop-off is fetched from
+jovi-mall out of band when the session opens, so a viewer who subscribed *before*
+that landed starts with no ETA and gains one without reconnecting, on the next
+lifecycle event for that agent. Do not treat the absence of `etaSeconds` on the
+first few broadcasts as final.
+
+**No ETA is always a valid state**, and always has been: a legacy order with no
+geocoded address, a deploy with no jovi-mall service token, or a routing provider
+that is briefly unreachable all produce a position with no `etaSeconds`. Render
+the position regardless.
 
 #### `unsubscribe`
 ```json
@@ -216,9 +270,17 @@ promotes the agent back to `ONLINE`. Agents only; answered with `ack`.
   } }
 ```
 `headingDegrees`/`speedMps` appear only if the agent's device reported them.
-`etaSeconds`/`distanceMeters` appear only if you supplied a `destination` at
-subscribe **and** the routing provider returned an estimate; ETA failures are
-silently skipped rather than dropping the position.
+
+`etaSeconds`/`distanceMeters` appear only when a destination was resolved for
+you (see the resolution table under `subscribe` — you no longer have to supply
+one) **and** the routing provider returned an estimate. An ETA failure is
+silently skipped rather than dropping the position, so a broadcast without them
+is normal and must still be rendered.
+
+They are also **throttled**: an estimate is recomputed at most once per
+`ETA_MIN_INTERVAL` (default 30 s) per agent and destination, so the value may
+lag the position by up to that much. Two viewers of the same delivery see the
+same number, from one routing call. See [routing.md](./routing.md#eta-on-the-broadcast-path-and-its-throttle).
 
 #### `permission_revoked`
 ```json
@@ -226,8 +288,45 @@ silently skipped rather than dropping the position.
   "payload": { "agentId": "agent-1", "reason": "shipment_completed" } }
 ```
 Your subscription to that agent has ended and no further broadcasts for them
-will arrive. Sent the moment the shipment finishes — see the authorization
-section in [README.md](./README.md).
+will arrive. See the authorization section in [README.md](./README.md).
+
+**`reason` is a closed set of three values, and only one of them is about a
+delivery.** The subscription is dropped in all three cases — the server fails
+closed on any viewer it cannot confirm — but what you should show a user differs
+completely:
+
+| `reason` | What actually happened | What the client should do |
+|---|---|---|
+| `shipment_completed` | jovi-mall was asked and answered: this viewer is no longer entitled to this agent. The delivery ended, or the entitlement did. | Stop watching. This is the only value from which you may report a delivery outcome. |
+| `authorization_expired` | jovi-mall **rejected the access token** you connected with (401/403). Nothing is known about the shipment. | Obtain a fresh access token, reconnect, and re-subscribe. Show nothing about the delivery. |
+| `authorization_unavailable` | jovi-mall **could not be asked** — unreachable, 5xx, or the check timed out. Nothing is known about the shipment *or* your entitlement. | Retry with backoff. Report no outcome. |
+
+**Treat any value you do not recognise as `authorization_expired`** — re-authorize,
+and tell the user nothing. That rule is what makes adding a fourth value safe;
+adding one is a change to this table in the same commit.
+
+> **Until 2026-08-19 all three were sent as `shipment_completed`.** A client acting
+> on that string told somebody their delivery was complete because an access token
+> had aged out. If you have shipped against the old single-value contract, the fix
+> is to branch on the table above — the value and meaning of `shipment_completed`
+> itself are unchanged.
+
+##### ⚠ The token is checked at handshake, and never again on a timer
+
+Nothing re-validates your access token while the socket is open. But when a
+revocation check fires — a shipment settling, a webhook from jovi-mall — the
+server re-asks jovi-mall **using the token you handed it at the handshake**. Past
+the access-token TTL (15 minutes) that token is expired, the re-check fails, and
+your subscription is dropped with `authorization_expired`.
+
+So a socket held open past the TTL keeps working right up until something happens
+to trigger a re-check, and then stops. There is no refresh path over the socket:
+geo-tracker forwards a bearer token and has no access to jovi-mall's refresh
+cookie.
+
+**Reconnect with a fresh token on a cadence shorter than the access TTL.** And
+never infer a delivery outcome from a `permission_revoked` frame without reading
+`reason` first.
 
 #### `ack`
 ```json

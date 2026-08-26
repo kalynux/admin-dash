@@ -24,7 +24,6 @@ import { AdministratorsModule } from '@/pages/administrators/AdministratorsModul
 import { ApprovalsModule } from '@/pages/approvals/ApprovalsModule';
 import { AuditExportsModule } from '@/pages/audit/AuditExportsModule';
 import { AuditModule } from '@/pages/audit/AuditModule';
-import { LegacyAuditModule } from '@/pages/audit/LegacyAuditModule';
 import { UsersModule } from '@/pages/users/UsersModule';
 import { VendorsModule } from '@/pages/vendors/VendorsModule';
 import { AgenciesModule } from '@/pages/agencies/AgenciesModule';
@@ -45,6 +44,7 @@ import { CatalogueTools } from '@/pages/dev-tools/CatalogueTools';
 import { DatabaseInspector } from '@/pages/dev-tools/DatabaseInspector';
 import { DevToolsConfig } from '@/pages/dev-tools/DevToolsConfig';
 import { FeatureFlags } from '@/pages/dev-tools/FeatureFlags';
+import { FileAdministration } from '@/pages/dev-tools/FileAdministration';
 import { OutboxTools } from '@/pages/dev-tools/OutboxTools';
 import { PlatformLogs } from '@/pages/dev-tools/PlatformLogs';
 import { PermissionsModule } from '@/pages/permissions/PermissionsModule';
@@ -58,8 +58,12 @@ import { SystemWorkers } from '@/pages/system/SystemWorkers';
 import { PaymentsModule } from '@/pages/money/PaymentsModule';
 import { PayoutsModule } from '@/pages/money/PayoutsModule';
 import { RefundsModule } from '@/pages/money/RefundsModule';
-import { SubscriptionsList } from '@/pages/billing/SubscriptionsList';
+import { SubscriptionsModule } from '@/pages/billing/SubscriptionsModule';
+import { ContractsModule } from '@/pages/contracts/ContractsModule';
 import { ShipmentsModule } from '@/pages/shipments/ShipmentsModule';
+import { SupportModule } from '@/pages/support/SupportModule';
+import { ContentModule } from '@/pages/content/ContentModule';
+import { AuthorsList } from '@/pages/content/AuthorsList';
 import { PermissionsProvider } from '@/store';
 
 /** The path a nav entry occupies relative to the entry that contains it. */
@@ -131,10 +135,10 @@ const SCREENS: Record<string, ReactNode> = {
     administrators: <AdministratorsModule />,
     approvals: <ApprovalsModule />,
     /**
-     * Keyed by child id, like Money and COD. The three audit destinations are
+     * Keyed by child id, like Money and COD. The two audit destinations are
      * two separately granted permissions: Support holds `audit.read` and not
-     * `audit.export`, so they reach the trail and the legacy feed and never see
-     * an Exports entry at all.
+     * `audit.export`, so they reach the trail and never see an Exports entry at
+     * all.
      *
      * `audit-trail` is the index child, so it is mounted at both `index` and `*`
      * and owns `:auditId` — which is why `AuditModule` declares its own
@@ -142,13 +146,20 @@ const SCREENS: Record<string, ReactNode> = {
      */
     'audit-trail': <AuditModule />,
     'audit-exports': <AuditExportsModule />,
-    'audit-legacy': <LegacyAuditModule />,
     /**
      * Keyed by the **child** id, not the parent: `screenFor` is called with
      * whichever entry owns the route, and Orders is a container whose two children
      * carry their own permissions — `orders.read` for the list and its detail,
      * `orders.disputes.read` for the queue.
      */
+    'support-tickets': <SupportModule />,
+    /**
+     * Keyed by child id. Articles is the index child and owns `:articleId`;
+     * Bylines is a static sibling with its own permission, so an administrator
+     * holding only `content.authors.read` reaches the module and lands there.
+     */
+    'content-articles': <ContentModule />,
+    'content-authors': <AuthorsList />,
     'orders-all': <OrdersModule />,
     'orders-disputes': <DisputesQueue />,
     shipments: <ShipmentsModule />,
@@ -176,7 +187,7 @@ const SCREENS: Record<string, ReactNode> = {
      * catalog while `/dashboard/billing/:planId` still resolves.
      */
     'billing-plans': <BillingModule />,
-    'billing-subscriptions': <SubscriptionsList />,
+    'billing-subscriptions': <SubscriptionsModule />,
     /**
      * A childless module, mounted at `permissions/*`, so it owns its own 404.
      *
@@ -196,6 +207,7 @@ const SCREENS: Record<string, ReactNode> = {
      */
     'system-health': <SystemHealth />,
     'system-workers': <SystemWorkers />,
+    'system-files': <FileAdministration />,
     'system-outbox': <SystemQueues />,
     'system-integrations': <SystemIntegrations />,
     'system-metrics': <SystemMetrics />,
@@ -216,6 +228,7 @@ const SCREENS: Record<string, ReactNode> = {
     'dev-tools-cache': <CacheInspector />,
     'dev-tools-outbox': <OutboxTools />,
     'dev-tools-catalogue': <CatalogueTools />,
+
     /**
      * Keyed by child id, like Money and Billing. COD's five children are five
      * separately granted permissions — an operator can hold the deposits queue and
@@ -352,6 +365,35 @@ export default function App() {
                       stricter rule than the server has.
                     */}
                     <Route path="account/notifications" element={<NotificationPreferences />} />
+
+                    {/*
+                      Contracts is reachable but not visible, and is the only
+                      route declared by hand rather than generated from
+                      `navigation.ts`.
+
+                      `/contracts` has **no list endpoint** — all four routes
+                      address one contract by id — so a sidebar entry would link
+                      to nothing. It is reached from an agency's roster, from an
+                      agent's contract list, and from a contract id pasted out of
+                      a support ticket, which is the case the mount exists for.
+
+                      The guard is written here because there is no nav entry to
+                      derive it from: `agencies.read` + `agents.read` in `all`
+                      mode, matching the endpoint, which carries a party from
+                      each directory and so needs both.
+                    */}
+                    <Route
+                        path="contracts/*"
+                        element={
+                            <RequirePermission
+                                permission={['agencies.read', 'agents.read']}
+                                mode="all"
+                                subject="Contracts"
+                            >
+                                <ContractsModule />
+                            </RequirePermission>
+                        }
+                    />
 
                     {MODULE_ROUTES.map((item) => {
                         const path = relativePath(item.path, '/dashboard');

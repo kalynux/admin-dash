@@ -1,3 +1,12 @@
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call jovi-mall.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> Field names here are jovi-mall's **snake_case** storage casing; wi-admin's wire is **camelCase**.
+>
+> Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+<!-- /CONTEXT-BANNER -->
+
 # Tracking — Agent Tracking Policy & the Internal API
 
 ## The ownership split
@@ -15,7 +24,9 @@ jovi-mall must never serve a live position. If an endpoint here starts answering
 agent?"*, the boundary has been broken.
 
 Related: [live-tracking](./live-tracking.md) answers *who may watch whom*. This page answers
-*may this agent be tracked at all*. Both live in jovi-mall for the same reason.
+*may this agent be tracked at all*. shipment-destination (not mirrored here — `backend/jovi-mall/api-doc/tracking/shipment-destination.md`) answers
+*where is the parcel going* — the other internal door on the same token. All three live in
+jovi-mall for the same reason.
 
 ---
 
@@ -48,7 +59,7 @@ watch an unaffiliated person move around.
 > from contracts in status **`active`** (`listActiveAgencyIds`) — a `pending`, `paused` or
 > `suspended` contract does not count. The "approved" wording predates the `approved` → `active`
 > status rename; the names are kept because clients consume them. See
-> [agency/agent-roster.md](../agency/agent-roster.md#status-lifecycle) for the status set.
+> agency/agent-roster.md (not mirrored here — `backend/jovi-mall/api-doc/agency/agent-roster.md`) for the status set.
 
 ---
 
@@ -56,7 +67,7 @@ watch an unaffiliated person move around.
 
 **Authorization**: Bearer token with `admin` role.
 
-### PUT /api/admin/agents/:agentId/tracking-allow
+### PUT /api/internal/admin/agents/:agentId/tracking-allow
 
 **Request Body**:
 ```json
@@ -84,7 +95,7 @@ Emits the domain event `agent.tracking_allow_changed`, so revocation can be **pu
 geo-tracker rather than waiting for a cache to expire — revoking is time-critical in a way that
 granting is not.
 
-### GET /api/admin/agents/:agentId/tracking-policy
+### GET /api/internal/admin/agents/:agentId/tracking-policy
 
 Returns exactly what geo-tracker would see. Use it to answer "why isn't this agent streaming?"
 without reproducing the logic.
@@ -238,7 +249,7 @@ Device fields are optional: a liveness ping need not re-report capabilities it h
 **Description**: Diagnostics. "Why isn't this agent being dispatched?" is a question support asks
 from either side of the boundary. Read-only — it decides nothing.
 
-Response shape: see [../agency/agent-roster.md](../agency/agent-roster.md#get-apiagencyagentsagentideligibility).
+Response shape: see ../agency/agent-roster.md (not mirrored here — `backend/jovi-mall/api-doc/agency/agent-roster.md`).
 
 ---
 

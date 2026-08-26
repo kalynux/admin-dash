@@ -30,6 +30,7 @@ import type { Paginated } from '@/types/api.types';
 import type {
     AssignSubscriptionBody,
     CreatePlanBody,
+    OwnerSubscriptions,
     Plan,
     PlanListQuery,
     Subscription,
@@ -100,6 +101,64 @@ export function listSubscriptions(
     options?: RequestOptions,
 ): Promise<Paginated<Subscription>> {
     return api.list<Subscription>(withQuery('/billing/subscriptions', { ...query }), options);
+}
+
+/**
+ * `GET /billing/subscriptions/:ownerType/:ownerId` · `billing.plans.read` ·
+ * direct read · **unpaginated**.
+ *
+ * Every term one owner holds, already partitioned into `current` / `queued` /
+ * `history` by the service.
+ *
+ * ⚠ **Use this, not `listSubscriptions({ ownerId })`, whenever the question is
+ * about one owner.** The cross-owner list is server-paginated, so an owner's
+ * rows can straddle a page boundary and a client grouping them would group only
+ * *some* of their terms with no way to know. And ranking `status` client-side to
+ * find the live row is a guess that changes silently when a fifth status appears
+ * upstream — here the answer comes from the service.
+ *
+ * ⚠ **`current: null` means "no active plan"**, not "could not determine".
+ *
+ * ⚠ **Read `queued` before offering an assignment.** Non-null means
+ * `assignSubscription` will be refused with `BILLING_PENDING_PLAN_EXISTS`, and
+ * that refusal sits on an ordinary path rather than an edge case.
+ *
+ * `meta.total` counts all rows and is not a page size; it is dropped here
+ * because the four fields already carry it.
+ *
+ * `404 ACCOUNT_OWNER_NOT_FOUND` names no vendor, agency or agent. **An owner who
+ * has never had a plan is not this** — that answers `current: null` with an
+ * empty `history`.
+ */
+export function getOwnerSubscriptions(
+    ownerType: string,
+    ownerId: string,
+    options?: RequestOptions,
+): Promise<OwnerSubscriptions> {
+    return api.get<OwnerSubscriptions>(
+        `/billing/subscriptions/${encodeURIComponent(ownerType)}/${encodeURIComponent(ownerId)}`,
+        options,
+    );
+}
+
+/**
+ * `GET /billing/subscriptions/:subscriptionId` · `billing.plans.read` · direct read.
+ *
+ * One term by its own id, so an operator can link a colleague to one and a
+ * `paymentReference` quoted in a support ticket has somewhere to point.
+ *
+ * No collision with the owner-scoped read above: that one takes two path
+ * segments and this takes one, so Express separates them structurally rather
+ * than by declaration order.
+ */
+export function getSubscription(
+    subscriptionId: string,
+    options?: RequestOptions,
+): Promise<Subscription> {
+    return api.get<Subscription>(
+        `/billing/subscriptions/${encodeURIComponent(subscriptionId)}`,
+        options,
+    );
 }
 
 /**

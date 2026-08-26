@@ -51,33 +51,17 @@ function stubDashboard(tier: 1 | 2 | 3 = 1) {
         }
 
         /**
-         * The three audit sub-surfaces, **each checked before the overview
+         * The two audit sub-surfaces, **each checked before the overview
          * stubs**, whose `/audit` matcher is broad and answers with a page of
          * `AuditEntry` rows.
          *
-         * That shape is right for the trail and wrong for the other two, and
-         * wrong in ways that do not fail politely: `/audit/actions` answers an
-         * *object* (`{ actions, total }`) rather than an array, and a legacy row
-         * has `bodyKeys`, `actor.label` and `request.statusCode` that an
-         * `AuditEntry` does not — so handing one to the legacy feed throws inside
-         * a cell rather than rendering an empty table.
+         * That shape is right for the trail and wrong for `/audit/actions`,
+         * which answers an *object* (`{ actions, total }`) rather than an array
+         * — so handing it a page would throw inside a cell rather than rendering
+         * an empty table.
          */
         if (call.url.includes('/audit/actions')) {
             return successResponse({ actions: [], total: 0 });
-        }
-        if (call.url.includes('/audit/legacy')) {
-            return successResponse([], {
-                meta: {
-                    total: 0,
-                    page: 1,
-                    limit: 20,
-                    pages: 0,
-                    legacy: true,
-                    sourceService: 'jovi-mall',
-                    retiresAtCutover: true,
-                    unportedEndpoints: 37,
-                },
-            });
         }
         if (call.url.includes('/audit/exports')) {
             return successResponse([], { meta: { total: 0, page: 1, limit: 20, pages: 0 } });
@@ -396,15 +380,14 @@ describe('the route tree, permission-driven', () => {
     });
 
     /**
-     * The two static siblings must outrank the index child's splat, or Exports
-     * and the legacy feed would both render the trail. Same ranking Orders and
-     * its Disputes queue already rely on — asserted here because audit is the
-     * first module to have *two* static siblings competing with a splat.
+     * The static sibling must outrank the index child's splat, or Exports would
+     * render the trail. Same ranking Orders and its Disputes queue already rely
+     * on.
      */
-    it('resolves both static audit siblings above the trail splat', async () => {
-        renderApp(1, '/dashboard/audit/legacy');
+    it('resolves the static audit sibling above the trail splat', async () => {
+        renderApp(1, '/dashboard/audit/exports');
 
-        expect(await screen.findByText(/this is not the wi-admin trail/i)).toBeInTheDocument();
+        expect(await screen.findAllByText(/export/i)).not.toHaveLength(0);
     });
 
     /**

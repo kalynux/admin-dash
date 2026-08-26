@@ -1,4 +1,32 @@
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call jovi-mall.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> Field names here are jovi-mall's **snake_case** storage casing; wi-admin's wire is **camelCase**.
+>
+> Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+<!-- /CONTEXT-BANNER -->
+
 # Admin Delivery Agencies API
+
+> ## ⚠️ This surface moved at the Phase 5 cutover — read this before the routes below
+>
+> **The public mount `/api/admin/delivery-agencies` is DELETED.** It was served to any platform session
+> whose `users` row carried `roles: ['admin']` — jovi-mall's second authorization model, which
+> carried no tier, no permission set and no audit identity. That model is retired.
+>
+> **The routes themselves are unchanged and still live, at `/api/internal/admin/agencies`**, behind
+> `requireAdminCaller` (a service token plus `X-Actor-*` headers, never a user session). One
+> factory always served both mounts, so every path, payload and response below is still exact —
+> only the prefix and the guard changed. **Every path in this document has been rewritten to
+> the internal prefix**, so what you read here is what the service answers.
+>
+> **If you are building a dashboard, this is not your document.** Call wi-admin's `/api/v1/agencies` instead — it resolves the
+> administrator's tier and permissions, writes the audit row, and calls this surface on your
+> behalf. See [internal-service-api.md](./internal-service-api.md) for the door itself, and
+> `admin/docs/api/` in the wi-admin repository for the dashboard contract.
+
+---
 
 Admin-facing endpoints to manage delivery agency accounts. There is no hard delete —
 "deactivating" an agency flips its `status` to `inactive` (agencies are referenced by
@@ -21,11 +49,12 @@ Authorization: Bearer <access_token>
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/api/admin/delivery-agencies` | List all agencies (any status), paginated |
-| GET | `/api/admin/delivery-agencies/:id` | Get one agency by id |
-| POST | `/api/admin/delivery-agencies/:id/verify` | Approve business verification — the exit from `pending_verification` |
-| PATCH | `/api/admin/delivery-agencies/:id/deactivate` | Deactivate an agency |
-| PATCH | `/api/admin/delivery-agencies/:id/reactivate` | Reactivate an agency |
+| GET | `/api/internal/admin/agencies` | List all agencies (any status), paginated |
+| GET | `/api/internal/admin/agencies/:id` | Get one agency by id |
+| POST | `/api/internal/admin/agencies/:id/verify` | Approve business verification — the exit from `pending_verification` |
+| POST | `/api/internal/admin/agencies/:id/reject` | Refuse business verification, with a reason. Changes no status |
+| PATCH | `/api/internal/admin/agencies/:id/deactivate` | Deactivate an agency |
+| PATCH | `/api/internal/admin/agencies/:id/reactivate` | Reactivate an agency |
 
 > **The same five routes are also mounted at `/api/internal/admin/agencies/*`** behind the
 > service token, for wi-admin. One factory, two guard chains; the paths after the prefix are
@@ -33,7 +62,7 @@ Authorization: Bearer <access_token>
 
 ---
 
-## POST `/api/admin/delivery-agencies/:id/verify`
+## POST `/api/internal/admin/agencies/:id/verify`
 
 The **only** exit from `pending_verification`. Approving moves `status` and both
 `legit_verified` mirrors together in **one compare-and-set**, and stamps the approving actor
@@ -56,12 +85,70 @@ first approval and `reactivate` only to undo a `deactivate`.
 
 ---
 
+## POST `/api/internal/admin/agencies/:id/reject`
+
+The other verdict. Same compare-and-set on `pending_verification`, same 409 on a miss.
+
+```jsonc
+{ "reason": "Transport licence has expired" }   // required, 3–500 chars, trimmed
+```
+
+**The reason is stored on the agency** (`kyc_details.rejection_reason`) rather than only in
+wi-admin's audit trail, and that is the point of the endpoint: the agency is shown it, and
+cannot read the admin database. A refusal whose cause they cannot see is one they cannot act
+on — they re-submit the same unchanged application, and it costs a second review.
+
+### ⚠ It changes no status, and that is deliberate
+
+The agency stays `pending_verification`. It is **not** moved to `inactive` — that is
+`deactivate`, which runs the whole product-suspension cascade a never-verified agency has
+nothing for.
+
+Staying pending is what makes rejection safe to apply without new enforcement: a
+non-`active` agency is already refused by product activation, pickup resolution, COD
+eligibility and vendor default-agency selection. And it is why **there is no un-reject** —
+the agency is still pending, so `POST /verify` accepts them once they fix what the reason
+names.
+
+### What moves
+
+| Field | After a rejection |
+|---|---|
+| `kyc_details.status` | `rejected` |
+| `kyc_details.rejection_reason` | the reason |
+| `kyc_details.legit_verified` · `legit_verified` | `false` (both, together) |
+| `kyc_details.verified_at` | `null` — cleared, so an approval that was withdrawn does not read as still standing |
+| `kyc_details.verified_by_*` | the reviewing actor |
+| `status` | **unchanged** — still `pending_verification` |
+
+### Why the verdict exists at all
+
+`legit_verified: false` meant BOTH "never reviewed" and "reviewed and refused". No reader
+could tell them apart, so a review queue was unbuildable and an agency was never told what
+to fix. `kyc_details.status` carries the verdict; `legit_verified` stays as its boolean
+projection, and the two are **written together and never apart**. Same shape as the vendor
+lifecycle, for the same reason.
+
+### Responses
+
+```json
+{ "success": true, "data": { "...": "the agency" }, "message": "Agency verification rejected." }
+```
+
+| `error.code` | Status | When |
+|---|---|---|
+| `VALIDATION_ERROR` | 400 | Missing, blank, under 3 or over 500 characters, or an unknown field (the schema is strict) |
+| `DELIVERY_AGENCY_NOT_FOUND` | 404 | No agency with that id |
+| `DELIVERY_AGENCY_STATUS_CONFLICT` | 409 | Not `pending_verification` — another administrator reached a verdict first. `details.currentStatus` carries it |
+
+---
+
 ## Deactivation cascade — what actually happens
 
 A vendor's **default delivery agency** (`Vendor.default_delivery_agency_id`) is a hard
 prerequisite for selling physical products — a physical product can never reach `active`
 status unless the vendor's default agency exists and is currently `active` (see
-[Catalog: Product Status](../vendor/product-upload-flow.md)). **Independently**, if a
+Catalog: Product Status (not mirrored here — `backend/jovi-mall/api-doc/vendor/product-upload-flow.md`)). **Independently**, if a
 product has its **own** delivery-agency override set, that override must ALSO be active —
 both conditions are enforced together, not either/or. A broken override blocks just that
 one product; a broken vendor default blocks every physical product the vendor has.
@@ -101,11 +188,11 @@ an already-active one) is a no-op that returns the current state with everything
 
 A vendor can also independently clear a vendor-default-driven suspension by switching to a
 **different active** default agency via `PUT /api/vendor/profile/default-delivery-agency`
-— see [Vendor Profile](../vendor/profile.md#put-apivendorprofiledefault-delivery-agency).
+— see Vendor Profile (not mirrored here — `backend/jovi-mall/api-doc/vendor/profile.md`).
 Vendors cannot clear their default to null themselves; deactivation by an admin is the only
 way a default becomes unset. Similarly, a vendor can clear a product-override-driven
 suspension by editing that product's own delivery agency — see
-[Vendor Products](../vendor/products.md).
+Vendor Products (not mirrored here — `backend/jovi-mall/api-doc/vendor/products.md`).
 
 > [!IMPORTANT]
 > **In-flight orders are held, not silently abandoned.** `Order.items[].delivery.agency_id`
@@ -124,7 +211,7 @@ suspension by editing that product's own delivery agency — see
 
 ---
 
-### GET /api/admin/delivery-agencies
+### GET /api/internal/admin/agencies
 
 **Description**: List every delivery agency, including `inactive` and
 `pending_verification` ones (unlike the vendor-facing agency browser).
@@ -158,7 +245,7 @@ suspension by editing that product's own delivery agency — see
 
 ---
 
-### GET /api/admin/delivery-agencies/:id
+### GET /api/internal/admin/agencies/:id
 
 **Success Response** — `200 OK`: same item shape as the list endpoint.
 
@@ -166,7 +253,7 @@ suspension by editing that product's own delivery agency — see
 
 ---
 
-### PATCH /api/admin/delivery-agencies/:id/deactivate
+### PATCH /api/internal/admin/agencies/:id/deactivate
 
 **Description**: Deactivate the agency and cascade-suspend affected vendors' physical
 products (see above). No request body.
@@ -197,7 +284,7 @@ any provenance) that was riding this agency.
 
 ---
 
-### PATCH /api/admin/delivery-agencies/:id/reactivate
+### PATCH /api/internal/admin/agencies/:id/reactivate
 
 **Description**: Reactivate the agency and cascade-restore affected vendors' physical
 products suspended for this reason (see above). No request body.

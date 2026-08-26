@@ -380,14 +380,26 @@ nothing was pending — **that is not an error; branch on the count.**
 
 ### ⚠ Corrections found in Phase 9, verified against the running service
 
-1. **Three writes return jovi-mall's raw Mongoose document, not the camelCase DTO.** `cancel`,
-   `dispute/resolve` and dispatch's `data.order` are all `await OrderModel.findById(orderId)`
-   forwarded untouched (`jovi-mall/src/modules/orders/admin-order.controller.ts:107,139,162`).
-   The line above once called dispatch "the one documented place the storage casing surfaces" — it is
-   three places, and `orders.md:339,379` describe the other two as "the updated order". **It is also
-   the whole document**, including the `delivery_address.coordinates` and `raw_input` the read
-   projection deliberately withholds — see `DATA-EXPOSURE-REGISTER.md` §6. The dashboard discards all
-   three bodies at the service boundary and refetches.
+1. ✅ **FIXED 2026-08-20 — three writes returned jovi-mall's raw Mongoose document, not the
+   camelCase DTO.** `cancel`, `dispute/resolve` and dispatch's `data.order` were all
+   `await OrderModel.findById(orderId)` forwarded untouched
+   (`jovi-mall/src/modules/orders/admin-order.controller.ts:107,139,162`). The line above once
+   called dispatch "the one documented place the storage casing surfaces" — it was three places,
+   and `orders.md` described the other two as "the updated order". **It was also the whole
+   document**, including the `delivery_address.coordinates` and `raw_input` the read projection
+   deliberately withholds — `DATA-EXPOSURE-REGISTER.md` §6.
+
+   All three now answer with an **`OrderDetailDto`**, re-read through `ORDER_DETAIL_PROJECTION`
+   and mapped by the same function `GET /orders/:orderId` uses — one function, so the write and
+   the read cannot disagree. Dispatch keeps `{ shipmentsAssigned, order }`; only the `order` half
+   changed. `orders.md` is corrected in all three places.
+
+   ⚠ **Keep discarding the bodies anyway.** `orders.service.ts` returning only `{ message }` /
+   `{ shipmentsAssigned }` is structural rather than disciplinary — there is no order object for a
+   call site to reach into — and `OrderDetail.test.tsx`'s coordinate assertion is defence in
+   depth against the *next* delegated write, not only this one. This fix is not a reason to
+   "clean it up"; adopting the returned DTO is a separate, optional change that would save a
+   refetch.
 2. **`GET /orders` can answer `meta.searchMatchesTruncated: true`**, undocumented. Set when the
    customer or vendor name pre-match hits its cap of 200 each. The analogue of the vendor
    directory's `businessNameMatchesTruncated`, and read with the same strict `=== true`.
@@ -580,11 +592,17 @@ retention is exported-AND-aged).
 `X-Content-SHA256` to verify against. Its errors *do* use the envelope: `409 AUDIT_EXPORT_INCOMPLETE`,
 **`410 AUDIT_EXPORT_FILE_MISSING`** (gap D9 — multi-instance deployment).
 
-**`/audit/legacy` is a different shape entirely** — `LegacyAuditRow`, no catalogued action, no
-`subjectClass`, no `sensitive`. **`actor.kind: "platform_admin"` is *not* a wi-admin
-administrator** — two identity spaces with no mapping. `meta` carries `legacy: true`,
-`sourceService`, `retiresAtCutover`, `unportedEndpoints` — render them so the feed is never mistaken
-for the compliance record. Behind the `audit.legacy_feed` flag; off → `404 AUDIT_LEGACY_FEED_DISABLED`.
+⚠️ **`GET /audit/legacy` IS GONE** — deleted at Phase 5 Part D with the legacy surface it
+reported on, along with its `audit.legacy_feed` flag and the `AUDIT_LEGACY_FEED_DISABLED` code.
+It now 404s like any unknown path. **Remove the call and the `LegacyAuditRow` type**; there is
+no replacement and none is needed — `GET /audit` is the compliance record and always was, which
+is exactly what `meta.legacy: true` and `meta.retiresAtCutover: true` existed to say on every
+page that feed ever returned.
+
+The rows themselves are not lost: `admin_action_log` survives in the platform database. What
+went is this service's read of it, because after cutover every new row there duplicates a
+wi-admin audit row for the same operation, written with a real administrator identity and a
+catalogued action. See [`audit.md`](../../admin/api/audit.md) § `GET /audit/legacy`.
 
 ---
 
@@ -1232,7 +1250,7 @@ filters `createdAt`, **not `completedAt`**, so `pending`/`failed` rows are not s
 |---|---|
 | **Envelope** | Success `{ success, data, meta?, message? }` — `data` always present (object, array or `null`). Error `{ success, requestId, error { code, message, statusCode, category, details? } }`. **Branch on `error.code`, never `message`.** `details` is **omitted** when absent |
 | **Nine categories** | `authentication` · `authorization` · `validation` · `not_found` · `conflict` · `business_rule` · `rate_limit` · `external_service` · `internal`. Derived from `(code, statusCode)`. The right key for generic handling: re-login / hide affordance / show field errors / back off / escalate |
-| **camelCase** | Both databases are snake_case; the translation happens in wi-admin and never leaks. Do not copy field names from `docs/jovi-mall/`. (One documented exception: `POST /orders/:id/dispatch` returns jovi-mall's raw order document) |
+| **camelCase** | Both databases are snake_case; the translation happens in wi-admin and never leaks. Do not copy field names from `docs/jovi-mall/`. **No exceptions as of 2026-08-20** — the three delegated order writes were the last snake_case leak and now answer with `OrderDetailDto` |
 | **Money** | A plain number in the account currency (default `XAF`). **Never divide by 100** |
 | **Pagination** | `page` ≥1 default 1; `limit` default 20, **hard max 100 everywhere**; no `?limit=all`. `meta = { total, page, limit, pages }` where **an empty list reports `pages: 0`**. One cursor-paged exception: `/accounts/:t/:id/activity` |
 | **Sorting** | One key, `?sort=field` / `?sort=-field`, per-endpoint allowlist; an undeclared field is a `400` naming the permitted set. Some lists offer no `sort` at all (`/administrators`, `/approvals`, `/cod/remittances`, `/cod/deposits`, `/money/earnings/accounts`, `/audit/legacy`) |
@@ -1258,11 +1276,11 @@ Carried from the Architecture Assessment §10 so both documents agree.
 | # | Gap | Impact |
 |---|---|---|
 | D1 | No dashboard/overview aggregate endpoint | Home page composed from six independently gated tiles; Support sees one |
-| D2 | No file-URL resolution for any `*FileId` | Avatars, logos, delivery proofs render as placeholders |
+| ~~D2~~ | ~~No file-URL resolution for any `*FileId`~~ | **✅ CLOSED 2026-08-17.** `GET /api/v1/files?ids=` and `GET /api/v1/files/:fileId` under `files.resolve`, held by every tier. Delegated to jovi-mall, so ADR-009 D-6 stands — this service still owns no storage layer. See [files.md](../api/files.md). ⚠️ The batch response may be **shorter than the request and is not in request order** (files are swept); key by `id`, and check `mimeType` before rendering an `<img>` |
 | D3 | No QR renderer in any sibling | New frontend dependency needed for MFA enrolment (Phase 2) |
 | D4 | No realtime (no WS, no SSE, no push) | Inbox, approvals and health must be polled; intervals are a client decision |
-| D5 | No `/support`, `/content`, `/files`, `/broadcast`, `/customers` surface | 28 † permissions with no endpoint. **Support's headline job (tickets) has no surface**; do not build these screens |
-| D6 | `users.roles.manage` / `sessions.revoke` / `password.reset` unrouted | User detail offers suspend/restore and identifier edits only |
+| D5 | No `/support`, `/content`, `/broadcast`, `/customers` surface | **27** † permissions with no endpoint (was 28). **Support's headline job (tickets) still has no surface**; do not build those screens. `/files` is no longer on this list — but only `files.resolve` is mounted, and `files.orphans.read` remains † and tier-1-only |
+| D6 | `users.roles.manage` / `sessions.revoke` unrouted | **`users.password.reset` is now routed** (2026-08-17) — `POST /users/:userId/password-reset-link`, plus a new `users.login_link.send` for the customer sign-in link. Both tier 1–2 only, never Support. The other two stay unrouted for the reasons `users.md` gives |
 | D7 | `notifications.manage` unrouted | No global notification-source configuration screen |
 | D8 | `developer_tools.webhooks.redeliver` unrouted | Use `POST /dev-tools/outbox/replay` |
 | D9 | Audit export download is instance-local | Handle `410 AUDIT_EXPORT_FILE_MISSING` explicitly |

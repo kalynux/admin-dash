@@ -27,9 +27,6 @@ import type {
     AuditListMeta,
     AuditListQuery,
     CreateAuditExportBody,
-    LegacyAuditEntry,
-    LegacyAuditListMeta,
-    LegacyAuditListQuery,
 } from '@/types/audit.types';
 
 export interface AuditPage {
@@ -234,49 +231,3 @@ export async function downloadAuditExport(
     return api.download(`${exportPath(exportId)}/download`, options);
 }
 
-// ─── The interim jovi-mall feed ───────────────────────────────────────────────
-
-export interface LegacyAuditPage {
-    data: LegacyAuditEntry[];
-    meta: LegacyAuditListMeta;
-}
-
-/**
- * `GET /audit/legacy` · `audit.read` — administrative actions still performed on
- * jovi-mall, in jovi-mall's own vocabulary.
- *
- * The same Support narrowing is reproduced here; without it this endpoint would
- * be a side door onto exactly what the real feed withholds.
- *
- * **`404 AUDIT_LEGACY_FEED_DISABLED` is not a fault** — the `audit.legacy_feed`
- * flag is off and the route is pretending not to exist, so the feed can be
- * retired ahead of deleting the module. Render it as an explanation.
- */
-export async function listLegacyAudit(
-    query: LegacyAuditListQuery = {},
-    options?: RequestOptions,
-): Promise<LegacyAuditPage> {
-    const page = await api.list<LegacyAuditEntry>(withQuery('/audit/legacy', { ...query }), options);
-
-    return {
-        data: page.data,
-        meta: {
-            total: Number(page.meta.total ?? 0),
-            page: Number(page.meta.page ?? 1),
-            limit: Number(page.meta.limit ?? page.data.length),
-            // `pages: 0` on an empty list is the contract's rule; the fallback has
-            // to honour it or a "page 1 of 1" appears over nothing.
-            pages: Number(page.meta.pages ?? (page.data.length > 0 ? 1 : 0)),
-            // These four are why the banner can state what this feed is rather
-            // than the dashboard asserting it from its own knowledge.
-            legacy: page.meta.legacy !== false,
-            sourceService:
-                typeof page.meta.sourceService === 'string' ? page.meta.sourceService : null,
-            retiresAtCutover: page.meta.retiresAtCutover !== false,
-            unportedEndpoints:
-                typeof page.meta.unportedEndpoints === 'number'
-                    ? page.meta.unportedEndpoints
-                    : null,
-        },
-    };
-}

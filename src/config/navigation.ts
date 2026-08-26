@@ -9,6 +9,8 @@ import {
     PackageSearch,
     ScrollText,
     ServerCog,
+    LifeBuoy,
+    Newspaper,
     ShieldCheck,
     ShoppingCart,
     Store,
@@ -287,6 +289,97 @@ export const NAV_SECTIONS: NavSection[] = [
         ],
     },
     {
+        /**
+         * Grouped by **who works here**, not by domain.
+         *
+         * `support.*` and `content.*` are the two families a tier-3 Support
+         * administrator holds in full or nearly so — twelve of their
+         * twenty-nine permissions are `support.*` and four more are
+         * `content.*`. Filing tickets under Operations beside Orders would put
+         * a Support administrator's entire job inside a section whose other
+         * entries they mostly cannot open.
+         */
+        id: 'support',
+        label: 'Support desk',
+        items: [
+            {
+                /**
+                 * ⚠ **Every tier holds every permission on this surface**, so
+                 * the narrowing happens **per record**, not per permission —
+                 * the opposite of Orders, where the interventions are withheld
+                 * from tier 3 by permission.
+                 *
+                 * Which means nothing here gates on tier, and the queue an
+                 * administrator sees is decided server-side by a scope folded
+                 * into the query. A ticket outside it is a `404`, not a
+                 * `403`, so "not yours" and "does not exist" are one answer.
+                 */
+                id: 'support-tickets',
+                label: 'Tickets',
+                icon: LifeBuoy,
+                /**
+                 * ⚠ **`/dashboard/support/tickets`, matching the service's own
+                 * route vocabulary rather than being shortened.**
+                 *
+                 * A notification's `actionPath` is a **dashboard-relative
+                 * path emitted by the backend** — `/support/tickets/:id` — and
+                 * `toDashboardPath` maps it by prefixing `/dashboard` and
+                 * asking this config whether the result is a declared route. A
+                 * shorter path here would resolve (the prefix still matches) and
+                 * then land on a 404, which is worse than not linking at all.
+                 */
+                path: '/dashboard/support/tickets',
+                permission: 'support.tickets.read',
+                implemented: true,
+                phase: 17,
+            },
+            {
+                /**
+                 * The marketing blog. **Support may write prose and may not
+                 * decide what the public sees** — they hold
+                 * `content.articles.write` and `content.authors.write` and
+                 * neither `publish` nor `delete`.
+                 *
+                 * The parent's requirement is the union of its children in
+                 * `any` mode, so an administrator holding only the author
+                 * grants still reaches the module and lands on Bylines.
+                 */
+                id: 'content',
+                label: 'Blog',
+                icon: Newspaper,
+                path: '/dashboard/content',
+                implemented: true,
+                phase: 17,
+                children: [
+                    {
+                        /**
+                         * A **static sibling, not the index child**, so the path
+                         * is `/dashboard/content/articles` — matching the
+                         * `actionPath` the service emits for an article
+                         * notification. The module therefore has no index and
+                         * `ModuleIndexRedirect` lands on the first child the
+                         * caller may open, exactly as System and Money do.
+                         */
+                        id: 'content-articles',
+                        label: 'Articles',
+                        path: '/dashboard/content/articles',
+                        permission: 'content.articles.read',
+                        implemented: true,
+                        phase: 17,
+                    },
+                    {
+                        id: 'content-authors',
+                        label: 'Bylines',
+                        path: '/dashboard/content/authors',
+                        permission: 'content.authors.read',
+                        implemented: true,
+                        phase: 17,
+                    },
+                ],
+            },
+        ],
+    },
+    {
         id: 'finance',
         label: 'Finance',
         items: [
@@ -527,34 +620,6 @@ export const NAV_SECTIONS: NavSection[] = [
                         implemented: true,
                         phase: 12,
                     },
-                    {
-                        /**
-                         * Its own destination rather than a tab on the trail.
-                         *
-                         * It answers the same question against a **different
-                         * database with a different vocabulary**: these rows are
-                         * not `AuditEntryDto`, and their actors are jovi-mall
-                         * `users` rows rather than administrators of this
-                         * service. Two row shapes behind one heading is how a
-                         * reader carries the wrong mental model onto the wrong
-                         * feed, so the separation is structural.
-                         *
-                         * `audit.read`, like the trail — and the same Support
-                         * narrowing is reproduced server-side, because without it
-                         * this endpoint would be a side door onto exactly what
-                         * the real feed withholds.
-                         *
-                         * **The whole entry disappears at cutover**, along with
-                         * the module behind it, once `meta.unportedEndpoints`
-                         * reaches zero.
-                         */
-                        id: 'audit-legacy',
-                        label: 'Legacy (jovi-mall)',
-                        path: '/dashboard/audit/legacy',
-                        permission: 'audit.read',
-                        implemented: true,
-                        phase: 12,
-                    },
                 ],
             },
             {
@@ -721,6 +786,40 @@ export const NAV_SECTIONS: NavSection[] = [
                         permission: ERROR_JOURNAL_PERMISSION,
                         implemented: true,
                         phase: 14,
+                    },
+                    {
+                        /**
+                         * File administration — the orphan listing, and the
+                         * permanent delete as a row action on it.
+                         *
+                         * ⚠ **In System, not Developer tools**, and the rule is
+                         * the one the Workers child already established: *a read
+                         * a tier-2 Admin holds belongs in System, and the tier-1
+                         * write on it is a button there.* `files.orphans.read`
+                         * is tiers 1–2; putting it under Developer tools — which
+                         * is tier-1-only **by construction**, since every child
+                         * there names a `developer_tools.*` permission a boot
+                         * assertion refuses to any other level — would have made
+                         * that whole module appear for an Admin.
+                         *
+                         * ⚠ **Two permissions in `any` mode, deliberately.**
+                         * `files.delete` is tier 1 only and flagged
+                         * `destructive`. Gating the entry on `all` would hide
+                         * the listing from the tier that may read it; the delete
+                         * affordance gates itself inside.
+                         *
+                         * There is no *browsing* surface to build beside it:
+                         * `files.resolve` answers ids a caller already holds,
+                         * and there is deliberately no listing route beyond
+                         * orphans.
+                         */
+                        id: 'system-files',
+                        label: 'Files',
+                        path: '/dashboard/system/files',
+                        permission: ['files.orphans.read', 'files.delete'],
+                        permissionMode: 'any',
+                        implemented: true,
+                        phase: 17,
                     },
                     /*
                       Configuration used to sit here and now lives under Developer tools.

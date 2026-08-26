@@ -36,11 +36,19 @@ type DomainPrefix =
     | 'COD'
     | 'INVENTORY'     // what an agency warehouses, per depot
     | 'STOCK'         // the two-sided stock-adjustment request flow
+    | 'REVIEW'        // reviews & ratings — products AND deliveries
     | 'SYSTEM'        // operations surface: maintenance mode, cache controls
     | 'INTERNAL'      // INTERNAL_SERVER_ERROR
     | 'NOT'           // NOT_FOUND — router-level only
     | 'REQUEST'       // body-parser rejections — global handler only (Phase 16)
     | 'RATE'          // RATE_LIMIT_EXCEEDED — rate-limit middleware only (Phase 16)
+    // Per-gateway prefixes. These are also the `INTEGRATION_PREFIXES` in
+    // `error-category.ts`, so any of them raised at 5xx is `external_service` and has its
+    // message and details replaced at the boundary — which is what a third party's
+    // diagnostics should get. `STRIPE` was in use before it was ever listed here.
+    | 'STRIPE'
+    | 'NOTCHPAY'
+    | 'MYCOOLPAY'
     | 'VALIDATION';   // VALIDATION_ERROR — ZodError catch in global handler only
 
 // Compile-time check: every key must start with a known domain prefix.
@@ -91,6 +99,26 @@ export const ERROR_CODES = Object.freeze({
      * 401, not 403: unlike a suspension, re-authenticating is exactly the remedy.
      */
     AUTH_PASSWORD_CHANGED: 'AUTH_PASSWORD_CHANGED',
+
+    /**
+     * The sign-in itself has outlived the 90-day absolute cap — ADR-A03 D-1.
+     *
+     * Its own code rather than `AUTH_SESSION_EXPIRED`, and the distinction is the whole
+     * point of raising it (D-10). `AUTH_SESSION_EXPIRED` is routine and REFRESHABLE — the
+     * client renews and carries on. This one is not: no credential the client holds can
+     * renew it, because the claim it failed on is copied unchanged through every rotation.
+     * A client that reads them as the same thing loops forever against a session that is
+     * never coming back. And unlike `AUTH_PASSWORD_CHANGED` it carries no alarm: nothing is
+     * wrong, the quarter simply ended.
+     *
+     * The remedy is exactly one thing, and the api-doc says it in those words: **route to
+     * login, never retry.**
+     *
+     * Raised at 401 on both credential paths — `requireAuth` (access, and therefore the two
+     * re-issue routes behind it) and `rotateRefreshToken` (refresh). See
+     * `core/auth/session-cap.ts`. 401, not 403: re-authenticating IS the remedy.
+     */
+    AUTH_SESSION_CAP_REACHED: 'AUTH_SESSION_CAP_REACHED',
     AUTH_USER_NOT_FOUND: 'AUTH_USER_NOT_FOUND',
     AUTH_ROLE_PROFILE_NOT_FOUND: 'AUTH_ROLE_PROFILE_NOT_FOUND',
     AUTH_FORBIDDEN: 'AUTH_FORBIDDEN',
@@ -119,6 +147,25 @@ export const ERROR_CODES = Object.freeze({
      */
     AUTH_VENDOR_SUSPENDED: 'AUTH_VENDOR_SUSPENDED',
 
+    /**
+     * The account was CLOSED by the person who owned it (ADR-A02 D-1).
+     *
+     * Its own code rather than `AUTH_ACCOUNT_SUSPENDED`, for the reason that code's own
+     * neighbour gives: the two have different remedies and a client has to be able to say
+     * which happened. A suspension has an appeal and a `restore`; a closure has neither, and
+     * telling somebody who anonymised their own account that it is "suspended" invites a
+     * support ticket asking to have it lifted.
+     *
+     * Raised on the same three paths a suspension is — login, refresh rotation, `requireAuth`
+     * — plus the password-reset redemption, and always BEFORE the suspension check, because a
+     * closed account is not an active one and both guards would otherwise match.
+     *
+     * In practice a client rarely sees it: closure removes both login identifiers, so `login`
+     * cannot resolve the account at all. It is what the live access token minted seconds
+     * earlier meets.
+     */
+    AUTH_ACCOUNT_CLOSED: 'AUTH_ACCOUNT_CLOSED',
+
     // ── PAYMENT ───────────────────────────────────────────────────────────────
     PAYMENT_ORDER_NOT_FOUND: 'PAYMENT_ORDER_NOT_FOUND',
     PAYMENT_ORDER_ALREADY_PAID: 'PAYMENT_ORDER_ALREADY_PAID',
@@ -142,6 +189,58 @@ export const ERROR_CODES = Object.freeze({
     PAYMENT_REFERENCE_REQUIRED: 'PAYMENT_REFERENCE_REQUIRED',
     PAYMENT_ORDER_IS_COD: 'PAYMENT_ORDER_IS_COD',
     STRIPE_WEBHOOK_SIGNATURE_INVALID: 'STRIPE_WEBHOOK_SIGNATURE_INVALID',
+    /**
+     * A mobile-money charge could not be routed to MTN or Orange.
+     *
+     * NotchPay's direct charge takes an explicit `channel`, so the operator has to be
+     * known before the call. The client did not declare one and the number's prefix is
+     * outside the published Cameroon ranges (Nexttel, Camtel, a ported number, a typo).
+     * Raised rather than guessed: charging `cm.mtn` for an Orange number fails at the
+     * provider and reaches the customer as "payment declined", which is a worse
+     * conversation than "which network is this number on?".
+     */
+    PAYMENT_OPERATOR_UNDETERMINED: 'PAYMENT_OPERATOR_UNDETERMINED',
+    /**
+     * A currency with a minor unit was sent to a mobile-money gateway.
+     *
+     * Both mobile rails settle in XAF and take a plain whole number. Passing a
+     * two-decimal currency through unconverted charges 1/100th of the price, and
+     * converting it invents an exchange rate nobody configured.
+     */
+    PAYMENT_CURRENCY_NOT_SUPPORTED: 'PAYMENT_CURRENCY_NOT_SUPPORTED',
+    /**
+     * A verified callback reported an amount or currency that is not what we recorded.
+     *
+     * The signature passed, so this is not a forgery in the ordinary sense — it is a
+     * mismatch between what the provider says was paid and what the order costs, and
+     * settling on the provider's figure is how a one-franc payment buys a phone. It is
+     * ALSO the compensating control for My-CoolPay's MD5 signature: an attacker who
+     * defeated that construction still cannot choose the amount.
+     */
+    PAYMENT_WEBHOOK_AMOUNT_MISMATCH: 'PAYMENT_WEBHOOK_AMOUNT_MISMATCH',
+    /** The submitted mobile-money OTP was wrong. */
+    PAYMENT_OTP_INVALID: 'PAYMENT_OTP_INVALID',
+    /** `POST /payments/:id/authorize` on a transaction that is not awaiting an OTP. */
+    PAYMENT_OTP_NOT_REQUIRED: 'PAYMENT_OTP_NOT_REQUIRED',
+    /**
+     * Too many wrong OTP submissions; the transaction is failed.
+     *
+     * 422 rather than 429: nothing is throttled and waiting changes nothing. The payment
+     * is over and the customer must start a new one.
+     */
+    PAYMENT_OTP_ATTEMPTS_EXCEEDED: 'PAYMENT_OTP_ATTEMPTS_EXCEEDED',
+
+    // ── NOTCHPAY / MYCOOLPAY ──────────────────────────────────────────────────
+    // Raised at 5xx only, so `INTEGRATION_PREFIXES` files them as `external_service`
+    // and the boundary replaces the message and drops `details`. That is deliberate:
+    // the diagnostics are for our logs, and a provider's own error text is not
+    // something to relay to a shopper.
+    /** The provider answered, and answered non-2xx. */
+    NOTCHPAY_REQUEST_FAILED: 'NOTCHPAY_REQUEST_FAILED',
+    /** The provider did not answer at all — timeout, DNS, connection refused. */
+    NOTCHPAY_UNREACHABLE: 'NOTCHPAY_UNREACHABLE',
+    MYCOOLPAY_REQUEST_FAILED: 'MYCOOLPAY_REQUEST_FAILED',
+    MYCOOLPAY_UNREACHABLE: 'MYCOOLPAY_UNREACHABLE',
 
     // ── REFUND ────────────────────────────────────────────────────────────────
     REFUND_NOT_ELIGIBLE: 'REFUND_NOT_ELIGIBLE',
@@ -243,6 +342,24 @@ export const ERROR_CODES = Object.freeze({
     MAGIC_CONTACT_UNVERIFIED: 'MAGIC_CONTACT_UNVERIFIED',
     MAGIC_SESSION_GENERATION_FAILED: 'MAGIC_SESSION_GENERATION_FAILED',
 
+    // ── ADMINISTRATOR-INITIATED ACCOUNT RECOVERY ──────────────────────────────
+    // An operator asking the platform to send a party a way back into their own
+    // account. See `messaging-login/services/admin-credential-delivery.service.ts`.
+    //
+    // ⚠ There is no `USER_CHANNEL_UNVERIFIED` and that is a decision, not a gap:
+    // `IUser` carries no `email_verified`. Verification flags live on the ROLE
+    // entities, a user may hold several roles, and `login_email` is already the
+    // address `POST /auth/forgot-password` mails a live reset token to with no
+    // check at all.
+    /** The party has no address on the requested channel. */
+    USER_CHANNEL_UNAVAILABLE: 'USER_CHANNEL_UNAVAILABLE',
+    /** Rate limit — per party OR per administrator; `details.scope` says which. */
+    USER_CREDENTIAL_LINK_THROTTLED: 'USER_CREDENTIAL_LINK_THROTTLED',
+    /** A sign-in link was asked for on an account that is not a customer. */
+    USER_LOGIN_LINK_ROLE_UNSUPPORTED: 'USER_LOGIN_LINK_ROLE_UNSUPPORTED',
+    /** The channel accepted the request and did not deliver. A 502, not a 400. */
+    MESSAGING_DELIVERY_FAILED: 'MESSAGING_DELIVERY_FAILED',
+
     // ── GOOGLE / INTEGRATIONS ─────────────────────────────────────────────────
     GOOGLE_MISSING_CLIENT_ID: 'GOOGLE_MISSING_CLIENT_ID',
     GOOGLE_MISSING_CLIENT_SECRET: 'GOOGLE_MISSING_CLIENT_SECRET',
@@ -335,6 +452,33 @@ export const ERROR_CODES = Object.freeze({
     CONFIG_NOTIFICATION_CATALOG_INCOMPLETE: 'CONFIG_NOTIFICATION_CATALOG_INCOMPLETE',
     CONFIG_INVALID_STORAGE_PROVIDER: 'CONFIG_INVALID_STORAGE_PROVIDER',
     CONFIG_INVALID_GEO_PROVIDER: 'CONFIG_INVALID_GEO_PROVIDER',
+    /**
+     * `UPLOAD_VIRUS_SCAN_PROVIDER` names something that cannot scan — `cloud` (declared,
+     * never implemented), `mock` in production (a test double), or a typo.
+     *
+     * Raised by `core/uploads/scanners/index.ts`, and asserted at BOOT rather than left to a
+     * request: every injection site builds its scanner per upload, so a per-request throw
+     * means the misconfiguration is discovered by a vendor. The failure direction that must
+     * never exist is the one this closes — falling back to something harmless-looking, which
+     * is a platform that believes it is protected. Same posture as
+     * `CONFIG_INVALID_STORAGE_PROVIDER`.
+     */
+    CONFIG_INVALID_UPLOAD_SCANNER: 'CONFIG_INVALID_UPLOAD_SCANNER',
+    /**
+     * The virus scanner could not be asked — unreachable, timed out, or answered something
+     * this client does not understand. **Not** a detection; a detection is a
+     * `VIRUS_DETECTED` violation inside `UPLOAD_POLICY_VIOLATION`.
+     *
+     * 502 rather than 500: the failure is a dependency's, and the category derives to
+     * `external_service`, which is what makes the boundary substitute the registry message and
+     * drop `details`. That matters here specifically — `VirusScanValidator` copies the thrown
+     * `message` into a violation a vendor sees, so the message must carry no host, port or
+     * connection detail. The diagnostics go in `details`, which is journaled and not sent.
+     *
+     * With `blockOnFailure` true (the shipped setting) this refuses the upload. That is the
+     * whole point: "could not scan" must never be spelled "clean".
+     */
+    UPLOAD_VIRUS_SCAN_UNAVAILABLE: 'UPLOAD_VIRUS_SCAN_UNAVAILABLE',
     // Boot assertions for the operations surface (Phase 14). Both are startup-only: a metric
     // label space that outgrew its cap, and a Redis database with no cache-flush policy row.
     CONFIG_METRICS_CARDINALITY_UNBOUNDED: 'CONFIG_METRICS_CARDINALITY_UNBOUNDED',
@@ -354,6 +498,13 @@ export const ERROR_CODES = Object.freeze({
     GEO_PROVIDER_UNAVAILABLE: 'GEO_PROVIDER_UNAVAILABLE',
     // Provider returned a non-2xx or unparseable response.
     GEO_SEARCH_FAILED: 'GEO_SEARCH_FAILED',
+    // Provider answered 429 — over its per-second cap or out of daily quota.
+    // Distinct from GEO_PROVIDER_UNAVAILABLE because the remedy differs (wait or
+    // upgrade, rather than investigate an outage), and because it is one of the
+    // two codes ChainedGeocodingProvider treats as "ask the next provider". Both
+    // paid free tiers here are small enough that this is an ordinary event, not
+    // an incident: Geoapify 3 000/day at 5 rps, LocationIQ 5 000/day at 2 rps.
+    GEO_PROVIDER_RATE_LIMITED: 'GEO_PROVIDER_RATE_LIMITED',
     // A new/edited business or headquarters address was submitted without a
     // geocoded `geo` (a selected /api/geo/search result). Required so every
     // physical location is mappable and its country verifiable.
@@ -557,6 +708,9 @@ export const ERROR_CODES = Object.freeze({
     // COD threshold allocation (agent global pool ← contract sub-allocations)
     AGENT_COD_THRESHOLD_OUT_OF_BOUNDS: 'AGENT_COD_THRESHOLD_OUT_OF_BOUNDS',
     AGENT_COD_THRESHOLD_BELOW_ALLOCATED: 'AGENT_COD_THRESHOLD_BELOW_ALLOCATED',
+    // An administrator's pinned trust score (O-7) outside 0–100. Same scale as
+    // the computed score, because the whole point is that it substitutes for it.
+    AGENT_TRUST_OVERRIDE_OUT_OF_BOUNDS: 'AGENT_TRUST_OVERRIDE_OUT_OF_BOUNDS',
     CONTRACT_COD_THRESHOLD_OUT_OF_BOUNDS: 'CONTRACT_COD_THRESHOLD_OUT_OF_BOUNDS',
     CONTRACT_COD_THRESHOLD_EXCEEDS_HEADROOM: 'CONTRACT_COD_THRESHOLD_EXCEEDS_HEADROOM',
     CONTRACT_COD_THRESHOLD_BELOW_OUTSTANDING: 'CONTRACT_COD_THRESHOLD_BELOW_OUTSTANDING',
@@ -623,6 +777,16 @@ export const ERROR_CODES = Object.freeze({
     CONNECTION_NOT_ACTIVE: 'CONNECTION_NOT_ACTIVE',
 
     // ── CUSTOMER ──────────────────────────────────────────────────────────────
+    /**
+     * That product is not on this customer's wishlist.
+     *
+     * A 404 and never a 403, even when the row exists on somebody else's list. Every query
+     * behind it is scoped by `customer_id`, so a foreign row matches nothing and there is
+     * no place for an ownership check to be forgotten — the same reasoning the public
+     * catalogue uses when it answers 404 rather than confirming a draft product exists.
+     */
+    WISHLIST_ITEM_NOT_FOUND: 'WISHLIST_ITEM_NOT_FOUND',
+
     CUSTOMER_NOT_FOUND: 'CUSTOMER_NOT_FOUND',
     CUSTOMER_ADDRESS_NOT_FOUND: 'CUSTOMER_ADDRESS_NOT_FOUND',
     CUSTOMER_PAYMENT_METHOD_NOT_FOUND: 'CUSTOMER_PAYMENT_METHOD_NOT_FOUND',
@@ -653,6 +817,116 @@ export const ERROR_CODES = Object.freeze({
      * self-service path back.
      */
     USER_CONTACT_REQUIRED: 'USER_CONTACT_REQUIRED',
+
+    // ── PRODUCT SHARE (6.J · vendor shares a product over a connected channel) ─
+
+    /**
+     * The vendor asked to share over a channel their account is not connected to.
+     *
+     * 422 rather than 404: the channel exists and the product exists — what is missing is a
+     * connection, and the message carries the `/connect` instruction that fixes it.
+     *
+     * ⚠ Restored 2026-08-21 after being lost to a concurrent edit of this file; the throw
+     * site (`ProductShareService.resolveTarget`) is the definition of what it means.
+     */
+    PRODUCT_SHARE_CHANNEL_NOT_CONNECTED: 'PRODUCT_SHARE_CHANNEL_NOT_CONNECTED',
+
+    /**
+     * WhatsApp's 24-hour service window is closed, so no free-form message may be sent.
+     *
+     * 422 and not 502: nothing failed. Meta's policy permits only an approved `template`
+     * outside the window, and there is deliberately no product-share template — a share is
+     * a vendor pressing a button, not a delivery notification that must arrive. The remedy
+     * is in the message and the vendor can perform it: send the bot any message, which
+     * reopens the window.
+     *
+     * Telegram has no equivalent and never raises this.
+     */
+    PRODUCT_SHARE_WINDOW_CLOSED: 'PRODUCT_SHARE_WINDOW_CLOSED',
+
+    /**
+     * The channel accepted the request and did not deliver.
+     *
+     * 502 — `external_service`, so the boundary replaces this message with the registry
+     * default and drops `details`. The `cause` put in `details` at the throw site is for
+     * the journal, which is exactly what that category's exposure rule is for.
+     */
+    PRODUCT_SHARE_SEND_FAILED: 'PRODUCT_SHARE_SEND_FAILED',
+
+    // ── ACCOUNT CLOSURE (ADR-A02 · self-service, `POST /api/me/close`) ────────
+
+    /**
+     * The caller holds a role beyond `customer`, so closure is refused OUTRIGHT.
+     *
+     * ADR-A02 D-1: "a dual-role account is refused, not partially closed". Anonymising the
+     * person behind a live storefront leaves a shop trading under a name nobody can resolve,
+     * with products, payouts and a KYC record attached to an identity that no longer exists.
+     * The remedy is a real one and is stated in the message: close the other role first.
+     *
+     * 422 rather than 403 — the caller is entitled to this endpoint, and a rule refused the
+     * request. See `error-category.ts`'s 400-vs-422 note.
+     */
+    ACCOUNT_CLOSURE_ROLE_NOT_ELIGIBLE: 'ACCOUNT_CLOSURE_ROLE_NOT_ELIGIBLE',
+
+    /**
+     * The customer has orders still moving, so closure is refused until they settle.
+     *
+     * Not in ADR-A02, and added because the anonymisation makes an in-flight delivery
+     * undeliverable rather than merely untidy: `CashCollectionService.notifyCodeIssued`
+     * sends the COD delivery code to `Customer.phone`, which closure clears, and the
+     * messaging connections that carry every other delivery notification are deleted. The
+     * agent arrives at an address holding a parcel the recipient can no longer be given a
+     * code for.
+     *
+     * `details.activeOrderCount` says how many, so a client can render "you have 2 orders in
+     * progress" without a second call.
+     */
+    ACCOUNT_CLOSURE_ORDERS_IN_FLIGHT: 'ACCOUNT_CLOSURE_ORDERS_IN_FLIGHT',
+
+    // ── CONTACT CHANGE (self-service, `/api/me/{email,phone}`) ────────────────
+    /**
+     * The identifier the caller asked to move to is the one already on the account.
+     *
+     * Refused rather than treated as a no-op: a silent success would send a verification
+     * mail to an address that is already verified, and would teach a client that
+     * "pending" and "done" are the same state.
+     */
+    CONTACT_CHANGE_SAME_IDENTIFIER: 'CONTACT_CHANGE_SAME_IDENTIFIER',
+
+    /**
+     * Another account already holds this email or phone.
+     *
+     * Raised at BOTH ends of the flow — on request and again on confirm — because the
+     * identifier can be claimed in the window between them, and `login_email` /
+     * `login_phone` carry sparse UNIQUE indexes: swapping into a taken value is a
+     * driver-level duplicate-key error, i.e. a 500, unless it is caught here first.
+     */
+    CONTACT_CHANGE_IDENTIFIER_TAKEN: 'CONTACT_CHANGE_IDENTIFIER_TAKEN',
+
+    /** Confirm or cancel with no change in flight. */
+    CONTACT_CHANGE_NOT_PENDING: 'CONTACT_CHANGE_NOT_PENDING',
+
+    /**
+     * The pending change aged out.
+     *
+     * A separate code from `CONTACT_CHANGE_TOKEN_INVALID` on purpose: "start again" and
+     * "that link is not ours" are different things to say to a person, and only the first
+     * describes the platform behaving normally.
+     */
+    CONTACT_CHANGE_EXPIRED: 'CONTACT_CHANGE_EXPIRED',
+
+    /** No pending change matches this token — wrong, already spent, or forged. */
+    CONTACT_CHANGE_TOKEN_INVALID: 'CONTACT_CHANGE_TOKEN_INVALID',
+
+    /**
+     * A phone change was confirmed without proof that the account controls the number.
+     *
+     * The proof is a `channel_connections` row binding this account to that number on
+     * WhatsApp — see `services/contact-change.service.ts`. Without it the confirm would
+     * move a login identifier onto a number nobody has ever shown they can receive on,
+     * which is an account-recovery hole rather than a contact edit.
+     */
+    CONTACT_CHANGE_PHONE_UNPROVEN: 'CONTACT_CHANGE_PHONE_UNPROVEN',
 
     // ── VENDOR ADMINISTRATION (wi-admin's `/api/internal/admin/vendors`) ──────
     VENDOR_NOT_FOUND: 'VENDOR_NOT_FOUND',
@@ -710,6 +984,25 @@ export const ERROR_CODES = Object.freeze({
     // Unsuspend re-runs the activation gate; `details.blockers` carries the checklist.
     INVENTORY_PRODUCT_UNSUSPEND_BLOCKED: 'INVENTORY_PRODUCT_UNSUSPEND_BLOCKED',
 
+    // ── COUNTED STOCK (Phase 6 · Step 14, D-6) ────────────────────────────────
+    // An AGENCY movement that would drive a counter below zero. Never raised for a
+    // system movement: an order selling stock the shelf record does not have is a
+    // variance to surface, not a checkout to fail — see
+    // AgencyStockMovementRepository.
+    INVENTORY_INSUFFICIENT_STOCK: 'INVENTORY_INSUFFICIENT_STOCK',
+    // A transfer whose source and destination depot are the same row.
+    INVENTORY_TRANSFER_SAME_LOCATION: 'INVENTORY_TRANSFER_SAME_LOCATION',
+    // Repointing a product to another depot while its shelves still hold units. A CONFLICT:
+    // the remedy is to transfer the stock first, not to retry.
+    INVENTORY_DEPOT_CHANGE_HOLDS_STOCK: 'INVENTORY_DEPOT_CHANGE_HOLDS_STOCK',
+
+    // ── STORAGE INVOICES (Phase 6 · Step 14, D-7) ─────────────────────────────
+    // A RECORD of rent owed, not a charge: nothing here moves money.
+    STORAGE_INVOICE_NOT_FOUND: 'STORAGE_INVOICE_NOT_FOUND',
+    // Settle and void both compare-and-set from `open`; a miss is a conflict, never
+    // a not-found — the invoice is right there, it is just not in that state.
+    STORAGE_INVOICE_NOT_OPEN: 'STORAGE_INVOICE_NOT_OPEN',
+
     // ── STOCK ADJUSTMENT REQUESTS (vendor ↔ agency, two-sided) ─────────────────
     STOCK_REQUEST_NOT_FOUND: 'STOCK_REQUEST_NOT_FOUND',
     STOCK_REQUEST_ALREADY_PENDING: 'STOCK_REQUEST_ALREADY_PENDING',
@@ -720,6 +1013,46 @@ export const ERROR_CODES = Object.freeze({
     // The product stopped being stored with this agency while the request stood.
     STOCK_REQUEST_STALE: 'STOCK_REQUEST_STALE',
     STOCK_REQUEST_NO_CHANGE: 'STOCK_REQUEST_NO_CHANGE',
+
+    // ── REVIEWS & RATINGS (products AND deliveries) ───────────────────────────
+    // Each is raised at EXACTLY ONE status — `test:errors` censuses every
+    // createAppError site and fails if a code appears at two statuses that
+    // disagree on category.
+    REVIEW_NOT_FOUND: 'REVIEW_NOT_FOUND',
+    /**
+     * 409. One review per author per subject, enforced by a unique index AND by a
+     * pre-check. A CONFLICT rather than a validation error: the body was fine, the
+     * author has simply already had their say. There is deliberately no edit verb,
+     * so this is terminal for that (author, subject) pair.
+     */
+    REVIEW_ALREADY_EXISTS: 'REVIEW_ALREADY_EXISTS',
+    /**
+     * 422. The verified-purchase / verified-delivery gate. The author has no
+     * completed order containing this product, or is not a party to this delivered
+     * shipment. Deliberately NOT a 403: whether *somebody else* may review it is
+     * not what was asked, and this is a rule of the domain, not an ownership check.
+     */
+    REVIEW_NOT_ELIGIBLE: 'REVIEW_NOT_ELIGIBLE',
+    /**
+     * 404. The product or shipment being reviewed does not exist — or does not
+     * exist *for this caller*, which is the same answer on purpose. A 403 here
+     * would confirm that an id somebody guessed is real.
+     */
+    REVIEW_SUBJECT_NOT_FOUND: 'REVIEW_SUBJECT_NOT_FOUND',
+    /**
+     * 422. The subject exists and is not in a state that can be reviewed — a
+     * delivered shipment with no agent bound to it, the case every target
+     * derivation needs and no real delivery produces.
+     */
+    REVIEW_SUBJECT_NOT_REVIEWABLE: 'REVIEW_SUBJECT_NOT_REVIEWABLE',
+    /**
+     * 409. A moderation compare-and-set miss — the review left `pending` while the
+     * administrator was looking at it. Same shape and same reasoning as
+     * `STOCK_REQUEST_NOT_PENDING`: the row exists, somebody else decided first.
+     */
+    REVIEW_NOT_PENDING: 'REVIEW_NOT_PENDING',
+    /** 400. This author role may not review this subject type at all. */
+    REVIEW_ROLE_NOT_ALLOWED: 'REVIEW_ROLE_NOT_ALLOWED',
 
     // ── BLOG / EDITORIAL ──────────────────────────────────────────────────────
     // Public reads produce only the first three; the rest are the editor's.

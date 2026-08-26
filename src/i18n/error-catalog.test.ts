@@ -125,10 +125,32 @@ const isBootTime = (entry: DocEntry) => entry.meaning.includes('**Boot-time.**')
  * arrives as `details.platformCode`"* — and its rows do not repeat it. Reading
  * cells alone would classify three codes that can never be `error.code` as
  * client-reachable and demand `codes` copy for them.
+ *
+ * ── ⚠ It matches the CLAIM, not the mention ──────────────────────────────────
+ * This tested `.includes('`details.platformCode`')` until the 2026-08-24
+ * re-copy, and that was too loose in the one direction that matters: it read a
+ * *mention* of the field as a *declaration about the row*. Two new sections
+ * broke it, both by writing well —
+ *
+ * - `### Content — the blog editor` says outright *"every one arrives as
+ *   `error.code` — **none of these is a `details.platformCode`**"*, and the
+ *   substring test turned that denial into ten false positives;
+ * - `FILE_CONTENT_NOT_SUPPORTED`'s own row says its `details.platformCode` **is**
+ *   `STORAGE_DOWNLOAD_NOT_SUPPORTED` — a wi-admin code that *carries* a platform
+ *   code inside its details, which is the opposite of *being* one.
+ *
+ * Those eleven would have been quietly excluded from the copy requirement, so a
+ * real `error.code` could reach an operator with no message and the suite would
+ * have called it correct. Anchoring to *"arrives (only) as `details.platformCode`"*
+ * — the phrasing every genuine row and both genuine preambles use — reproduces
+ * the same twelve and nothing else. `\s` spans newlines because both preambles
+ * wrap the phrase across a line break.
  */
+const ARRIVES_AS_PLATFORM_CODE = /arrives?\s+(?:only\s+)?as\s+`details\.platformCode`/i;
+
 const isPlatformCodeOnly = (entry: DocEntry) =>
-    entry.meaning.includes('`details.platformCode`') ||
-    entry.sectionPreamble.includes('`details.platformCode`');
+    ARRIVES_AS_PLATFORM_CODE.test(entry.meaning) ||
+    ARRIVES_AS_PLATFORM_CODE.test(entry.sectionPreamble);
 
 const clientReachable = registry.filter((e) => !isBootTime(e) && !isPlatformCodeOnly(e));
 
@@ -170,6 +192,30 @@ describe('the registry parses', () => {
         ]);
     });
 
+    it('reads a denial as a denial, and "carries" as not "arrives as"', () => {
+        // The regression for the substring predicate this replaced. Both groups
+        // sit next to the phrase `details.platformCode` in the document and are
+        // emphatically NOT platform-only; a loosening of the predicate makes
+        // them client-unreachable, drops their copy requirement, and lets a real
+        // `error.code` reach an operator as a bare category.
+        const content = registry.find((e) => e.code === 'BLOG_ARTICLE_NOT_FOUND');
+        expect(content, 'BLOG_ARTICLE_NOT_FOUND is missing from the registry').toBeDefined();
+        expect(content!.sectionPreamble, 'the denial moved out of the preamble').toContain(
+            '`details.platformCode`',
+        );
+        expect(isPlatformCodeOnly(content!), 'a denial was read as a declaration').toBe(false);
+
+        const carries = registry.find((e) => e.code === 'FILE_CONTENT_NOT_SUPPORTED');
+        expect(carries, 'FILE_CONTENT_NOT_SUPPORTED is missing from the registry').toBeDefined();
+        expect(carries!.meaning).toContain('`details.platformCode`');
+        expect(isPlatformCodeOnly(carries!), 'carrying one was read as being one').toBe(false);
+
+        // …and every BLOG_* with it, since the preamble covers the whole table.
+        const blog = registry.filter((e) => e.code.startsWith('BLOG_'));
+        expect(blog.length, 'the blog section shrank').toBe(10);
+        expect(blog.filter(isPlatformCodeOnly).map((e) => e.code)).toEqual([]);
+    });
+
     it('classifies a code declared only by its section preamble', () => {
         // The narrow test for the section-aware path. `USER_CHANNEL_UNAVAILABLE`
         // is platform-only *because of its section's prose* — its own row says
@@ -184,6 +230,37 @@ describe('the registry parses', () => {
     });
 });
 
+/**
+ * Every key of `ERROR_CODES` in `docs/admin/error-codes.ts`.
+ *
+ * ── Why a second source, when `errors.md` is the contract ─────────────────────
+ * Because `errors.md` is a **claim about** the registry and this file **is** the
+ * registry — a verbatim copy of `backend/admin/src/core/errors/error-codes.ts`,
+ * re-copied rather than re-typed. `VERIFICATION-2026-08-24.md` states the
+ * governing rule outright: *"The implementation is the source of truth. A
+ * document — including the backend's own — is a claim about it, and a claim is
+ * not evidence."*
+ *
+ * ⚠ **They disagree today, and that is why this exists.** The source declares
+ * **82** codes; `errors.md`'s registry tables publish **73**. The sixteen it
+ * omits are the ones that landed with the modules `errors.md` was never updated
+ * for — all ten `BLOG_*`, both `TICKET_*`, `FILE_DELETE_NOT_CONFIRMED`, and the
+ * three `TRACKING_DOOR_*`. (Seven travel the other way: jovi-mall's own codes,
+ * which `errors.md` catalogues because they arrive as `details.platformCode`
+ * and which this service therefore never declares.)
+ *
+ * Diffing against both means a code reaching an operator with no copy is a
+ * failing test whichever document happens to be behind.
+ */
+function sourceRegistryCodes(): string[] {
+    const path = resolve(dirname(fileURLToPath(import.meta.url)), '../../docs/admin/error-codes.ts');
+    const source = readFileSync(path, 'utf8');
+    // `    SOME_CODE: 'SOME_CODE',` — key and value are identical by discipline.
+    return [...source.matchAll(/^\s{4}([A-Z][A-Z0-9_]+):\s*'([A-Z][A-Z0-9_]+)'/gm)].map(
+        (match) => match[1],
+    );
+}
+
 describe('KNOWN_ERROR_CODES matches the contract', () => {
     it('names every client-reachable code the doc publishes', () => {
         const missing = clientReachable
@@ -193,11 +270,38 @@ describe('KNOWN_ERROR_CODES matches the contract', () => {
         expect(missing, 'codes in errors.md with no entry in KNOWN_ERROR_CODES').toEqual([]);
     });
 
-    it('invents nothing the doc does not', () => {
-        const documented = new Set(registry.map((e) => e.code));
-        const invented = KNOWN_ERROR_CODES.filter((code) => !documented.has(code));
+    it('invents nothing either registry declares', () => {
+        // Anchored to the union: `errors.md` omits sixteen codes the service
+        // genuinely raises, so pinning to it alone would forbid the copy those
+        // codes need. See `sourceRegistryCodes`.
+        const declared = new Set([...registry.map((e) => e.code), ...sourceRegistryCodes()]);
+        const invented = KNOWN_ERROR_CODES.filter((code) => !declared.has(code));
 
-        expect(invented, 'codes in KNOWN_ERROR_CODES that errors.md does not publish').toEqual([]);
+        expect(invented, 'codes in KNOWN_ERROR_CODES that neither registry declares').toEqual([]);
+    });
+
+    it('names every client-reachable code the backend SOURCE declares', () => {
+        // The half `errors.md` cannot catch. A module that ships without a
+        // documentation update still fails here, because this reads the registry
+        // the service actually throws from.
+        //
+        // The two exclusions are read off `errors.md` rather than guessed: a
+        // boot-time code exits the process before it listens, and a
+        // platform-only code arrives as `details.platformCode` and belongs to
+        // `error-platform.ts`. A source code with no row in `errors.md` is
+        // neither by construction — every boot-time and platform-only code is
+        // documented — so it is required.
+        const unreachable = new Set(
+            registry.filter((e) => isBootTime(e) || isPlatformCodeOnly(e)).map((e) => e.code),
+        );
+
+        const missing = sourceRegistryCodes().filter(
+            (code) =>
+                !unreachable.has(code) &&
+                !(KNOWN_ERROR_CODES as readonly string[]).includes(code),
+        );
+
+        expect(missing, 'codes in error-codes.ts with no entry in KNOWN_ERROR_CODES').toEqual([]);
     });
 
     it('excludes the boot-time and platform-code-only codes', () => {
@@ -421,12 +525,23 @@ describe('categoryFromStatus matches the doc status table', () => {
     });
 });
 
-describe('the six category overrides', () => {
+describe('the category overrides', () => {
     /**
-     * The doc's prose says "Four codes" and its own table lists six. The table
-     * is right — recorded as a doc bug in the phase summary. These are the rows
-     * where the status alone gives the wrong client behaviour, and the client
-     * must not re-derive the category from the status for them.
+     * The rows where the status alone gives the wrong client behaviour, so the
+     * client must not re-derive the category from the status for them.
+     *
+     * ⚠ **Derived from the whole registry, not read off the doc's Overrides
+     * table** — the second test below recomputes the set — so a code that
+     * overrides without being listed there still lands here. Two have moved
+     * since this was written: `AUDIT_LEGACY_FEED_DISABLED` left with its route
+     * at Phase 5 Part D, and `FILE_CONTENT_NOT_SUPPORTED` arrived at BR-011.
+     *
+     * `FILE_CONTENT_NOT_SUPPORTED` is the interesting one: 409 would derive
+     * `conflict`, which reads as "something changed underneath you, reload" —
+     * exactly the wrong instruction for a storage provider that will refuse
+     * every file forever. `business_rule` is the honest category, and the 409
+     * was chosen over a 5xx so the boundary filter keeps the message and the
+     * `details` that name the provider.
      */
     const OVERRIDES: [string, number, ErrorCategory][] = [
         ['ADMIN_AUTH_ACCOUNT_SUSPENDED', 403, 'authentication'],
@@ -434,7 +549,7 @@ describe('the six category overrides', () => {
         ['ADMIN_AUTH_CSRF_INVALID', 403, 'authentication'],
         ['ADMIN_AUTH_ACCOUNT_LOCKED', 423, 'authentication'],
         ['DEV_TOOLS_DISABLED', 409, 'business_rule'],
-        ['AUDIT_LEGACY_FEED_DISABLED', 404, 'business_rule'],
+        ['FILE_CONTENT_NOT_SUPPORTED', 409, 'business_rule'],
     ];
 
     it('are all published, and all disagree with the status table', () => {
@@ -447,7 +562,7 @@ describe('the six category overrides', () => {
         }
     });
 
-    it('is the complete set — no seventh row appeared', () => {
+    it('is the complete set — no further row appeared', () => {
         const overridden = registry.filter(
             (e) =>
                 ERROR_CATEGORIES.includes(e.category as ErrorCategory) &&

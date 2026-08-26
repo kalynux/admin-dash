@@ -26,5 +26,16 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
     css: false,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // Vitest's default is 5 s, and this suite outgrew it: ~1750 tests across
+    // ~116 files, each spinning up jsdom and rendering through the real
+    // providers. Under full-suite load a `findBy*` that resolves in
+    // milliseconds on its own can sit behind the event loop for longer than
+    // that, so files passed alone and failed — a *different* one each run — in
+    // the whole run.
+    //
+    // Raised rather than worked around per test: a flaky suite is worse than a
+    // slow one, and a timeout that only fires under contention is measuring the
+    // machine rather than the code.
+    testTimeout: 20_000,
   },
 });

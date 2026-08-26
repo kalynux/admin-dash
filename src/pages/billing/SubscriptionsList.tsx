@@ -112,6 +112,7 @@ export function SubscriptionsList() {
             subscriptionColumns({
                 timeZone,
                 can,
+                detailLink: true,
                 rowAction: canAssign
                     ? (row) => (
                           <RowActions>

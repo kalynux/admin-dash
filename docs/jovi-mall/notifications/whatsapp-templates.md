@@ -1,3 +1,12 @@
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call jovi-mall.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> Field names here are jovi-mall's **snake_case** storage casing; wi-admin's wire is **camelCase**.
+>
+> Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+<!-- /CONTEXT-BANNER -->
+
 # WhatsApp Templates
 
 This is the source-of-truth for the WhatsApp Business templates used by the
@@ -10,10 +19,10 @@ sends for that event will fail — for role notifications the failure is recorde
 the notification's `deliveryErrors` (never breaking the flow: in-app, push, email
 and Telegram still deliver); for the COD code it is logged and the code simply
 stays available in the customer's own order view (see
-[customer/orders.md](../customer/orders.md#cod)).
+customer/orders.md (not mirrored here — `backend/jovi-mall/api-doc/customer/orders.md`)).
 
 Every template listed here is registered in
-[template-registry.ts](../../src/modules/whatsapp/handlers/template/template-registry.ts)
+template-registry.ts (not mirrored here — `backend/jovi-mall/src/modules/whatsapp/handlers/template/template-registry.ts`)
 with its name, the 5 language codes, and its expected body-param count — that
 registry is the code-side checklist for this page, not an approval status. A
 template registered here but not yet approved in Business Manager still fails on
@@ -36,14 +45,14 @@ send; approval is a Meta-side step.
   `orders/ORDER_ID`) as the button parameter.
 - In-window sends use the same copy as **free-form text / interactive CTA** (no
   approval needed); the localized strings live in
-  [notification-catalog.ts](../../src/modules/notifications/catalog/notification-catalog.ts).
+  notification-catalog.ts (not mirrored here — `backend/jovi-mall/src/modules/notifications/catalog/notification-catalog.ts`).
 - **Field limits:** Meta caps button labels at 20 chars, header/footer at 60,
   body at 1024. The backend also hard-caps every field to these limits
-  ([whatsapp-limits.ts](../../src/modules/whatsapp/constants/whatsapp-limits.ts)),
+  (whatsapp-limits.ts (not mirrored here — `backend/jovi-mall/src/modules/whatsapp/constants/whatsapp-limits.ts`)),
   but keep the template copy within them so nothing is truncated.
 
 Languages are kept in sync with `SUPPORTED_LANGUAGES`
-([core/constants/languages.ts](../../src/core/constants/languages.ts)).
+(core/constants/languages.ts (not mirrored here — `backend/jovi-mall/src/core/constants/languages.ts`)).
 
 ---
 
@@ -140,7 +149,7 @@ Languages are kept in sync with `SUPPORTED_LANGUAGES`
 
 ## 8. `cod_delivery_code` (customer-facing, no button)
 
-Sent by [`DeliveryCodeService`](../../src/modules/cod/services/delivery-code.service.ts)
+Sent by `DeliveryCodeService` (not mirrored here — `backend/jovi-mall/src/modules/cod/services/delivery-code.service.ts`)
 **only as a fallback**: it always tries a free-form text message first (free,
 same copy as below); this template is used only when that specific send fails
 because the customer is outside Meta's 24h customer-service window. Cost is
@@ -167,9 +176,9 @@ own button base). All use a single dynamic **URL** button → static suffix `pla
 label **"Manage plan"** (fr *Gérer le forfait* · pt_PT *Gerir plano* · es *Gestionar
 plan* · ar *إدارة الباقة*). Category `UTILITY`. The full 5-language body copy is the
 source-of-truth in the catalogs — copy it verbatim when creating the templates:
-[notification-catalog.ts](../../src/modules/notifications/catalog/notification-catalog.ts)
-(vendor), [agency-notification-catalog.ts](../../src/modules/notifications/catalog/agency-notification-catalog.ts),
-[agent-notification-catalog.ts](../../src/modules/notifications/catalog/agent-notification-catalog.ts).
+notification-catalog.ts (not mirrored here — `backend/jovi-mall/src/modules/notifications/catalog/notification-catalog.ts`)
+(vendor), agency-notification-catalog.ts (not mirrored here — `backend/jovi-mall/src/modules/notifications/catalog/agency-notification-catalog.ts`),
+agent-notification-catalog.ts (not mirrored here — `backend/jovi-mall/src/modules/notifications/catalog/agent-notification-catalog.ts`).
 
 | Template name | Role | Body params | English body (en) |
 |---|---|---|---|
@@ -203,7 +212,7 @@ Soft-cap monitoring alert (deliveries are never blocked). Header **"Shipment lim
 Button base: **`AGENCY_APP_URL`**. Category `UTILITY`, 5 languages, single dynamic
 URL button unless stated. The **full 5-language body + button copy is the
 source-of-truth in
-[agency-notification-catalog.ts](../../src/modules/notifications/catalog/agency-notification-catalog.ts)** —
+agency-notification-catalog.ts (not mirrored here — `backend/jovi-mall/src/modules/notifications/catalog/agency-notification-catalog.ts`)** —
 copy it verbatim when creating each template; the English body below is the
 reference for what the params mean. Plan templates (`agency_plan_expiring`,
 `agency_plan_expired`) and `agency_shipment_cap_exceeded` are specified in §9.
@@ -227,7 +236,7 @@ reference for what the params mean. Plan templates (`agency_plan_expiring`,
 ### 10a. Agent-contract templates (agency side)
 
 The agency's half of the agent↔agency contract. Button suffix is `agents/{{contractId}}` · **View
-contract** for all eight. See [Agent roster](../agency/agent-roster.md#notifications).
+contract** for all eight. See Agent roster (not mirrored here — `backend/jovi-mall/api-doc/agency/agent-roster.md`).
 
 | Template name | Body params | English body |
 |---|---|---|
@@ -252,7 +261,7 @@ Headers are static `TEXT` — use the situation's `subject` from the catalog
 ## 11. Agent templates
 
 Button base: **`AGENT_APP_URL`**. Same conventions as §10; source-of-truth copy in
-[agent-notification-catalog.ts](../../src/modules/notifications/catalog/agent-notification-catalog.ts).
+agent-notification-catalog.ts (not mirrored here — `backend/jovi-mall/src/modules/notifications/catalog/agent-notification-catalog.ts`).
 Plan templates (`agent_plan_expiring`, `agent_plan_expired`) are in §9.
 
 | Template name | Body params | Button suffix · label (en) | English body |
@@ -270,7 +279,7 @@ Plan templates (`agent_plan_expiring`, `agent_plan_expired`) are in §9.
 
 The agent's half — the mirror of §10a with the agency named instead. Button suffix is
 `memberships/{{contractId}}` · **View contract** for all eight. See
-[Agency membership](../agent/agency-membership.md#notifications).
+Agency membership (not mirrored here — `backend/jovi-mall/api-doc/agent/agency-membership.md`).
 
 | Template name | Body params | English body |
 |---|---|---|

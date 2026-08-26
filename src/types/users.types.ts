@@ -239,6 +239,66 @@ export interface SuspendUserBody {
     reason: string;
 }
 
+// ─── Credential recovery ──────────────────────────────────────────────────────
+
+/**
+ * Where a recovery credential is sent.
+ *
+ * **A pinned enum, not an open one.** wi-admin's schema refuses an unrecognised
+ * value with a `400` rather than falling back to email — so unlike almost every
+ * other vocabulary on this service, closing the union here is correct. Sending
+ * somebody's sign-in credential to the wrong channel is not a rendering
+ * question.
+ */
+export const CREDENTIAL_CHANNELS = ['email', 'whatsapp', 'telegram'] as const;
+export type CredentialChannel = (typeof CREDENTIAL_CHANNELS)[number];
+
+/** Where each channel resolves, and when it is absent. Rendered as a hint. */
+export const CREDENTIAL_CHANNEL_LABELS: Record<CredentialChannel, string> = {
+    email: 'Email',
+    whatsapp: 'WhatsApp',
+    telegram: 'Telegram',
+};
+
+/**
+ * The body both credential-recovery routes take. **Strict** — an extra key is a
+ * `400`, not a silently ignored one.
+ *
+ * ⚠ **There is deliberately no destination field.** The address is read from the
+ * party's own record and never accepted from the caller: an operator who could
+ * type an address could mail a working credential for somebody else's account to
+ * themselves, and no permission short of withholding the endpoint would stop it.
+ */
+export interface CredentialLinkBody {
+    channel: CredentialChannel;
+    /**
+     * Required, trimmed, 3–500. This is an administrator acting on somebody
+     * else's ability to sign in, without their asking — the audit row needs a
+     * why, and the person may later need to be told one.
+     */
+    reason: string;
+}
+
+/**
+ * What a successful send reports.
+ *
+ * **It sends; it does not disclose.** There is no token, no link and no
+ * unmasked destination anywhere in this shape, by design.
+ */
+export interface CredentialLinkResult {
+    /** `password_reset` or `login`. */
+    kind: string;
+    channel: CredentialChannel | (string & {});
+    /**
+     * `+2376••••4417` · `j••••t@example.com` · `@handle` — enough to confirm it
+     * went to the right person, not enough to retype.
+     */
+    destinationMasked: string;
+    /** When the credential stops working: 30 min for a reset, 10 for a sign-in link. */
+    expiresAt: string;
+    sentAt: string;
+}
+
 /**
  * `GET /users/:userId/activity` query parameters.
  *
@@ -296,13 +356,28 @@ export const USER_MAX_RANGE_DAYS = 366;
  * incoming row naming a fourth action still renders, because nothing here
  * switches on `action`.
  */
-export const USER_AUDIT_ACTIONS = ['users.update', 'users.suspend', 'users.reinstate'] as const;
+export const USER_AUDIT_ACTIONS = [
+    'users.update',
+    'users.suspend',
+    'users.reinstate',
+    'users.password_reset_link.send',
+    'users.login_link.send',
+] as const;
 
-/** How the three read to a person. Falls back to the raw name for anything new. */
+/**
+ * How the five read to a person. Falls back to the raw name for anything new.
+ *
+ * ⚠ The two sends are flagged **sensitive** server-side and record the channel
+ * and the reason — **never the token, the link, or the full address**. The trail
+ * is read by more people than performed the action, and a link in it would be a
+ * live credential sitting in a feed. Nothing here should imply otherwise.
+ */
 export const USER_AUDIT_ACTION_LABELS: Record<string, string> = {
     'users.update': 'Login details changed',
     'users.suspend': 'Suspended',
     'users.reinstate': 'Reinstated',
+    'users.password_reset_link.send': 'Password-reset link sent',
+    'users.login_link.send': 'Sign-in link sent',
 };
 
 // ─── Display helpers ──────────────────────────────────────────────────────────

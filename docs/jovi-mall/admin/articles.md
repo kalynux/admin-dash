@@ -1,6 +1,75 @@
+<!-- OBSOLETE-BANNER -->
+> # 🔴 OBSOLETE — this capability moved to wi-admin
+>
+> **Everything below describes a surface that no longer exists.** It documents
+> `/api/admin/articles` and `/api/admin/article-authors` on **jovi-mall**, behind
+> `requireRole(['admin'])` on a jovi-mall `users` row. That mount, that guard and that role were
+> all deleted at Phase 5. Calling any path on this page returns **404**.
+>
+> **Where it went:** the blog editor is now **this dashboard's own backend**, as
+> **14 routes** under `POST|GET|PATCH|DELETE /api/v1/content/articles*` and
+> `/api/v1/content/authors*`.
+>
+> | Read instead | |
+> |---|---|
+> | The live contract | [`../../admin/api/content.md`](../../admin/api/content.md) |
+> | Every route and permission | [`../../ROUTE-MAP.md`](../../ROUTE-MAP.md) § `/content` |
+> | Why it moved | [`../../MIGRATION-2026-08.md`](../../MIGRATION-2026-08.md) |
+>
+> ## 🔴 The sentence that used to be here was never true — and it cost a module
+>
+> It read:
+>
+> > *Two things change beyond the base path: articles and authors are keyed by
+> > **`articleKey` / `authorKey`, not by id**, and the permissions are … none of which this
+> > dashboard's `src/types/permissions.types.ts` currently treats as routed.*
+>
+> **Both halves were wrong, and the first half was never right at any point.**
+>
+> **1 · Nothing on this surface was ever called a key on the wire.** Look at the route table
+> below — it says `/api/admin/articles/:id`, and the payload it documents says `id`. The
+> backend confirmed it at BR-014 by reading the deleted original: the "keys instead of ids"
+> note described a payload change that **never happened**. The only rename that ever occurred
+> was to the *path parameter* (`:id` → `:articleKey`), it went the opposite way to what the
+> sentence implied, and it has since been **undone**.
+>
+> **2 · All seven `content.*` permissions are routed** and have been since Phase 5 Part A.
+>
+> **What is actually true beyond the base path and the permissions: nothing.** The payload
+> fields are `id` and `authorId` — the same names this page already uses — and the path
+> parameters are `:articleId` / `:authorId`, carrying the same stable string
+> (`getting-paid-on-whatsapp`) this page calls `:id`.
+>
+> ⚠ **Read that sentence as a warning about this whole folder.** It was believed, the
+> `/content` module was typed from it, and every test written alongside agreed — because a
+> test written from the same misreading as the code cannot catch the misreading. The live
+> contract is [`../../admin/api/content.md`](../../admin/api/content.md), which now carries
+> the field tables this page's absence of them made necessary. **Trust that page, not this
+> one.**
+>
+> The permissions are `content.articles.{read,write,publish,delete}` /
+> `content.authors.{read,write,delete}`.
+>
+> The **public** blog read (`GET /api/public/articles*`) stayed in jovi-mall and is untouched.
+>
+> *Kept rather than deleted so the next reader finds the redirect instead of re-deriving it.
+> Marked 2026-08-24.*
+<!-- /OBSOLETE-BANNER -->
+
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call jovi-mall.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> Field names here are jovi-mall's **snake_case** storage casing; wi-admin's wire is **camelCase**.
+>
+> Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+<!-- /CONTEXT-BANNER -->
+
+---
+
 # Admin API — the blog editor
 
-The write side of [public/articles.md](../public/articles.md). Everything here is behind
+The write side of public/articles.md (not mirrored here — `backend/jovi-mall/api-doc/public/articles.md`). Everything here is behind
 `requireAuth` + `requireRole(['admin'])`.
 
 ```

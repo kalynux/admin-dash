@@ -105,6 +105,8 @@ const platform = {
     USER_CREDENTIAL_LINK_THROTTLED: 'Trop de liens de récupération ont été envoyés récemment.',
     USER_LOGIN_LINK_ROLE_UNSUPPORTED:
         'Les liens de connexion sont réservés aux clients. Les vendeurs, agences et livreurs accèdent à de l’argent et aux données d’autrui : envoyez plutôt un lien de réinitialisation.',
+    MESSAGING_CONNECTION_NOT_FOUND:
+        'Ce compte n’a pas connecté Telegram : il n’y a aucune conversation vers laquelle envoyer.',
     MESSAGING_DELIVERY_FAILED:
         'Le canal a accepté la demande sans la délivrer. Rien n’a été envoyé — essayez un autre canal.',
     AUTH_ACCOUNT_SUSPENDED:

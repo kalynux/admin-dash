@@ -30,9 +30,27 @@ function stubDetail(
     overrides: {
         policy?: () => Response;
         allocation?: () => Response;
+        presence?: () => Response;
     } = {},
 ) {
     return stubFetch((call) => {
+        /*
+         * Ahead of `/tracking-policy` because `includes` would not confuse them,
+         * but ahead of `/agents/:id` because it must: the geo-tracker data door
+         * mounts inside the agent path.
+         *
+         * The default is `TRACKING_DOOR_UNCONFIGURED`, which is the **normal**
+         * state of a deployment that has not opened the door — a red error here
+         * would be the wrong default for every test that is not about tracking.
+         */
+        if (call.url.includes('/tracking-presence')) {
+            return (
+                overrides.presence?.() ??
+                errorResponse(503, 'TRACKING_DOOR_UNCONFIGURED', {
+                    message: 'Live tracking is not enabled for this deployment',
+                })
+            );
+        }
         if (call.url.includes('/tracking-policy')) {
             return overrides.policy?.() ?? successResponse(trackingPolicyFixture());
         }

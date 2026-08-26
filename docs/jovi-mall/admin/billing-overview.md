@@ -1,3 +1,12 @@
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call jovi-mall.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> Field names here are jovi-mall's **snake_case** storage casing; wi-admin's wire is **camelCase**.
+>
+> Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+<!-- /CONTEXT-BANNER -->
+
 # Billing Module — Overview (Pricing Plans & Credit Wallet)
 
 The billing module monetizes vendors through **pricing plans** and meters two
@@ -7,7 +16,7 @@ template messages**) through a **credit wallet**.
 This overview explains the domain concepts and data shapes shared by all billing
 endpoints. See the companion docs for the actual requests:
 
-- [**Vendor Billing API**](../vendor/billing.md) — plans, plan purchase, current plan, credit balance/ledger, top-ups, settings (vendor role)
+- **Vendor Billing API** (not mirrored here — `backend/jovi-mall/api-doc/vendor/billing.md`) — plans, plan purchase, current plan, credit balance/ledger, top-ups, settings (vendor role)
 - [**Admin Billing API**](./billing.md) — pricing plan catalog CRUD + manual plan assignment (admin role)
 
 ---
@@ -48,7 +57,7 @@ Plans are an **admin-managed catalog** stored in the database (not hardcoded), s
 
 **All other capabilities are identical across plans** — every plan can sell physical / digital / service products, send WhatsApp notifications (metered by credits, not by plan), use Google Calendar sync, see analytics and duplicate products. Plans differ **only** by the five columns above.
 
-**Media storage limit** (`max_storage_bytes`) caps the total bytes of **product media** a vendor can store — product/variant images, product videos, and any docs/audio/archives uploaded via the file endpoints. **Digital-product assets are excluded**: they have their own fixed cap of **500 MB per asset on every plan** and never count toward this limit. The limit is admin-editable per plan (e.g. raising Business). See storage analytics on the media endpoints and `GET /vendor/plan`. **Full guide: [Vendor Media Storage](../vendor/storage.md).**
+**Media storage limit** (`max_storage_bytes`) caps the total bytes of **product media** a vendor can store — product/variant images, product videos, and any docs/audio/archives uploaded via the file endpoints. **Digital-product assets are excluded**: they have their own fixed cap of **500 MB per asset on every plan** and never count toward this limit. The limit is admin-editable per plan (e.g. raising Business). See storage analytics on the media endpoints and `GET /vendor/plan`. **Full guide: Vendor Media Storage (not mirrored here — `backend/jovi-mall/api-doc/vendor/storage.md`).**
 
 Admins can create/edit/archive plans, so prices and limits may change without a deploy. Always read the live catalog (`GET /vendor/plans`) for display rather than hardcoding.
 

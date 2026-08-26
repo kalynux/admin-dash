@@ -50,86 +50,106 @@ export const AGENCY_STATUSES = ['active', 'pending_verification', 'inactive'] as
 // ─── The policies block ───────────────────────────────────────────────────────
 
 /**
- * ⚠ **`policies` ships `snake_case`.** `agency.controller.ts:145` assigns
- * `agency.policies` whole, and `agency.read.repository.ts:118` projects the
- * sub-document whole (a considered exception on the backend's part — these are
- * commercial terms already visible to every connected vendor, so there is no
- * field that could be added to them which this surface should not see). The cost
- * is that the storage casing reaches the wire, against `README.md`'s camelCase
- * promise.
+ * The agency's own commercial terms — pricing, returns, damage and COD.
  *
- * `agencies.md` documents this only as `{ "…the agency's own commercial terms…" }`,
- * so the shape below is read from
- * `jovi-mall/src/modules/delivery/delivery-agency.model.ts:159-222`. Typed as it
- * actually ships. Recorded in `docs/dashboard/DATA-EXPOSURE-REGISTER.md`.
+ * **camelCase and field-by-field since the dashboard-request round.** It
+ * previously shipped jovi-mall's raw sub-document — four nested blocks of
+ * `snake_case` — because `agency.controller.ts` assigned `agency.policies`
+ * whole. It is now named-field mapped, and `agencies.md` documents every field.
+ * These types were pinned to the storage casing on purpose and were **meant** to
+ * break when the mapper landed; this is that break, taken.
+ *
+ * ⚠ **Read-only here, and deliberately so.** Every edit bumps `policyVersion`,
+ * which pauses every connected vendor's relationship for re-approval — an
+ * administrator changing a price on the agency's behalf would silently re-open
+ * every connection they have. `policyVersionPausedConnections` on the detail is
+ * how many are sitting in that state right now.
+ *
+ * The projection stays wide — these are terms already visible to every connected
+ * vendor, so there is no field that could be added which this surface should not
+ * see — and the **mapper** is the lock: a field added upstream reaches the read
+ * model and stops there rather than appearing on the wire uninvited.
  */
 export interface AgencyStorageBasedPricing {
+    /**
+     * ⚠ **`false` means the agency does not offer warehousing at all** —
+     * different from offering it at zero. Say so rather than printing a rate
+     * nobody agreed to.
+     */
     enabled: boolean;
-    monthly_storage_fee_per_sku: number;
-    pick_pack_fee_per_order: number;
-    local_delivery_fee: number;
-    out_of_region_delivery_fee: number;
+    monthlyStorageFeePerSku: number;
+    pickPackFeePerOrder: number;
+    localDeliveryFee: number;
+    outOfRegionDeliveryFee: number;
 }
 
 export interface AgencyPickupBasedPricing {
+    /** As above: `false` is "not offered", not "offered free". */
     enabled: boolean;
-    base_rate_first_kg: number;
-    additional_per_kg: number;
-    out_of_region_surcharge: number;
+    baseRateFirstKg: number;
+    additionalPerKg: number;
+    outOfRegionSurcharge: number;
 }
 
 export interface AgencyCodHandlingFee {
+    /** `percentage` or `fixed` — **it decides how `value` reads**. */
     type: 'percentage' | 'fixed' | (string & {});
     value: number;
 }
 
 export interface AgencyAdditionalFees {
-    cod_handling_fee: AgencyCodHandlingFee;
-    failed_delivery_fee: number;
-    rto_fee: number;
-    peak_season_surcharge?: number;
+    codHandlingFee: AgencyCodHandlingFee;
+    failedDeliveryFee: number;
+    rtoFee: number;
+    peakSeasonSurcharge?: number | null;
 }
 
 export interface AgencyPoliciesPricing {
-    storage_based: AgencyStorageBasedPricing;
-    pickup_based: AgencyPickupBasedPricing;
-    additional_fees: AgencyAdditionalFees;
+    storageBased: AgencyStorageBasedPricing;
+    pickupBased: AgencyPickupBasedPricing;
+    additionalFees: AgencyAdditionalFees;
     notes?: string | null;
 }
 
 export interface AgencyPoliciesReturns {
     payer: 'vendor' | 'agency' | 'customer' | (string & {});
-    handling_fee: number;
-    return_window_days: number;
+    handlingFee: number;
+    returnWindowDays: number;
     notes?: string | null;
 }
 
 export interface AgencyPoliciesDamage {
-    claim_deadline_days: number;
-    max_refund_per_item: number;
-    /** An admin-controlled preset, never set by the agency. Defaults to `agency`. */
+    claimDeadlineDays: number;
+    maxRefundPerItem: number;
+    /** **Administrator-controlled upstream**, not the agency's to set. */
     inspector?: 'agency' | 'vendor' | 'admin' | (string & {});
-    /** An admin-controlled preset. Defaults to 1000. */
-    investigation_fee?: number;
+    /** **Administrator-controlled upstream.** Defaults to 1000. */
+    investigationFee?: number;
     notes?: string | null;
 }
 
 export interface AgencyPoliciesCod {
     enabled: boolean;
-    max_order_amount: number | null;
+    /** ⚠ **`null` means no ceiling**, not zero — zero would block every COD order. */
+    maxOrderAmount: number | null;
 }
 
+/**
+ * ⚠ **Each inner block is independently `null`** when the agency has stored
+ * none, and `policies` itself is `null` when it has stored nothing at all.
+ */
 export interface AgencyPolicies {
-    pricing: AgencyPoliciesPricing;
-    returns: AgencyPoliciesReturns;
-    damage: AgencyPoliciesDamage;
-    cod: AgencyPoliciesCod;
+    pricing: AgencyPoliciesPricing | null;
+    returns: AgencyPoliciesReturns | null;
+    damage: AgencyPoliciesDamage | null;
+    cod: AgencyPoliciesCod | null;
     /**
      * Up to two URLs to off-platform term sheets, for terms the blocks above do
      * not cover.
      *
      * **Rendered as links and never fetched.** This dashboard resolves no file
-     * URLs anywhere (ADR-008 D-6) and these point outside the platform.
+     * URLs anywhere (ADR-008 D-6) and these point outside the platform
+     * entirely — wi-admin never fetches or previews them either.
      */
     documents?: string[];
 }
@@ -210,6 +230,17 @@ export interface AgencyDetail extends Agency {
     policies: AgencyPolicies | null;
     /** Bumping it pauses every vendor connection for re-approval. */
     policyVersion: number;
+    /**
+     * How many vendor connections are sitting in `paused_reapproval` **right
+     * now**.
+     *
+     * New in the dashboard-request round: `policyVersion` is the field with the
+     * largest blast radius on this screen and there was previously no way to see
+     * the consequence. The vendor side has carried
+     * `counts.agencyConnections.pausedReapproval` all along — the two count the
+     * same collection from opposite ends.
+     */
+    policyVersionPausedConnections: number;
     timezone: string | null;
     preferredLanguage: string | null;
 }
@@ -308,6 +339,26 @@ export interface AgencyActivityQuery {
  * column of empty strings. Contrast `deactivate`, where the reason *is* the record.
  */
 export type VerifyAgencyBody = Record<string, never>;
+
+/**
+ * `POST /agencies/:agencyId/reject` — the other half of the verification review.
+ *
+ * ⚠ **The reason is FORWARDED to jovi-mall and stored on the agency**, unlike
+ * the deactivation reason below, which is audit-only. The distinction is who
+ * reads it: a deactivation reason is for an administrator reviewing the decision
+ * later, and a rejection reason is for the **agency**, who has to know what to
+ * fix and cannot read this database. So the dialog must say the agency will see
+ * it — the opposite of what `DeactivateAgencyBody` requires.
+ *
+ * ⚠ **Rejecting changes no status.** jovi-mall leaves the agency at
+ * `pending_verification`; it is not deactivated and no cascade runs. And there
+ * is deliberately **no un-reject** — the agency is still pending, so
+ * `POST /verify` accepts them once they fix what the reason named.
+ */
+export interface RejectAgencyBody {
+    /** Required. 3–500 characters. Shown to the agency. */
+    reason: string;
+}
 
 /**
  * `POST /agencies/:agencyId/deactivate`.

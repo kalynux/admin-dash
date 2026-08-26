@@ -241,8 +241,66 @@ export interface VendorAddress {
 }
 
 /**
- * **Presence, not content.** About thirty fields of the vendor's own commercial
- * terms exist; the question a detail screen asks is "have they set this up".
+ * The vendor's returns terms. `null` when they have stored none.
+ *
+ * ⚠ **`inspector` is administrator-controlled upstream, never vendor input** —
+ * it names who adjudicates a claim, not a term the vendor set. The same field,
+ * with the same caveat, is on an agency's `damage` block.
+ */
+export interface VendorReturnsPolicy {
+    returnEligible: boolean;
+    returnWindowDays: number | null;
+    /** `full` · `partial` · … — jovi-mall's vocabulary, left open. */
+    refundType: string | null;
+    /** Meaningful when `refundType` is `partial`. */
+    refundPercentage: number | null;
+    returnShippingPayer: string | null;
+    refundProcessingDays: number | null;
+    returnConditionNotes: string | null;
+    /** **Not the vendor's to set.** See the note on this interface. */
+    inspector: string | null;
+}
+
+/** The vendor's cancellation terms. `null` when they have stored none. */
+export interface VendorCancellationPolicy {
+    cancellable: boolean;
+    /** e.g. `before_dispatch`. Decides whether `cancellationDeadlineDays` is meaningful. */
+    cancellationDeadline: string | null;
+    cancellationDeadlineDays: number | null;
+    /** `percentage` · `fixed` — **it decides how `cancellationFeeValue` reads**. */
+    cancellationFeeType: string | null;
+    cancellationFeeValue: number | null;
+    lateCancellationRefundType: string | null;
+    lateCancellationRefundValue: number | null;
+}
+
+export interface VendorSupportChannel {
+    /** `whatsapp` · `email` · `phone` · … — open. */
+    type: string;
+    contact: string;
+}
+
+/** The vendor's support terms. `null` when they have stored none. */
+export interface VendorSupportPolicy {
+    channels: VendorSupportChannel[];
+    eligibilityNotes: string | null;
+    /** Keys like `order_number`, `product_photo_video`. Open vocabulary. */
+    requiredInfo: string[];
+    /** e.g. `business_hours`, `24_7`. */
+    availability: string | null;
+    availabilityDescription: string | null;
+    /** ISO-639-1 codes. */
+    languages: string[];
+}
+
+/**
+ * The vendor's own commercial terms.
+ *
+ * ⚠ **Content as well as presence, since the dashboard-request round** —
+ * announced as breaking change (3), which was additive. The three booleans
+ * remain and are now **derived from the content** rather than being the only
+ * thing available; `returns`, `cancellation` and `support` carry the terms
+ * themselves, each `null` when the vendor has stored none.
  *
  * Editing them is deliberately not offered: writing `policies` bumps
  * `policyVersion`, which pauses every agency connection pending reapproval, and
@@ -250,9 +308,21 @@ export interface VendorAddress {
  */
 export interface VendorPolicies {
     policyVersion: number;
+    /** Derived from `returns` since the dashboard-request round. */
     hasReturnPolicy: boolean;
+    /** Derived from `cancellation`. */
     hasCancellationPolicy: boolean;
+    /** Derived from `support`. */
     hasSupportPolicy: boolean;
+    returns: VendorReturnsPolicy | null;
+    cancellation: VendorCancellationPolicy | null;
+    support: VendorSupportPolicy | null;
+    /**
+     * Links to off-platform term sheets, for terms the blocks above do not
+     * cover. **Rendered as links and never fetched** — this service resolves no
+     * file URLs and these point outside the platform.
+     */
+    documents?: string[];
 }
 
 /**
@@ -372,7 +442,30 @@ export interface VendorProduct {
     mode: ProductMode;
     hasVariants: boolean;
     suspension: ProductSuspension | null;
-    deliveryAgencyId: string | null;
+    /**
+     * ⚠ **Replaces `deliveryAgencyId`** — a breaking rename from the
+     * dashboard-request round. The old key is gone.
+     *
+     * An object rather than an id for two reasons: it removes an N+1 (a client
+     * resolving the name itself makes one request per distinct agency, in every
+     * client ever built), and it removes a permission question — the catalogue
+     * tab requires `vendors.read` alone, so a caller without `agencies.read`
+     * could not resolve the name at all.
+     *
+     * Resolved as the product's own override, else the vendor's default.
+     *
+     * ⚠ **`null` means neither the product nor the vendor names an agency.** A
+     * real and diagnostic state: a *physical* product in that condition cannot
+     * be activated.
+     */
+    deliveryAgency: {
+        id: string;
+        /**
+         * The Magazin's name. **`null` where it has none** — never `""`, and
+         * never the agency's `display_name`, which is a contact *person*.
+         */
+        businessName: string | null;
+    } | null;
     lastOrderedAt: string | null;
     createdAt: string;
     updatedAt: string;
