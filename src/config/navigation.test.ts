@@ -651,3 +651,60 @@ describe('the platform modules', () => {
         }
     });
 });
+
+describe('the media module', () => {
+    const media = NAV_ITEMS.find((entry) => entry.id === 'media') as NavItem;
+
+    it('exists as a module of its own rather than a child of System', () => {
+        /**
+         * The orphan listing lived at `/dashboard/system/files` until 2026-08-26,
+         * because there was nothing for it to sit beside — *"`files.resolve`
+         * answers ids a caller already holds, and there is deliberately no listing
+         * route beyond orphans."* BR-015 built that listing, so one module now
+         * holds every file on the platform and one child holds the subset nothing
+         * points at.
+         */
+        expect(media).toBeDefined();
+        expect(media.children?.map((entry) => entry.id)).toEqual([
+            'media-library',
+            'media-orphans',
+        ]);
+    });
+
+    it('leaves no entry pointing at the path the orphan screen used to have', () => {
+        // A stale path would still match the nav prefix and then render a 404,
+        // which is worse than not linking at all.
+        expect(NAV_ENTRIES.some((entry) => entry.path === '/dashboard/system/files')).toBe(false);
+    });
+
+    it('shows Support no part of it', () => {
+        /**
+         * ⚠ **All four `files.*` names behind this module stop at tier 2 or tier
+         * 1**, and the reasoning is the mount's own: a listing needs its own
+         * permission and its own tier, because "the caller already holds the id"
+         * is what makes `files.resolve` safe for everyone and it does not survive
+         * enumeration.
+         */
+        expect(permittedChildren(media, heldFixture(3))).toHaveLength(0);
+        expect(isNavEntryPermitted(media, heldFixture(3))).toBe(false);
+    });
+
+    it('gives an Admin both children — the delete inside is what tier 1 keeps', () => {
+        // `files.library.read` and `files.orphans.read` are both tiers 1–2;
+        // `files.delete` is tier 1 only and gates the affordance, not the entry.
+        // Gating the orphan entry on `all` would hide the listing from the tier
+        // that may read it.
+        expect(permittedChildren(media, heldFixture(2)).map((entry) => entry.id)).toEqual([
+            'media-library',
+            'media-orphans',
+        ]);
+    });
+
+    it('lands a caller who holds only the delete on the orphan child', () => {
+        expect(firstPermittedChild(media, new Set(['files.delete']))?.id).toBe('media-orphans');
+    });
+
+    it('has no index child, so nobody is landed on a screen that would refuse', () => {
+        expect(media.children?.some((entry) => entry.index)).toBeFalsy();
+    });
+});

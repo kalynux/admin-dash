@@ -206,6 +206,15 @@ export function NotificationPreferences() {
                             >
                                 <div className="min-w-0 flex-1 space-y-1">
                                     <p className="text-sm font-medium">{preference.summary}</p>
+                                    {/*
+                                      Mono because it is machine vocabulary, not
+                                      because it is a value: `type` is the same
+                                      closed string the inbox offers as a filter
+                                      option, and it names a *kind* of
+                                      notification rather than identifying any
+                                      row. Nothing downstream takes it as input,
+                                      so it stays plain text.
+                                    */}
                                     <p className="text-muted-foreground font-mono text-xs">
                                         {preference.type}
                                     </p>

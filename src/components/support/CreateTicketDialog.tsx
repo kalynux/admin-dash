@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Paperclip, Plus, Trash2 } from 'lucide-react';
+import { Images, Paperclip, Plus, Trash2 } from 'lucide-react';
 
 import { AuthFormError } from '@/components/auth/AuthFormError';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { InlineLoader } from '@/components/common/Loading';
+import { MediaPickerDialog } from '@/components/files/MediaPickerDialog';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -94,6 +96,7 @@ export function CreateTicketDialog({
     const [trackingNumber, setTrackingNumber] = useState('');
     const [attachments, setAttachments] = useState<string[]>([]);
     const [attachmentDraft, setAttachmentDraft] = useState('');
+    const [pickerOpen, setPickerOpen] = useState(false);
 
     const [busy, setBusy] = useState(false);
     const [formError, setFormError] = useState<unknown>(null);
@@ -277,8 +280,17 @@ export function CreateTicketDialog({
                     <div className="space-y-2">
                         <Label htmlFor="ticket-attachment">Attachments (optional)</Label>
                         <p className="text-muted-foreground text-xs">
-                            File ids, not uploads — no route on this service accepts a file body.
-                            Upload against the platform first. {TICKET_ATTACHMENT_MAX} at most.
+                            {/*
+                              🔴 This said *"no route on this service accepts a file
+                              body"*, which was the contract until BR-015 landed
+                              `POST /files/upload` on 2026-08-26. The attachment is
+                              still made **by file id** — that part never changed —
+                              but the id can now be produced here rather than
+                              having to come from somewhere else.
+                            */}
+                            File ids, not the files themselves. Browse the administration&rsquo;s
+                            own uploads or upload one, or paste an id you were given.{' '}
+                            {TICKET_ATTACHMENT_MAX} at most.
                         </p>
                         <div className="flex gap-2">
                             <Input
@@ -291,6 +303,22 @@ export function CreateTicketDialog({
                                 spellCheck={false}
                                 disabled={attachments.length >= TICKET_ATTACHMENT_MAX}
                             />
+                            {/*
+                              ⚠ Fills the draft field rather than attaching, so the
+                              id is checked against the list's ceiling and its
+                              duplicate rule by the one button that owns them.
+                              ⚠ No `requirePublicUrl`: a ticket attachment is a
+                              `fileId`, so a private-tree file is perfectly usable.
+                            */}
+                            <Button
+                                type="button"
+                                variant="outline"
+                                disabled={attachments.length >= TICKET_ATTACHMENT_MAX}
+                                onClick={() => setPickerOpen(true)}
+                            >
+                                <Images className="size-4" />
+                                Browse
+                            </Button>
                             <Button
                                 type="button"
                                 variant="outline"
@@ -311,6 +339,13 @@ export function CreateTicketDialog({
                                 Attach
                             </Button>
                         </div>
+                        <MediaPickerDialog
+                            open={pickerOpen}
+                            onOpenChange={setPickerOpen}
+                            title="Choose a file to attach"
+                            imagesOnly={false}
+                            onSelect={(file) => setAttachmentDraft(file.id)}
+                        />
                         {attachmentDraft.length > 0 && !OBJECT_ID.test(attachmentDraft.trim()) ? (
                             <p className="text-destructive text-xs">
                                 A file id is 24 hexadecimal characters.
@@ -323,7 +358,28 @@ export function CreateTicketDialog({
                                         key={id}
                                         className="flex items-center justify-between gap-2 rounded border px-2 py-1"
                                     >
-                                        <span className="font-mono text-xs">{id}</span>
+                                        {/*
+                                          A staged attachment is a *render*, not
+                                          an input — the field above is the input,
+                                          and this row is the 24-hex file id as
+                                          committed. It is the one value on this
+                                          form an operator has a reason to take
+                                          back out: checking a file id against the
+                                          files screen is how they confirm they
+                                          attached the right thing.
+
+                                          ⚠ `truncate={false}` although it is a
+                                          real ObjectId. Shortening the middle is
+                                          right where an id merely labels a row;
+                                          here the whole point of the row is to
+                                          show what was pasted, and hiding twelve
+                                          characters of it defeats the check.
+                                        */}
+                                        <CopyableValue
+                                            value={id}
+                                            label="file ID"
+                                            truncate={false}
+                                        />
                                         <Button
                                             type="button"
                                             variant="ghost"

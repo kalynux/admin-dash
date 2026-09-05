@@ -64,6 +64,10 @@ function MetricFamilyBlock({ family }: { family: MetricFamily }) {
  * - **`mongo_operation_errors_total` counts connection-level errors only.** Query errors are
  *   thrown to their caller and never reach it. A zero there does not mean no query failed.
  *
+ * ⚠ **No copy affordances anywhere on it**, following directly from that: an instrument name and
+ * a label set are the dump, and the labels are bounded by an allowlist that admits *no* id — no
+ * user, vendor or order — by construction. There is nothing on this page that identifies a record.
+ *
  * Guarded by `system.metrics.read` rather than `system.health.read`, and that is not an
  * accident: this carries per-route request volumes — order rate, payment rate — which is
  * business information. Somebody who should see whether Redis is up does not automatically need

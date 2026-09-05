@@ -50,6 +50,13 @@ import {
  * `details.platformCode` — and only that is guaranteed to survive the error scrub,
  * so every branch reading `details.status` or `details.rules` degrades when it is
  * absent.
+ *
+ * ── ⚠ No copy affordances in here, deliberately ───────────────────────────────
+ * Both dialogs are forms. The two mono renders are `<Input className="font-mono">`
+ * — an agent id being *typed*, not displayed — and the titles come from
+ * `shipmentDisplayName()`, which is a heading naming the record, not a value on
+ * offer. The shipment's tracking number is copyable from the overview card it is
+ * a field of; a dialog title is not a second place to take it from.
  */
 
 const REASON_MIN = 3;

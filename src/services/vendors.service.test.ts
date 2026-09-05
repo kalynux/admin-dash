@@ -4,7 +4,9 @@ import {
     approveVendorKyc,
     countVendors,
     getVendor,
+    getVendorProduct,
     listVendorActivity,
+    listVendorAgencyConnections,
     listVendorProducts,
     listVendors,
     rejectVendorKyc,
@@ -18,9 +20,11 @@ import {
     auditEntryFixture,
     auditMetaFixture,
     platformVendorFixture,
+    vendorAgencyConnectionFixture,
     vendorDetailFixture,
     vendorFixture,
     vendorListMetaFixture,
+    vendorProductDetailFixture,
     vendorProductFixture,
 } from '@/test/fixtures';
 import { errorResponse, stubFetch, successResponse, type FetchCall } from '@/test/utils';
@@ -28,6 +32,7 @@ import { ApiError } from '@/types/api.types';
 
 const VENDOR_ID = '6650aa11bb22cc33dd44ee55';
 const PRODUCT_ID = '66601122334455667788990a';
+const AGENCY_ID = '665c0011223344556677889a';
 
 const url = (call: FetchCall) => new URL(call.url, 'http://localhost');
 
@@ -131,6 +136,101 @@ describe('the reads', () => {
         const page = await listVendorProducts(VENDOR_ID);
 
         expect(page.meta).toEqual({ total: 153, page: 1, limit: 20, pages: 8 });
+    });
+
+    /**
+     * BR-018's drill-down. It is the reason the count on a connection row is a
+     * control rather than a printed number: `meta.total` on this filtered page
+     * and `productCount` on the matching row are the same figure, computed from
+     * one shared rule, so the number is verifiable rather than merely displayed.
+     */
+    it('sends deliveryAgencyId as the catalogue drill-down', async () => {
+        const calls = stubFetch(() =>
+            successResponse([vendorProductFixture()], {
+                meta: { total: 42, page: 1, limit: 20, pages: 3 },
+            }),
+        );
+
+        await listVendorProducts(VENDOR_ID, { deliveryAgencyId: AGENCY_ID });
+
+        expect(url(calls[0]).searchParams.get('deliveryAgencyId')).toBe(AGENCY_ID);
+    });
+
+    it('gets one listing, scoped by both ids', async () => {
+        const calls = stubFetch(() => successResponse(vendorProductDetailFixture()));
+
+        const product = await getVendorProduct(VENDOR_ID, PRODUCT_ID);
+
+        expect(url(calls[0]).pathname).toBe(
+            `/api/v1/vendors/${VENDOR_ID}/products/${PRODUCT_ID}`,
+        );
+        expect(product.media.images).toHaveLength(1);
+        expect(product.deliveryAgency?.businessName).toBe('Littoral Express Delivery');
+    });
+
+    /**
+     * ⚠ This is the **one delegated read** on the vendor surface, so "no such
+     * vendor" and "not this vendor's product" do not arrive as `NOT_FOUND` — they
+     * arrive as `PLATFORM_OPERATION_REJECTED` with jovi-mall's own code in
+     * `details.platformCode`, which is the only handle on which of the two it was.
+     *
+     * The status is still 404, so an ordinary "no such record" branch keeps
+     * working; anything wanting to tell them apart must read `platformCode`.
+     */
+    it('surfaces the platform code on a missing listing rather than a bare 404', async () => {
+        stubFetch(() =>
+            errorResponse(404, 'PLATFORM_OPERATION_REJECTED', {
+                message: 'Product not found',
+                details: { platformCode: 'CATALOG_PRODUCT_NOT_FOUND' },
+            }),
+        );
+
+        const error = await getVendorProduct(VENDOR_ID, PRODUCT_ID).catch((caught) => caught);
+
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).isNotFound).toBe(true);
+        expect((error as ApiError).platformCode).toBe('CATALOG_PRODUCT_NOT_FOUND');
+    });
+
+    it('pages the delivery-agency connections and coerces their meta', async () => {
+        const calls = stubFetch(() =>
+            successResponse([vendorAgencyConnectionFixture()], {
+                meta: { total: '9', page: '1', limit: '20', pages: '1' },
+            }),
+        );
+
+        const page = await listVendorAgencyConnections(VENDOR_ID);
+
+        expect(url(calls[0]).pathname).toBe(`/api/v1/vendors/${VENDOR_ID}/agencies`);
+        expect(page.meta).toEqual({ total: 9, page: 1, limit: 20, pages: 1 });
+        expect(page.data[0].agency?.businessName).toBe('Littoral Express Delivery');
+    });
+
+    /**
+     * ⚠ The vocabulary is jovi-mall's and the service validates `?status=` for
+     * **shape, not membership** — so a token this client has never heard of is
+     * passed through unchanged rather than being narrowed against a pinned copy.
+     * A copy here would make a seventh status silently unfilterable.
+     */
+    it('passes an unrecognised connection status through unchanged', async () => {
+        const calls = stubFetch(() =>
+            successResponse([], { meta: { total: 0, page: 1, limit: 20, pages: 0 } }),
+        );
+
+        await listVendorAgencyConnections(VENDOR_ID, { status: 'a_seventh_status' });
+
+        expect(url(calls[0]).searchParams.get('status')).toBe('a_seventh_status');
+    });
+
+    /** A blank `status` is a 400, so `buildQuery` drops it before it is sent. */
+    it('drops a blank connection status rather than sending one', async () => {
+        const calls = stubFetch(() =>
+            successResponse([], { meta: { total: 0, page: 1, limit: 20, pages: 0 } }),
+        );
+
+        await listVendorAgencyConnections(VENDOR_ID, { status: '' });
+
+        expect(url(calls[0]).searchParams.has('status')).toBe(false);
     });
 
     /**

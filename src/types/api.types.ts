@@ -337,13 +337,20 @@ export const CLIENT_CODE_PREFIX = 'CLIENT_';
 /**
  * Every code wi-admin can put in `error.code` and a client can actually see.
  *
- * Read from **two** registries, because they disagree:
- * `docs/admin/api/errors.md` publishes 73 rows, and
- * `docs/admin/error-codes.ts` — a verbatim copy of the backend's own source —
- * declares **82**. The sixteen `errors.md` omits are the ones that landed with
- * the modules it was never updated for (all ten `BLOG_*`, both `TICKET_*`,
- * `FILE_DELETE_NOT_CONFIRMED`, the three `TRACKING_DOOR_*`), and they are
- * included here because the service genuinely raises them.
+ * Read from **two** registries, because they have disagreed in both directions
+ * and the guard is what keeps them honest: `docs/admin/api/errors.md` publishes
+ * **92** distinct codes, and `docs/admin/error-codes.ts` — a copy of the
+ * backend's own source — declares **83**. Seven of the nine in the doc alone are
+ * jovi-mall's verdicts, which wi-admin's registry correctly never declares.
+ *
+ * ⚠ **The other two are `FILE_UPLOAD_NOT_MULTIPART` and `FILE_UPLOAD_TOO_LARGE`,
+ * and there the mirror is simply stale.** `backend/admin/src/core/errors/
+ * error-codes.ts` declares 85 and names both; the copy under `docs/admin/` was
+ * not re-taken when `errors.md` grew the rows at the 2026-08-26 resync. They are
+ * included here on the doc's authority and on the backend source's, which agree.
+ * Historically the gap ran the other way — `errors.md` once omitted sixteen
+ * codes the service genuinely raised — which is why the test anchors to the
+ * **union** rather than to either file.
  *
  * Twenty-two of the documented rows are excluded, and the exclusions are the
  * interesting part:
@@ -439,6 +446,25 @@ export const KNOWN_ERROR_CODES = [
     // Files
     'FILE_NOT_FOUND',
     'FILE_DELETE_NOT_CONFIRMED',
+    // ⚠ Not a `VALIDATION_ERROR`, and it could not be: `POST /files/upload` is a
+    // stream proxy and this service never *parses* the multipart body
+    // (ADR-021 D-2), so there is no parsed body for a schema to reject and no
+    // field path to report. What is checkable without parsing is the
+    // `Content-Type`, and 415 rather than 400 keeps "wrong content type" apart
+    // from "malformed body" — different fixes. `details.fieldName` names the
+    // multipart field to use (`files`) and `details.received` echoes what was
+    // sent, so the copy can stay short and the detail can carry the specifics.
+    'FILE_UPLOAD_NOT_MULTIPART',
+    // ⚠ **wi-admin's own ceiling, not jovi-mall's.** `ADMIN_UPLOAD_MAX_BYTES`
+    // (32 MiB by default, the whole request body) is refused *before* the hop so
+    // a doomed body is never streamed across it; jovi-mall's figure for an
+    // administrator is 2 GB and is irrelevant here. Enforced twice — on
+    // `Content-Length` when one is sent, and on the bytes as they flow when it
+    // is not, because a chunked upload declares no length and a ceiling that
+    // only reads a header is one any client can opt out of. Render
+    // `details.maxBytes` rather than restating the constant: it is deployment
+    // configuration and it may drift.
+    'FILE_UPLOAD_TOO_LARGE',
     // ⚠ A CONFIGURATION state, not an outage, and the two must stay
     // distinguishable — that is the whole reason it is its own code rather than
     // a `SERVICE_DEPENDENCY_UNAVAILABLE`. jovi-mall implements the byte-reading

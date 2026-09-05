@@ -47,6 +47,26 @@ describe('the directory', () => {
         expect(screen.getByText('sam@wimall.cm')).toBeInTheDocument();
     });
 
+    /**
+     * The address on this cell was retyped off the screen until the A2 sweep.
+     *
+     * Two properties, and the second is the one a refactor breaks quietly: the
+     * copy control names its subject — a row carries several of these and
+     * "Copy" would name them all alike — and the address is rendered **whole**,
+     * because `CopyableValue` refuses to shorten anything but an id.
+     */
+    it('offers the email as a copyable value, in full', async () => {
+        stubList();
+        renderList();
+
+        await screen.findByRole('link', { name: /samuel etoo/i });
+
+        expect(
+            screen.getByRole('button', { name: 'Copy administrator email' }),
+        ).toBeInTheDocument();
+        expect(screen.getByText('sam@wimall.cm')).toHaveAttribute('title', 'sam@wimall.cm');
+    });
+
     it('marks the caller’s own row', async () => {
         stubList([administratorFixture({ id: ME }), administratorFixture({ id: 'b'.repeat(24) })]);
         renderList();

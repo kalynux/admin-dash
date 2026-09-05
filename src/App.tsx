@@ -44,7 +44,8 @@ import { CatalogueTools } from '@/pages/dev-tools/CatalogueTools';
 import { DatabaseInspector } from '@/pages/dev-tools/DatabaseInspector';
 import { DevToolsConfig } from '@/pages/dev-tools/DevToolsConfig';
 import { FeatureFlags } from '@/pages/dev-tools/FeatureFlags';
-import { FileAdministration } from '@/pages/dev-tools/FileAdministration';
+import { MediaLibrary } from '@/pages/media/MediaLibrary';
+import { OrphanFiles } from '@/pages/media/OrphanFiles';
 import { OutboxTools } from '@/pages/dev-tools/OutboxTools';
 import { PlatformLogs } from '@/pages/dev-tools/PlatformLogs';
 import { PermissionsModule } from '@/pages/permissions/PermissionsModule';
@@ -207,12 +208,22 @@ const SCREENS: Record<string, ReactNode> = {
      */
     'system-health': <SystemHealth />,
     'system-workers': <SystemWorkers />,
-    'system-files': <FileAdministration />,
     'system-outbox': <SystemQueues />,
     'system-integrations': <SystemIntegrations />,
     'system-metrics': <SystemMetrics />,
     'system-maintenance': <SystemMaintenance />,
     'system-errors': <SystemErrors />,
+
+    /**
+     * The Media module, keyed by child id like System and Money — its two
+     * children are separately granted permissions and neither is an index.
+     *
+     * ⚠ **`media-orphans` was `system-files` until 2026-08-26.** The screen is
+     * the same one; only its module moved, because BR-015 finally gave it a
+     * sibling. Nothing linked to the old path but the nav entry itself.
+     */
+    'media-library': <MediaLibrary />,
+    'media-orphans': <OrphanFiles />,
     /**
      * Developer tools, keyed by child id like System.
      *

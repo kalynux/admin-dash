@@ -32,7 +32,13 @@ export function AuthLayout({ title, description, children, footer }: AuthLayoutP
 
             {/* The base URL is the first thing to check when nothing connects, and
                 the CORS allowlist is exact-match — so a wrong port fails opaquely.
-                Worth showing while developing, worth hiding in production. */}
+                Worth showing while developing, worth hiding in production.
+
+                Mono, and left that way by the A2 sweep: this is build
+                configuration read back for a developer, not a record's value —
+                no id, no address, nothing an operator pastes. It also never
+                renders in production, so a copy control here would be an
+                affordance no operator can ever see. */}
             {env.isDev ? (
                 <p className="text-muted-foreground text-center text-xs">
                     API: <span className="font-mono">{env.apiBaseUrl}</span>

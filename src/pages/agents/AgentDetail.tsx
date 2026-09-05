@@ -21,6 +21,7 @@ import {
     SetCodThresholdDialog,
     TransferAgentDialog,
     UnbanAgentDialog,
+    type TransferSourceAgency,
 } from '@/components/agents/AgentWriteDialogs';
 import { Can } from '@/components/auth/Can';
 import { AgentTrustPanel } from '@/components/cod/AgentTrustPanel';
@@ -119,7 +120,15 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
     const [adjustingTrust, setAdjustingTrust] = useState(false);
     const [banning, setBanning] = useState(false);
     const [unbanning, setUnbanning] = useState(false);
-    const [transferFrom, setTransferFrom] = useState<string | null>(null);
+    /**
+     * The agency a transfer was started from — the whole row's agency, not its id.
+     *
+     * ⚠ The dialog's "Leaving" field is read-only and has to be *recognisable*,
+     * and the roster row already holds the name. Carrying the id alone meant the
+     * dialog either rendered a bare 24-hex string or had to go and resolve one,
+     * and resolving needs `agencies.read`, which `agents.transfer` does not imply.
+     */
+    const [transferFrom, setTransferFrom] = useState<TransferSourceAgency | null>(null);
     const [reloadToken, setReloadToken] = useState(0);
 
     const agent = useAsyncData(`/agents/${agentId}`, (signal) => getAgent(agentId, { signal }));
@@ -218,7 +227,14 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
                     <TabsTrigger value="operational">Operational</TabsTrigger>
                     <TabsTrigger value="tracking">Tracking</TabsTrigger>
                     <TabsTrigger value="cod">Cash</TabsTrigger>
-                    {canSeeContracts ? <TabsTrigger value="agencies">Agencies</TabsTrigger> : null}
+                    {/*
+                      ⚠ The label is "Roster"; the tab **value** stays `agencies`.
+                      It is not in the URL — the detail's tab state is local — so
+                      renaming it would churn the tests that select on it and
+                      change nothing an operator can see. The word that matters is
+                      the one on the trigger.
+                    */}
+                    {canSeeContracts ? <TabsTrigger value="agencies">Roster</TabsTrigger> : null}
                     {canSeeAccount ? <TabsTrigger value="account">Account</TabsTrigger> : null}
                     {canSeeActivity ? <TabsTrigger value="activity">Activity</TabsTrigger> : null}
                 </TabsList>
@@ -391,7 +407,7 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
             {transferFrom ? (
                 <TransferAgentDialog
                     agent={record}
-                    fromAgencyId={transferFrom}
+                    fromAgency={transferFrom}
                     open
                     onOpenChange={(next) => setTransferFrom(next ? transferFrom : null)}
                     onDone={reconcile}

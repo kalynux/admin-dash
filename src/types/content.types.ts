@@ -46,7 +46,7 @@
  * moving to `translations[].coverAlt` on the very next re-copy, before any of it
  * reached a screen.
  *
- * Four **byte-identical copies** of backend source now carry the contract, on the
+ * Five **byte-identical copies** of backend source now carry the contract, on the
  * precedent `error-codes.ts` set. `content-blocks.test.ts` and
  * `content-contract.test.ts` parse them and diff them against the declarations
  * below, so a re-copy that moves the contract fails the build rather than
@@ -59,6 +59,7 @@
  * | [`content-domain.ts`](../../docs/admin/content-domain.ts) | `content/domain/content.types.ts` | Locales, categories, author types, reserved slugs |
  * | [`content-dto.ts`](../../docs/admin/content-dto.ts) | `content/read-models/article.dto.ts` | **Every response shape** |
  * | [`content-validators.ts`](../../docs/admin/content-validators.ts) | `content/validators/article.validator.ts` | Every request shape, query and limit |
+ * | [`public-article-dto.ts`](../../docs/admin/public-article-dto.ts) | `content/read-models/public-article.dto.ts` | **The `/preview` shape** — taken 2026-08-26, BR-019 § 3 |
  *
  * ── `owned` is a third transport ──────────────────────────────────────────────
  * This family reaches neither jovi-mall over HTTP nor a wi-admin collection: it
@@ -592,6 +593,34 @@ interface ArticleBase {
     archivedAt: string | null;
     /** Derived, and **in `CONTENT_LOCALES` order** rather than storage order. */
     availableLocales: ContentLocale[];
+    /**
+     * ⚠ **The language the article was written in first — the editor's
+     * component driver. Use this, NEVER `translations[0]`.**
+     *
+     * 🔴 This repository shipped a plan built on `translations[0]` and the
+     * premise was false. `translations` comes back **in the order the last write
+     * sent it**, and `PATCH` is a full-array replace that stores what it is
+     * given: a client that sorts the array for display and sends it back
+     * **repoints a positional driver**, with a request that cannot fail. The
+     * backend measured it rather than reasoning about it — a merge of
+     * `[fr, en]` over a stored `[en, fr]` comes back `[fr, en]` — and shipped
+     * this field instead (BR-019 § 1).
+     *
+     * Set once at create from the first translation of the create body and
+     * **never written again**, so it survives a reordered `PATCH`, a `$sort`
+     * added for tidiness, and a document rewrite.
+     *
+     * ⚠ **It always names a locale that is present in `translations`**, so it
+     * can be used with `find()` and no fallback: a full-array replace may drop
+     * the source language, and the DTO falls back to the first surviving
+     * translation rather than naming an absent one. `null` only for an article
+     * with no translations at all, which the write schema does not permit.
+     *
+     * ⚠ **Not `availableLocales[0]`.** That list is canonically ordered and
+     * holds only *published* languages — it answers "which URLs exist", a
+     * different question.
+     */
+    sourceLocale: ContentLocale | null;
     /** ⚠ **Never in a public DTO.** Administrative stamps, not the byline. */
     createdBy: AdminStamp | null;
     updatedBy: AdminStamp | null;
@@ -648,6 +677,111 @@ export interface AuthorTranslation {
     title: string;
     /** 1–1000. */
     bio: string;
+}
+
+// ─── The public shape — what `/preview` returns ───────────────────────────────
+
+/**
+ * The article as a **logged-out reader** receives it.
+ *
+ * `GET /content/articles/:articleId/preview?locale=` returns this, at any
+ * status, behind the admin guard — the projection jovi-mall's public route
+ * serves, reproduced inside wi-admin so a preview needs no hop. That design is
+ * why previewing never becomes an argument for relaxing the public endpoints:
+ * a draft is invisible publicly by definition, and a preview is an
+ * authenticated read of what it would look like if it were not. **Do not ask
+ * for a flag that makes the public route serve drafts.**
+ *
+ * Source: [`docs/admin/public-article-dto.ts`](../../docs/admin/public-article-dto.ts),
+ * a byte-identical mirror of wi-admin's own `read-models/public-article.dto.ts`,
+ * taken on this repository's own rule that **a copy can be `diff`ed and a
+ * transcription cannot**. `content.md` gained a `### The public shape` section
+ * at BR-019 § 3 and names that file as the thing to mirror; the tables are for
+ * reading and the file is the contract. `content-contract.test.ts` diffs the
+ * types below against it.
+ *
+ * ⚠ **This shape is duplicated in jovi-mall**, whose public reader serves the
+ * same documents, and the two agree field for field. `test:content` reads
+ * jovi-mall's copy off disk and diffs it — because if the preview and the
+ * published page render differently, the preview is worthless.
+ *
+ * ── ⚠ Three differences from `Article`, each of which will trip a renderer ───
+ * - **`metaTitle` and `updatedAt` are OMITTED when unset, not `null`.** The
+ *   admin DTO nulls them; this one drops the key. `cover` is the exception and
+ *   is an explicit `null`, because "no cover" is a state the card renders
+ *   (generated cover art) rather than a field it skips.
+ * - **It is flattened to ONE language.** No `translations` array, no `status`,
+ *   no `previousSlugs`, no `sourceLocale`, no `lastSavedAt`.
+ * - **Neither administrative stamp is here**, by construction. `createdBy` and
+ *   `updatedBy` are staff identity and never reach a public payload.
+ */
+export interface PublicArticleCover extends ArticleCover {
+    /**
+     * ⚠ **Assembled per language** from `translations[].coverAlt` — the stored
+     * cover carries no `alt` at all.
+     *
+     * **Never empty.** An empty `alt` is the HTML for *this image is decorative,
+     * skip it*, which is a lie about a cover — so a preview of a draft with no
+     * description falls back to that language's own title. See
+     * `PublicArticleDetail` for why that fallback is only ever seen here.
+     */
+    alt: string;
+}
+
+/** The **byline**, resolved into one language. ⚠ Never an administrator. */
+export interface PublicAuthor {
+    id: AuthorKey;
+    name: string;
+    type: ArticleAuthorType;
+    /**
+     * ⚠ **Resolved into one language, and the ONE fallback in this module** — a
+     * byline with no bio in the requested language falls back to English.
+     * Article prose never falls back: serving English at a Portuguese URL
+     * publishes a page that contradicts its own `lang` attribute.
+     */
+    title: string;
+    bio: string;
+    avatarUrl: string | null;
+}
+
+/** One language of one article, as a reader gets it — without the prose. */
+export interface PublicArticleSummary {
+    /** The article's stable public id — the same value `Article.id` carries. */
+    id: ArticleKey;
+    /** The language being rendered — the one `?locale=` asked for. */
+    locale: ContentLocale;
+    /** **This language's** slug. */
+    slug: string;
+    /** Flattened from the translation, not the article. */
+    title: string;
+    /** ⚠ **Absent when unset — not `null`.** */
+    metaTitle?: string;
+    excerpt: string;
+    categoryKey: ArticleCategoryKey;
+    /** `null` if the byline was removed. */
+    author: PublicAuthor | null;
+    /**
+     * ⚠ **On a PREVIEW this can be the article's `createdAt`.** A draft has no
+     * `published_at` and the field is non-optional on the wire, so `createdAt`
+     * stands in. On the public route the branch is unreachable — the stamp is
+     * written before `status` becomes `published`. **Do not render a preview's
+     * `publishedAt` as a publication date.**
+     */
+    publishedAt: string;
+    /** ⚠ **Absent when unset — not `null`.** Content revisions only. */
+    updatedAt?: string;
+    featured: boolean;
+    /** ⚠ An explicit `null` when absent, unlike the two optional keys above. */
+    cover: PublicArticleCover | null;
+    /** This language's, derived from its `body`. */
+    wordCount: number;
+    /** The **published** locales, canonically ordered. ⚠ On a draft this is `[]`. */
+    availableLocales: ContentLocale[];
+}
+
+/** The detail form — the summary plus this language's whole block document. */
+export interface PublicArticleDetail extends PublicArticleSummary {
+    body: ArticleBody;
 }
 
 // ─── Queries and bodies ───────────────────────────────────────────────────────

@@ -1,18 +1,33 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Archive, ArrowLeft, EyeOff, Languages, PenLine, Send, Trash2 } from 'lucide-react';
+import {
+    Archive,
+    ArrowLeft,
+    Eye,
+    EyeOff,
+    ImagePlus,
+    Languages,
+    PenLine,
+    Send,
+    Trash2,
+} from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
+import { ArticleCoverDialog } from '@/components/content/ArticleCoverDialog';
+import { ArticleSavedPreview } from '@/components/content/ArticlePreview';
 import { ArticleTranslationDialog } from '@/components/content/ArticleTranslationDialog';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { ErrorState } from '@/components/common/DataState';
 import { Definition, DefinitionList, NotSet } from '@/components/common/DefinitionList';
 import { DetailSkeleton } from '@/components/common/Loading';
+import { ImageBox } from '@/components/files/ImageBox';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { useAsyncData } from '@/hooks/use-async-data';
+import { driverTranslation } from '@/lib/article-structure';
 import { resolveTimeZone } from '@/lib/datetime';
 import { formatCount, formatInstantInZone } from '@/lib/format';
 import { notify } from '@/lib/notify';
@@ -80,6 +95,13 @@ export function ArticleDetail() {
     // that has just changed underneath it.
     const [editingLocale, setEditingLocale] = useState<ContentLocale | null>(null);
     const [addingLanguage, setAddingLanguage] = useState(false);
+    const [editingCover, setEditingCover] = useState(false);
+    /*
+      ⚠ Mounted only while a locale is set — `ArticleSavedPreview` reads on
+      mount, and a sheet kept mounted behind a closed flag would call `/preview`
+      for every article anybody opens.
+    */
+    const [previewLocale, setPreviewLocale] = useState<ContentLocale | null>(null);
 
     const article = useAsyncData(`/content/articles/${articleId}#${reloadToken}`, (signal) =>
         getArticle(articleId, { signal }),
@@ -143,7 +165,20 @@ export function ArticleDetail() {
     }
 
     const record = article.data;
-    const primary = record.translations[0];
+    /*
+      🔴 `driverTranslation`, not `translations[0]`.
+
+      The array comes back in the order the **last write** sent it — a `PATCH`
+      is a full-array replace and nothing on the service reorders it — so
+      position zero is "whichever language was first in the last save", not "the
+      language this was written in". `sourceLocale` is the field that answers it
+      and is never rewritten. BR-019 § 1.
+
+      It matters here because this is the title the page is called by: an article
+      written in English and last saved with French first would have renamed
+      itself in the operator's browser tab.
+    */
+    const primary = driverTranslation(record);
     /* Never published means never live — the one condition delete allows. */
     const everPublished = record.publishedAt !== null;
 
@@ -164,7 +199,18 @@ export function ArticleDetail() {
     return (
         <PageContainer
             title={primary?.title ?? record.id}
-            description={record.id}
+            description={
+                /*
+                  ⚠ `plain`, not `id` — and it is the whole module, not this line.
+                  An article id is `getting-paid-on-whatsapp`: a lowercase kebab
+                  key up to 200 characters, never a 24-hex ObjectId. `variant="id"`
+                  shortens head-and-tail because ObjectIds share a leading
+                  timestamp and their middle is redundant; a readable key has no
+                  redundant middle, and hiding it would cost the one advantage
+                  this identifier has over an ObjectId. `plain` never truncates.
+                */
+                <CopyableValue variant="plain" mono value={record.id} label="article ID" />
+            }
             actions={
                 <>
                     <Can permission="content.articles.publish">
@@ -333,7 +379,39 @@ export function ArticleDetail() {
                             >
                                 {record.cover ? (
                                     <div className="space-y-1">
-                                        <p className="font-mono text-xs">{record.cover.url}</p>
+                                        {/*
+                                          ✅ § E1/E5 · there IS an image here now.
+
+                                          `src`, not `file`: a cover is a stored
+                                          url the marketing site serves to
+                                          anonymous readers, so drawing it
+                                          discloses nothing the article has not
+                                          published and writes no audit row. The
+                                          box takes the cover's own dimensions,
+                                          which is what they are for.
+                                        */}
+                                        <ImageBox
+                                            src={record.cover.url}
+                                            alt={`Cover image for ${primary?.title ?? record.id}`}
+                                            ratio={
+                                                record.cover.width > 0 && record.cover.height > 0
+                                                    ? record.cover.width / record.cover.height
+                                                    : undefined
+                                            }
+                                            className="max-w-sm"
+                                        />
+                                        {/*
+                                          `plain`, and never shortened: this is the
+                                          address the marketing site serves the
+                                          picture from, and half of it opens
+                                          nothing.
+                                        */}
+                                        <CopyableValue
+                                            variant="plain"
+                                            mono
+                                            value={record.cover.url}
+                                            label="cover image URL"
+                                        />
                                         <p className="text-muted-foreground text-xs">
                                             {record.cover.width}×{record.cover.height}
                                         </p>
@@ -357,9 +435,40 @@ export function ArticleDetail() {
                                                 .
                                             </p>
                                         ) : null}
+                                        {/*
+                                          ✅ § E5 · *"where do we set it?"* — here.
+                                          It was nowhere until 2026-08-26: this
+                                          screen rendered the url and the
+                                          dimensions read-only and offered no
+                                          editor at all, while `PATCH` had
+                                          accepted `cover` the whole time.
+                                        */}
+                                        <Can permission="content.articles.write">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                className="mt-1"
+                                                onClick={() => setEditingCover(true)}
+                                            >
+                                                <PenLine className="size-4" />
+                                                Change the cover
+                                            </Button>
+                                        </Can>
                                     </div>
                                 ) : (
-                                    <NotSet />
+                                    <div className="space-y-2">
+                                        <NotSet />
+                                        <Can permission="content.articles.write">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => setEditingCover(true)}
+                                            >
+                                                <ImagePlus className="size-4" />
+                                                Add a cover
+                                            </Button>
+                                        </Can>
+                                    </div>
                                 )}
                             </Definition>
 
@@ -387,11 +496,26 @@ export function ArticleDetail() {
                                         >
                                             {record.author.name}
                                         </Link>
-                                        <p className="text-muted-foreground text-xs">
+                                        <p className="text-muted-foreground flex flex-wrap items-center gap-1 text-xs">
                                             {record.author.type === 'Person'
                                                 ? 'A named person'
                                                 : 'An organisation'}{' '}
-                                            · {record.authorId}
+                                            ·{' '}
+                                            {/*
+                                              The byline's own id, not the
+                                              administrator's — the note above says
+                                              why the two must not merge. `plain`
+                                              for the same reason as the article
+                                              id: it is a kebab key, not an
+                                              ObjectId, and there is nothing
+                                              redundant in the middle to hide.
+                                            */}
+                                            <CopyableValue
+                                                variant="plain"
+                                                mono
+                                                value={record.authorId}
+                                                label="author ID"
+                                            />
                                         </p>
                                     </div>
                                 ) : (
@@ -477,6 +601,19 @@ export function ArticleDetail() {
                                                     {translation.locale}
                                                 </Badge>
                                                 {/*
+                                                  ⚠ Which language drives the
+                                                  others' block list, and it is
+                                                  `sourceLocale` rather than a
+                                                  position in this array — the
+                                                  order here is the order of the
+                                                  last save. § E3.
+                                                */}
+                                                {record.sourceLocale === translation.locale ? (
+                                                    <Badge variant="default">
+                                                        Source language
+                                                    </Badge>
+                                                ) : null}
+                                                {/*
                                                   A language may be individually
                                                   unpublished on a live article:
                                                   that language 404s until it
@@ -488,19 +625,57 @@ export function ArticleDetail() {
                                                     <Badge variant="secondary">Not live</Badge>
                                                 ) : null}
                                             </div>
-                                            <Can permission="content.articles.write">
+                                            <div className="flex items-center gap-1">
+                                                {/*
+                                                  § E2 · the exact public
+                                                  projection of the SAVED
+                                                  article. Behind
+                                                  `content.articles.read`, which
+                                                  every caller who reached this
+                                                  screen already holds — it is
+                                                  the same permission the read
+                                                  above used.
+                                                */}
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    onClick={() => setEditingLocale(translation.locale)}
+                                                    onClick={() =>
+                                                        setPreviewLocale(translation.locale)
+                                                    }
                                                 >
-                                                    <PenLine className="size-4" />
-                                                    Edit
+                                                    <Eye className="size-4" />
+                                                    Preview
                                                 </Button>
-                                            </Can>
+                                                <Can permission="content.articles.write">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                            setEditingLocale(translation.locale)
+                                                        }
+                                                    >
+                                                        <PenLine className="size-4" />
+                                                        Edit
+                                                    </Button>
+                                                </Can>
+                                            </div>
                                         </div>
-                                        <p className="text-muted-foreground font-mono text-xs">
-                                            /{translation.slug}
+                                        {/*
+                                          The leading `/` stays outside the value:
+                                          it is how the path reads on screen, but
+                                          the slug is what gets typed into the
+                                          create dialog and matched against
+                                          `previousSlugs`, and copying a stray
+                                          slash with it would be wrong every time.
+                                        */}
+                                        <p className="text-muted-foreground flex items-center text-xs">
+                                            <span className="font-mono text-xs">/</span>
+                                            <CopyableValue
+                                                variant="plain"
+                                                mono
+                                                value={translation.slug}
+                                                label={`${translation.locale} slug`}
+                                            />
                                         </p>
                                         <p className="text-sm">{translation.excerpt}</p>
                                         <p className="text-muted-foreground text-xs">
@@ -563,6 +738,32 @@ export function ArticleDetail() {
                         setAddingLanguage(false);
                         setReloadToken((token) => token + 1);
                     }}
+                />
+            ) : null}
+
+            {/*
+              ⚠ The cover write omits `translations` entirely, which is what
+              leaves every language untouched — see `ArticleCoverDialog`. It is
+              a separate dialog from the translation editor for exactly that
+              reason: over there the whole array is in flight.
+            */}
+            {editingCover ? (
+                <ArticleCoverDialog
+                    article={record}
+                    open
+                    onOpenChange={setEditingCover}
+                    onSaved={() => {
+                        setEditingCover(false);
+                        setReloadToken((token) => token + 1);
+                    }}
+                />
+            ) : null}
+
+            {previewLocale ? (
+                <ArticleSavedPreview
+                    articleId={record.id}
+                    locale={previewLocale}
+                    onOpenChange={(next) => setPreviewLocale(next ? previewLocale : null)}
                 />
             ) : null}
         </PageContainer>

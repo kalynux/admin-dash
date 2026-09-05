@@ -1,18 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Eye, FileQuestion, ImageOff } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
 import { InlineLoader } from '@/components/common/Loading';
 import { Button } from '@/components/ui/button';
 import { useAsyncData } from '@/hooks/use-async-data';
+import { useFileContent } from '@/hooks/use-file-content';
 import { resolveErrorDetail, resolveErrorMessage } from '@/lib/errors';
 import { formatBytes } from '@/lib/format';
-import { getFile, getFileContent } from '@/services/files.service';
+import { getFile } from '@/services/files.service';
 import { ApiError } from '@/types/api.types';
 import {
     CODE_FILE_CONTENT_NOT_SUPPORTED,
     isViewableImage,
-    type FileContent,
     type FileDetail,
 } from '@/types/files.types';
 
@@ -32,6 +31,11 @@ import {
  * as forty deliberate reads in an afternoon when nobody looked at anything. The
  * button is the consent, so the button is what triggers the request.
  *
+ * That rule, the object URL and the revoke all live in
+ * [`useFileContent`](../../hooks/use-file-content.ts) now — lifted out unchanged
+ * when `ImageBox` needed the same three disciplines, so there is one
+ * implementation of them rather than two. This component is what draws them.
+ *
  * That is also why there is no `reason` prompt. The backend considered one and
  * declined: an operator opens many images inside a single dispute, and a
  * per-image box is one somebody types "dispute" into forever. If that reverses
@@ -41,7 +45,7 @@ import {
  * The request carries the session and an `<img>` tag cannot, so the bytes are
  * fetched and wrapped in an object URL. There is **no expiry to respect and
  * nothing to re-request** — the handle lives exactly as long as this component
- * does, which is why every path below revokes it.
+ * does, which is why the hook revokes it on unmount and on every replacement.
  *
  * ── One code path for public and private alike ───────────────────────────────
  * The route answers for any tree, so this never branches on `access` to decide
@@ -49,51 +53,16 @@ import {
  * deliberately is not: that URL is unauthenticated and this is not.
  */
 export function FileViewer({ file }: { file: FileDetail }) {
-    const [content, setContent] = useState<FileContent | null>(null);
-    const [error, setError] = useState<unknown>(null);
-    const [isLoading, setIsLoading] = useState(false);
-
-    /**
-     * The live object URL, mirrored into a ref so the unmount cleanup can revoke
-     * whatever is current without re-running — and re-subscribing — every time
-     * the content changes.
-     */
-    const objectUrl = useRef<string | null>(null);
-
-    const release = useCallback(() => {
-        if (objectUrl.current === null) return;
-        URL.revokeObjectURL(objectUrl.current);
-        objectUrl.current = null;
-    }, []);
-
-    // Revoke on unmount. Without this the blob is pinned for the lifetime of the
-    // document, which on a busy shipment queue is an operator's whole session
-    // holding every proof photo they have opened.
+    // The fetch, the object URL, the double-click guard and the revoke.
     //
     // ⚠ **Pointing this component at a different file is done by REMOUNTING it**
-    // — `ResolvedFileViewer` passes `key={fileId}`. Resetting state in an effect
+    // — `ResolvedFileViewer` passes `key={file.id}`. The hook holds the live
+    // handle for as long as it is mounted and revokes it on the way out, so a
+    // key routes the old blob through that cleanup; resetting state in an effect
     // instead would run a render with the previous file's bytes still on screen
     // under the new file's name, which on a delivery-proof dispute is the one
-    // wrong thing this screen could do. A key makes that unrepresentable, and it
-    // routes the blob through this same cleanup.
-    useEffect(() => release, [release]);
-
-    async function open() {
-        setIsLoading(true);
-        setError(null);
-        try {
-            const next = await getFileContent(file.id);
-            // Guard the double-click: a second open would strand the first
-            // handle with nothing left holding a reference to revoke it.
-            release();
-            objectUrl.current = next.objectUrl;
-            setContent(next);
-        } catch (cause) {
-            setError(cause);
-        } finally {
-            setIsLoading(false);
-        }
-    }
+    // wrong thing this screen could do.
+    const { content, error, isLoading, open } = useFileContent(file.id);
 
     // ── The capability answer, which is not a failure ─────────────────────────
     // On a deployment whose storage provider cannot read bytes this is the

@@ -25,6 +25,7 @@
  * delete affordance and expect an endpoint to appear.
  */
 
+import { partyName } from '@/lib/party';
 import type { AdminTier } from '@/types/auth.types';
 
 export type { AdminTier };
@@ -92,11 +93,19 @@ export function isAdministratorSuspended(administrator: Administrator): boolean 
     return administrator.status === 'suspended';
 }
 
-/** The name to show. `displayName` is required 2–120, so this is the empty-string guard. */
+/**
+ * The name to show. `displayName` is required 2–120, so this is the empty-string
+ * guard — and it is the guard the other four helpers have now been unified onto,
+ * rather than the one that changed. There is no id in the `Pick`, so the email
+ * is the last resort here where elsewhere it is the id.
+ */
 export function administratorDisplayName(
     administrator: Pick<Administrator, 'displayName' | 'email'>,
 ): string {
-    return administrator.displayName.trim() || administrator.email;
+    return partyName([{ source: 'displayName', value: administrator.displayName }], {
+        source: 'email',
+        value: administrator.email,
+    });
 }
 
 // ─── Sessions ─────────────────────────────────────────────────────────────────

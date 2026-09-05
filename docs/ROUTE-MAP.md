@@ -1,14 +1,31 @@
-# Route map — all 233 wi-admin routes
+# Route map — all 236 wi-admin routes
 
-**Generated from the live router on 2026-08-24**, not transcribed. Every row's permission and
-audit declaration comes from `routeManifest()` — the same structure the service asserts against at
-boot — and the "documented in" column was reconciled mechanically against the pages in
+**Generated from the live router**, not transcribed. Every row's permission and audit
+declaration comes from `routeManifest()` — the same structure the service asserts against at boot —
+and the "documented in" column was reconciled mechanically against the pages in
 [`admin/api/`](admin/api/).
 
-> **Every route below appears in exactly one document.** That was checked, not assumed: 230 of 230
-> versioned routes matched exactly one page, zero matched two, and zero documented permission
-> disagreed with the declared one. The two `/health/*` probes are unversioned and live in
-> [`health.md`](admin/api/health.md).
+> **Every route below appears in exactly one document.** That was checked, not assumed on the
+> 2026-08-24 generation: 230 of 230 versioned routes matched exactly one page, zero matched two,
+> and zero documented permission disagreed with the declared one. The two `/health/*` probes are
+> unversioned and live in [`health.md`](admin/api/health.md).
+>
+> ⚠ **Three rows are newer than that reconciliation and were added on 2026-08-26** —
+> `GET /files/library`, `POST /files/upload` (BR-015 · [ADR-021](admin/ADR-021-ADMIN-MEDIA-LIBRARY.md))
+> and `GET /vendors/:vendorId/agencies` (BR-018). **The count is regenerated and the three rows are
+> read from source, not transcribed**: `dump-routes.js` reports `TOTAL 236` and `authz:matrix`
+> reports 116 / 20 / 3, both re-run on that date, and each row's permission and audit cell comes
+> from its own `defineRoute` in `backend/admin/src/modules/{files,vendors}/routes/` — the upload
+> declares `audit: records('files.upload')` and the other two declare no `audit` at all.
+>
+> **What was NOT re-run for them is the reconciliation itself.** Each of the three is documented
+> in the page named beside it — that was read — but nothing checked that it appears in *only* that
+> page, which is the property the blockquote above asserts for the other 231.
+>
+> ⚠ [`admin/api/README.md`](admin/api/README.md) still says **230 versioned endpoints**. It is a
+> verbatim mirror, so it is not corrected here: the real figure is **234** (236 less the two health
+> probes), and it was already one short of this file's 231 before these three routes landed.
+> Reported to the backend rather than patched locally.
 
 ---
 
@@ -56,15 +73,15 @@ with the audit store down nothing is disclosed. See [`TRACKING-DOORS.md`](TRACKI
 ```bash
 cd backend/admin
 node -r ts-node/register/transpile-only -r dotenv/config \
-    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 233
-npm run authz:matrix                                                      # 113 / 20 / 3
+    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 236
+npm run authz:matrix                                                      # 116 / 20 / 3
 ```
 
 If either number moves, this file is stale and so is everything built from it.
 
 ---
 
-## The 233 routes, by namespace
+## The 236 routes, by namespace
 
 ### `/support` — 19 routes
 
@@ -215,13 +232,14 @@ If either number moves, this file is stale and so is everything built from it.
 | POST | `/money/payouts/:payoutId/reject` | `money.payouts.reject` | ✅ money.payouts.reject | [`money.md`](admin/api/money.md) |
 | GET | `/money/refunds` | `money.payments.read` | — | [`money.md`](admin/api/money.md) |
 
-### `/vendors` — 12 routes
+### `/vendors` — 13 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
 | GET | `/vendors/` | `vendors.read` | — | [`vendors.md`](admin/api/vendors.md) |
 | GET | `/vendors/:vendorId` | `vendors.read` | — | [`vendors.md`](admin/api/vendors.md) |
 | GET | `/vendors/:vendorId/activity` | `vendors.read` + `audit.read` | — | [`vendors.md`](admin/api/vendors.md) |
+| GET | `/vendors/:vendorId/agencies` | `vendors.read` + `agencies.read` | — | [`vendors.md`](admin/api/vendors.md) |
 | POST | `/vendors/:vendorId/kyc/approve` | `vendors.kyc.review` | ✅ vendors.kyc.approve | [`vendors.md`](admin/api/vendors.md) |
 | POST | `/vendors/:vendorId/kyc/reject` | `vendors.kyc.review` | ✅ vendors.kyc.reject | [`vendors.md`](admin/api/vendors.md) |
 | GET | `/vendors/:vendorId/products` | `vendors.read` | — | [`vendors.md`](admin/api/vendors.md) |
@@ -388,7 +406,7 @@ If either number moves, this file is stale and so is everything built from it.
 | POST | `/contracts/:contractId/suspend` | `agents.contracts.manage` | ✅ agents.contracts.suspend | [`contracts.md`](admin/api/contracts.md) |
 | POST | `/contracts/:contractId/terminate` | `agents.contracts.manage` | ✅ agents.contracts.terminate | [`contracts.md`](admin/api/contracts.md) |
 
-### `/files` — 5 routes
+### `/files` — 7 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -397,6 +415,8 @@ If either number moves, this file is stale and so is everything built from it.
 | GET | `/files/:fileId/content` | `files.content.read` | ✅ files.content.read | [`files.md`](admin/api/files.md) |
 | DELETE | `/files/:fileId/permanent` | `files.delete` | ✅ files.delete | [`files.md`](admin/api/files.md) |
 | GET | `/files/orphans` | `files.orphans.read` | — | [`files.md`](admin/api/files.md) |
+| GET | `/files/library` | `files.library.read` | — | [`files.md`](admin/api/files.md) |
+| POST | `/files/upload` | `files.upload` | ✅ files.upload | [`files.md`](admin/api/files.md) |
 
 ### `/permissions` — 3 routes
 

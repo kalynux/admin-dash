@@ -9,6 +9,7 @@ import {
     ConfirmRemittanceDialog,
     RejectRemittanceDialog,
 } from '@/components/cod/CodWriteDialogs';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { ErrorState } from '@/components/common/DataState';
 import { Definition, DefinitionList, NotSet } from '@/components/common/DefinitionList';
 import { DetailSkeleton } from '@/components/common/Loading';
@@ -206,8 +207,18 @@ function DeclarationCard({ record, timeZone }: { record: Remittance; timeZone: s
                             </InfoHint>
                         }
                     >
+                        {/*
+                          `plain`, exactly as the hint beside it says: an
+                          external bank, transfer or receipt id, reconciled
+                          against a statement character for character.
+                        */}
                         {record.reference ? (
-                            <span className="font-mono text-xs">{record.reference}</span>
+                            <CopyableValue
+                                variant="plain"
+                                mono
+                                value={record.reference}
+                                label="remittance reference"
+                            />
                         ) : (
                             <NotSet>None given</NotSet>
                         )}
@@ -230,8 +241,19 @@ function DeclarationCard({ record, timeZone }: { record: Remittance; timeZone: s
                             </InfoHint>
                         }
                     >
+                        {/*
+                          Shown rather than linked, per the hint — which is
+                          precisely why it has to be copyable: an id nobody can
+                          follow is an id somebody retypes into a query.
+                          `truncate={false}`, because a detail screen shows it
+                          whole today.
+                        */}
                         {record.declaredByUserId ? (
-                            <span className="font-mono text-xs">{record.declaredByUserId}</span>
+                            <CopyableValue
+                                value={record.declaredByUserId}
+                                label="declaring user ID"
+                                truncate={false}
+                            />
                         ) : (
                             <NotSet />
                         )}

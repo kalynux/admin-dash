@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Check, Copy, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { ErrorState } from '@/components/common/DataState';
 import { Definition, DefinitionList, NotSet } from '@/components/common/DefinitionList';
 import { InlineLoader } from '@/components/common/Loading';
@@ -28,7 +29,6 @@ import {
     CODE_PAYOUT_DESTINATION_ABSENT,
     type PayoutDestination,
 } from '@/types/money.types';
-import { useClipboard } from '@/hooks/use-clipboard';
 
 interface PayoutDestinationRevealProps {
     payoutId: string;
@@ -299,9 +299,37 @@ function RevealedPanel({
             {value ? (
                 <DefinitionList>
                     <Definition label={phoneNumber ? 'Mobile money number' : 'Account number'}>
-                        <RevealedValue value={value} />
+                        {/*
+                          ── Why `plain`, and why the size is set here ──────────
+                          This is the number an operator retypes into a banking
+                          portal, which is the transcription error the copy
+                          button exists to remove — so it must survive whole and
+                          `id`'s head-and-tail shortening is exactly wrong for
+                          it. `mono={false}` with the mono class supplied by
+                          `className` is deliberate: the variant's own mono is
+                          `text-xs`, and this one value is rendered large on
+                          purpose because it is read as well as copied.
+
+                          ⚠ The `label` follows the Definition's: a mobile-money
+                          MSISDN and a bank account number are different things
+                          and the copy button used to call both of them "account
+                          number".
+                        */}
+                        <CopyableValue
+                            variant="plain"
+                            mono={false}
+                            value={value}
+                            label={phoneNumber ? 'mobile money number' : 'account number'}
+                            className="font-mono text-lg font-medium"
+                        />
                     </Definition>
                     <Definition label="As masked">
+                        {/*
+                          ⚠ No copy affordance here, deliberately. A mask is not a
+                          value — there is nothing to paste anywhere — and offering
+                          to copy it beside the real number invites copying the
+                          wrong one.
+                        */}
                         {destination.masked.mobileMoney?.phoneNumberMasked ??
                             destination.masked.bank?.accountNumberMasked ?? <NotSet />}
                     </Definition>
@@ -350,25 +378,15 @@ function RevealedPanel({
     );
 }
 
-/** The number, with a copy control — pasting it into a transfer is the whole point. */
-function RevealedValue({ value }: { value: string }) {
-    const { copy: writeToClipboard, copied } = useClipboard({ resetAfterMs: 2000 });
-
-    async function copy() {
-        // Clipboard access can be refused outright — a non-secure origin, an
-        // unfocused document, a denied permission. The number is on screen and
-        // selectable either way, so this reports rather than fails.
-        if (!(await writeToClipboard(value))) {
-            notify.warning('Could not copy — select the number and copy it manually');
-        }
-    }
-
-    return (
-        <span className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-lg font-medium">{value}</span>
-            <Button variant="ghost" size="sm" onClick={copy} aria-label="Copy account number">
-                {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-            </Button>
-        </span>
-    );
-}
+/*
+ * ── The local `RevealedValue` is gone ─────────────────────────────────────────
+ * It hand-rolled what `CopyableValue` now does — and did it in a way that named
+ * every disclosed number "account number", including the mobile-money ones. The
+ * shared component reports a refused clipboard to a screen reader as well as in
+ * the tooltip, and makes the number `select-all`, which is the fallback the old
+ * warning toast could only describe.
+ *
+ * ⚠ Nothing about the DISCLOSURE changed. The reveal is still a confirmed,
+ * imperative, once-only request; the copy affordance exists only after the
+ * value has arrived, and never on the masked form beside it.
+ */

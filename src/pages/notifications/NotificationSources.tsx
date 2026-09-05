@@ -140,6 +140,20 @@ export function NotificationSources() {
                             >
                                 <div className="flex flex-wrap items-start justify-between gap-3">
                                     <div className="min-w-0 space-y-1">
+                                        {/*
+                                          ⚠ Left as plain text, and the same goes
+                                          for `collection` and the `produces`
+                                          badges below. Nothing on this screen is
+                                          a *record's* identifier — they are the
+                                          registry's own vocabulary, the same
+                                          strings the inbox offers as filter
+                                          options, and this one is this card's
+                                          heading. An operator reads them to
+                                          decide which sources reach them; they do
+                                          not paste one anywhere. A copy button
+                                          per row would put twenty-odd of them on
+                                          a page that has no values on it.
+                                        */}
                                         <p className="font-mono text-sm font-medium">{source.id}</p>
                                         <p className="text-muted-foreground text-sm">
                                             {source.describe}

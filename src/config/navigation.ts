@@ -4,6 +4,7 @@ import {
     ClipboardCheck,
     Coins,
     CreditCard,
+    Images,
     LayoutDashboard,
     ListChecks,
     PackageSearch,
@@ -650,6 +651,89 @@ export const NAV_SECTIONS: NavSection[] = [
         items: [
             {
                 /**
+                 * ── The Media module ──────────────────────────────────────────
+                 * **Tiers 1–2, and no part of it reaches Support.** All four
+                 * `files.*` names it stands on — `files.library.read`,
+                 * `files.orphans.read`, `files.upload`, `files.delete` — stop at
+                 * tier 2 or tier 1, and the reasoning is one sentence the mount
+                 * states about itself: *a listing on this mount needs its own
+                 * permission and its own tier*. `files.resolve` is grantable to
+                 * every tier because the caller already holds the id; browsing
+                 * discloses what nobody held.
+                 *
+                 * ⚠ **In Platform, not Support desk**, even though its consumers
+                 * are the blog and the ticket attachments. A section is a tier
+                 * boundary here, and Support desk is the section a tier-3
+                 * administrator lives in — putting a module none of them can open
+                 * inside it would be the one thing "what is visible is reachable"
+                 * exists to prevent.
+                 *
+                 * **No index child**, like System and Money: `files.library.read`
+                 * and `files.orphans.read` are separately granted, so
+                 * `ModuleIndexRedirect` lands each caller on the first child they
+                 * may open rather than on a fixed one that might refuse.
+                 */
+                id: 'media',
+                label: 'Media',
+                icon: Images,
+                path: '/dashboard/media',
+                implemented: true,
+                phase: 18,
+                children: [
+                    {
+                        /**
+                         * `GET /files/library` — every file on the platform, with
+                         * its owner's name and what refers to it.
+                         *
+                         * ⚠ **Its own permission because it ENUMERATES**, and the
+                         * third instance of that rule on this mount after
+                         * `files.orphans.read`. It is **not** audited, which this
+                         * dashboard argued against and lost; ADR-021 D-6 records
+                         * why, so it is revisited rather than rediscovered.
+                         *
+                         * The upload lives here as a button rather than as a
+                         * destination of its own — the module's rule, the same one
+                         * System applies to the worker trigger: *a destination
+                         * follows the tier boundary, a button follows its subject.*
+                         * `files.upload` gates itself inside.
+                         */
+                        id: 'media-library',
+                        label: 'Library',
+                        path: '/dashboard/media/library',
+                        permission: 'files.library.read',
+                        implemented: true,
+                        phase: 18,
+                    },
+                    {
+                        /**
+                         * The orphan listing and the permanent delete — **moved
+                         * here from System › Files on 2026-08-26**, unchanged.
+                         *
+                         * It sat under System because there was no browsing
+                         * surface to sit beside: *"`files.resolve` answers ids a
+                         * caller already holds, and there is deliberately no
+                         * listing route beyond orphans."* BR-015 built that
+                         * listing, so the two now belong together — one module for
+                         * every file on the platform, and one child for the subset
+                         * nothing points at.
+                         *
+                         * ⚠ **Two permissions in `any` mode, deliberately.**
+                         * `files.delete` is tier 1 only and flagged `destructive`.
+                         * Gating on `all` would hide the listing from the tier that
+                         * may read it; the delete affordance gates itself inside.
+                         */
+                        id: 'media-orphans',
+                        label: 'Orphan files',
+                        path: '/dashboard/media/orphans',
+                        permission: ['files.orphans.read', 'files.delete'],
+                        permissionMode: 'any',
+                        implemented: true,
+                        phase: 18,
+                    },
+                ],
+            },
+            {
+                /**
                  * ── Module boundary = tier boundary ───────────────────────────
                  * Every destination here is a `system.*` read, which tiers 1 and 2 hold; every
                  * `developer_tools.*` destination is next door under Developer tools, which is
@@ -786,40 +870,6 @@ export const NAV_SECTIONS: NavSection[] = [
                         permission: ERROR_JOURNAL_PERMISSION,
                         implemented: true,
                         phase: 14,
-                    },
-                    {
-                        /**
-                         * File administration — the orphan listing, and the
-                         * permanent delete as a row action on it.
-                         *
-                         * ⚠ **In System, not Developer tools**, and the rule is
-                         * the one the Workers child already established: *a read
-                         * a tier-2 Admin holds belongs in System, and the tier-1
-                         * write on it is a button there.* `files.orphans.read`
-                         * is tiers 1–2; putting it under Developer tools — which
-                         * is tier-1-only **by construction**, since every child
-                         * there names a `developer_tools.*` permission a boot
-                         * assertion refuses to any other level — would have made
-                         * that whole module appear for an Admin.
-                         *
-                         * ⚠ **Two permissions in `any` mode, deliberately.**
-                         * `files.delete` is tier 1 only and flagged
-                         * `destructive`. Gating the entry on `all` would hide
-                         * the listing from the tier that may read it; the delete
-                         * affordance gates itself inside.
-                         *
-                         * There is no *browsing* surface to build beside it:
-                         * `files.resolve` answers ids a caller already holds,
-                         * and there is deliberately no listing route beyond
-                         * orphans.
-                         */
-                        id: 'system-files',
-                        label: 'Files',
-                        path: '/dashboard/system/files',
-                        permission: ['files.orphans.read', 'files.delete'],
-                        permissionMode: 'any',
-                        implemented: true,
-                        phase: 17,
                     },
                     /*
                       Configuration used to sit here and now lives under Developer tools.

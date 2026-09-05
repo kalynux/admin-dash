@@ -103,12 +103,22 @@ describe('the entityId rule wi-admin does not enforce', () => {
 });
 
 describe('attachments are ids, not uploads', () => {
-    it('says so, and takes no file input', () => {
-        // wi-admin accepts no multipart body on any route.
+    it('attaches by id, and puts no file input on the form itself', () => {
+        /**
+         * ⚠ **`POST /support/tickets` takes `fileId`s and that has not changed.**
+         * What changed on 2026-08-26 is that an administrator can now *produce*
+         * one: BR-015 landed `POST /files/upload`, so the copy no longer says *"no
+         * route on this service accepts a file body"* — which was true when it was
+         * written and became false while this screen still said it.
+         *
+         * The file input lives inside the media picker, behind its own button and
+         * its own permission. This form still posts ids.
+         */
         open();
 
-        expect(screen.getByText(/file ids, not uploads/i)).toBeInTheDocument();
+        expect(screen.getByText(/file ids, not the files themselves/i)).toBeInTheDocument();
         expect(document.querySelector('input[type="file"]')).toBeNull();
+        expect(screen.getByRole('button', { name: /browse/i })).toBeInTheDocument();
     });
 
     it('refuses anything that is not a 24-hex id', async () => {

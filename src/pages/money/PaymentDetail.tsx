@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState, ErrorState } from '@/components/common/DataState';
 import { Definition, DefinitionList, NotSet } from '@/components/common/DefinitionList';
@@ -143,7 +144,18 @@ function SettlementCard({
                     </Definition>
 
                     <Definition label="Gateway reference">
-                        <span className="font-mono text-xs break-all">{payment.gatewayRef}</span>
+                        {/*
+                          `plain`, not `id`: this is the gateway's own string and
+                          it is reconciled against a settlement report character
+                          for character. Shortening it would hide the part that
+                          differs between two of them.
+                        */}
+                        <CopyableValue
+                            variant="plain"
+                            mono
+                            value={payment.gatewayRef}
+                            label="gateway reference"
+                        />
                     </Definition>
 
                     <Definition
@@ -167,9 +179,15 @@ function SettlementCard({
                         {/*
                           The id resolves against customers, not users, so it is
                           shown rather than linked — the platform directories key
-                          on a different collection.
+                          on a different collection. That is exactly why it must
+                          be copyable: pasting it into a ticket is the only thing
+                          an operator can do with it.
                         */}
-                        <span className="font-mono text-xs break-all">{payment.payer.id}</span>
+                        <CopyableValue
+                            value={payment.payer.id}
+                            label="payer ID"
+                            truncate={false}
+                        />
                     </Definition>
 
                     <Definition label="Paid at">
@@ -193,29 +211,30 @@ function SettlesDetail({
 
     if (ids.length === 0) {
         return bookingId ? (
-            <span className="font-mono text-xs break-all">{bookingId}</span>
+            <CopyableValue value={bookingId} label="booking ID" truncate={false} />
         ) : (
+            /* The screen's own gap text, kept rather than falling through to `NotSet`'s. */
             <NotSet>Nothing linked</NotSet>
         );
     }
 
     return (
         <div className="space-y-1">
-            {ids.map((id) =>
-                can('orders.read') ? (
-                    <Link
-                        key={id}
-                        to={`/dashboard/orders/${id}`}
-                        className="block font-mono text-xs break-all hover:underline"
-                    >
-                        {id}
-                    </Link>
-                ) : (
-                    <span key={id} className="block font-mono text-xs break-all">
-                        {id}
-                    </span>
-                ),
-            )}
+            {/*
+              A wrapping `div` per id rather than a class on the value: these were
+              `block` links and a cart can settle several, so each has to keep its
+              own line.
+            */}
+            {ids.map((id) => (
+                <div key={id}>
+                    <CopyableValue
+                        value={id}
+                        label="order ID"
+                        to={can('orders.read') ? `/dashboard/orders/${id}` : undefined}
+                        truncate={false}
+                    />
+                </div>
+            ))}
         </div>
     );
 }

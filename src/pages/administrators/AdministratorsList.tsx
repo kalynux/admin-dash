@@ -8,6 +8,7 @@ import {
 } from '@/components/administrators/AdministratorBadges';
 import { CreateAdministratorDialog } from '@/components/administrators/CreateAdministratorDialog';
 import { Can } from '@/components/auth/Can';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
@@ -123,7 +124,28 @@ export function AdministratorsList() {
                             {/* The one row where a self-action can be attempted. */}
                             {row.id === admin.id ? <Badge variant="secondary">You</Badge> : null}
                         </div>
-                        <p className="text-muted-foreground truncate text-xs">{row.email}</p>
+                        {/*
+                          The email is the value an operator pastes — into a
+                          ticket, a chat window, the search box on another
+                          screen — and it was retyped off this cell until now.
+
+                          ⚠ The `truncate` went with it, deliberately.
+                          `CopyableValue` refuses to shorten an email: unlike an
+                          ObjectId it has no redundant middle, and CSS clipping
+                          would hide characters with no `title` to make up for
+                          it. A long address wraps instead.
+
+                          Not linked to anything: `administratorDisplayName`
+                          above already carries the row's link, and a second
+                          destination on the same cell is what makes a row
+                          behave differently depending on which pixels were hit.
+                        */}
+                        <CopyableValue
+                            variant="email"
+                            value={row.email}
+                            label="administrator email"
+                            className="text-muted-foreground text-xs"
+                        />
                     </div>
                 ),
             },

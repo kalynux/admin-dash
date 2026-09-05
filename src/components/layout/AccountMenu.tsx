@@ -54,6 +54,16 @@ export function AccountMenu() {
             <DropdownMenuContent align="end" className="w-64">
                 <DropdownMenuLabel className="space-y-1 font-normal">
                     <p className="truncate text-sm font-medium">{admin.displayName}</p>
+                    {/*
+                      ⚠ Not a `CopyableValue`, though the same address is one on
+                      Account & security. This is a `DropdownMenuLabel`: Radix
+                      gives the open menu a roving tabindex over its *items*, so
+                      a button nested in a label is mouse-only — Tab closes the
+                      menu rather than reaching it. A copy affordance that a
+                      keyboard cannot reach is worse than the two clicks to the
+                      account page, which is one item below and where the value
+                      is copyable properly.
+                    */}
                     <p className="text-muted-foreground truncate text-xs">{admin.email}</p>
                     <div className="flex items-center gap-1.5 pt-1">
                         <TierBadge tier={admin.tier} />

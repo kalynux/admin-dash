@@ -41,6 +41,7 @@ import { ApiError, CODE_CLIENT_INVALID_ID } from '@/types/api.types';
 import type { Approval } from '@/types/approvals.types';
 import { administratorDisplayName, type Administrator } from '@/types/administrators.types';
 import { CopyableId } from '@/components/common/CopyableId';
+import { CopyableValue } from '@/components/common/CopyableValue';
 
 /** Ids on this service are 24-hex ObjectIds, validated at the service's edge. */
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
@@ -206,7 +207,19 @@ function AdministratorDetailScreen({ adminId }: { adminId: string }) {
     return (
         <PageContainer
             title={administratorDisplayName(target)}
-            description={target.email}
+            description={
+                /*
+                  Left as plain text, unlike the sibling detail screens that put
+                  a `CopyableId` here. Two reasons, and both are specific to
+                  this record: `administratorDisplayName` falls back to `email`,
+                  so on an administrator with no display name this subtitle is a
+                  verbatim repeat of the `<h1>` above it — and the same address
+                  is offered as a copyable value in the Account card a few lines
+                  down, in the same viewport, under a label. A second control
+                  for the identical string is noise, not an affordance.
+                */
+                target.email
+            }
             actions={
                 <>
                     <Button
@@ -306,7 +319,13 @@ function AdministratorDetailScreen({ adminId }: { adminId: string }) {
                         </CardHeader>
                         <CardContent>
                             <DefinitionList>
-                                <Definition label="Email">{target.email}</Definition>
+                                <Definition label="Email">
+                                    <CopyableValue
+                                        variant="email"
+                                        value={target.email}
+                                        label="administrator email"
+                                    />
+                                </Definition>
                                 <Definition label="Access level">
                                     <TierBadge tier={target.tier} />
                                 </Definition>
@@ -336,13 +355,27 @@ function AdministratorDetailScreen({ adminId }: { adminId: string }) {
                                     {formatInstantInZone(target.createdAt, timeZone) ?? '—'}
                                 </Definition>
                                 <Definition label="Created by">
+                                    {/*
+                                      ⚠ The conditional stays. `CopyableValue`
+                                      renders a bare `<NotSet />` for a null
+                                      value, and `null` here does not mean
+                                      "unknown" — it means the bootstrap
+                                      account, which is worth naming. Handing it
+                                      the null would replace that sentence with
+                                      a dash.
+
+                                      `truncate={false}` because this site shows
+                                      the whole id today and shortening it now
+                                      would be this sweep hiding data, not
+                                      making it copyable.
+                                    */}
                                     {target.createdBy ? (
-                                        <Link
+                                        <CopyableValue
+                                            value={target.createdBy}
+                                            label="creating administrator ID"
                                             to={`/dashboard/administrators/${target.createdBy}`}
-                                            className="font-mono text-xs hover:underline"
-                                        >
-                                            {target.createdBy}
-                                        </Link>
+                                            truncate={false}
+                                        />
                                     ) : (
                                         // The one record with no creator.
                                         <NotSet>Bootstrap account</NotSet>
@@ -354,7 +387,22 @@ function AdministratorDetailScreen({ adminId }: { adminId: string }) {
                                         {target.tierChangedBy ? (
                                             <span className="text-muted-foreground">
                                                 {' '}
-                                                by {target.tierChangedBy}
+                                                by{' '}
+                                                {/*
+                                                  A bare administrator id, same
+                                                  as `createdBy` — not a name,
+                                                  however much "by …" reads
+                                                  like one. Copyable and shown
+                                                  whole; deliberately not
+                                                  linked, because this site
+                                                  never was and a sweep is not
+                                                  where new navigation belongs.
+                                                */}
+                                                <CopyableValue
+                                                    value={target.tierChangedBy}
+                                                    label="administrator who changed the level"
+                                                    truncate={false}
+                                                />
                                             </span>
                                         ) : null}
                                     </Definition>
@@ -502,11 +550,17 @@ function SuspensionPanel({
                     {formatInstantInZone(administrator.suspendedAt, timeZone) ?? '—'}
                 </Definition>
                 <Definition label="By">
-                    {administrator.suspendedBy ? (
-                        <span className="font-mono text-xs">{administrator.suspendedBy}</span>
-                    ) : (
-                        <NotSet />
-                    )}
+                    {/*
+                      The conditional went, unlike the one on "Created by":
+                      `CopyableValue` renders exactly this branch's `<NotSet />`
+                      for a null value, so keeping it would be two fallbacks
+                      spelling the same gap.
+                    */}
+                    <CopyableValue
+                        value={administrator.suspendedBy}
+                        label="suspending administrator ID"
+                        truncate={false}
+                    />
                 </Definition>
             </DefinitionList>
             <p className="text-muted-foreground text-xs">

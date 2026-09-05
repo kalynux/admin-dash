@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { useCan } from '@/store';
 import type { RoutedPermissionName } from '@/types/permissions.types';
 import { humaniseEnum } from '@/lib/format';
@@ -23,6 +24,20 @@ import { humaniseEnum } from '@/lib/format';
  * *set* of things they could not open would itself describe the directory
  * `audit.read`'s row scope exists to withhold. The id still shows; only the
  * navigation is withheld, because the id is already in the row they are reading.
+ *
+ * ── Where the copy affordance lives, and why it lives here ────────────────────
+ * The main line is a **name slot**: `label` when the row carries one, and the
+ * raw id when it does not. Falling through to the id turns that slot into a
+ * value — the only render of it on the trail table, and the only one anywhere
+ * for a `relatedTarget` — so the affordance belongs to this component rather
+ * than to each of the three call sites, which cannot see which branch ran.
+ *
+ * ⚠ It shortens, unlike most of this sweep. The slot sits in a table cell with
+ * no `break-words` above it, so an un-shortened 24-hex id overflows the column
+ * rather than wrapping; the whole value stays in the `title` and is what gets
+ * copied. Where a name *is* present the id is a `showId` echo under it, and the
+ * caller that asks for that echo renders the same id in full beside it — a
+ * second copy button there would be two buttons for one value.
  */
 
 interface TargetRoute {
@@ -91,15 +106,19 @@ export function AuditTargetLink({ type, id, label, showId }: AuditTargetLinkProp
 
     const route = id ? TARGET_ROUTES[type] : undefined;
     const text = label ?? id ?? type;
-    const reachable = route && can(route.permission);
+    // Resolved once. Both branches below ask the same question, and a second
+    // lookup could answer it differently from this one.
+    const href =
+        id && route && can(route.permission) ? route.path(encodeURIComponent(id)) : undefined;
 
     return (
         <div className="min-w-0">
-            {reachable && id ? (
-                <Link
-                    to={route.path(encodeURIComponent(id))}
-                    className="font-medium break-all hover:underline"
-                >
+            {/* No name, so the slot *is* the id — a value, and it keeps whatever
+                navigation it had. `to` leaves the copy button a button. */}
+            {id && !label ? (
+                <CopyableValue value={id} label="record ID" to={href} className="font-medium" />
+            ) : href ? (
+                <Link to={href} className="font-medium break-all hover:underline">
                     {text}
                 </Link>
             ) : (

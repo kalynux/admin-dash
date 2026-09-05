@@ -197,8 +197,13 @@ export function ArticleCreateDialog({
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
-                <DialogHeader>
+            {/*
+              § E1 · the same shell as the translation editor — a fixed-height
+              column whose middle scrolls, rather than a panel that scrolls its
+              own header and footer away once the body is a few blocks long.
+            */}
+            <DialogContent className="flex h-[92vh] max-w-[min(96vw,72rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(96vw,72rem)]">
+                <DialogHeader className="border-b px-6 py-4">
                     <DialogTitle>New article</DialogTitle>
                     <DialogDescription>
                         It is created as a draft — invisible on the public site until it is
@@ -206,7 +211,7 @@ export function ArticleCreateDialog({
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4">
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
                     <div className="space-y-1.5">
                         <Label htmlFor="article-id">Id</Label>
                         <Input
@@ -285,6 +290,20 @@ export function ArticleCreateDialog({
 
                     <div className="space-y-3 border-t pt-4">
                         <p className="text-sm font-medium">The first language</p>
+                        {/*
+                          ⚠ § E3 · this choice is not just "which language do I
+                          write first". The backend stamps it as the article's
+                          `sourceLocale` at create and **never rewrites it**, and
+                          every language added afterwards inherits this one's
+                          block list. So it decides where the article's structure
+                          is edited for the rest of its life.
+                        */}
+                        <p className="text-muted-foreground text-xs">
+                            Whichever language this is becomes the article&rsquo;s source language:
+                            every language added later inherits its components, and adding, removing
+                            or reordering a block is done here from then on. It is recorded when the
+                            article is created and cannot be moved afterwards.
+                        </p>
 
                         <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
                             <div className="space-y-1.5">
@@ -391,7 +410,7 @@ export function ArticleCreateDialog({
                     {formError ? <AuthFormError error={formError} /> : null}
                 </div>
 
-                <DialogFooter>
+                <DialogFooter className="border-t px-6 py-4">
                     <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                         Cancel
                     </Button>

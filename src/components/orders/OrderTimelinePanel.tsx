@@ -1,15 +1,14 @@
 import { useMemo, useState } from 'react';
 import { Clock } from 'lucide-react';
 
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
 import { Pager } from '@/components/common/Pager';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { InfoHint } from '@/components/ui/info-hint';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -23,6 +22,7 @@ import { PAGE_SIZE_DEFAULT, withQuery } from '@/lib/query';
 import { listOrderTimeline } from '@/services/orders.service';
 import {
     ORDER_TIMELINE_ACTOR_TYPES,
+    ORDER_TIMELINE_EVENT_TYPES,
     type OrderTimelineEntry,
     type OrderTimelineQuery,
 } from '@/types/orders.types';
@@ -65,7 +65,7 @@ export function OrderTimelinePanel({
     reloadToken: number;
 }) {
     const [actorType, setActorType] = useState<string>(ANY);
-    const [eventType, setEventType] = useState('');
+    const [eventType, setEventType] = useState<string>(ANY);
     const [page, setPage] = useState(1);
 
     const query = useMemo<OrderTimelineQuery>(
@@ -74,9 +74,9 @@ export function OrderTimelinePanel({
                 actorType === ANY
                     ? undefined
                     : (actorType as OrderTimelineQuery['actorType']),
-            // Trimmed and dropped when empty: the server bounds it 2–60 and an
-            // empty value would be a filter for nothing.
-            eventType: eventType.trim().length >= 2 ? eventType.trim() : undefined,
+            // The sentinel is dropped rather than sent: the server bounds the
+            // value 2–60 and `any` is a filter for nothing.
+            eventType: eventType === ANY ? undefined : eventType,
             page,
             limit: PAGE_SIZE_DEFAULT,
         }),
@@ -90,11 +90,11 @@ export function OrderTimelinePanel({
 
     const rows = timeline.data?.data ?? [];
     const meta = timeline.data?.meta;
-    const isFiltered = actorType !== ANY || eventType.trim().length > 0;
+    const isFiltered = actorType !== ANY || eventType !== ANY;
 
     function clear() {
         setActorType(ANY);
-        setEventType('');
+        setEventType(ANY);
         setPage(1);
     }
 
@@ -113,6 +113,8 @@ export function OrderTimelinePanel({
                 cell: (entry) => (
                     <div className="min-w-0 space-y-1">
                         <p className="text-sm">{entry.description ?? entry.eventType}</p>
+                        {/* Mono, but not a value: `eventType` is a vocabulary
+                            token, and nobody pastes one anywhere. */}
                         <p className="text-muted-foreground font-mono text-xs">
                             {entry.eventType}
                         </p>
@@ -131,10 +133,54 @@ export function OrderTimelinePanel({
                         >
                             {entry.actorType}
                         </Badge>
+                        {/*
+                          ⚠ **The name, and it took two databases to get here.**
+                          `actorId` is a different id space per `actorType` — an
+                          `admin` id is a wi-admin `admin_accounts._id`, a
+                          `vendor` id is a `vendors._id`, a `customer` id is a
+                          `customers._id` — so no single lookup could have
+                          resolved this column and this client could not have
+                          done it at all. The `admin` row is the one nothing else
+                          could answer: jovi-mall stamps a wi-admin id into a
+                          column declared `ref: MODELS.USER`, where it
+                          dereferences to nothing (ADR-004 D-1). "Which of us did
+                          this" is what an order timeline is opened for.
+
+                          `null` for `system` and wherever the record is gone —
+                          **`null`, never the id**, so an absent name here is an
+                          answer rather than a gap to fill from `actorId`.
+                        */}
+                        {entry.actorName ? (
+                            <p className="text-sm">{entry.actorName}</p>
+                        ) : null}
+                        {/*
+                          ⚠ Shortened here, and only here on this screen. This is a
+                          six-column table and the id is stacked under a badge in
+                          the narrowest of them — the one place the head-and-tail
+                          form earns its keep. Nothing is lost: the whole value is
+                          the `title` and the whole value is what copies.
+
+                          Absent for `system` rows, which is why the branch stays —
+                          `<NotSet />` under the badge would be noise where "the
+                          system did it" is already the complete answer.
+
+                          ⚠ **Not a link, and it must not become one.** Three id
+                          spaces across two databases share this one field, and
+                          `/dashboard/users/:id` would be wrong for every one of
+                          them. The name above is what the reader needs; the id
+                          is here to be copied.
+                        */}
                         {entry.actorId ? (
-                            <p className="text-muted-foreground font-mono text-xs">
-                                {entry.actorId}
-                            </p>
+                            // A block wrapper, because the affordance is an
+                            // inline-flex span and would otherwise ride up
+                            // alongside the badge instead of under it.
+                            <div className="text-muted-foreground">
+                                <CopyableValue
+                                    variant="id"
+                                    value={entry.actorId}
+                                    label="actor ID"
+                                />
+                            </div>
                         ) : null}
                     </div>
                 ),
@@ -144,6 +190,16 @@ export function OrderTimelinePanel({
                 header: 'Detail',
                 className: 'align-top',
                 cell: (entry) =>
+                    /*
+                      ⚠ Left as a dump, and the temptation here is real: a
+                      `payment.updated` row carries a gateway `reference` under
+                      `metadata`, which looks exactly like a value worth copying.
+                      It is not one this client may claim to understand —
+                      `metadata` is `Mixed` in jovi-mall, written by every
+                      transition path, and nothing here branches on a key. A copy
+                      button on an arbitrary key asserts a shape the wire does not
+                      promise.
+                    */
                     entry.metadata && Object.keys(entry.metadata).length > 0 ? (
                         <dl className="space-y-0.5">
                             {Object.entries(entry.metadata).map(([key, value]) => (
@@ -170,10 +226,28 @@ export function OrderTimelinePanel({
             <p className="text-muted-foreground flex items-center gap-1 text-sm">
                 Everything that happened to this order.
                 <InfoHint label="About this feed">
-                    The platform&apos;s own history — the vendor, the customer, the system and
-                    administrators. The Activity tab is the narrower sibling: what administrators
-                    did, from this service&apos;s own audit database. They are not merged, because
-                    they live in different databases behind different permissions.
+                    <p>
+                        The platform&apos;s own history — the vendor, the customer, the system and
+                        administrators. The Activity tab is the narrower sibling: what
+                        administrators did, from this service&apos;s own audit database. They are
+                        not merged, because they live in different databases behind different
+                        permissions.
+                    </p>
+                    {/*
+                      ⚠ **This paragraph used to say the opposite**, and it was
+                      false for two days: it told an operator that rows name who
+                      acted by id and that resolving the person "is not answered
+                      yet", after BR-016 § 5 had already shipped `actorName`.
+                      What replaces it is the caveat that is actually true — an
+                      absent name is an answer, not a gap.
+                    */}
+                    <p>
+                        <strong>An id here is not a user id.</strong> Which directory it belongs to
+                        depends on the role beside it, and the two most common resolve in different
+                        databases — so the id is copyable and deliberately not a link. Where no
+                        name is shown, none exists: the system acted, or the record behind it is
+                        gone.
+                    </p>
                 </InfoHint>
             </p>
 
@@ -199,27 +273,43 @@ export function OrderTimelinePanel({
                 </Select>
 
                 {/*
-                  A free-text input, not a picker: `eventType` is format-validated
-                  (dotted, 2–60) and the platform owns the vocabulary. A dropdown
-                  here would be a list this client invented.
+                  ⚠ A picker, against this repository's standing rule that
+                  **filters stay free-text and only create forms get pickers**.
+                  The rule is right and the reason it does not apply here is
+                  specific: `listQuery` is not `.strict()` service-wide, so a
+                  stale picker's value is dropped silently and the unfiltered
+                  list comes back `200` looking filtered — which is only a risk
+                  while the vocabulary can move underneath us.
+
+                  This one cannot. `event_type` is a closed Mongoose enum on an
+                  append-only collection, mirrored byte-for-byte at
+                  `docs/jovi-mall/order-timeline-events.ts` and diffed against
+                  `ORDER_TIMELINE_EVENT_TYPES` by a guard test. The same standard
+                  `ticket-vocabularies.ts` met.
+
+                  The tokens are shown raw, not humanised: this is the value the
+                  table prints in mono under each row, and a menu that renamed
+                  them would stop matching what an operator is reading.
                 */}
-                <div className="space-y-1.5">
-                    <Label htmlFor="timeline-event-type" className="text-xs">
-                        Event type
-                    </Label>
-                    <Input
-                        id="timeline-event-type"
-                        className="w-52"
-                        placeholder="payment.updated"
-                        autoComplete="off"
-                        maxLength={60}
-                        value={eventType}
-                        onChange={(event) => {
-                            setEventType(event.target.value);
-                            setPage(1);
-                        }}
-                    />
-                </div>
+                <Select
+                    value={eventType}
+                    onValueChange={(value) => {
+                        setEventType(value);
+                        setPage(1);
+                    }}
+                >
+                    <SelectTrigger className="w-56" aria-label="Event type">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value={ANY}>Any event</SelectItem>
+                        {ORDER_TIMELINE_EVENT_TYPES.map((value) => (
+                            <SelectItem key={value} value={value} className="font-mono text-xs">
+                                {value}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </FilterBar>
 
             <DataTable

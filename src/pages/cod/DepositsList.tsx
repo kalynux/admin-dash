@@ -9,6 +9,7 @@ import {
     RejectDepositDialog,
 } from '@/components/cod/CodWriteDialogs';
 import { RecordDepositDialog } from '@/components/cod/RecordDepositDialog';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
@@ -107,12 +108,31 @@ export function DepositsList() {
                 className: 'align-top',
                 cell: (row) => (
                     <div className="min-w-0 space-y-1">
-                        <Link
-                            to={`/dashboard/cod/deposits/${row.id}`}
-                            className="font-medium hover:underline"
-                        >
-                            {row.reference ?? 'No reference'}
-                        </Link>
+                        {/*
+                          The reference is the row's name AND the string an
+                          operator matches against a bank statement, so it keeps
+                          its link and gains a copy button beside it — `plain`,
+                          never shortened. Where there is none the plain link
+                          stays: `No reference` is a statement about the record
+                          and `NotSet` would drop the way into it.
+                        */}
+                        {row.reference ? (
+                            <CopyableValue
+                                variant="plain"
+                                mono={false}
+                                value={row.reference}
+                                label="deposit reference"
+                                to={`/dashboard/cod/deposits/${row.id}`}
+                                className="font-medium"
+                            />
+                        ) : (
+                            <Link
+                                to={`/dashboard/cod/deposits/${row.id}`}
+                                className="font-medium hover:underline"
+                            >
+                                No reference
+                            </Link>
+                        )}
                         {row.note ? (
                             <p className="text-muted-foreground line-clamp-1 text-xs">
                                 {row.note}
@@ -399,17 +419,22 @@ export function DepositsList() {
     );
 }
 
+/**
+ * ⚠ **This endpoint returns no name for either party** — `agentId` and
+ * `agencyId` and nothing else — which is why the id is the whole cell rather
+ * than a subtitle under a name, and why it has to be copyable: looking the
+ * agent up in the directory means pasting it somewhere.
+ *
+ * Shortened, unlike the same ids on a detail screen: two of these stack inside
+ * one `text-xs` cell of an eight-column table, and the head-and-tail form still
+ * tells two agents apart. The whole id is in the `title` and is what gets
+ * copied.
+ */
 function PartyLink({ id, to, label }: { id: string; to: string | null; label: string }) {
     return (
         <p className="flex items-center gap-1.5">
             <span className="text-muted-foreground">{label}</span>
-            {to ? (
-                <Link to={to} className="font-mono hover:underline">
-                    {id}
-                </Link>
-            ) : (
-                <span className="font-mono">{id}</span>
-            )}
+            <CopyableValue value={id} label={`${label.toLowerCase()} ID`} to={to ?? undefined} />
         </p>
     );
 }

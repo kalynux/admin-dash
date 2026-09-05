@@ -1,7 +1,7 @@
 /**
  * The transcription guard.
  *
- * `permissions.types.ts` copies 114 permission names out of
+ * `permissions.types.ts` copies 116 permission names out of
  * `docs/admin/api/permissions.md` by hand. A single typo there is invisible at
  * runtime — a permission that does not exist can never be held, so the screen it
  * gates simply never appears, for everybody, forever.
@@ -103,10 +103,10 @@ describe('the permission catalogue matches docs/admin/api/permissions.md', () =>
         // when the tier table and the † note were re-counted for
         // `files.content.read`; the assertion below pins that they still do, so
         // the two cannot drift apart again silently.
-        expect(PERMISSION_NAMES.length).toBe(114);
+        expect(PERMISSION_NAMES.length).toBe(116);
         expect(UNROUTED_PERMISSION_NAMES.length).toBe(4);
         expect(PERMISSION_FAMILIES.length).toBe(20);
-        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(110);
+        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(112);
     });
 
     /**

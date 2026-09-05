@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { RotateCw, Store } from 'lucide-react';
 
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { EmptyState } from '@/components/common/DataState';
@@ -154,9 +155,28 @@ export function VendorsList() {
                         >
                             {vendorDisplayName(vendor)}
                         </Link>
+                        {/*
+                          ⚠ The link above is a *heading*, not a value, even though
+                          `vendorDisplayName` falls through to the email and then
+                          the phone: it is what the row is called and it is already
+                          the route into the record. The contact column beside it
+                          renders the same two fields as values, and that is where
+                          the copy buttons belong.
+                        */}
                         {vendor.storeSlug ? (
-                            <p className="text-muted-foreground truncate font-mono text-xs">
-                                {vendor.storeSlug}
+                            <p className="text-muted-foreground text-xs">
+                                {/*
+                                  `plain`, so it survives whole — the slug is the
+                                  storefront address, and the CSS `truncate` that
+                                  used to clip it is exactly the hiding this
+                                  variant refuses.
+                                */}
+                                <CopyableValue
+                                    variant="plain"
+                                    mono
+                                    value={vendor.storeSlug}
+                                    label="store slug"
+                                />
                             </p>
                         ) : (
                             <p className="text-muted-foreground truncate text-xs">No store yet</p>
@@ -168,11 +188,32 @@ export function VendorsList() {
                 id: 'contact',
                 header: 'Contact',
                 sortKey: 'email',
+                // The column the ask is about: an operator ringing a vendor back
+                // retyped this off the screen. ⚠ The `—` fallback stays rather than
+                // `CopyableValue`'s own `NotSet`: an empty cell on this page reads
+                // as a dash in six other columns, and "Not set" in one of them
+                // would look like a different kind of nothing.
                 cell: (vendor) => (
                     <div className="min-w-0">
-                        <p className="truncate text-sm">{vendor.email ?? '—'}</p>
+                        <p className="text-sm">
+                            {vendor.email ? (
+                                <CopyableValue
+                                    variant="email"
+                                    value={vendor.email}
+                                    label="vendor email"
+                                />
+                            ) : (
+                                '—'
+                            )}
+                        </p>
                         {vendor.phone ? (
-                            <p className="text-muted-foreground truncate text-xs">{vendor.phone}</p>
+                            <p className="text-muted-foreground text-xs">
+                                <CopyableValue
+                                    variant="phone"
+                                    value={vendor.phone}
+                                    label="vendor phone"
+                                />
+                            </p>
                         ) : null}
                     </div>
                 ),

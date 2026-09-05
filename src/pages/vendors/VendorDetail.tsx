@@ -7,6 +7,7 @@ import { ErrorState } from '@/components/common/DataState';
 import { DetailSkeleton } from '@/components/common/Loading';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { CascadeResultNotice } from '@/components/vendors/CascadeResultNotice';
+import { VendorAgenciesPanel } from '@/components/vendors/VendorAgenciesPanel';
 import { EditVendorSettingsDialog } from '@/components/vendors/EditVendorSettingsDialog';
 import { RestoreVendorDialog } from '@/components/vendors/RestoreVendorDialog';
 import { SuspendVendorDialog } from '@/components/vendors/SuspendVendorDialog';
@@ -126,7 +127,19 @@ function VendorDetailScreen({ vendorId }: { vendorId: string }) {
     const [cascade, setCascade] = useState<PlatformVendor | null>(null);
     const [activityToken, setActivityToken] = useState(0);
     const [catalogueToken, setCatalogueToken] = useState(0);
-    const [focus, setFocus] = useState<{ status: string; token: number } | null>(null);
+    /**
+     * A hand-off into the Catalogue tab, applied once.
+     *
+     * Two flows use it and each sets only its own half: a reinstatement sends a
+     * `status` (*"show the listings still off sale"*), and the connections panel
+     * sends an `agencyId` (*"show the listings behind this count"*). The token is
+     * what makes a repeat of the same hand-off apply again.
+     */
+    const [focus, setFocus] = useState<{
+        status?: string;
+        agencyId?: string;
+        token: number;
+    } | null>(null);
 
     const vendor = useAsyncData(`/vendors/${vendorId}`, (signal) =>
         getVendor(vendorId, { signal }),
@@ -172,6 +185,13 @@ function VendorDetailScreen({ vendorId }: { vendorId: string }) {
     const record = vendor.data;
     const canSeeActivity = can(['vendors.read', 'audit.read'], 'all');
     const canSeeAccount = can(ACCOUNT_READ_PERMISSIONS, 'all');
+    /*
+      ⚠ `all`, and `satisfies` takes no default mode precisely so this cannot be
+      read as `any`. Both tiers holding either permission hold both today, so this
+      costs nobody access — it states the dependency so a future tier change
+      cannot quietly open a side door onto the agency directory.
+    */
+    const canSeeConnections = can(['vendors.read', 'agencies.read'], 'all');
 
     return (
         <PageContainer
@@ -293,6 +313,37 @@ function VendorDetailScreen({ vendorId }: { vendorId: string }) {
                     <VendorCountsPanel vendor={record} timeZone={timeZone} />
 
                     {/*
+                      ⚠ Rendered only for a caller holding BOTH permissions, never
+                      rendered and then refused. The rows carry agency business
+                      names, contact people and commercial state, so `vendors.read`
+                      alone would be a second door onto the agency directory — the
+                      endpoint guards it as a composite in `all` mode, and a panel
+                      whose only content is a 403 teaches people the screen is
+                      broken. The counts above stay either way: they are on this
+                      payload and need nothing extra.
+                    */}
+                    {canSeeConnections ? (
+                        <VendorAgenciesPanel
+                            vendorId={record.id}
+                            timeZone={timeZone}
+                            onShowListings={(agencyId) => {
+                                setTab('catalogue');
+                                setFocus((current) => ({
+                                    agencyId,
+                                    token: (current?.token ?? 0) + 1,
+                                }));
+                            }}
+                        />
+                    ) : (
+                        <p className="text-muted-foreground bg-muted/40 rounded-lg border p-3 text-xs leading-relaxed">
+                            The connections behind those counts are listed one row each for an
+                            account holding both vendor and agency read access. The rows name
+                            agencies and carry their commercial state, so the endpoint asks for
+                            the permission that governs the agency directory as well as this one.
+                        </p>
+                    )}
+
+                    {/*
                       Stated in the open, not hidden behind an info icon, because an
                       administrator holding `vendors.*` reasonably goes looking for
                       each of these. Every one is unbuilt for a recorded reason.
@@ -314,6 +365,7 @@ function VendorDetailScreen({ vendorId }: { vendorId: string }) {
                         timeZone={timeZone}
                         reloadToken={catalogueToken}
                         focusStatus={focus?.status}
+                        focusAgencyId={focus?.agencyId}
                         focusToken={focus?.token}
                     />
                 </TabsContent>

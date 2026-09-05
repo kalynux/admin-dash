@@ -173,13 +173,42 @@ function ScanStep({
     onContinue: () => void;
     footer?: React.ReactNode;
 }) {
+    /*
+     * ── ⚠ Why this is not `<CopyableValue variant="plain">` ───────────────────
+     * The A2 sweep folded the dashboard's value renders onto that primitive and
+     * stopped here, for the reason spelled out on `OneTimePasswordPanel`: the
+     * primitive is *"an enhancement, never the only route"* — a ghost icon
+     * beside a value — and on this screen copying the key **is** the route. The
+     * secret is returned exactly once, and an administrator who continues
+     * without it needs another administrator to clear the enrolment. That wants
+     * a real control, not an inline icon.
+     *
+     * What the primitive standardises is here anyway: the shared `useClipboard`,
+     * and a value that stays rendered and selectable whatever the clipboard did.
+     */
     const { copy, copied } = useClipboard({ resetAfterMs: 2000 });
 
     async function copySecret() {
         // A denied clipboard permission is not worth an error state — the secret
         // is on screen and can be typed.
+        //
+        // ⚠ **The secret itself must NOT go in the toast**, and this used to put
+        // it there. `OneTimePasswordPanel` states the rule for its own sibling
+        // value in as many words — *"never in a toast — a toast outlives the
+        // screen that fired it and lands in a corner of every subsequent page"* —
+        // and a TOTP secret is the stronger case of the two: it is returned by
+        // `/auth/mfa/enroll` exactly once and it is a standing credential, not a
+        // password that will be changed on first use. A toast carrying it
+        // survives the wizard unmounting and follows the operator onto whatever
+        // they navigate to next, in a corner nobody is guarding.
+        //
+        // The toast stays, because a silently failed copy reads as a broken
+        // button. What it carries is the *instruction*; the secret stays where
+        // it already is — on screen, selectable, beside the QR code.
         if (!(await copy(offer.secret))) {
-            notify.info('Copy the secret manually', { description: offer.secret });
+            notify.info('Copy the secret manually', {
+                description: 'Select it below and copy it by hand — this browser refused the copy.',
+            });
         }
     }
 
@@ -202,7 +231,15 @@ function ScanStep({
                     Cannot scan? Enter this key by hand:
                 </p>
                 <div className="flex items-center gap-2">
-                    <code className="bg-muted flex-1 rounded-md px-3 py-2 font-mono text-sm break-all">
+                    {/*
+                      `select-all` so one click takes the whole key. It is the
+                      property `CopyableValue` gives every other value on the
+                      dashboard and the one this block was missing:
+                      `navigator.clipboard` is absent on any non-secure origin,
+                      and a double-click on a base32 key stops at nothing useful.
+                      `OneTimePasswordPanel` already reads this way.
+                    */}
+                    <code className="bg-muted flex-1 rounded-md px-3 py-2 font-mono text-sm break-all select-all">
                         {offer.secret}
                     </code>
                     <Button

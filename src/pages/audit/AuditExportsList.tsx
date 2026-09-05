@@ -4,6 +4,7 @@ import { Archive } from 'lucide-react';
 
 import { CreateAuditExportDialog } from '@/components/audit/CreateAuditExportDialog';
 import { ExportDownloadButton } from '@/components/audit/ExportDownloadButton';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { Pager } from '@/components/common/Pager';
@@ -137,7 +138,10 @@ export function AuditExportsList() {
                     // behind it, which is a fact rather than missing data.
                     row.requestedByName ??
                     (row.requestedBy ? (
-                        <span className="font-mono text-xs">{row.requestedBy}</span>
+                        // Shortened, unlike the same field on the detail screen:
+                        // this is a table cell with no name to sit beside, and the
+                        // whole value is in the title and on the clipboard.
+                        <CopyableValue value={row.requestedBy} label="requester ID" />
                     ) : (
                         <span className="text-muted-foreground">Command line</span>
                     )),

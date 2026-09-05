@@ -41,6 +41,7 @@
 
 import type { ActorStamp } from '@/types/actor.types';
 import type { AuditStatus } from '@/types/audit.types';
+import type { FileDetail } from '@/types/files.types';
 
 // ─── Status vocabularies ──────────────────────────────────────────────────────
 
@@ -130,6 +131,19 @@ export interface ShipmentOrderRef {
     /** A `customers._id` — see the note on `Order['customerId']`. */
     customerId: string | null;
     vendorId: string | null;
+    /**
+     * The vendor's **business name** — `stores.name`.
+     *
+     * ⚠ **Not the same source as `GET /orders`'s `vendorName`**, which is
+     * `vendors.display_name`, the vendor's *personal* name. The two fields share
+     * a spelling and answer different questions; this one is the business, which
+     * is what an operator recognises the shop by. `null` where the vendor has no
+     * Store row (mid-onboarding) — **never `display_name` substituted in**.
+     *
+     * ✅ Its arrival deleted a `GET /vendors/:vendorId` this screen used to make
+     * for the name alone.
+     */
+    vendorName: string | null;
 }
 
 export interface ShipmentStatusHistoryEntry {
@@ -286,11 +300,37 @@ export interface ShipmentDetail extends Shipment {
     cod: ShipmentCod | null;
     /** The same capped read as `GET /:id/offers`. */
     offers: ShipmentOffer[];
+    /**
+     * What is in the parcel.
+     *
+     * ⚠ **`title`, `price` and `currency` are the SALE's terms**, joined from the
+     * order's item snapshot on `orderItemId` — not the catalogue's. That is the
+     * whole point: a listing's price is today's and the order line is what the
+     * customer paid, and the two diverge the moment the vendor edits a price.
+     * They are `null` when the order line is gone rather than refreshed from the
+     * listing.
+     *
+     * ✅ All four fields arrived at BR-017 and replaced a
+     * `GET /vendors/:vendorId/products/:productId` per distinct listing. The
+     * lookup had to quote the *listed* price with a caveat, because it was the
+     * only number it could reach.
+     */
     items: {
         orderItemId: string | null;
         productId: string | null;
         variantId: string | null;
         quantity: number;
+        title: string | null;
+        price: number | null;
+        currency: string | null;
+        /**
+         * The primary image, **variant-preferred**, resolved exactly as
+         * `GET /orders/:orderId`'s `items[].image` — so the two screens cannot
+         * show different pictures of one parcel. `null` is ordinary.
+         *
+         * ⚠ Gate rendering on `isDisplayableImage`, all three conditions.
+         */
+        image: FileDetail | null;
     }[];
     /** An opaque id. This service resolves no file URLs. */
     deliveryProofFileId: string | null;

@@ -4,6 +4,7 @@ import { Newspaper, Plus, RotateCw } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
 import { ArticleCreateDialog } from '@/components/content/ArticleCreateDialog';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
@@ -20,6 +21,7 @@ import {
 } from '@/components/ui/select';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { useListQueryState } from '@/hooks/use-list-query-state';
+import { driverTranslation } from '@/lib/article-structure';
 import { resolveTimeZone } from '@/lib/datetime';
 import { formatCount, formatInstantInZone } from '@/lib/format';
 import { PAGE_SIZE_DEFAULT, withQuery } from '@/lib/query';
@@ -102,9 +104,19 @@ export function ArticlesList() {
             header: 'Article',
             className: 'align-top',
             cell: (row) => {
-                // The id is the address and the identity; a title belongs to a
-                // *translation*, so pick one to show and say how many there are.
-                const primary = row.translations[0];
+                /*
+                  The id is the address and the identity; a title belongs to a
+                  *translation*, so one has to be picked to show.
+
+                  🔴 It is the **source language**, not `translations[0]`. The
+                  array comes back in the order the last write sent — a `PATCH`
+                  is a full-array replace and nothing reorders it — so a row's
+                  title used to change language whenever somebody saved the
+                  article with a different language first, which reads as an
+                  article having been renamed. `sourceLocale` is stamped at
+                  create and never rewritten. BR-019 § 1.
+                */
+                const primary = driverTranslation(row);
                 return (
                     <div className="min-w-0 space-y-0.5">
                         <Link
@@ -113,7 +125,21 @@ export function ArticlesList() {
                         >
                             {primary?.title ?? row.id}
                         </Link>
-                        <p className="text-muted-foreground font-mono text-xs">{row.id}</p>
+                        {/*
+                          ⚠ `plain`, not `id`. The article id is a kebab key —
+                          `getting-paid-on-whatsapp` — so the head-and-tail
+                          shortening `variant="id"` applies to ObjectIds would
+                          hide the readable middle and leave two articles in the
+                          same category looking identical. Dense row or not,
+                          there is nothing redundant here to drop.
+                        */}
+                        <CopyableValue
+                            variant="plain"
+                            mono
+                            value={row.id}
+                            label="article ID"
+                            className="text-muted-foreground"
+                        />
                     </div>
                 );
             },

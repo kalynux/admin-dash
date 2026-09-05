@@ -60,7 +60,7 @@ Stated once here so no document repeats them. All from
   `src/i18n/locales/en/errors.ts`, where `codes` is `Record<KnownErrorCode, string>` — a code with no
   copy is a **compile error**, and a code in the registry with no entry in `errors.md` fails the
   suite. Ship the two together.
-- **A new permission must leave the `†` list.** The dashboard's `RoutedPermissionName` excludes the 28
+- **A new permission must leave the `†` list.** The dashboard's `RoutedPermissionName` excludes the 4
   catalogued-but-unrouted permissions, and `src/types/permissions.types.ts` is diffed against
   [`permissions.md`](../../admin/api/permissions.md) by a test. Naming a `†` permission in a nav item
   or a gate does not compile.
@@ -69,8 +69,13 @@ Stated once here so no document repeats them. All from
 - **Money is a plain number in the account currency** (default `XAF`), never minor units to divide.
 - **`202` is not an error.** A queued dual-control action answers `202` with an approval id.
 - **`404` is the denial for out-of-scope records**, not `403`.
-- **No multipart bodies anywhere.** Body limit 1 MB. Any image ask is an ask for *ids plus a
-  resolution route*, never an upload.
+- ⚠ **~~No multipart bodies anywhere.~~ NARROWED 2026-08-25 to "wi-admin never *parses* one"**
+  ([ADR-021](../../admin/ADR-021-ADMIN-MEDIA-LIBRARY.md) D-2). `POST /files/upload` pipes the raw
+  body through to jovi-mall **unread** — no multer, no busboy, no new dependency. The **1 MB limit
+  does not apply there**: it belongs to `express.json`, which is content-type gated and never sees
+  the request, so the route declares `ADMIN_UPLOAD_MAX_BYTES` (**32 MiB**) instead. **Every other
+  route still accepts no multipart body**, so an image ask is still an ask for *ids plus a
+  resolution route* unless it is genuinely an upload — and now one of those can be granted.
 
 ## What each document contains
 

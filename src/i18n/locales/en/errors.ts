@@ -105,6 +105,11 @@ const codes = {
     // ─── Files ───────────────────────────────────────────────────────────────
     FILE_NOT_FOUND: 'That file is no longer stored',
     FILE_DELETE_NOT_CONFIRMED: 'Type the confirmation exactly to delete this file',
+    FILE_UPLOAD_NOT_MULTIPART: 'That upload was not sent as a file',
+    // No size in the message: the ceiling is deployment configuration and the
+    // response carries it in `details.maxBytes`, so a number written here would
+    // be a second, drifting copy of it.
+    FILE_UPLOAD_TOO_LARGE: 'That file is too large to upload',
     // Deliberately not phrased as a failure: on a deployment whose storage
     // provider cannot read bytes this is the permanent, correct answer for every
     // file, so "could not load" would send an operator hunting an outage.
@@ -186,6 +191,13 @@ const codeHints = {
     // swept, so a record legitimately outlives the picture it points at.
     FILE_NOT_FOUND: 'The record that referenced it is still here; the file itself has been cleaned up.',
     FILE_DELETE_NOT_CONFIRMED: 'The deletion is permanent, so the confirmation has to match exactly.',
+    // The operator cannot fix a content type, so this hint is aimed at whoever
+    // reads it next: it says what happened, not what to press.
+    FILE_UPLOAD_NOT_MULTIPART:
+        'Nothing was uploaded. Choose the file again, and quote the reference if it keeps happening.',
+    // Names the limit from `details.maxBytes` at the call site rather than here.
+    FILE_UPLOAD_TOO_LARGE:
+        'Nothing was uploaded. Send a smaller version, or split it into more than one file.',
     // No "try again": on this storage provider it will never succeed.
     FILE_CONTENT_NOT_SUPPORTED:
         'How this deployment stores files means their contents cannot be opened here. Nothing is wrong — the file details above are still accurate.',

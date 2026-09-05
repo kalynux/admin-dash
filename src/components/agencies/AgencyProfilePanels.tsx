@@ -13,6 +13,7 @@ import { formatCount, formatInstantInZone } from '@/lib/format';
 import { isPlatformActor } from '@/types/actor.types';
 import type { AgencyDetail, AgencyPolicies } from '@/types/agencies.types';
 import { CopyableId } from '@/components/common/CopyableId';
+import { CopyableValue } from '@/components/common/CopyableValue';
 
 /**
  * Identity, status and contact — everything an administrator reads before deciding
@@ -38,7 +39,11 @@ export function AgencyOverviewPanel({
 
             <Definition
                 label="Verification"
-                hint="Whether the agency's business paperwork was approved. Separate from its status — nothing on the platform currently blocks an unverified agency from operating, so the two can disagree."
+                hint={
+                    <InfoHint label="About verification">
+                        Whether the agency's business paperwork was approved. Separate from its status — nothing on the platform currently blocks an unverified agency from operating, so the two can disagree.
+                    </InfoHint>
+                }
             >
                 <AgencyVerificationBadge agency={agency} />
             </Definition>
@@ -51,10 +56,15 @@ export function AgencyOverviewPanel({
                 {agency.contactName ?? <NotSet />}
             </Definition>
 
+            {/*
+              The presence test stays outside: the verification mark only means
+              something beside an address that exists, so `CopyableValue`'s own
+              `NotSet` branch is unreachable here rather than duplicated.
+            */}
             <Definition label="Email">
                 {agency.email ? (
-                    <span className="inline-flex items-center gap-1.5">
-                        {agency.email}
+                    <span className="inline-flex flex-wrap items-center gap-1.5">
+                        <CopyableValue variant="email" value={agency.email} label="agency email" />
                         {agency.emailVerified ? (
                             <BadgeCheck className="text-success size-4 shrink-0" aria-label="Verified" />
                         ) : (
@@ -70,8 +80,8 @@ export function AgencyOverviewPanel({
 
             <Definition label="Phone">
                 {agency.phone ? (
-                    <span className="inline-flex items-center gap-1.5">
-                        {agency.phone}
+                    <span className="inline-flex flex-wrap items-center gap-1.5">
+                        <CopyableValue variant="phone" value={agency.phone} label="agency phone" />
                         {agency.phoneVerified ? (
                             <BadgeCheck className="text-success size-4 shrink-0" aria-label="Verified" />
                         ) : (
@@ -89,7 +99,11 @@ export function AgencyOverviewPanel({
 
             <Definition
                 label="Coverage areas"
-                hint="The regions this agency serves, declared on its business record. Not the same as a contract's coverage, which narrows an individual agent to part of it."
+                hint={
+                    <InfoHint label="About coverage areas">
+                        The regions this agency serves, declared on its business record. Not the same as a contract's coverage, which narrows an individual agent to part of it.
+                    </InfoHint>
+                }
             >
                 {agency.coverageAreas.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
@@ -106,7 +120,11 @@ export function AgencyOverviewPanel({
 
             <Definition
                 label="Auto-assignment"
-                hint="When on, a shipment handed to this agency is auto-offered to the best-ranked eligible agent instead of waiting for a manual pick. Agencies opt in; it is off by default."
+                hint={
+                    <InfoHint label="About auto-assignment">
+                        When on, a shipment handed to this agency is auto-offered to the best-ranked eligible agent instead of waiting for a manual pick. Agencies opt in; it is off by default.
+                    </InfoHint>
+                }
             >
                 {agency.autoAssignEnabled ? 'On' : 'Off'}
             </Definition>
@@ -135,7 +153,11 @@ export function AgencyOverviewPanel({
 
             <Definition
                 label="User id"
-                hint="The platform account behind this agency. A different identity space from the agency record itself."
+                hint={
+                    <InfoHint label="About the user id">
+                        The platform account behind this agency. A different identity space from the agency record itself.
+                    </InfoHint>
+                }
             >
                 <CopyableId value={agency.userId} label="user ID" />
             </Definition>
@@ -183,7 +205,11 @@ export function AgencyKycPanel({
 
             <Definition
                 label="Verified by"
-                hint="A snapshot taken when the approval was recorded, not a live lookup. For an administrator it is the only readable record of who acted."
+                hint={
+                    <InfoHint label="About who verified this">
+                        A snapshot taken when the approval was recorded, not a live lookup. For an administrator it is the only readable record of who acted.
+                    </InfoHint>
+                }
             >
                 {kyc.verifiedBy ? (
                     <span className="inline-flex flex-wrap items-center gap-1.5">
@@ -258,6 +284,16 @@ export function AgencyPoliciesPanel({ agency }: { agency: AgencyDetail }) {
             {policies.documents && policies.documents.length > 0 ? (
                 <section className="space-y-2">
                     <h3 className="text-sm font-medium">Supporting documents</h3>
+                    {/*
+                      ⚠ **This one stays inline, and deliberately.** Every field
+                      description on this screen moved behind an `InfoHint` in the
+                      remediation round; this did not, because it is not a
+                      description of a field — it is a warning about what a click
+                      does. These links leave the platform, and nothing here
+                      fetches or previews what is behind them. A consequence
+                      somebody has to click an icon to discover is a consequence
+                      they will not discover.
+                    */}
                     <p className="text-muted-foreground text-xs">
                         Terms the blocks above do not cover. These are links to files held outside
                         the platform — this dashboard does not fetch or preview them.
@@ -310,7 +346,11 @@ function PricingBlock({ pricing }: { pricing: AgencyPolicies['pricing'] }) {
             <DefinitionList>
                 <Definition
                     label="Storage-based"
-                    hint="Whether the agency warehouses stock at all — not a rate of zero."
+                    hint={
+                        <InfoHint label="About storage-based pricing">
+                            Whether the agency warehouses stock at all — not a rate of zero.
+                        </InfoHint>
+                    }
                 >
                     {pricing.storageBased?.enabled ? 'Offered' : 'Not offered'}
                 </Definition>
@@ -387,7 +427,14 @@ function ReturnsBlock({ returns }: { returns: AgencyPolicies['returns'] }) {
         <section className="space-y-2">
             <h3 className="text-sm font-medium">Returns</h3>
             <DefinitionList>
-                <Definition label="Paid by" hint="Who bears the cost of a returned order.">
+                <Definition
+                    label="Paid by"
+                    hint={
+                        <InfoHint label="About who pays for a return">
+                            Who bears the cost of a returned order.
+                        </InfoHint>
+                    }
+                >
                     <span className="capitalize">{returns.payer}</span>
                 </Definition>
                 <Definition label="Handling fee">
@@ -417,13 +464,21 @@ function DamageBlock({ damage }: { damage: AgencyPolicies['damage'] }) {
                 </Definition>
                 <Definition
                     label="Inspected by"
-                    hint="An administrator-controlled preset — the agency does not set this."
+                    hint={
+                        <InfoHint label="About the inspector">
+                            An administrator-controlled preset — the agency does not set this.
+                        </InfoHint>
+                    }
                 >
                     <span className="capitalize">{damage.inspector ?? 'agency'}</span>
                 </Definition>
                 <Definition
                     label="Investigation fee"
-                    hint="Also an administrator-controlled preset."
+                    hint={
+                        <InfoHint label="About the investigation fee">
+                            Also an administrator-controlled preset.
+                        </InfoHint>
+                    }
                 >
                     <Amount value={damage.investigationFee} />
                 </Definition>
@@ -451,7 +506,11 @@ function CodBlock({
                         <Definition label="Accepted">{cod.enabled ? 'Yes' : 'No'}</Definition>
                         <Definition
                             label="Maximum order value"
-                            hint="The ceiling for a single cash-on-delivery order. Not the same as an agent's COD pool, which limits how much cash one person may be holding at once."
+                            hint={
+                                <InfoHint label="About the cash-on-delivery ceiling">
+                                    The ceiling for a single cash-on-delivery order. Not the same as an agent's COD pool, which limits how much cash one person may be holding at once.
+                                </InfoHint>
+                            }
                         >
                             {/* `null` is NO ceiling. Zero would block every COD order. */}
                             {cod.maxOrderAmount === null ? (
@@ -468,13 +527,21 @@ function CodBlock({
                 )}
                 <Definition
                     label="Policy version"
-                    hint="Raised every time the agency edits any of these terms. Each raise pauses every connected vendor until they re-approve."
+                    hint={
+                        <InfoHint label="About the policy version">
+                            Raised every time the agency edits any of these terms. Each raise pauses every connected vendor until they re-approve.
+                        </InfoHint>
+                    }
                 >
                     {version}
                 </Definition>
                 <Definition
                     label="Connections awaiting re-approval"
-                    hint="Vendor connections sitting in paused_reapproval right now, because a policy edit raised the version. The vendor side counts the same collection from the other end."
+                    hint={
+                        <InfoHint label="About paused connections">
+                            Vendor connections sitting in paused_reapproval right now, because a policy edit raised the version. The vendor side counts the same collection from the other end.
+                        </InfoHint>
+                    }
                 >
                     {/*
                       The consequence of the field above, which previously had no

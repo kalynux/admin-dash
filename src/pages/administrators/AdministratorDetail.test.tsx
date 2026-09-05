@@ -250,6 +250,63 @@ describe('the record itself', () => {
         expect(await screen.findByText('Never')).toBeInTheDocument();
     });
 
+    /**
+     * The A2 sweep, on the three administrator ids this screen renders.
+     *
+     * `createdBy` keeps its navigation and gains a copy control beside it —
+     * `CopyableValue`'s `to` is what makes those two things coexist, and the
+     * copy button stops the event so the click cannot navigate instead. And all
+     * three are shown **whole**: `truncate={false}` everywhere, because every
+     * one of these sites displayed the full 24 characters before the sweep and
+     * shortening them now would be this change hiding data rather than making
+     * it copyable.
+     */
+    it('keeps the creator a link and makes it copyable, without shortening it', async () => {
+        renderDetail(administratorFixture());
+
+        await screen.findByRole('heading', { level: 1 });
+
+        const creator = screen.getByRole('link', { name: '6650aabbccddeeff00112233' });
+        expect(creator).toHaveAttribute(
+            'href',
+            '/dashboard/administrators/6650aabbccddeeff00112233',
+        );
+        expect(
+            screen.getByRole('button', { name: 'Copy creating administrator ID' }),
+        ).toBeInTheDocument();
+    });
+
+    /**
+     * ⚠ The one site where the null branch was *deleted* rather than kept.
+     * `CopyableValue` renders `NotSet` itself, so the panel's own conditional
+     * would have been a second fallback for the same gap — but only because
+     * `NotSet` is already what this screen shows there. "Created by" keeps its
+     * conditional, because `null` means the bootstrap account, not "unknown".
+     */
+    it('shows the suspending administrator as a copyable id', async () => {
+        // A different id from the fixture's `createdBy`, or "the id is on
+        // screen" would be ambiguous between two renders of the same string.
+        renderDetail(suspendedAdministratorFixture({ suspendedBy: 'b'.repeat(24) }));
+
+        await screen.findByText(/this account is suspended/i);
+
+        expect(screen.getByText('b'.repeat(24))).toBeInTheDocument();
+        expect(
+            screen.getByRole('button', { name: 'Copy suspending administrator ID' }),
+        ).toBeInTheDocument();
+    });
+
+    it('marks an absent suspending administrator once, not twice', async () => {
+        renderDetail(suspendedAdministratorFixture({ suspendedBy: null }));
+
+        await screen.findByText(/this account is suspended/i);
+
+        expect(screen.getByText('Not set')).toBeInTheDocument();
+        expect(
+            screen.queryByRole('button', { name: 'Copy suspending administrator ID' }),
+        ).not.toBeInTheDocument();
+    });
+
     it('says there is no delete, and why', async () => {
         renderDetail(administratorFixture());
 

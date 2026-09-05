@@ -10,16 +10,49 @@ scratch for wi-admin, the whole `/auth` surface, the authorization layer, and al
 groups. `ModulePlaceholder` still exists as `screenFor`'s fallback, but every nav entry now
 resolves to a real screen and nothing reaches it.
 
-🔴 **That claim is off by one, and the missing route matters.** Every path `src/services` calls
-does resolve to a documented route, but the reverse direction has a hole:
-**`GET /vendors/:vendorId/products/:productId` has no service function.** It was granted at
-[BR-005](docs/dashboard/backend-requests/BR-005-product-detail.md), it is in
-[docs/ROUTE-MAP.md](docs/ROUTE-MAP.md), and `vendors.service.ts` only ever calls
-`products/:productId/suspend` and `/restore`. So the catalogue tab still shows the thirteen list
-fields and the product detail screen the endpoint was built for does not exist. **232 of 233**,
-until Phase B2 of the remediation plan below closes it.
+✅ **Every path `src/services` calls resolves to a documented route, and Phase B closed two holes
+in the reverse direction on 2026-08-26.**
+`GET /vendors/:vendorId/products/:productId` (BR-005) and `GET /vendors/:vendorId/agencies`
+(BR-018) had been granted, were in [docs/ROUTE-MAP.md](docs/ROUTE-MAP.md), and had no service
+function at all — so the catalogue tab could only ever show the thirteen fields a list row carries.
+Both now have one, and a screen: a real product-detail route at
+`/dashboard/vendors/:vendorId/products/:productId`, and a connections panel on the vendor
+Overview with a `?deliveryAgencyId=` drill-down into the catalogue.
 
-The 233rd is `GET /files/:fileId/content`, added at BR-011 and integrated on 2026-08-25.
+✅ **Every route this service publishes now has a service function.** The last two closed with
+Phase F on 2026-08-27: `GET /files/library` and `POST /files/upload`, granted at BR-015 and
+integrated as the **Media** module. The figure this file used to carry (*"233 of 236"*) never
+squared with its own list, which named four uncalled routes in the paragraph beneath it — the
+count is checked by grep against the services, not inferred.
+
+✅ **`/files` is closed, and it grew this dashboard's first write path for files.** The Media
+module is `/dashboard/media` with two children: **Library** (`files.library.read`, tiers 1–2 — the
+whole platform's files with owner and usage, plus the upload and, for tier 1, the permanent
+delete) and **Orphan files**, which **moved here from `/dashboard/system/files`** unchanged. The
+media picker built on it is wired into **five** sites: the ticket-attachment panel, the
+ticket-creation form, the blog's `image` block, the blog cover, and the byline avatar. ⚠ **Three of
+them pass `requirePublicUrl` and two do not**, and the split is not a preference: the blog and the
+avatar store the **url string**, so a private-tree file (`url: null`, and always) is unusable
+there; the two ticket forms store a **`fileId`** and do not care.
+
+⚠ **`api.upload` is the client's only multipart method, and it must set no `Content-Type`.** A
+multipart body is unreadable without the `boundary` token, and only the `FormData` serialiser knows
+it — writing the header by hand omits it and the service answers `415 FILE_UPLOAD_NOT_MULTIPART` on
+a request that genuinely was multipart. That is also why it cannot go through `performRequest`,
+whose first act on a body is to stamp `application/json` and `JSON.stringify` it.
+
+⚠ **An admin upload lands PUBLIC and there is no way to ask otherwise.** jovi-mall files each part
+under the folder for its own detected media type and all six of those trees are classified
+`public`, so the address is unauthenticated and never expires. That is what closes the blog half of
+BR-015 — and it is said on the upload form *before* the file is chosen, because afterwards there is
+nothing to undo. ⚠ **Read the response, never echo the request**: the pipeline sniffs the real type
+and **converts PNG to WebP**.
+
+⚠ **Only the byte ceiling is enforced by wi-admin** — 32 MiB of *whole request body*, framing
+included. Max files (10), the field name (`files`) and the accepted MIME list are **published, not
+policed**, because this service never parses the body. A file that slips past the client returns
+`PLATFORM_OPERATION_REJECTED` with `details.platformCode: "UPLOAD_POLICY_VIOLATION"` and a
+`details.violations[]` array naming it. **That is a normal refusal, not a bug.**
 
 **Still not verified live against a running :8033** beyond the `/auth` surface and the phases that
 say so — that walkthrough remains the largest outstanding item, and it is now the *only* one.
@@ -38,20 +71,55 @@ filters were silently stripped. **Our own tests agreed with all of it**, because
 from the same misreading. Corrected against two new source mirrors and guarded by
 `content-contract.test.ts`. See [BR-014](docs/dashboard/backend-requests/BR-014-content-wire-shapes.md).
 
+🔴 **And one more `/content` rule, from BR-019 § 1: the order of `translations[]` is NOT a
+contract.** It comes back in the order the **last write** sent — `PATCH` is a full-array replace
+and `mergeTranslations` returns `incoming.map(…)` — so **`translations[0]` is not "the language the
+article was written in"**, it is "the first element of the most recent save". The exposure is not
+hypothetical and it is not the backend's to cause: *a client that sorts the array for display and
+sends it back repoints a positional driver itself*, with a request that cannot fail. Use
+**`sourceLocale`**, stamped at create and never rewritten; `driverTranslation()` in
+[`lib/article-structure.ts`](src/lib/article-structure.ts) is the one place that reads it.
+
 ⚠ **Every list endpoint on this service silently drops an unrecognised query parameter.**
 `listQuery` is not `.strict()`, so `categoryKey` instead of `category` returns the unfiltered
 list, `200`, no warning — a misspelt filter looks applied. Confirmed by the backend at BR-014 and
 **not fixed**: widening it service-wide is a change with its own blast radius. Check a filter name
 against the endpoint's page, not against the field it filters on.
 
-**`npm test` is green — 1868 tests in 123 files.** The two doc-parsing guards
+**`npm test` is green — 2277 tests in 152 files.** ⚠ **One failed on the last full run and
+passed alone**: `CreateTicketDialog.test.tsx` — 10/10 in isolation, one of its cases taking 17 s on a
+machine running nothing else. ⚠ **Three failed the same way on an earlier run, and all three passed
+alone** — `App.test.tsx`, `SearchInput.test.tsx`, `CreateTicketDialog.test.tsx`, while another
+session was building Phase F in the same working tree. That is the contention failure
+the `testTimeout` note below describes: **a full run that shares the machine measures the machine.**
+Re-run a failure in isolation before believing it.
+
+The two doc-parsing guards
 (`permissions.types.test.ts`, `error-catalog.test.ts`) went red when the docs were resynchronised
 on 2026-08-24, which is exactly what they exist for, and were fixed by correcting `src/` rather
 than by weakening them. **Keep it that way.** `error-catalog.test.ts` was additionally
 *strengthened* in that round: it now diffs against `docs/admin/error-codes.ts` — a verbatim copy of
 the backend's own registry — as well as against `errors.md`, because the two disagreed and only the
-source is authoritative. **They agree again since BR-012** (83 declared, 83 documented) and the
-double diff stays anyway, because what keeps them in step is the test.
+source is authoritative. **They agree at 85 / 85 since BR-015**, and the double diff stays anyway,
+because what keeps them in step is the test.
+
+⚠ **It was strengthened a third time on 2026-08-26, and this one closed a hole that had already
+been walked through.** The 2026-08-24 resync re-copied `errors.md` — which gained
+`FILE_UPLOAD_NOT_MULTIPART` and `FILE_UPLOAD_TOO_LARGE` — but did **not** re-take
+`docs/admin/error-codes.ts`, which sat at 83 for two days with **every assertion in the file still
+green**. The reason is instructive: the assertion pinning `KNOWN_ERROR_CODES` was anchored to the
+**union** of the two registries, and a union cannot notice that one of its members has fallen
+behind. `the source mirror is in step with the contract` now asserts the direction that catches it
+— *every wi-admin code `errors.md` publishes must be declared by the mirror* — and it was
+perturbation-tested rather than assumed.
+
+⚠ **The converse is deliberately NOT asserted.** Five codes are declared in source with no registry
+row in `errors.md` — `DEV_TOOLS_WORKER_UNKNOWN`, `DEV_TOOLS_WORKER_BUSY`,
+`USER_CHANNEL_UNAVAILABLE`, `USER_CREDENTIAL_LINK_THROTTLED`, `USER_LOGIN_LINK_ROLE_UNSUPPORTED`.
+Each is mentioned on its own endpoint page and all five carry copy, so it is a registry-table
+omission on the backend's side. Asserting symmetry would turn their omission into this
+repository's failing build and pressure somebody into "fixing" it by deleting a real code from a
+mirror. **A mirror is re-copied or it is wrong; it is never edited to make a test pass.**
 
 ⚠ **It was strengthened a second time on 2026-08-25.** Its "never reaches a client" predicate
 matched any *mention* of `details.platformCode`, which two well-written new sections broke: the
@@ -69,7 +137,7 @@ machine, not the code.
 npm run dev       # 5175, strictPort
 npm run build     # tsc -b && vite build   ← the typecheck runs here
 npm run lint      # eslint .
-npm test          # vitest run — 1868 tests in 123 files. No sibling dashboard has a test runner.
+npm test          # vitest run — 2277 tests in 152 files. No sibling dashboard has a test runner.
 ```
 
 **Every phase closes the same way**: typecheck, lint, tests, build, then a written summary naming
@@ -113,13 +181,21 @@ names the `src/` edits this repository still owes.
 four pages re-copied 2026-08-25 after BR-010/011/012). Treat it as read-only: corrections belong
 upstream in `backend/admin` and get re-copied.
 
-**The deviations are now six**, so `diff -r backend/admin/docs frontend/admin-dash/docs/admin`
-reports six extra names rather than two. `dashboard/` sits at [docs/dashboard/](docs/dashboard/)
-rather than inside it (14 files under `src/` point there); the other five are **source mirrors** —
+**The deviations are now seven**, so `diff -r backend/admin/docs frontend/admin-dash/docs/admin`
+reports seven extra names rather than two. `dashboard/` sits at [docs/dashboard/](docs/dashboard/)
+rather than inside it (14 files under `src/` point there); the other six are **source mirrors** —
 `error-codes.ts`, `article-blocks.ts`, `content-domain.ts`, `content-dto.ts`,
-`content-validators.ts`.
+`content-validators.ts`, and [`public-article-dto.ts`](docs/admin/public-article-dto.ts).
 
-**Eight source mirrors in total**, three of them jovi-mall's and therefore outside that diff:
+⚠ **The seventh was taken on 2026-08-26 at the backend's own suggestion, and the reasoning
+generalises.** BR-019 § 3 asked them for a mirror of the `/preview` shape; they declined to write
+one **on their side** and said why — *the mirror mechanism is entirely frontend-side*, so a sixth
+file in `backend/admin/docs/` would have had nothing to diff against and would have broken the
+`diff -r` count BR-014 recorded. `content.md` names the source path instead and says outright:
+*"mirror the source file rather than transcribing this table."* **Taking a mirror is this
+repository's job, not a favour to ask for.**
+
+**Nine source mirrors in total**, three of them jovi-mall's and therefore outside that diff:
 `jovi-mall/error-codes.ts`, `jovi-mall/ticket-vocabularies.ts`, and
 [`jovi-mall/order-timeline-events.ts`](docs/jovi-mall/order-timeline-events.ts) — added
 2026-08-25, because `orders.md` calls the order-timeline `eventType` *"format-validated, not
@@ -135,8 +211,8 @@ careful reading, every time.
 
 | Folder | What it is |
 |---|---|
-| [docs/README.md](docs/README.md) · [MIGRATION](docs/MIGRATION-2026-08.md) · [ROUTE-MAP](docs/ROUTE-MAP.md) · [TRACKING-DOORS](docs/TRACKING-DOORS.md) · [VERIFICATION](docs/VERIFICATION-2026-08-24.md) | **Authored here**, not mirrored. The route map covers all 233 routes with permission and audit flag. |
-| [docs/admin/api/](docs/admin/api/) | **The contract.** 231 versioned endpoints across 23 route groups, plus 2 health probes. If a behaviour is not written here, it is not promised. Start at [README.md](docs/admin/api/README.md). |
+| [docs/README.md](docs/README.md) · [MIGRATION](docs/MIGRATION-2026-08.md) · [ROUTE-MAP](docs/ROUTE-MAP.md) · [TRACKING-DOORS](docs/TRACKING-DOORS.md) · [VERIFICATION](docs/VERIFICATION-2026-08-24.md) | **Authored here**, not mirrored. The route map covers all 236 routes with permission and audit flag. |
+| [docs/admin/api/](docs/admin/api/) | **The contract.** 234 versioned endpoints across 23 route groups, plus 2 health probes. ⚠ Its own `README.md` still says **230**; it is a mirror, so that is reported rather than patched. If a behaviour is not written here, it is not promised. Start at [README.md](docs/admin/api/README.md). |
 | [docs/admin/](docs/admin/) ADR-001…020 | Why the contract is shaped this way. Read when a rule looks arbitrary — [ADR-005](docs/admin/ADR-005-API-CONTRACT.md) is the one that governs client code, and [ADR-020](docs/admin/ADR-020-ADMIN-DATA-DOOR.md) is the geo-tracker data door. |
 | [docs/dashboard/](docs/dashboard/) | This dashboard's own backend-requests and the backend's answers. **Start a UI change at [UX-REMEDIATION-2026-08-25](docs/dashboard/UX-REMEDIATION-2026-08-25.md)** — the current round of 31 operator asks, what ships, and what each blocked one is waiting on (BR-015…BR-019). |
 | [docs/admin/IMPLEMENTATION-BLUEPRINT.md](docs/admin/IMPLEMENTATION-BLUEPRINT.md) | Phase plan and what is shipped. Phases 0.5–4 done, 5–6 in progress, 7–8 pending. |
@@ -170,11 +246,69 @@ careful reading, every time.
   - Non-React code (`services/api.ts`, `lib/notify.ts`, `lib/errors.ts`) translates through
     `tStatic`/`hasStaticKey`, the module-level snapshot `I18nProvider` republishes on every switch.
 
+### The three shared primitives — Phase A of the remediation round
+
+Built 2026-08-26. ⚠ **`CopyableValue` HAS been applied dashboard-wide** in a dedicated sweep
+taken before Phase B — ~70 value renders across ~45 files, decided site by site. **`ImageBox` has
+one site left and `partyName()` is applied wherever a screen names a party**: Phase B put
+`ImageBox` on the product-detail gallery (via the `src` variant — a public tree, so no audit row)
+and applied the name rule at § B1, § B5 and § B6; **Phase C added the order-item and shipment-item
+pictures, put the delivery proof on `ResolvedImageBox` — the private-tree case the primitive was
+built for — and split the order's parties and the shipment's vendor into a name over a copyable
+id.** **Phase D closed the last site**, the ticket attachments — with `src`, and **not by choice:
+the attachment row carried no file id**, so the audited path was unavailable there at all. ✅ **That
+was a backend ask and it landed on 2026-08-26**; the panel now resolves the whole ticket in one
+`GET /files?ids=` and every attachment waits for a click, like every other image here. ⚠ **The
+public-and-permanent warning did not soften** — the audit row records *our* access, never the file's
+exposure. Read
+[UX-REMEDIATION-2026-08-25](docs/dashboard/UX-REMEDIATION-2026-08-25.md) § Phase A before changing
+one — each replaces a pattern that was hand-rolled at dozens of sites.
+
+Two Phase-C additions sit on top of them and are worth knowing before writing a third:
+
+- **`hooks/use-vendor-products.ts` + `components/vendors/ProductImage.tsx`** — an order item and a
+  shipment item both name a listing by id and carry no media, so both resolve
+  `GET /vendors/:vendorId/products/:productId` per **distinct** product. ⚠ **Bounded at 24 and the
+  cap is reported per row**, never silent: `items` is unbounded on the wire, and a truncation that
+  renders as an empty tile reads as *"this listing has no picture"*. The hook **never reports an
+  error** — `Promise.allSettled`, so one dead listing costs its own tile and the rows it decorates
+  survive. Six states, five of which are not failures.
+- **`components/common/PartyValue.tsx`** — a name over a copyable id, or an id alone. ⚠ It branches
+  on `ResolvedPartyName`'s **`kind`**, never on `value === id`: those agree today and stop agreeing
+  the moment a fallback chain grows an email, and the failure would be a duplicated line rather
+  than a compile error.
+
+- **`components/files/ImageBox.tsx`** — the reveal-on-click image, over
+  `hooks/use-file-content.ts` (the fetch, the object URL and the revoke, lifted out of `FileViewer`
+  so there is one implementation rather than two). ⚠ **The click is the consent and must stay
+  that way**: every open of `GET /files/:fileId/content` writes an audit row, so fetching on mount
+  would file a disclosure against an operator who only scrolled past. There is no `openOnMount`
+  option on the hook, on purpose. Four states are **not** failures and must not render as one —
+  `FILE_CONTENT_NOT_SUPPORTED` (a configuration answer, **no retry offered**), `FILE_NOT_FOUND`
+  (files are swept; a record outlives its picture), `truncated` (the only signal a mid-stream
+  failure gives), and holding no `files.content.read`. `<ImageBox src={url}>` is the direct-render
+  variant for an already-resolved public URL — **no fetch and no audit row**, because nothing is
+  disclosed that the resolve did not already give. `ImageLightbox` is the full-screen view;
+  `ResolvedImageBox` starts from a bare `*FileId`. ⚠ `FileViewer` keeps its non-image branch — the
+  content route serves any tree and a `digital/` file is as likely to be a zip as a picture.
+- **`components/common/CopyableValue.tsx`** — every id, phone and email, copyable. `variant` is
+  `id` (head-and-tail truncation) · `email` · `phone` · `plain`. `CopyableId` is now a thin alias
+  over it, so its 21 call sites did not churn. ⚠ **No `mailto:` and no `tel:`** — these are values
+  with no redirect link, and half of them sit inside a row that is itself a link, so a click that
+  opened a mail client would change what the row does depending on which pixels were hit.
+- **`lib/party.ts`** — `partyName()` / `resolvePartyName()`, one fallback rule stated once:
+  **`businessName` → `name` → `contactName` → `id`**. The five domain helpers stay and are
+  re-expressed over it. ⚠ **`businessName` is the business and `contactName` is a person**, which
+  is the BR-006 confusion; `resolvePartyName` therefore returns the value **with the field it came
+  from** and a `kind` of `own` · `contact` · `identifier`, so a business-shaped column can say when
+  it is showing a human. ⚠ A whitespace-only value is **no longer** accepted as a name — four of
+  the five helpers used `??` and rendered a blank cell where an id was wanted.
+
 ### The authorization layer
 
 Read [permissions.md](docs/admin/api/permissions.md) before touching any of it.
 
-- `src/types/permissions.types.ts` — the **114** permission names as literal types.
+- `src/types/permissions.types.ts` — the **116** permission names as literal types.
   `permissions.types.test.ts` **parses `docs/admin/api/permissions.md` and diffs it against them**,
   so a backend policy change fails the suite rather than drifting silently.
 
@@ -285,7 +419,18 @@ Arrays are `[]`, never `null`.
 **Treat unknown enum values as unknown, not as an error** — render the raw string. Adding an enum
 member is an additive, non-breaking change, so a closed `switch` will break on a routine deploy.
 
-**No file uploads.** wi-admin accepts no multipart bodies anywhere. Body limit 1 MB.
+**No file uploads — ⚠ narrowed on 2026-08-25, and the narrowing is in writing.** The rule was
+*"wi-admin accepts no multipart bodies anywhere"*. [ADR-021](docs/admin/ADR-021-ADMIN-MEDIA-LIBRARY.md)
+D-2 amends it to **"wi-admin never *parses* one"**: `POST /files/upload` pipes the raw multipart
+body through to jovi-mall **unread**, with no multer, no busboy and no new dependency. Two
+consequences. The **1 MB body limit does not apply on that path** — it belongs to `express.json`,
+which is content-type gated and never sees the request — so the route declares its own ceiling,
+`ADMIN_UPLOAD_MAX_BYTES`, **32 MiB of whole request body**, enforced here before the hop. And
+because nothing is parsed there is no field path to report, which is why a wrong content type is
+`415 FILE_UPLOAD_NOT_MULTIPART` rather than a `VALIDATION_ERROR`. Max files (10), field name
+(`files`) and the accepted MIME list are **published, not policed** — jovi-mall enforces them, and
+a file that slips past returns `PLATFORM_OPERATION_REJECTED` with
+`details.platformCode: "UPLOAD_POLICY_VIOLATION"`. Every other route still accepts no multipart body.
 
 **Other:** ids are 24-hex ObjectIds and opaque (session/challenge/approval ids are UUIDs); timestamps
 are ISO-8601 UTC strings; `?search=` is trimmed 1–120 chars and an empty one is *rejected*, so send no
@@ -309,12 +454,12 @@ status code ([auth.md](docs/admin/api/auth.md)):
 show `secret` as the manual fallback.
 
 **Build navigation from `GET /api/v1/permissions/me`.** Do not hard-code the matrix, and do not
-discover capability by collecting 403s. There are **114** permissions named `family.resource.action`
+discover capability by collecting 403s. There are **116** permissions named `family.resource.action`
 across **20** families, and **4 of them are catalogued policy with no endpoint yet** — the
 permission existing does not mean the screen can be built.
 
-**Levels: lower number = more privilege.** Tier 1 Developer (**114/114**, MFA mandatory), tier 2
-Admin (**97/114** — the operational tier including money), tier 3 Support (**30/114** — tickets plus
+**Levels: lower number = more privilege.** Tier 1 Developer (**116/116**, MFA mandatory), tier 2
+Admin (**99/116** — the operational tier including money), tier 3 Support (**30/116** — tickets plus
 read-only lookups **and both tracking-presence and live-position reads**; nothing financial, no
 sight of the administrator directory). `tier` is on the profile from
 `/auth/me`, and both `tier` and `status` are re-read from the database on **every** request, so a
@@ -333,14 +478,16 @@ The **23** built route groups are `/auth`, `/administrators`, `/permissions`, `/
 `/audit`, `/users`, `/vendors`, `/agencies`, `/agents`, `/contracts`, `/orders`, `/shipments`,
 `/cod`, `/billing`, `/money`, `/accounts`, `/support`, `/content`, `/messaging`, `/files`,
 `/system`, `/dev-tools`, `/notifications` (+ unversioned `/health/live`, `/health/ready`) —
-**233 routes in total**. Every one is listed with its permission in
+**236 routes in total**. Every one is listed with its permission in
 [docs/ROUTE-MAP.md](docs/ROUTE-MAP.md).
 
 **`/support` has 19 routes — the largest module in the service — `/content` has 14, `/files` has
-**5** since BR-011, and `/messaging` has 1**, and all of them have screens. The blog editor *moved here from
-jovi-mall*; tickets are under **Support desk**, a section grouped by the tier that works there
-rather than by domain, because sixteen of tier 3's twenty-nine permissions live in those two
-families.
+**7** since BR-015, and `/messaging` has 1**, and all of them have screens. The blog editor *moved
+here from jovi-mall*; tickets are under **Support desk**, a section grouped by the tier that works
+there rather than by domain, because sixteen of tier 3's twenty-nine permissions live in those two
+families. `/files` is the **Media** module in Platform, tiers 1–2 — ⚠ **not** in Support desk, even
+though the blog and the ticket attachments are what consume it: a section here is a tier boundary,
+and Support desk is where a tier-3 administrator lives.
 
 What genuinely does not exist is **`/broadcast` and `/customers`**, and those are no longer even
 in the permission catalogue. **Still true:** do not build screens against
@@ -411,12 +558,22 @@ Recorded here rather than left to be rediscovered. None is an oversight.
 each was closed by a contract arriving. Kept below with what closed them, because *why* a gap
 existed is what stops it being reopened.
 
+🔴 **Two NEW gaps opened on 2026-08-26, and both are ours, not the backend's.** BR-015…019 were all
+answered and all five shipped, so nothing in the current plan is blocked on a contract any more —
+what is outstanding is integration. See the table.
+
 | Gap | State |
 |---|---|
 | ~~**The article body editor**~~ | ✅ **Built.** `content.md` still names none of the nine block types, but [`docs/admin/article-blocks.ts`](docs/admin/article-blocks.ts) mirrors the backend's validator byte for byte and `content-blocks.test.ts` diffs the nine names against `ARTICLE_BLOCK_TYPES`. ⚠ **Tell the backend before adding a tenth** — their own file calls it a three-repo change; **we are the fourth** |
 | ~~**A ticket-creation form**~~ | ✅ **Built.** The five vocabularies are mirrored from [`docs/jovi-mall/ticket-vocabularies.ts`](docs/jovi-mall/ticket-vocabularies.ts) and guarded, order included. **No endpoint should ever serve them** — they are jovi-mall's. ⚠ **Filters stay free-text; only the create form gets pickers**: a stale filter matches nothing *while looking correct*, a stale create is refused with a reason |
 | ~~**Rendering a private-tree file**~~ | ✅ **Built at BR-011** — `GET /files/:fileId/content` streams the bytes for any tree. ⚠ **It is a byte stream, not a signed URL**, because the configured provider (`local`) has no signing primitive: fetch → `URL.createObjectURL`, and a bare `<img src>` cannot work. `url` stays `null` on a private file **and always will** — the content route is a different mechanism, not a URL that field could have carried |
-| **Live verification against :8033** | ⏸ **Still open, and now the only one.** Nothing in `src/` has been exercised against a running service beyond `/auth`. Note the audited reads need wi-admin to be a **replica set** — in a single-node development database they fail while everything else works. ⚠ **Start with `/content`**: its wire shapes were wrong for months and nothing caught it |
+| **Live verification against :8033** | ⏸ **Still open.** Nothing in `src/` has been exercised against a running service beyond `/auth`. Note the audited reads need wi-admin to be a **replica set** — in a single-node development database they fail while everything else works. ⚠ **Start with `/content`**: its wire shapes were wrong for months and nothing caught it |
+| ~~🔴 **`docs/admin/content-dto.ts` is a STALE mirror**~~ | ✅ **Closed 2026-08-26, and the guard did its job on the first run.** Re-copied as the first act of Phase E, exactly as this row instructed; `content-contract.test.ts` went red naming `sourceLocale`, and `src/` was corrected rather than the test. ⚠ **The lesson stands, which is why the row is kept**: a stale mirror and a stale `src/` agree with each other, so **nothing catches a mirror that was never re-taken** — only re-taking it does. Re-copy every mirror the backend's action list names, in the phase that consumes it |
+| ~~🔴 **Four granted routes with no service function**~~ | ✅ **All four closed.** `GET /vendors/:vendorId/products/:productId` (BR-005) and `GET /vendors/:vendorId/agencies` (BR-018) shipped with Phase B; `GET /files/library` and `POST /files/upload` (BR-015) shipped with **Phase F** on 2026-08-27 as the Media module and the media picker |
+| 🔴 **`vendors.md` omits two fields on the product detail** | ⏸ **Open, and reported rather than worked around.** `vendorId` and `tags` are on the wire and appear in neither its worked JSON nor its field tables, and its nullability differs from the source's on `title`, `slug` and `category`. `VendorProductDetail` follows `AdminProductDetailDto` in `backend/jovi-mall/src/modules/vendors/read-models/admin-product-detail.resolver.ts`, which is what computes the payload, and names the disagreement at each field. ⚠ Also `StorageSizeSource` has a third value the page does not show — **`unknown`**, which must stay distinguishable from a real measurement on a screen justifying a charge |
+| ~~🔴 **Phases B and C are BEHIND the contract, and four screens say so in the wrong direction**~~ | ✅ **Closed 2026-08-26.** All six items shipped: `items[].delivery.agencyName`, `items[].delivery.trackingNumber`, `timeline[].actorName`, `contract-history`'s `agent: {id, name}`, `items[].image` on both order and shipment, and `order.vendorName`. **Four false `InfoHint`s deleted** and **four lookups deleted with them** — the per-product catalogue N+1 on two screens, and the shipment overview's `GET /vendors/:vendorId`. ⚠ **`useVendorProducts` and `ProductImage` are gone**; `components/common/LineItemImage` renders a `FileDetail` the payload already carried. The stubs in `OrderDetail.test.tsx` and `ShipmentDetail.test.tsx` now **throw on `/products/` and `/vendors/`**, so re-introducing either lookup fails the suite |
+| ~~🔴 **A ticket attachment row carries no file id**~~ | ✅ **Closed 2026-08-26, and wi-admin closed it on itself.** Rather than wait on a jovi-mall release, wi-admin reads `file_id` off the attachment row in the shared database and stamps `fileId` onto each row (ADR-018 D-4 — delegate the projection that needs jovi-mall, read the record directly). ⚠ **`id` is the ATTACHMENT and `fileId` is the FILE**, both 24-hex on the same object: the delete takes the first, everything in `/files` takes the second. ⚠ **Not stamped on the `POST` response**, deliberately — you sent it. `uploadedByActor` was documented in the same round |
+| 🔴 **An administrator's name never reaches a ticket** | ⏸ **Open, and it is the one live backend ask.** `uploadedByActor.name` is the literal string **`"Admin"`** for every administrator upload, and `author.name` is the same on every administrator *note*. jovi-mall resolves the actor against its own `admins` collection; an administrator has no row in that database at all (ADR-004 D-1, the synthetic actor), so it falls back to the capitalised role — and the identical fallback yields `"Customer"`/`"Vendor"`/`"Agency"`/`"Agent"` for a **deleted profile**. ⚠ **`name === capitalise(role)` is the only signal that nothing resolved**; `isRolePlaceholderName` in [`lib/party.ts`](src/lib/party.ts) is the guard and `TicketActorName` is the rendering. Resolving it is wi-admin's job and is deliberately unwired: `GET /administrators/:adminId` needs `administrators.read`, which **Support does not hold** — and Support is the tier that reads tickets. The write path already knows the name in `X-Actor-Name` and drops it, so **a name snapshot on the attachment and note rows is the ask**, not a lookup |
 
 ### Documentation inconsistencies
 
@@ -438,7 +595,8 @@ BR-012 and are kept here as settled precedent**; the rest are open.
    [`content-dto.ts`](docs/admin/content-dto.ts) and
    [`content-validators.ts`](docs/admin/content-validators.ts) and guarded by
    `content-contract.test.ts`.
-4. ✅ ~~`permissions.md`'s prose counts were not re-counted.~~ **Fixed at BR-013** — 114 / 97 / 30.
+4. ✅ ~~`permissions.md`'s prose counts were not re-counted.~~ **Fixed at BR-013** — 114 / 97 / 30 *as they stood then*; BR-015 added `files.library.read`
+   and `files.upload`, so the live figures are **116 / 99 / 30**.
    The guard now *derives* the tier totals from the matrix rows and checks the prose against them,
    so the two cannot drift apart quietly again.
 5. ⏸ **`listQuery` is not `.strict()`, service-wide.** An unrecognised query parameter is

@@ -111,6 +111,16 @@ export function FeatureFlags() {
                                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                                     <div className="min-w-0 space-y-1">
                                         <p className="flex flex-wrap items-center gap-2">
+                                            {/*
+                                              * ⚠ No copy button on the name. It is the row's
+                                              * heading, the catalogue is closed (three flags,
+                                              * and a fourth with no consumer stops the service
+                                              * booting), and the only thing anyone does with a
+                                              * flag is press the switch to the right of it.
+                                              * There is no field that takes a flag name.
+                                              * `consumer` below is the same: a code path, for
+                                              * reading, not for pasting.
+                                              */}
                                             <span className="font-mono text-sm break-all">
                                                 {flag.name}
                                             </span>
@@ -163,6 +173,16 @@ export function FeatureFlags() {
                                         </p>
 
                                         {flag.isDefault ? null : (
+                                            /*
+                                              * ⚠ The email here is a **byline, not a contact
+                                              * detail** — `“reason” — who, when` is one
+                                              * sentence, and it falls through to an admin id
+                                              * and then to the literal `unknown`. Splitting a
+                                              * copy button into the middle of it would break
+                                              * the sentence and would have to leave the id half
+                                              * of the fallback bare to boot. The administrator
+                                              * directory is where that person is looked up.
+                                              */
                                             <p className="text-muted-foreground text-xs">
                                                 {flag.reason ? `“${flag.reason}” — ` : ''}
                                                 {flag.updatedByEmail ?? flag.updatedBy ?? 'unknown'}

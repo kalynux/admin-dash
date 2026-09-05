@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { RotateCw, Users as UsersIcon } from 'lucide-react';
 
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { EmptyState } from '@/components/common/DataState';
@@ -128,8 +129,29 @@ export function UsersList() {
                             >
                                 {userDisplayName(user)}
                             </Link>
+                            {/*
+                              ⚠ `userSecondaryIdentifier` returns the phone and
+                              only the phone — it answers `null` unless *both*
+                              identifiers exist, in which case the email is what
+                              the link is showing. So `variant="phone"` is exact
+                              here, not a guess, and this line is the one place in
+                              the directory a number can be copied from.
+
+                              The link above keeps no copy button even though on
+                              this projection it is *always* an identifier standing
+                              in for a name — there is no name on a `users` row at
+                              all. It is still the row's heading and its route into
+                              the record; the account screen renders both
+                              identifiers as values, with their own affordances.
+                            */}
                             {secondary ? (
-                                <p className="text-muted-foreground truncate text-xs">{secondary}</p>
+                                <p className="text-muted-foreground text-xs">
+                                    <CopyableValue
+                                        variant="phone"
+                                        value={secondary}
+                                        label="user phone"
+                                    />
+                                </p>
                             ) : null}
                         </div>
                     );

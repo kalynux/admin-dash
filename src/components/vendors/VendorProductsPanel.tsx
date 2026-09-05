@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { PackageX, RotateCcw } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
@@ -24,6 +26,7 @@ import {
 } from '@/components/vendors/VendorProductDialogs';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { formatInstantInZone } from '@/lib/format';
+import { partyName } from '@/lib/party';
 import { PAGE_SIZE_DEFAULT, withQuery } from '@/lib/query';
 import { listVendorProducts } from '@/services/vendors.service';
 import {
@@ -65,6 +68,22 @@ import {
  * refusals. The predicates live in `types/vendors.types.ts` beside the reasons
  * they read.
  *
+ * ── ⚠ The row is a link, and the detail is a different projection ────────────
+ * `GET /vendors/:vendorId/products/:productId` (BR-005) carries the image, the
+ * price, the stock, the storage rate and the variants — none of which is on a
+ * list row, and all of which is what an operator opens a listing to see. The
+ * title is the link; the whole row is not, because two of its cells are already
+ * controls and a row-wide link would swallow their clicks.
+ *
+ * ── ⚠ `deliveryAgency` is an OBJECT on the row, not an id ────────────────────
+ * A breaking rename from the dashboard-request round, and it removed the N+1 this
+ * column would otherwise cost: the name arrives under `vendors.read` alone, so a
+ * caller without `agencies.read` still reads it. **`null` means neither the
+ * product nor the vendor names an agency** — a diagnostic state, since a physical
+ * product in that condition cannot be activated, so it is called out rather than
+ * dashed. `businessName: null` is a different thing again (an agency with no
+ * Magazin name yet) and falls through to the id.
+ *
  * ── Every write refetches ─────────────────────────────────────────────────────
  * The two product writes answer `{ productId }` and `{ productId, status }` — not
  * a product — so there is nothing to merge into the row. That is the honest shape
@@ -80,6 +99,16 @@ interface VendorProductsPanelProps {
     timeZone: string;
     /** Bumped by the detail screen after a vendor-level write, so the cascade shows. */
     reloadToken: number;
+    /**
+     * Start filtered to the listings one agency answers for, applied once.
+     *
+     * Set by the connections panel's `productCount` drill-down. ⚠ The filter is
+     * matched against the **resolved** agency rather than the stored override, so
+     * asking for the vendor's *default* agency returns every product that names
+     * no agency of its own as well — which is what makes `meta.total` here equal
+     * the count that was clicked.
+     */
+    focusAgencyId?: string;
     /**
      * A status to start filtered on, applied once.
      *
@@ -98,6 +127,7 @@ export function VendorProductsPanel({
     timeZone,
     reloadToken,
     focusStatus,
+    focusAgencyId,
     focusToken = 0,
 }: VendorProductsPanelProps) {
     const [search, setSearch] = useState('');
@@ -105,6 +135,7 @@ export function VendorProductsPanel({
     const [type, setType] = useState<string>(ANY);
     const [mode, setMode] = useState<string>(ANY);
     const [reason, setReason] = useState<string>(ANY);
+    const [agencyId, setAgencyId] = useState<string>('');
     const [sort, setSort] = useState<string>(PRODUCT_SORT_DEFAULT);
     const [page, setPage] = useState(1);
 
@@ -119,11 +150,32 @@ export function VendorProductsPanel({
      * re-render — visibly showing the unfiltered catalogue for a frame after the
      * operator asked for the suspended one.
      */
-    const [appliedFocus, setAppliedFocus] = useState(focusToken);
+    /*
+      ⚠ Seeded at `0`, **not** at `focusToken`, and that is the whole fix.
+
+      Both hand-offs arrive with a tab switch, and Radix unmounts an inactive
+      `TabsContent` — so this panel does not receive a changed prop, it **mounts
+      fresh with the token already set**. Seeding from `focusToken` made the
+      comparison below `1 !== 1` on that first render, and the filter was never
+      applied: the restore flow's "show what is still off sale" switched tab and
+      then showed the unfiltered catalogue, which is worse than not offering it.
+
+      `0` is safe as the seed because it is the no-hand-off default and every real
+      hand-off increments to at least 1, so a mount with nothing to apply still
+      applies nothing.
+    */
+    const [appliedFocus, setAppliedFocus] = useState(0);
     if (focusToken !== appliedFocus) {
         setAppliedFocus(focusToken);
+        // Two independent hand-offs share one token: the restore flow sends a
+        // status, the connections panel sends an agency. Each applies only what
+        // it passed, so neither clears the other's filter on its way in.
         if (focusStatus) {
             setStatus(focusStatus);
+            setPage(1);
+        }
+        if (focusAgencyId) {
+            setAgencyId(focusAgencyId);
             setPage(1);
         }
     }
@@ -135,11 +187,12 @@ export function VendorProductsPanel({
             type: type === ANY ? undefined : type,
             mode: mode === ANY ? undefined : mode,
             suspensionReason: reason === ANY ? undefined : reason,
+            deliveryAgencyId: agencyId || undefined,
             sort: sort || PRODUCT_SORT_DEFAULT,
             page,
             limit: PAGE_SIZE_DEFAULT,
         }),
-        [search, status, type, mode, reason, sort, page],
+        [search, status, type, mode, reason, agencyId, sort, page],
     );
 
     const path = withQuery(`/vendors/${vendorId}/products`, { ...query });
@@ -150,7 +203,12 @@ export function VendorProductsPanel({
     const rows = products.data?.data ?? [];
     const meta = products.data?.meta;
     const isFiltered =
-        Boolean(search) || status !== ANY || type !== ANY || mode !== ANY || reason !== ANY;
+        Boolean(search) ||
+        status !== ANY ||
+        type !== ANY ||
+        mode !== ANY ||
+        reason !== ANY ||
+        Boolean(agencyId);
 
     function clear() {
         setSearch('');
@@ -158,6 +216,7 @@ export function VendorProductsPanel({
         setType(ANY);
         setMode(ANY);
         setReason(ANY);
+        setAgencyId('');
         setPage(1);
     }
 
@@ -173,7 +232,12 @@ export function VendorProductsPanel({
                 className: 'align-top',
                 cell: (product) => (
                     <div className="min-w-0">
-                        <p className="font-medium">{product.title ?? product.id}</p>
+                        <Link
+                            to={`/dashboard/vendors/${vendorId}/products/${product.id}`}
+                            className="font-medium hover:underline"
+                        >
+                            {product.title ?? product.id}
+                        </Link>
                         <p className="text-muted-foreground truncate text-xs">
                             {[product.category, product.type, product.mode]
                                 .filter(Boolean)
@@ -182,6 +246,52 @@ export function VendorProductsPanel({
                         </p>
                     </div>
                 ),
+            },
+            {
+                id: 'deliveryAgency',
+                header: 'Delivery agency',
+                className: 'align-top',
+                /*
+                  ⚠ Three states, and only one of them is a name.
+
+                  `deliveryAgency: null` means neither the listing nor the vendor
+                  names one — a physical product in that condition cannot be
+                  activated, so it is said rather than dashed. `businessName: null`
+                  is an agency with no Magazin name yet, which falls through to the
+                  id and stays identifiable. Anything else is the business name,
+                  and it is never `contactName`: that is a contact *person*, and
+                  substituting it under a heading reading "Delivery agency" is the
+                  BR-006 confusion. `partyName` holds the order.
+                */
+                cell: (product) =>
+                    product.deliveryAgency ? (
+                        <div className="min-w-0 space-y-0.5">
+                            <Link
+                                to={`/dashboard/agencies/${product.deliveryAgency.id}`}
+                                className="text-sm hover:underline"
+                            >
+                                {partyName(
+                                    [
+                                        {
+                                            source: 'businessName',
+                                            value: product.deliveryAgency.businessName,
+                                        },
+                                    ],
+                                    { source: 'id', value: product.deliveryAgency.id },
+                                )}
+                            </Link>
+                            <CopyableValue
+                                value={product.deliveryAgency.id}
+                                label="delivery agency ID"
+                            />
+                        </div>
+                    ) : (
+                        <span className="text-warning text-xs">
+                            {product.type === 'physical'
+                                ? 'None — cannot be activated'
+                                : 'None named'}
+                        </span>
+                    ),
             },
             {
                 id: 'status',
@@ -250,7 +360,7 @@ export function VendorProductsPanel({
                 ),
             },
         ],
-        [timeZone],
+        [timeZone, vendorId],
     );
 
     return (
@@ -353,6 +463,33 @@ export function VendorProductsPanel({
                     </InfoHint>
                 </div>
             </FilterBar>
+
+            {agencyId ? (
+                /*
+                  ⚠ This filter arrives from the connections panel and has no
+                  control in the bar above, so without this it would be an
+                  invisible filter — a catalogue quietly showing a subset while
+                  looking complete. It says what is applied and offers the way out.
+                */
+                <p className="text-muted-foreground flex flex-wrap items-center gap-1.5 rounded-lg border px-3 py-2 text-sm">
+                    Showing only the listings this agency answers for:
+                    <CopyableValue
+                        value={agencyId}
+                        label="delivery agency ID"
+                        to={`/dashboard/agencies/${agencyId}`}
+                    />
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                            setAgencyId('');
+                            setPage(1);
+                        }}
+                    >
+                        Show the whole catalogue
+                    </Button>
+                </p>
+            ) : null}
 
             <DataTable
                 caption="This vendor's catalogue"

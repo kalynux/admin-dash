@@ -4,14 +4,50 @@ import {
     deleteFilePermanently,
     getFile,
     getFileContent,
+    listFileLibrary,
     listOrphanFiles,
     resolveFiles,
+    uploadFiles,
 } from '@/services/files.service';
 import { errorResponse, stubFetch, successResponse, type FetchCall } from '@/test/utils';
-import { isDisplayableImage, isViewableImage, type FileDetail } from '@/types/files.types';
+import {
+    FILE_UPLOAD_MAX_BYTES,
+    PLATFORM_CODE_UPLOAD_POLICY_VIOLATION,
+    isDisplayableImage,
+    isViewableImage,
+    type FileDetail,
+    type FileLibraryMeta,
+    type FileUploadMeta,
+    type LibraryFile,
+} from '@/types/files.types';
 
 function urlOf(call: FetchCall): URL {
     return new URL(call.url, 'http://localhost');
+}
+
+/** The four pagination keys plus the two the library adds. */
+function libraryMeta(overrides: Partial<FileLibraryMeta> = {}): Record<string, unknown> {
+    return {
+        total: 1,
+        page: 1,
+        limit: 20,
+        pages: 1,
+        referenceSampleCap: 5,
+        publicUrlsConfigured: true,
+        ...overrides,
+    };
+}
+
+/** The constraints the upload declares rather than leaving to be discovered. */
+function uploadMeta(overrides: Partial<FileUploadMeta> = {}): Record<string, unknown> {
+    return {
+        count: 1,
+        maxBytes: FILE_UPLOAD_MAX_BYTES,
+        maxFiles: 10,
+        fieldName: 'files',
+        acceptedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+        ...overrides,
+    };
 }
 
 const A = '6612a4f0c1a2b3d4e5f60718';
@@ -259,5 +295,220 @@ describe('the permanent delete', () => {
         expect(call.method).toBe('DELETE');
         expect(urlOf(call).pathname).toBe(`/api/v1/files/${A}/permanent`);
         expect(JSON.parse(call.body as string)).toEqual({ confirmFileId: A });
+    });
+});
+
+describe('the media library', () => {
+    function libraryRow(overrides: Partial<LibraryFile> = {}): LibraryFile {
+        return {
+            ...fileFixture(),
+            createdAt: '2026-08-11T09:14:00.000Z',
+            owner: { type: 'admin', id: '6511aabbccddeeff00112233', name: 'Ada Mensah' },
+            usage: { referenceCount: 0, references: [] },
+            ...overrides,
+        };
+    }
+
+    it('sends one sort token, not sortBy and sortOrder', async () => {
+        /**
+         * ⚠ **The wrong form is dropped SILENTLY.** jovi-mall's own file listing
+         * takes `sortBy` + `sortOrder`; this route does not, and the list-query
+         * schema on this service is not `.strict()` — so `sortBy=size` answers
+         * `200` in the default order with nothing saying the sort was ignored.
+         * That is why this is asserted rather than assumed.
+         */
+        const calls = stubFetch(() => successResponse([libraryRow()], { meta: libraryMeta() }));
+
+        await listFileLibrary({ sort: '-size' });
+
+        const url = urlOf(calls[0]);
+        expect(url.pathname).toBe('/api/v1/files/library');
+        expect(url.searchParams.get('sort')).toBe('-size');
+        expect(url.searchParams.get('sortBy')).toBeNull();
+        expect(url.searchParams.get('sortOrder')).toBeNull();
+    });
+
+    it('drops an empty search rather than sending one', async () => {
+        // An empty `?search=` is a 400 on this service, not "no filter".
+        const calls = stubFetch(() => successResponse([], { meta: libraryMeta({ total: 0 }) }));
+
+        await listFileLibrary({ search: '', ownerType: 'admin' });
+
+        const url = urlOf(calls[0]);
+        expect(url.searchParams.has('search')).toBe(false);
+        expect(url.searchParams.get('ownerType')).toBe('admin');
+    });
+
+    it('reads the reference cap and the URL-configuration flag off meta', async () => {
+        stubFetch(() =>
+            successResponse([libraryRow()], {
+                meta: libraryMeta({ referenceSampleCap: 5, publicUrlsConfigured: false }),
+            }),
+        );
+
+        const result = await listFileLibrary();
+
+        expect(result.meta.referenceSampleCap).toBe(5);
+        expect(result.meta.publicUrlsConfigured).toBe(false);
+    });
+
+    it('falls back to a reference cap of zero, never to a guess', async () => {
+        /**
+         * ⚠ The cap bounds `usage.references`. A screen that assumed a *larger*
+         * cap than the service applied would render "and N more" as though it had
+         * shown everything — visibly wrong is the safer direction, so a row with
+         * references reports them all as unshown.
+         */
+        stubFetch(() =>
+            successResponse([libraryRow()], { meta: { total: 1, page: 1, limit: 20, pages: 1 } }),
+        );
+
+        const result = await listFileLibrary();
+
+        expect(result.meta.referenceSampleCap).toBe(0);
+    });
+
+    it('does not claim previews are unconfigured when the service did not say', async () => {
+        // `publicUrlsConfigured: false` makes the screen assert something about
+        // the SERVER. A missing field is not evidence for that claim.
+        stubFetch(() =>
+            successResponse([libraryRow()], { meta: { total: 1, page: 1, limit: 20, pages: 1 } }),
+        );
+
+        const result = await listFileLibrary();
+
+        expect(result.meta.publicUrlsConfigured).toBe(true);
+    });
+
+    it('reports pages: 0 on an empty list rather than 1', async () => {
+        stubFetch(() => successResponse([]));
+
+        const result = await listFileLibrary();
+
+        expect(result.meta.pages).toBe(0);
+    });
+});
+
+describe('the upload', () => {
+    function upload(name = 'cover.png', type = 'image/png', bytes = 8) {
+        return new File([new Uint8Array(bytes)], name, { type });
+    }
+
+    it('sends multipart under the field name the platform reads, and sets no Content-Type', async () => {
+        /**
+         * ⚠ **The header is the browser's job and must not be written here.** A
+         * multipart body is unreadable without the `boundary` token that
+         * separates its parts, and only the `FormData` serialiser knows it —
+         * writing `Content-Type: multipart/form-data` by hand omits it and the
+         * service answers `415 FILE_UPLOAD_NOT_MULTIPART` on a request that
+         * genuinely was multipart.
+         */
+        const calls = stubFetch(() =>
+            successResponse({ files: [fileFixture()] }, { status: 201, meta: uploadMeta() }),
+        );
+
+        await uploadFiles([upload()]);
+
+        const call = calls[0];
+        expect(call.method).toBe('POST');
+        expect(urlOf(call).pathname).toBe('/api/v1/files/upload');
+        expect(call.headers.get('Content-Type')).toBeNull();
+        // ⚠ One repeated field name, never `files[0]` / `files[1]`.
+        expect(call.formData?.getAll('files')).toHaveLength(1);
+    });
+
+    it('repeats the one field name across every part', async () => {
+        const calls = stubFetch(() =>
+            successResponse({ files: [fileFixture()] }, { status: 201, meta: uploadMeta() }),
+        );
+
+        await uploadFiles([upload('a.png'), upload('b.png')]);
+
+        expect(calls[0].formData?.getAll('files')).toHaveLength(2);
+        expect(calls[0].formData?.getAll('files[0]')).toHaveLength(0);
+    });
+
+    it('refuses an empty upload without spending an audited write', async () => {
+        const calls = stubFetch(() => successResponse({ files: [] }, { status: 201 }));
+
+        await expect(uploadFiles([])).rejects.toBeInstanceOf(RangeError);
+        expect(calls).toHaveLength(0);
+    });
+
+    it('returns what was STORED, which is not always what was sent', async () => {
+        /**
+         * ⚠ jovi-mall sniffs the real type and **converts PNG to WebP** by its own
+         * policy, so a client that records `image/png` because that is what it
+         * picked has the wrong type on file. This pins that the response is read
+         * rather than the request echoed.
+         */
+        stubFetch(() =>
+            successResponse(
+                {
+                    files: [
+                        fileFixture({
+                            mimeType: 'image/webp',
+                            key: 'images/2026/08/1f2e3d_cover.webp',
+                            originalName: 'cover.png',
+                        }),
+                    ],
+                },
+                { status: 201, meta: uploadMeta() },
+            ),
+        );
+
+        const result = await uploadFiles([upload('cover.png', 'image/png')]);
+
+        expect(result.files[0].mimeType).toBe('image/webp');
+        expect(result.files[0].originalName).toBe('cover.png');
+    });
+
+    it('prefers the constraints the service declares over the ones compiled in', async () => {
+        // The constants describe the deployment this dashboard was written
+        // against; the meta describes the one it is talking to.
+        stubFetch(() =>
+            successResponse(
+                { files: [fileFixture()] },
+                { status: 201, meta: uploadMeta({ maxBytes: 1024, maxFiles: 2 }) },
+            ),
+        );
+
+        const result = await uploadFiles([upload()]);
+
+        expect(result.meta.maxBytes).toBe(1024);
+        expect(result.meta.maxFiles).toBe(2);
+    });
+
+    it('falls back to the compiled constraints when the service sends no meta', async () => {
+        stubFetch(() => successResponse({ files: [fileFixture()] }, { status: 201 }));
+
+        const result = await uploadFiles([upload()]);
+
+        expect(result.meta.maxBytes).toBe(FILE_UPLOAD_MAX_BYTES);
+        expect(result.meta.fieldName).toBe('files');
+    });
+
+    it('surfaces the platform policy refusal under its platformCode', async () => {
+        /**
+         * ⚠ Max files, field name and MIME type are **published, not policed** by
+         * wi-admin — it never parses the body. A file that slips past the client
+         * comes back as a delegated refusal, and `error.code` is the same for
+         * every one of those, so the branch has to be `details.platformCode`.
+         */
+        stubFetch(() =>
+            errorResponse(400, 'PLATFORM_OPERATION_REJECTED', {
+                message: 'The platform refused this',
+                category: 'business_rule',
+                details: {
+                    platformCode: PLATFORM_CODE_UPLOAD_POLICY_VIOLATION,
+                    violations: [{ file: 'notes.txt', reason: 'type not accepted' }],
+                },
+            }),
+        );
+
+        await expect(uploadFiles([upload('notes.txt', 'text/plain')])).rejects.toMatchObject({
+            code: 'PLATFORM_OPERATION_REJECTED',
+            platformCode: PLATFORM_CODE_UPLOAD_POLICY_VIOLATION,
+        });
     });
 });

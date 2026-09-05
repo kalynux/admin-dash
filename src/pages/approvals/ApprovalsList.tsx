@@ -7,6 +7,7 @@ import {
     RejectApprovalDialog,
 } from '@/components/approvals/ApprovalDecisionDialogs';
 import { ApprovalStatusBadge } from '@/components/approvals/ApprovalStatusBadge';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
@@ -135,9 +136,19 @@ export function ApprovalsList() {
                 cell: (row) => (
                     <div className="min-w-0">
                         <p>{row.requestedByTierLabel}</p>
-                        <p className="text-muted-foreground truncate font-mono text-xs">
-                            {row.requestedBy === admin.id ? 'You' : row.requestedBy}
-                        </p>
+                        {row.requestedBy === admin.id ? (
+                            <p className="text-muted-foreground truncate font-mono text-xs">You</p>
+                        ) : (
+                            // This column already clipped the id with CSS and no
+                            // `title`, so the `id` variant's head-and-tail shows
+                            // *more* of it than before — and both ends, which is
+                            // what tells two same-second ObjectIds apart.
+                            <CopyableValue
+                                value={row.requestedBy}
+                                label="requester ID"
+                                className="text-muted-foreground"
+                            />
+                        )}
                     </div>
                 ),
             },

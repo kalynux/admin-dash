@@ -53,6 +53,13 @@ export function MfaSetup() {
         <AuthLayout
             title="Set up two-factor authentication"
             description={
+                /*
+                  The email stays inside the sentence. It is here to say *whose*
+                  account is being enrolled — this session reaches four routes
+                  and nothing else — not as a value to lift out, and the A2
+                  sweep leaves prose alone. Nobody copies their own address off
+                  a screen that exists to be left.
+                */
                 admin ? `Required for ${admin.email} before you can continue.` : undefined
             }
         >

@@ -241,16 +241,22 @@ describe('the registry parses', () => {
  * document — including the backend's own — is a claim about it, and a claim is
  * not evidence."*
  *
- * ⚠ **They disagree today, and that is why this exists.** The source declares
- * **82** codes; `errors.md`'s registry tables publish **73**. The sixteen it
- * omits are the ones that landed with the modules `errors.md` was never updated
- * for — all ten `BLOG_*`, both `TICKET_*`, `FILE_DELETE_NOT_CONFIRMED`, and the
- * three `TRACKING_DOOR_*`. (Seven travel the other way: jovi-mall's own codes,
- * which `errors.md` catalogues because they arrive as `details.platformCode`
- * and which this service therefore never declares.)
+ * ⚠ **The numbers here have moved twice and are worth restating.** The source
+ * once declared 82 against `errors.md`'s 73; BR-012 documented the missing
+ * sixteen, and BR-015 added `FILE_UPLOAD_NOT_MULTIPART` and
+ * `FILE_UPLOAD_TOO_LARGE`. **85 are declared today.** Diffing against both still
+ * matters: a code reaching an operator with no copy is a failing test whichever
+ * document happens to be behind.
  *
- * Diffing against both means a code reaching an operator with no copy is a
- * failing test whichever document happens to be behind.
+ * ⚠ **The two are NOT the same set, and the remaining gap runs one way only.**
+ * Five codes are declared in source with no row in `errors.md`'s registry
+ * tables — `DEV_TOOLS_WORKER_UNKNOWN`, `DEV_TOOLS_WORKER_BUSY`,
+ * `USER_CHANNEL_UNAVAILABLE`, `USER_CREDENTIAL_LINK_THROTTLED` and
+ * `USER_LOGIN_LINK_ROLE_UNSUPPORTED`. Each is *mentioned* on its endpoint's own
+ * page, so this is a registry-table omission rather than an undocumented code,
+ * and all five carry copy. Reported to the backend rather than worked around.
+ * The **other** direction is asserted below, and it is the one that has actually
+ * bitten.
  */
 function sourceRegistryCodes(): string[] {
     const path = resolve(dirname(fileURLToPath(import.meta.url)), '../../docs/admin/error-codes.ts');
@@ -260,6 +266,46 @@ function sourceRegistryCodes(): string[] {
         (match) => match[1],
     );
 }
+
+/**
+ * The assertion a stale mirror slips past everything else.
+ *
+ * ⚠ **This exact drift happened on 2026-08-26 and nothing caught it.** The
+ * 2026-08-24 resync re-copied `errors.md` — which gained the two BR-015 upload
+ * codes — but did **not** re-take `docs/admin/error-codes.ts`, which stayed at
+ * 83. Every assertion in this file still passed, because the one that pins
+ * `KNOWN_ERROR_CODES` against the registries is anchored to their **union**, and
+ * a union cannot notice that one of its members has fallen behind.
+ *
+ * So this pins the direction that matters instead: **every wi-admin code
+ * `errors.md` publishes must be declared by the mirror.** Under that rule the
+ * stale copy fails immediately and names the two codes it is missing.
+ *
+ * ⚠ **Not the converse**, and deliberately — see `sourceRegistryCodes`. Five
+ * codes are declared in source with no registry row, which is a documentation
+ * gap on the backend's side; asserting symmetry would turn their omission into
+ * this repository's failing build and pressure somebody into "fixing" it by
+ * deleting a real code from the mirror. **The mirror is a copy. It is never
+ * edited to make a test pass — it is re-copied, or the test is wrong.**
+ *
+ * Platform-only codes are excluded because they are **jovi-mall's**: they reach
+ * a client as `details.platformCode`, this service never declares them, and
+ * their copy lives in `error-platform.ts`.
+ */
+describe('the source mirror is in step with the contract', () => {
+    it('declares every wi-admin code errors.md publishes', () => {
+        const declared = new Set(sourceRegistryCodes());
+        const undeclared = registry
+            .filter((entry) => !isPlatformCodeOnly(entry))
+            .map((entry) => entry.code)
+            .filter((code) => !declared.has(code));
+
+        expect(
+            undeclared,
+            'codes in errors.md that docs/admin/error-codes.ts does not declare — re-copy backend/admin/src/core/errors/error-codes.ts',
+        ).toEqual([]);
+    });
+});
 
 describe('KNOWN_ERROR_CODES matches the contract', () => {
     it('names every client-reachable code the doc publishes', () => {

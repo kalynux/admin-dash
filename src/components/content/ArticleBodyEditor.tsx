@@ -1,7 +1,11 @@
-import { ChevronDown, ChevronUp, Plus, Trash2, Wand2 } from 'lucide-react';
+import { useState } from 'react';
+import { ChevronDown, ChevronUp, Images, Lock, Plus, Trash2, Wand2 } from 'lucide-react';
 
 import { RichTextField } from '@/components/content/RichTextField';
+import { MediaPickerDialog } from '@/components/files/MediaPickerDialog';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { InfoHint } from '@/components/ui/info-hint';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -14,7 +18,9 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { countWords, emptyBlock, suggestHeadingId, validateArticleBody } from '@/lib/article-body';
+import { hasDrift, isUntranslated, structureDrift, type BodyEdit } from '@/lib/article-structure';
 import { formatCount } from '@/lib/format';
+import type { ContentLocale } from '@/types/content.types';
 import {
     ARTICLE_BLOCK_TYPES,
     ARTICLE_BODY_MAX_BLOCKS,
@@ -80,23 +86,54 @@ const BLOCK_LABELS: Record<ArticleBlockType, { label: string; hint: string }> = 
  * binding. Deriving the id from the text on every keystroke breaks every anchor
  * anyone has shared the moment a title is retouched — silently, because the page
  * still renders. That is the whole reason the field exists separately.
+ *
+ * ── § E3 · the two modes, and why the second one locks the structure ─────────
+ * Given `follows`, the editor is showing a language that **inherits** its block
+ * list from the article's source language. In that mode there is no add, no
+ * remove and no move — a translation of a document is the same document in
+ * another language, and the operator ask is explicit that inherited structure is
+ * not removable. What is editable is every word in it.
+ *
+ * ⚠ **The controls are disabled with a reason rather than hidden.** A missing
+ * button reads as a bug in the editor; a disabled one that says where the
+ * decision lives sends the operator to the right screen.
+ *
+ * The "not yet translated" badge is **derived, never stored** — the block
+ * schemas are `.strict()`, so a marker field would be a `400` on the whole save.
+ * A block whose prose is still byte-identical to the driver's carries it, so the
+ * first edit clears it by construction. See `isUntranslated`.
  */
 export function ArticleBodyEditor({
     value,
     onChange,
     idPrefix,
+    follows,
 }: {
     value: ArticleBody;
-    onChange: (next: ArticleBody) => void;
+    /**
+     * ⚠ **The second argument is what makes a driver edit propagable at all.** A
+     * caller watching only the body cannot tell an edited block from a new one,
+     * and treating an edit as an add is what would throw away every other
+     * language's translation of it on the next save.
+     * `ArticleTranslationDialog` folds these into a `StructurePlan`.
+     */
+    onChange: (next: ArticleBody, edit: BodyEdit) => void;
     idPrefix: string;
+    /** Present when this language inherits its structure from another. */
+    follows?: { driverBody: ArticleBody; driverLocale: ContentLocale };
 }) {
     const problems = validateArticleBody(value);
     const problemFor = (index: number) =>
         problems.find((problem) => problem.blockIndex === index)?.message;
     const bodyProblems = problems.filter((problem) => problem.blockIndex === null);
 
+    const drift = follows ? structureDrift(value, follows.driverBody) : null;
+
     function update(index: number, block: ArticleBlock) {
-        onChange(value.map((existing, at) => (at === index ? block : existing)));
+        onChange(
+            value.map((existing, at) => (at === index ? block : existing)),
+            { kind: 'replace', index },
+        );
     }
 
     function move(index: number, by: -1 | 1) {
@@ -104,7 +141,7 @@ export function ArticleBodyEditor({
         if (target < 0 || target >= value.length) return;
         const next = [...value];
         [next[index], next[target]] = [next[target], next[index]];
-        onChange(next);
+        onChange(next, { kind: 'move', from: index, to: target });
     }
 
     return (
@@ -114,11 +151,46 @@ export function ArticleBodyEditor({
                     {formatCount(value.length)} block{value.length === 1 ? '' : 's'} ·{' '}
                     {formatCount(countWords(value))} word{countWords(value) === 1 ? '' : 's'}
                 </p>
-                <AddBlock
-                    disabled={value.length >= ARTICLE_BODY_MAX_BLOCKS}
-                    onAdd={(type) => onChange([...value, emptyBlock(type)])}
-                />
+                {follows ? (
+                    <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                        <Lock className="size-3.5" />
+                        Structure inherited from {follows.driverLocale}
+                        <InfoHint label="Why the blocks are fixed here">
+                            Every language of an article carries the same components, and the
+                            article&rsquo;s source language — {follows.driverLocale} — is where they
+                            are decided. Adding, removing or reordering a block there changes the
+                            article; doing the same here would change one translation and leave the
+                            others describing a different document.
+                            <br />
+                            <br />
+                            Anything the source language grows appears here on its own, carrying
+                            the source&rsquo;s words until they are translated. Anything it loses is
+                            offered to each language separately, because removing a block removes
+                            the prose somebody wrote in it and there is no undo.
+                        </InfoHint>
+                    </p>
+                ) : (
+                    <AddBlock
+                        disabled={value.length >= ARTICLE_BODY_MAX_BLOCKS}
+                        onAdd={(type) => onChange([...value, emptyBlock(type)], { kind: 'add' })}
+                    />
+                )}
             </div>
+
+            {/*
+              ⚠ Drift is a *driver* edit that was saved without being carried
+              across, so it is reported here and repaired somewhere else: the
+              remedy costs prose, so it belongs behind a confirmation that names
+              the cost. `ArticleTranslationDialog` owns that.
+            */}
+            {drift && hasDrift(drift) ? (
+                <p className="border-warning/30 bg-warning/10 rounded-lg border px-3 py-2 text-xs">
+                    This language no longer matches the {follows?.driverLocale} version&rsquo;s
+                    structure — {describeDrift(drift.extra.length, drift.mismatched.length)}. It can
+                    still be saved as it is; matching the source language again is offered under the
+                    body, because doing it removes prose.
+                </p>
+            ) : null}
 
             {bodyProblems.length > 0 ? (
                 <ul className="border-destructive/30 bg-destructive/10 text-destructive space-y-1 rounded-lg border px-3 py-2 text-sm">
@@ -133,8 +205,13 @@ export function ArticleBodyEditor({
                     <li key={index} className="space-y-2 rounded-lg border p-3">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                             <div>
-                                <p className="text-sm font-medium">
+                                <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
                                     {BLOCK_LABELS[block.type].label}
+                                    {follows && isUntranslated(block, follows.driverBody[index]) ? (
+                                        <Badge variant="secondary" className="font-normal">
+                                            Not yet translated
+                                        </Badge>
+                                    ) : null}
                                 </p>
                                 <p className="text-muted-foreground text-xs">
                                     Block {index + 1} of {value.length}
@@ -146,7 +223,12 @@ export function ArticleBodyEditor({
                                     variant="ghost"
                                     size="icon"
                                     aria-label={`Move block ${index + 1} up`}
-                                    disabled={index === 0}
+                                    disabled={follows !== undefined || index === 0}
+                                    title={
+                                        follows
+                                            ? `The order comes from the ${follows.driverLocale} version`
+                                            : undefined
+                                    }
                                     onClick={() => move(index, -1)}
                                 >
                                     <ChevronUp className="size-4" />
@@ -156,7 +238,12 @@ export function ArticleBodyEditor({
                                     variant="ghost"
                                     size="icon"
                                     aria-label={`Move block ${index + 1} down`}
-                                    disabled={index === value.length - 1}
+                                    disabled={follows !== undefined || index === value.length - 1}
+                                    title={
+                                        follows
+                                            ? `The order comes from the ${follows.driverLocale} version`
+                                            : undefined
+                                    }
                                     onClick={() => move(index, 1)}
                                 >
                                     <ChevronDown className="size-4" />
@@ -166,7 +253,18 @@ export function ArticleBodyEditor({
                                     variant="ghost"
                                     size="icon"
                                     aria-label={`Remove block ${index + 1}`}
-                                    onClick={() => onChange(value.filter((_, at) => at !== index))}
+                                    disabled={follows !== undefined}
+                                    title={
+                                        follows
+                                            ? `Remove it from the ${follows.driverLocale} version to remove it from every language`
+                                            : undefined
+                                    }
+                                    onClick={() =>
+                                        onChange(
+                                            value.filter((_, at) => at !== index),
+                                            { kind: 'remove', index },
+                                        )
+                                    }
                                 >
                                     <Trash2 className="size-4" />
                                 </Button>
@@ -193,6 +291,22 @@ export function ArticleBodyEditor({
             ) : null}
         </div>
     );
+}
+
+/** Drift in words, because "2 extra, 1 mismatched" is a diff rather than a sentence. */
+function describeDrift(extra: number, mismatched: number): string {
+    const parts: string[] = [];
+    if (extra > 0) {
+        parts.push(
+            `it holds ${formatCount(extra)} block${extra === 1 ? '' : 's'} that no longer exist there`,
+        );
+    }
+    if (mismatched > 0) {
+        parts.push(
+            `${formatCount(mismatched)} block${mismatched === 1 ? ' is' : 's are'} of a different kind at the same position`,
+        );
+    }
+    return parts.join(', and ');
 }
 
 function AddBlock({
@@ -277,10 +391,19 @@ function BlockFields({
                         </div>
                         <div className="space-y-1.5">
                             <Label htmlFor={`${idPrefix}-text`}>Text</Label>
-                            <Input
+                            {/*
+                              A `Textarea` at 300 characters: a heading is one
+                              line on the page and is not one line in the editor
+                              once it is translated — § E1. The anchor id below
+                              stays an `<Input>`, because it is a token and not
+                              prose.
+                            */}
+                            <Textarea
                                 id={`${idPrefix}-text`}
                                 value={block.text}
                                 maxLength={HEADING_TEXT_MAX}
+                                rows={2}
+                                className="resize-y"
                                 onChange={(event) =>
                                     onChange({ ...block, text: event.target.value })
                                 }
@@ -414,7 +537,8 @@ function BlockFields({
                             id={`${idPrefix}-quote`}
                             value={block.text}
                             maxLength={QUOTE_TEXT_MAX}
-                            rows={3}
+                            rows={5}
+                            className="resize-y"
                             onChange={(event) => onChange({ ...block, text: event.target.value })}
                         />
                         <p className="text-muted-foreground text-xs">
@@ -462,10 +586,12 @@ function BlockFields({
                         </div>
                         <div className="space-y-1.5">
                             <Label htmlFor={`${idPrefix}-callout-title`}>Title (optional)</Label>
-                            <Input
+                            <Textarea
                                 id={`${idPrefix}-callout-title`}
                                 value={block.title ?? ''}
                                 maxLength={CALLOUT_TITLE_MAX}
+                                rows={2}
+                                className="resize-y"
                                 onChange={(event) =>
                                     onChange(pruneOptional(block, 'title', event.target.value))
                                 }
@@ -482,89 +608,25 @@ function BlockFields({
             );
 
         case 'image':
-            return (
-                <div className="space-y-3">
-                    <div className="space-y-1.5">
-                        <Label htmlFor={`${idPrefix}-url`}>Image url</Label>
-                        <Input
-                            id={`${idPrefix}-url`}
-                            value={block.url}
-                            maxLength={IMAGE_URL_MAX}
-                            placeholder="/media/2026/momo-payouts.png"
-                            className="font-mono text-xs"
-                            onChange={(event) => onChange({ ...block, url: event.target.value })}
-                        />
-                        <p className="text-muted-foreground text-xs">
-                            This dashboard cannot upload — no route on this service accepts a file
-                            body. Point at a url the marketing site already serves.
-                        </p>
-                    </div>
-
-                    <div className="space-y-1.5">
-                        <Label htmlFor={`${idPrefix}-alt`}>Alt text</Label>
-                        <Input
-                            id={`${idPrefix}-alt`}
-                            value={block.alt}
-                            maxLength={IMAGE_ALT_MAX}
-                            onChange={(event) => onChange({ ...block, alt: event.target.value })}
-                        />
-                    </div>
-
-                    <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="space-y-1.5">
-                            <Label htmlFor={`${idPrefix}-width`}>Width in pixels</Label>
-                            <Input
-                                id={`${idPrefix}-width`}
-                                type="number"
-                                min={1}
-                                value={block.width || ''}
-                                onChange={(event) =>
-                                    onChange({ ...block, width: Number(event.target.value) })
-                                }
-                            />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label htmlFor={`${idPrefix}-height`}>Height in pixels</Label>
-                            <Input
-                                id={`${idPrefix}-height`}
-                                type="number"
-                                min={1}
-                                value={block.height || ''}
-                                onChange={(event) =>
-                                    onChange({ ...block, height: Number(event.target.value) })
-                                }
-                            />
-                        </div>
-                    </div>
-                    <p className="text-muted-foreground text-xs">
-                        Both are required, and they must be the image&rsquo;s real dimensions: they
-                        reserve the box so the paragraph underneath does not jump while the picture
-                        loads.
-                    </p>
-
-                    <div className="space-y-1.5">
-                        <Label htmlFor={`${idPrefix}-caption`}>Caption (optional)</Label>
-                        <Input
-                            id={`${idPrefix}-caption`}
-                            value={block.caption ?? ''}
-                            maxLength={IMAGE_CAPTION_MAX}
-                            onChange={(event) =>
-                                onChange(pruneOptional(block, 'caption', event.target.value))
-                            }
-                        />
-                    </div>
-                </div>
-            );
+            /*
+              Its own component because it is the one block that holds state —
+              the picker's open flag. A `useState` in this `switch` would run for
+              every block type, and a hook that exists for one branch of nine
+              belongs in that branch.
+            */
+            return <ImageBlockFields block={block} onChange={onChange} idPrefix={idPrefix} />;
 
         case 'cta':
             return (
                 <div className="space-y-3">
                     <div className="space-y-1.5">
                         <Label htmlFor={`${idPrefix}-cta-title`}>Title</Label>
-                        <Input
+                        <Textarea
                             id={`${idPrefix}-cta-title`}
                             value={block.title}
                             maxLength={CTA_TITLE_MAX}
+                            rows={2}
+                            className="resize-y"
                             onChange={(event) => onChange({ ...block, title: event.target.value })}
                         />
                     </div>
@@ -574,7 +636,8 @@ function BlockFields({
                             id={`${idPrefix}-cta-body`}
                             value={block.body}
                             maxLength={CTA_BODY_MAX}
-                            rows={2}
+                            rows={4}
+                            className="resize-y"
                             onChange={(event) => onChange({ ...block, body: event.target.value })}
                         />
                     </div>
@@ -683,10 +746,12 @@ function FaqRow({
             <div className="flex items-end gap-2">
                 <div className="flex-1 space-y-1.5">
                     <Label htmlFor={`${idPrefix}-q-${index}`}>Question {index + 1}</Label>
-                    <Input
+                    <Textarea
                         id={`${idPrefix}-q-${index}`}
                         value={item.question}
                         maxLength={FAQ_QUESTION_MAX}
+                        rows={2}
+                        className="resize-y"
                         onChange={(event) => onChange({ ...item, question: event.target.value })}
                     />
                 </div>
@@ -707,8 +772,188 @@ function FaqRow({
                     id={`${idPrefix}-a-${index}`}
                     value={item.answer}
                     maxLength={FAQ_ANSWER_MAX}
-                    rows={2}
+                    rows={5}
+                    className="resize-y"
                     onChange={(event) => onChange({ ...item, answer: event.target.value })}
+                />
+            </div>
+        </div>
+    );
+}
+
+/**
+ * The `image` block's fields, and the media picker that fills them.
+ *
+ * ── ⚠ Two constraints inherited from BR-015 § C, honoured rather than re-found ─
+ * `ArticleBodyImageSchema` requires `width` and `height` as positive integers —
+ * *they reserve the box so a loading image does not shift the paragraph under
+ * it* — and `FileDetail` carries **neither**. They are read from the chosen
+ * image's `naturalWidth` / `naturalHeight`, and stay editable, because a
+ * measurement can legitimately fail: a host unreachable from the operator's
+ * network, an image still being written, a url typed rather than picked.
+ *
+ * And the picker may only offer **public** files. An article's `url` is a stored
+ * string served to anonymous readers; a private-tree file has `url: null` and
+ * always will, because the content route is a different mechanism rather than a
+ * URL that field could have carried. `requirePublicUrl` is what says so, and the
+ * picker disables such rows rather than hiding them.
+ *
+ * ⚠ **The measurement here is one-shot and not `ArticleCoverDialog`'s hook.**
+ * That one is keyed on a url that changes under it as an editor types, so it
+ * carries a staleness guard — an image resolving *after* the url moved on would
+ * otherwise report the previous picture's dimensions. This one runs from a
+ * selection callback that already closes over the file it measured, so there is
+ * no stale url for it to be wrong about.
+ */
+function ImageBlockFields({
+    block,
+    onChange,
+    idPrefix,
+}: {
+    block: Extract<ArticleBlock, { type: 'image' }>;
+    onChange: (next: ArticleBlock) => void;
+    idPrefix: string;
+}) {
+    const [pickerOpen, setPickerOpen] = useState(false);
+
+    /**
+     * Set the url immediately and the dimensions when the picture answers.
+     *
+     * ⚠ The url is written **first and unconditionally**: an operator who picked
+     * a file must see it in the field whether or not the browser can load it, and
+     * a measurement that never resolves must not leave the choice invisible.
+     */
+    function chooseFile(url: string) {
+        onChange({ ...block, url });
+
+        const probe = new Image();
+        probe.onload = () => {
+            if (probe.naturalWidth > 0 && probe.naturalHeight > 0) {
+                onChange({
+                    ...block,
+                    url,
+                    width: probe.naturalWidth,
+                    height: probe.naturalHeight,
+                });
+            }
+        };
+        probe.src = url;
+    }
+
+    return (
+        <div className="space-y-3">
+            <div className="space-y-1.5">
+                <Label htmlFor={`${idPrefix}-url`}>Image url</Label>
+                <div className="flex items-start gap-2">
+                    <Input
+                        id={`${idPrefix}-url`}
+                        value={block.url}
+                        maxLength={IMAGE_URL_MAX}
+                        placeholder="/media/2026/momo-payouts.png"
+                        className="font-mono text-xs"
+                        onChange={(event) => onChange({ ...block, url: event.target.value })}
+                    />
+                    {/*
+                      ✅ **The picker the note here used to promise.** It
+                      shipped with Phase F on 2026-08-27, and the two
+                      constraints recorded while it was pending are both
+                      honoured rather than rediscovered:
+
+                      - `width` and `height` are REQUIRED and `FileDetail`
+                        carries neither, so they are measured off the
+                        loaded image's `naturalWidth`/`naturalHeight` —
+                        filled here from the same `useImageSize` mechanism
+                        `ArticleCoverDialog` uses, and still editable.
+                      - It can only offer **public** files, which is what
+                        `requirePublicUrl` says: an article's `url` is a
+                        stored string served to anonymous readers, and a
+                        private-tree file has `url: null` and always will.
+                        The picker disables those rather than hiding them.
+                    */}
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setPickerOpen(true)}
+                    >
+                        <Images className="size-4" />
+                        Browse
+                    </Button>
+                </div>
+                <p className="text-muted-foreground text-xs">
+                    Point at a url the marketing site already serves, or choose one the
+                    administration has uploaded.
+                </p>
+
+                <MediaPickerDialog
+                    open={pickerOpen}
+                    onOpenChange={setPickerOpen}
+                    title="Choose an image"
+                    requirePublicUrl
+                    onSelect={(file) => {
+                        if (file.url) chooseFile(file.url);
+                    }}
+                />
+            </div>
+
+            <div className="space-y-1.5">
+                <Label htmlFor={`${idPrefix}-alt`}>Alt text</Label>
+                <Textarea
+                    id={`${idPrefix}-alt`}
+                    value={block.alt}
+                    maxLength={IMAGE_ALT_MAX}
+                    rows={2}
+                    className="resize-y"
+                    onChange={(event) => onChange({ ...block, alt: event.target.value })}
+                />
+                <p className="text-muted-foreground text-xs">
+                    What a screen reader announces in place of the picture. It is prose in
+                    this article&rsquo;s language, so it is translated like the rest.
+                </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                    <Label htmlFor={`${idPrefix}-width`}>Width in pixels</Label>
+                    <Input
+                        id={`${idPrefix}-width`}
+                        type="number"
+                        min={1}
+                        value={block.width || ''}
+                        onChange={(event) =>
+                            onChange({ ...block, width: Number(event.target.value) })
+                        }
+                    />
+                </div>
+                <div className="space-y-1.5">
+                    <Label htmlFor={`${idPrefix}-height`}>Height in pixels</Label>
+                    <Input
+                        id={`${idPrefix}-height`}
+                        type="number"
+                        min={1}
+                        value={block.height || ''}
+                        onChange={(event) =>
+                            onChange({ ...block, height: Number(event.target.value) })
+                        }
+                    />
+                </div>
+            </div>
+            <p className="text-muted-foreground text-xs">
+                Both are required, and they must be the image&rsquo;s real dimensions: they
+                reserve the box so the paragraph underneath does not jump while the picture
+                loads.
+            </p>
+
+            <div className="space-y-1.5">
+                <Label htmlFor={`${idPrefix}-caption`}>Caption (optional)</Label>
+                <Textarea
+                    id={`${idPrefix}-caption`}
+                    value={block.caption ?? ''}
+                    maxLength={IMAGE_CAPTION_MAX}
+                    rows={2}
+                    className="resize-y"
+                    onChange={(event) =>
+                        onChange(pruneOptional(block, 'caption', event.target.value))
+                    }
                 />
             </div>
         </div>

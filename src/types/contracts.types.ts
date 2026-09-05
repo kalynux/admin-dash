@@ -287,14 +287,31 @@ export interface RosterEntry extends ContractCore {
 /**
  * A row on the agent's contract list — the contract, plus which agency it is with.
  *
- * **The agency's business name is deliberately absent.** It lives on the Magazin,
- * and joining a second collection to decorate a list that is already a join would
- * cost an extra lookup per page for a label the dashboard can resolve from
- * `agencyId`. `GET /agencies/:agencyId` is one request away.
+ * ── ⚠ `businessName` arrived at BR-006 and this file had not taken it ─────────
+ * It used to say the field was *"deliberately absent"*, quoting the reasoning the
+ * backend itself has since withdrawn: a second `$lookup` was not worth *"a label
+ * the dashboard can resolve from the agency id"*. That holds for **one** agency
+ * and not for a page of rows — with no batch-by-ids route anywhere on this
+ * service, the client's alternative is one request per distinct agency, in every
+ * client ever built against this endpoint, and the lookup runs after skip/limit
+ * so it touches at most one page. `agents.md` has documented the field since the
+ * dashboard-request round; the type had not moved, and `AgentContractsPanel` was
+ * rendering `contactName` under a column headed *"Agency"* as a result.
+ *
+ * ⚠ **`businessName` is the business; `contactName` is a person.** Never
+ * substitute one for the other silently — `resolvePartyName` in `lib/party.ts`
+ * carries the fallback order and says which field it landed on, which is what a
+ * business-shaped column needs in order to admit it is showing a human.
  */
 export interface AgentContract extends ContractCore {
     agency: {
         id: string;
+        /**
+         * The Magazin's name. **`null` where it has none** — an agency mid-
+         * onboarding legitimately has no business name yet and must still be
+         * identifiable by its id. `null`, never `""`.
+         */
+        businessName: string | null;
         status: string | null;
         /** The agency's contact person, not the business. */
         contactName: string | null;
@@ -324,12 +341,13 @@ export interface ContractDetail extends ContractCore {
     /**
      * ⚠ `null` when the joined row is missing.
      *
-     * Note this carries `businessName` — the Magazin's name, `null` where it has
-     * none — which `AgentContract['agency']` deliberately omits. `contactName`
-     * beside it is **a person**, the agency's contact individual, never the
-     * business. Do not substitute one for the other.
+     * Structurally identical to `AgentContract['agency']` since BR-006 put
+     * `businessName` on that row too — spelled as the same type rather than
+     * re-declared, so the two cannot drift. `contactName` beside it is **a
+     * person**, the agency's contact individual, never the business. Do not
+     * substitute one for the other.
      */
-    agency: (NonNullable<AgentContract['agency']> & { businessName: string | null }) | null;
+    agency: AgentContract['agency'];
 }
 
 // ─── The three administrative interventions ───────────────────────────────────
@@ -430,6 +448,26 @@ export interface ContractEvent {
     contractId: string | null;
     agentId: string;
     agencyId: string;
+    /**
+     * Who the row is **about**.
+     *
+     * ⚠ **`name`, not `businessName` — an agent is a PERSON.** The mirror
+     * decoration on `GET /agents/:agentId/contracts` carries `businessName`
+     * because an agency is a business; the two are different kinds of thing, and
+     * a company name under a column headed "Agent" would be wrong in the same way
+     * `contactName` under "Agency" was (BR-006).
+     *
+     * `null` when the agent record is gone — **a broken state the row is kept to
+     * show, never a fabricated label.**
+     *
+     * ⚠ **Present on BOTH feeds, including the one whose path already names the
+     * agent.** The two share one shape, and a client branching on which endpoint
+     * it called to decide whether `agent` is there will get it wrong.
+     *
+     * ✅ Batched **after** `skip`/`limit`, so it touches at most one page however
+     * deep the history goes.
+     */
+    agent: { id: string; name: string | null } | null;
     /**
      * A ~24-value vocabulary jovi-mall owns, validated as a bounded string rather
      * than an enum — it has already drifted against its own schema once. Render

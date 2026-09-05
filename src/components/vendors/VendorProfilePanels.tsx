@@ -12,6 +12,7 @@ import { formatCount, formatInstantInZone, formatMoney, humaniseEnum } from '@/l
 import type { VendorDetail } from '@/types/vendors.types';
 import { vendorOnboardingLabel } from '@/types/vendors.types';
 import { CopyableId } from '@/components/common/CopyableId';
+import { CopyableValue } from '@/components/common/CopyableValue';
 
 /**
  * The read-only blocks of the vendor Overview tab.
@@ -53,9 +54,19 @@ export function VendorIdentityPanel({ vendor, timeZone }: PanelProps) {
                         {vendor.displayName ?? <NotSet />}
                     </Definition>
 
-                    <Definition label="Email">{vendor.email ?? <NotSet />}</Definition>
+                    {/*
+                      The half of the operator ask that was never served at all:
+                      ringing a vendor back meant retyping the number off the
+                      screen. `CopyableValue` renders `NotSet` itself, so the
+                      `?? <NotSet />` goes rather than nesting a second fallback.
+                    */}
+                    <Definition label="Email">
+                        <CopyableValue variant="email" value={vendor.email} label="vendor email" />
+                    </Definition>
 
-                    <Definition label="Phone">{vendor.phone ?? <NotSet />}</Definition>
+                    <Definition label="Phone">
+                        <CopyableValue variant="phone" value={vendor.phone} label="vendor phone" />
+                    </Definition>
 
                     <Definition label="Country">{vendor.country ?? <NotSet />}</Definition>
 
@@ -122,23 +133,43 @@ export function VendorStorePanel({ vendor, timeZone }: PanelProps) {
                     <DefinitionList>
                         <Definition label="Name">{store.name ?? <NotSet />}</Definition>
                         <Definition label="Slug">
-                            {store.slug ? (
-                                <span className="font-mono text-xs">{store.slug}</span>
-                            ) : (
-                                <NotSet />
-                            )}
+                            {/*
+                              `plain`, not `id`: the slug is the storefront's
+                              address on the platform and has to survive whole —
+                              half of one is a dead link. Mono is kept because
+                              that is how it already read.
+                            */}
+                            <CopyableValue
+                                variant="plain"
+                                mono
+                                value={store.slug}
+                                label="store slug"
+                            />
                         </Definition>
                         <Definition label="Description">
                             {store.description ?? <NotSet />}
                         </Definition>
                         <Definition label="Support email">
-                            {store.supportEmail ?? <NotSet />}
+                            <CopyableValue
+                                variant="email"
+                                value={store.supportEmail}
+                                label="store support email"
+                            />
                         </Definition>
                         <Definition label="Support phone">
-                            {store.supportPhone ?? <NotSet />}
+                            <CopyableValue
+                                variant="phone"
+                                value={store.supportPhone}
+                                label="store support phone"
+                            />
                         </Definition>
                         <Definition label="Support WhatsApp">
-                            {store.supportWhatsapp ?? <NotSet />}
+                            {/* A phone number in every respect but the label. */}
+                            <CopyableValue
+                                variant="phone"
+                                value={store.supportWhatsapp}
+                                label="store WhatsApp number"
+                            />
                         </Definition>
                         <Definition
                             label="Branding"
@@ -211,8 +242,27 @@ export function VendorSignInAccountPanel({ vendor }: { vendor: VendorDetail }) {
                 {account ? (
                     <>
                         <DefinitionList>
-                            <Definition label="Email">{account.email ?? <NotSet />}</Definition>
-                            <Definition label="Phone">{account.phone ?? <NotSet />}</Definition>
+                            {/*
+                              ⚠ Labelled "sign-in account", not "vendor" — these
+                              are the `users` row's identifiers and can legitimately
+                              differ from the vendor record's above. The copy
+                              button's accessible name has to say which pair it
+                              came from.
+                            */}
+                            <Definition label="Email">
+                                <CopyableValue
+                                    variant="email"
+                                    value={account.email}
+                                    label="sign-in account email"
+                                />
+                            </Definition>
+                            <Definition label="Phone">
+                                <CopyableValue
+                                    variant="phone"
+                                    value={account.phone}
+                                    label="sign-in account phone"
+                                />
+                            </Definition>
                             <Definition label="Roles">
                                 {account.roles.length > 0 ? (
                                     <span className="flex flex-wrap gap-1">
@@ -725,9 +775,19 @@ export function VendorCountsPanel({ vendor, timeZone }: PanelProps) {
                         ]}
                     />
                     {vendor.defaultDeliveryAgencyId ? (
-                        <p className="text-muted-foreground text-xs">
-                            Default delivery agency:{' '}
-                            <span className="font-mono">{vendor.defaultDeliveryAgencyId}</span>
+                        <p className="text-muted-foreground flex flex-wrap items-center gap-1 text-xs">
+                            {/*
+                              The one id on this panel, and the one an operator
+                              takes to the agency directory — the counts around it
+                              are figures, not values. `truncate={false}` keeps it
+                              exactly as long as it reads today.
+                            */}
+                            Default delivery agency:
+                            <CopyableValue
+                                value={vendor.defaultDeliveryAgencyId}
+                                label="default delivery agency ID"
+                                truncate={false}
+                            />
                         </p>
                     ) : (
                         <p className="text-muted-foreground text-xs">

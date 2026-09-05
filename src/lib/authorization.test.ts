@@ -115,8 +115,8 @@ describe('the tier fixtures match the documented levels', () => {
     it('holds the counts permissions.md states', () => {
         // Matrix and prose agree again since BR-013; `permissions.types.test.ts`
         // is what keeps them that way.
-        expect(TIER_1_PERMISSIONS.length).toBe(114);
-        expect(TIER_2_PERMISSIONS.length).toBe(97);
+        expect(TIER_1_PERMISSIONS.length).toBe(116);
+        expect(TIER_2_PERMISSIONS.length).toBe(99);
         expect(TIER_3_PERMISSIONS.length).toBe(30);
     });
 

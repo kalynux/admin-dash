@@ -22,17 +22,31 @@ import { DeleteFileDialog } from '@/components/files/DeleteFileDialog';
 /**
  * `GET /files/orphans` and `DELETE /files/:fileId/permanent`.
  *
+ * ── ⚠ It lives under Media now, and it used to live under System ─────────────
+ * Moved on 2026-08-27 with Phase F. It sat in System because there was nothing
+ * for it to sit beside — *"`files.resolve` answers ids a caller already holds,
+ * and there is deliberately no listing route beyond orphans."* BR-015 built that
+ * listing, so one module now holds every file on the platform and this child
+ * holds the subset nothing points at. **The screen itself is unchanged.**
+ *
  * ── Two permissions, and they are not the same tier ───────────────────────────
  * `files.orphans.read` is tiers 1–2; `files.delete` is **tier 1 only** and
  * flagged `destructive`. So an Admin reads this list and is offered no delete —
  * the nav entry gates on either in `any` mode, and the affordance gates on its
- * own permission. Support enumerates no files at all.
+ * own permission. Support enumerates no files.
  *
  * ── The listing is the judgement, so it withholds the storage key ─────────────
  * An orphan row carries no `key`, no `url`, no `provider`, `checksum` or
  * `ownerId` — six fields and no more. What makes a delete judgeable is the
  * filename, the type, the size and whose it was; the storage key is an internal
  * locator that adds nothing to the decision.
+ *
+ * ⚠ **And that is why there is no picture on this screen, unlike the library.**
+ * A library row carries a `url` wi-admin built, so its thumbnail costs nothing
+ * and discloses nothing. An orphan row carries neither, so a preview here would
+ * mean the audited content route — a disclosure row per file per page load,
+ * against an operator who is only deciding whether to sweep. The one-line
+ * judgement the rows already support is the cheaper answer.
  *
  * ── The 24-hour floor is refused, not clamped ─────────────────────────────────
  * A file is uploaded and attached seconds later, so a window reaching into the
@@ -42,7 +56,7 @@ import { DeleteFileDialog } from '@/components/files/DeleteFileDialog';
  * screen therefore renders `meta.olderThan` — the cutoff jovi-mall **actually
  * applied** — rather than the value it sent.
  */
-export function FileAdministration() {
+export function OrphanFiles() {
     const admin = useAdmin();
     const can = useCan();
     const timeZone = resolveTimeZone(admin.timezone);
@@ -121,7 +135,7 @@ export function FileAdministration() {
 
     return (
         <PageContainer
-            title="Files"
+            title="Orphan files"
             description="Uploads that no live record refers to, and the permanent delete."
         >
             <Card>

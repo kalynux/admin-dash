@@ -1,16 +1,25 @@
 /**
- * `/files` — five routes: resolve one, resolve a batch, **open one**, list
- * orphans, destroy one.
+ * `/files` — **seven routes** since BR-015: resolve one, resolve a batch, open
+ * one, **browse them all**, **upload**, list orphans, destroy one.
  *
- * Source: `docs/admin/api/files.md`. All five are **delegated** to jovi-mall,
- * where the storage provider is configured, so a failure can arrive as
- * `PLATFORM_OPERATION_REJECTED` with jovi-mall's code in
+ * Source: `docs/admin/api/files.md`. Five of the seven are **delegated** to
+ * jovi-mall, where the storage provider is configured, so a failure can arrive
+ * as `PLATFORM_OPERATION_REJECTED` with jovi-mall's code in
  * `details.platformCode`.
  *
- * ── There is still no upload, anywhere ────────────────────────────────────────
- * wi-admin accepts **no multipart body on any route** and the body limit is
- * 1 MB. These resolve, open, list and delete records that something else
- * uploaded — a content read is not a write path for files.
+ * ── ⚠ The library is the exception: it is a DIRECT read ──────────────────────
+ * `GET /files/library` queries `jovi_mall.files` and `file_references` from
+ * wi-admin itself (ADR-021 D-1). No hop, so it keeps answering during a
+ * platform outage — and a `SERVICE_DEPENDENCY_UNAVAILABLE` from it would be a
+ * surprise rather than the ordinary answer the rest of the mount gives.
+ *
+ * ── ⚠ "There is still no upload, anywhere" was true until 2026-08-26 ─────────
+ * It is not any more, and the rule it rested on was **narrowed rather than
+ * abandoned**: wi-admin never *parses* a multipart body. `POST /files/upload`
+ * pipes the raw request through to jovi-mall unread — no multer, no busboy, no
+ * new dependency — which is why the 1 MB `express.json` limit does not apply on
+ * that path and the route declares its own 32 MiB ceiling instead. Every other
+ * route on this service still accepts no multipart body at all.
  */
 
 import { withQuery } from '@/lib/query';
@@ -20,10 +29,22 @@ import type {
     DeleteFileResult,
     FileContent,
     FileDetail,
+    FileLibraryMeta,
+    FileLibraryQuery,
+    FileLibraryResult,
+    FileUploadMeta,
+    FileUploadResult,
+    LibraryFile,
     OrphanListQuery,
     OrphanListResult,
 } from '@/types/files.types';
-import { FILE_RESOLVE_MAX_IDS } from '@/types/files.types';
+import {
+    FILE_RESOLVE_MAX_IDS,
+    FILE_UPLOAD_ACCEPTED_MIME_TYPES,
+    FILE_UPLOAD_FIELD_NAME,
+    FILE_UPLOAD_MAX_BYTES,
+    FILE_UPLOAD_MAX_FILES,
+} from '@/types/files.types';
 
 /**
  * `GET /files?ids=` · `files.resolve` · delegated.
@@ -218,4 +239,168 @@ export async function deleteFilePermanently(
         body,
         options,
     );
+}
+
+/**
+ * `GET /files/library` · **`files.library.read`** (tiers 1 · 2) · **direct read**
+ * · not audited.
+ *
+ * The media library, and the picker's source. Every file on the platform, with
+ * its owner's name and what refers to it.
+ *
+ * ── ⚠ Its own permission, because it ENUMERATES ─────────────────────────────
+ * Every tier holds `files.resolve` on one argument: the caller already holds the
+ * id, and a 24-hex id is unguessable. **That argument does not survive a
+ * listing.** So browsing is a second name at a narrower tier — the line
+ * `files.orphans.read` drew first, and this is its third instance. Support
+ * enumerates no files.
+ *
+ * ── ⚠ `sort`, never `sortBy` + `sortOrder` — and getting it wrong is silent ──
+ * jovi-mall's own file listing takes the second form; this route does not, and
+ * the list-query schema on this service is **not `.strict()`**. `sortBy=size`
+ * answers `200` in the default order with nothing anywhere saying the sort was
+ * ignored. Send one `sort` token from the allowlist.
+ *
+ * ── ⚠ `limit` is 100 here, not jovi-mall's 50 ───────────────────────────────
+ * Nothing about this request reaches that validator. 100 is the ceiling every
+ * list on this service has; 101 is a `400`.
+ *
+ * ── The meta is not decoration, and two fields decide what the screen may say ─
+ * `referenceSampleCap` bounds `usage.references` on **every** row, truncated or
+ * not — render `referenceCount > references.length` as "and N more".
+ * `publicUrlsConfigured: false` means *this deployment* cannot build public URLs
+ * at all, which is a cause of `url: null` that has nothing to do with the file.
+ */
+export async function listFileLibrary(
+    query: FileLibraryQuery = {},
+    options?: RequestOptions,
+): Promise<FileLibraryResult> {
+    const { data, meta } = await api.mutate<LibraryFile[], Partial<FileLibraryMeta>>(
+        'GET',
+        withQuery('/files/library', { ...query }),
+        undefined,
+        options,
+    );
+
+    const files = Array.isArray(data) ? data : [];
+
+    return {
+        files,
+        meta: {
+            total: typeof meta?.total === 'number' ? meta.total : files.length,
+            page: typeof meta?.page === 'number' ? meta.page : (query.page ?? 1),
+            limit: typeof meta?.limit === 'number' ? meta.limit : files.length,
+            // ⚠ An empty list reports `pages: 0`, not `1` — so the fallback has
+            // to agree rather than defaulting to a page that does not exist.
+            pages: typeof meta?.pages === 'number' ? meta.pages : files.length > 0 ? 1 : 0,
+            /**
+             * ⚠ **`0` is the honest fallback, not a guess at 5.** The cap bounds
+             * `usage.references`, and a screen that assumed a larger cap than the
+             * service applied would render "and N more" as though it had shown
+             * everything. With `0`, a row with references reports them all as
+             * unshown — visibly wrong rather than quietly wrong.
+             */
+            referenceSampleCap:
+                typeof meta?.referenceSampleCap === 'number' ? meta.referenceSampleCap : 0,
+            /**
+             * ⚠ **Defaults to `true`, and that is deliberate.** `false` makes the
+             * screen say "previews are not configured on this deployment", which
+             * is a claim about the *server*. Asserting it because a field was
+             * missing would be inventing a diagnosis; a missing field means the
+             * service did not say, so the screen says nothing.
+             */
+            publicUrlsConfigured: meta?.publicUrlsConfigured !== false,
+            entityFilterTruncated: meta?.entityFilterTruncated === true,
+            entityFilterCap:
+                typeof meta?.entityFilterCap === 'number' ? meta.entityFilterCap : undefined,
+        },
+    };
+}
+
+/**
+ * `POST /files/upload` · **`files.upload`** (tiers 1 · 2) · **stream proxy** ·
+ * **audited**.
+ *
+ * **The first write path for files this service has ever had**, and what makes
+ * the media picker non-empty. Before BR-015 no administrator could produce a
+ * `fileId` at all, which is why the ticket-attachment form and both blog image
+ * fields had nothing to browse.
+ *
+ * ── ⚠ Only ONE of the four constraints is enforced before the hop ───────────
+ * wi-admin never parses the body, so it cannot see a part boundary, a field name
+ * or a per-part content type. It counts bytes, and it refuses at 32 MiB of
+ * **whole request body** — framing included, not per file. Max files (10), the
+ * field name (`files`) and the accepted MIME list are **published, not policed**:
+ * filter the file dialog with them and expect jovi-mall to be the authority.
+ *
+ * A file that slips past the client comes back as `400
+ * PLATFORM_OPERATION_REJECTED` with `details.platformCode:
+ * "UPLOAD_POLICY_VIOLATION"` and a `details.violations[]` array naming it.
+ * **That is a normal refusal, not a bug** — and it must be branched on
+ * `details.platformCode`, because `error.code` is the same for every delegated
+ * refusal on the service.
+ *
+ * ── ⚠ Read the response; never echo the request ─────────────────────────────
+ * jovi-mall sniffs the real type — a spoofed extension is filed as whatever the
+ * bytes actually are — and **converts PNG to WebP** by its own policy. A caller
+ * that records `image/png` because that is what it picked has the wrong type on
+ * file, and a URL whose extension disagrees with it.
+ *
+ * ── ✅ An admin upload lands PUBLIC, and there is no way to ask otherwise ────
+ * A property of where the bytes go rather than a choice the route makes:
+ * jovi-mall files each part under the folder for its own detected media type,
+ * and all six of those trees are classified `public`. So a blog cover comes back
+ * with a real, unauthenticated `url` an anonymous reader can fetch — which is
+ * what closes the blog half of BR-015, and what the caller must keep in mind
+ * before uploading anything private here.
+ *
+ * @throws `413 FILE_UPLOAD_TOO_LARGE` — over the byte ceiling; `details.maxBytes`
+ * carries the limit the service actually applied.
+ * @throws `415 FILE_UPLOAD_NOT_MULTIPART` — the `Content-Type` was not
+ * `multipart/form-data`. ⚠ Almost always a client bug: setting that header by
+ * hand omits the `boundary`, which is why `api.upload` sets none at all.
+ */
+export async function uploadFiles(
+    files: readonly File[],
+    options?: RequestOptions,
+): Promise<FileUploadResult> {
+    if (files.length === 0) {
+        // A body with no parts is a refusal from jovi-mall's pipeline rather than
+        // a validation error here, so answer it locally instead of spending an
+        // audited write to be told off.
+        throw new RangeError('uploadFiles needs at least one file');
+    }
+
+    const form = new FormData();
+    // ⚠ One repeated field name, not `files[0]` / `files[1]`. jovi-mall's
+    // pipeline reads the parts under `files`; an indexed name is a field it does
+    // not know and the request comes back as a policy violation.
+    for (const file of files) form.append(FILE_UPLOAD_FIELD_NAME, file, file.name);
+
+    const { data, meta } = await api.upload<
+        { files?: FileDetail[] },
+        Partial<FileUploadMeta>
+    >('/files/upload', form, options);
+
+    const uploaded = data?.files ?? [];
+
+    return {
+        files: uploaded,
+        meta: {
+            count: typeof meta?.count === 'number' ? meta.count : uploaded.length,
+            /**
+             * ⚠ The constants are what this dashboard was **written against**;
+             * the meta is what the deployment it is **talking to** enforces. Prefer
+             * the second wherever a response is in hand — a service configured
+             * with a smaller `ADMIN_UPLOAD_MAX_BYTES` would otherwise be described
+             * to the operator with a number it does not honour.
+             */
+            maxBytes: typeof meta?.maxBytes === 'number' ? meta.maxBytes : FILE_UPLOAD_MAX_BYTES,
+            maxFiles: typeof meta?.maxFiles === 'number' ? meta.maxFiles : FILE_UPLOAD_MAX_FILES,
+            fieldName: meta?.fieldName ?? FILE_UPLOAD_FIELD_NAME,
+            acceptedMimeTypes: Array.isArray(meta?.acceptedMimeTypes)
+                ? meta.acceptedMimeTypes
+                : [...FILE_UPLOAD_ACCEPTED_MIME_TYPES],
+        },
+    };
 }

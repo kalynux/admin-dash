@@ -4,6 +4,7 @@ import { ArrowLeft, ShieldAlert, TriangleAlert } from 'lucide-react';
 import { AuditMetadataView } from '@/components/audit/AuditMetadataView';
 import { AuditStatusBadge } from '@/components/audit/AuditStatusBadge';
 import { AuditTargetLink } from '@/components/audit/AuditTargetLink';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataState, ErrorState } from '@/components/common/DataState';
 import { Definition, DefinitionList, NotSet } from '@/components/common/DefinitionList';
 import { DetailSkeleton } from '@/components/common/Loading';
@@ -39,6 +40,20 @@ import type { AuditEntryDetail as AuditEntryDetailRow } from '@/types/audit.type
  * so is the difference between a trail and a directory lookup. And `payload` /
  * `before` / `after` are **changed fields only, never whole documents** — a
  * two-key `after` does not mean the record now has two fields.
+ *
+ * ── Which mono renders are values, and which are vocabulary ───────────────────
+ * This screen is mostly `font-mono`, and most of it is **not** copyable. Five
+ * fields are values an operator pastes into a query, a ticket or a colleague's
+ * chat window — the session id, the resource id, the actor's email, the request
+ * id and the calling address — and those carry the copy affordance. The action
+ * name, the error code, `denialKind` and the permission badges are vocabulary:
+ * you read them and you filter on them, you do not paste them. The three
+ * metadata blocks are a **dump, not a value**. Neither gets one.
+ *
+ * ⚠ Nothing here shortens. Every one of the five renders whole today, there is
+ * room in a definition list for all of them, and `break-words` on the `<dd>`
+ * inherits into the value — so shortening would cost information and buy no
+ * space.
  */
 
 /** The ids are 24-hex; a malformed one is a `400` worth not spending. */
@@ -259,7 +274,13 @@ function EntryBody({
                                 )}
                             </Definition>
                             {row.actor.email && row.actor.displayName ? (
-                                <Definition label="Email">{row.actor.email}</Definition>
+                                <Definition label="Email">
+                                    <CopyableValue
+                                        variant="email"
+                                        value={row.actor.email}
+                                        label="actor email"
+                                    />
+                                </Definition>
                             ) : null}
                             <Definition label="Kind">
                                 <span className="capitalize">{row.actor.kind}</span>
@@ -281,13 +302,15 @@ function EntryBody({
                                 )}
                             </Definition>
                             <Definition label="Session">
-                                {row.actor.sessionId ? (
-                                    <span className="font-mono text-xs break-all">
-                                        {row.actor.sessionId}
-                                    </span>
-                                ) : (
-                                    <NotSet />
-                                )}
+                                {/* A UUID, not a 24-hex id — and `CopyableValue`
+                                    renders the same `NotSet` the branch here used
+                                    to, so the ternary would have been a second
+                                    fallback saying the same thing. */}
+                                <CopyableValue
+                                    value={row.actor.sessionId}
+                                    label="session ID"
+                                    truncate={false}
+                                />
                             </Definition>
                             {row.actor.id && row.actor.kind === 'administrator' ? (
                                 <Definition label="Everything they did">
@@ -329,10 +352,15 @@ function EntryBody({
                                 />
                             </Definition>
                             <Definition label="Resource id">
+                                {/* The ternary stays: "No specific record" is a
+                                    statement about the action, and `NotSet`'s
+                                    default would flatten it into "Not set". */}
                                 {row.target.id ? (
-                                    <span className="font-mono text-xs break-all">
-                                        {row.target.id}
-                                    </span>
+                                    <CopyableValue
+                                        value={row.target.id}
+                                        label="resource ID"
+                                        truncate={false}
+                                    />
                                 ) : (
                                     <NotSet>No specific record</NotSet>
                                 )}
@@ -435,6 +463,9 @@ function EntryBody({
                 </CardHeader>
                 <CardContent>
                     <DefinitionList>
+                        {/* Not a value: a verb and a route, two things joined for
+                            reading. Neither half is pasted anywhere, and copying
+                            the pair would hand over a string that is not either. */}
                         <Definition label="Call">
                             <span className="font-mono text-xs break-all">
                                 {row.request.method} {row.request.path}
@@ -448,9 +479,11 @@ function EntryBody({
                                 </span>
                             }
                         >
-                            <span className="font-mono text-xs break-all">
-                                {row.correlationId}
-                            </span>
+                            <CopyableValue
+                                value={row.correlationId}
+                                label="request ID"
+                                truncate={false}
+                            />
                             <p className="mt-1">
                                 <Link
                                     to={`/dashboard/audit?correlationId=${encodeURIComponent(row.correlationId)}`}
@@ -461,13 +494,20 @@ function EntryBody({
                             </p>
                         </Definition>
                         <Definition label="From">
-                            {row.request.ip ? (
-                                <span className="font-mono text-xs">{row.request.ip}</span>
-                            ) : (
-                                <NotSet />
-                            )}
+                            {/* `plain`, not `id`: an address that has lost four
+                                characters out of its middle is not an address,
+                                and the variant is what refuses rather than a
+                                prop somebody can forget. */}
+                            <CopyableValue
+                                variant="plain"
+                                mono
+                                value={row.request.ip}
+                                label="request IP"
+                            />
                         </Definition>
                         <Definition label="Client">
+                            {/* A user-agent string is prose a browser wrote about
+                                itself, not a handle on a record. Left as text. */}
                             {row.request.userAgent ? (
                                 <span className="text-xs break-all">{row.request.userAgent}</span>
                             ) : (

@@ -3,7 +3,9 @@ import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
+import { AgencyPicker } from '@/components/agencies/AgencyPicker';
 import { AuthFormError } from '@/components/auth/AuthFormError';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { FormField } from '@/components/common/FormField';
 import { InlineLoader } from '@/components/common/Loading';
 import { Button } from '@/components/ui/button';
@@ -28,6 +30,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { pickFieldErrors } from '@/lib/field-errors';
 import { resolveErrorMessage } from '@/lib/errors';
 import { notify } from '@/lib/notify';
+import { PARTY_NAME_SOURCE_LABELS } from '@/lib/party';
 import {
     PLATFORM_CODE_COD_BELOW_ALLOCATED,
     PLATFORM_CODE_COD_OUT_OF_BOUNDS,
@@ -42,6 +45,8 @@ import {
     transferAgent,
     unbanAgent,
 } from '@/services/agents.service';
+import { useCan } from '@/store';
+import { resolveAgencyDisplayName } from '@/types/agencies.types';
 import { ApiError } from '@/types/api.types';
 import {
     AGENT_KYC_STATUSES,
@@ -907,6 +912,28 @@ export function UnbanAgentDialog({
 
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
 
+/**
+ * The agency an agent is being moved **out of**.
+ *
+ * ⚠ The whole object rather than the bare id it used to be, and the reason is
+ * that "Leaving" is a read-only field an operator has to *recognise*: an id
+ * they cannot read tells them nothing about whether they opened the right row.
+ * The panel already holds this — it is the row the transfer was started from —
+ * so passing it costs no request, which is what makes the read-only half of this
+ * dialog work for a caller who does not hold `agencies.read`.
+ *
+ * Typed structurally rather than as `AgentContract['agency']` because that one is
+ * nullable and this is not: a transfer is always started from a row, and a row
+ * always has an `agencyId` even when its join came back empty.
+ */
+export interface TransferSourceAgency {
+    id: string;
+    /** The Magazin's name. `null` where it has none — never `contactName`. */
+    businessName: string | null;
+    /** The contact **person**. See the warning on `businessName`. */
+    contactName: string | null;
+}
+
 const transferSchema = z
     .object({
         fromAgencyId: z.string().regex(OBJECT_ID, 'Not a valid agency id'),
@@ -930,13 +957,13 @@ type TransferValues = z.infer<typeof transferSchema>;
  */
 export function TransferAgentDialog({
     agent,
-    fromAgencyId,
+    fromAgency,
     open,
     onOpenChange,
     onDone,
 }: {
     agent: AgentDetail;
-    fromAgencyId: string;
+    fromAgency: TransferSourceAgency;
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onDone: () => void;
@@ -952,7 +979,7 @@ export function TransferAgentDialog({
                 </DialogHeader>
                 <TransferForm
                     agent={agent}
-                    fromAgencyId={fromAgencyId}
+                    fromAgency={fromAgency}
                     onCancel={() => onOpenChange(false)}
                     onDone={() => {
                         onOpenChange(false);
@@ -966,24 +993,47 @@ export function TransferAgentDialog({
 
 function TransferForm({
     agent,
-    fromAgencyId,
+    fromAgency,
     onCancel,
     onDone,
 }: {
     agent: AgentDetail;
-    fromAgencyId: string;
+    fromAgency: TransferSourceAgency;
     onCancel: () => void;
     onDone: () => void;
 }) {
+    const can = useCan();
+    /*
+      ⚠ `agents.transfer` does not imply `agencies.read`, and the endpoint that
+      populates the picker needs the second one. Checked before the picker is
+      rendered rather than after it collects a 403 — and the fallback is not a
+      dead end: the id field is the same field the picker fills, so a caller
+      without directory access can still paste one in.
+    */
+    const canBrowseAgencies = can('agencies.read');
+
     const [formError, setFormError] = useState<unknown>(null);
     const {
+        control,
         register,
         handleSubmit,
         setError,
+        setValue,
         formState: { errors, isSubmitting },
     } = useForm<TransferValues>({
         resolver: zodResolver(transferSchema),
-        defaultValues: { fromAgencyId, toAgencyId: '', reason: '' },
+        defaultValues: { fromAgencyId: fromAgency.id, toAgencyId: '', reason: '' },
+    });
+
+    // See the note in `StatusForm` — `useWatch`, never `watch()`. The picker is a
+    // controlled field, so this one is load-bearing rather than incidental: a
+    // `watch()` here makes the React Compiler skip the whole dialog.
+    const toAgencyId = useWatch({ control, name: 'toAgencyId' });
+
+    const sourceName = resolveAgencyDisplayName({
+        id: fromAgency.id,
+        businessName: fromAgency.businessName,
+        contactName: fromAgency.contactName,
     });
 
     async function onSubmit(values: TransferValues) {
@@ -1023,30 +1073,100 @@ function TransferForm({
 
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {/*
+              ── Leaving ────────────────────────────────────────────────────────
+              ⚠ Read-only, and **not** a picker: the source is the row the
+              transfer was started from, not a choice. What changed is that it
+              used to render a raw id in a mono input, which an operator cannot
+              recognise — so it now leads with the agency's name and demotes the
+              id to a copyable value beneath it.
+
+              ⚠ The field itself stays registered and hidden rather than being
+              dropped: `fromAgencyId` is submitted, and it is the field **both
+              debt refusals set their error on** — a transfer refused because the
+              agent still owes the source agency cash, or because the agency still
+              owes the agent earnings. Taking it out of the form would leave those
+              two refusals with nowhere to land.
+            */}
             <div className="space-y-1.5">
                 <Label htmlFor="transfer-from">Leaving</Label>
-                <Input id="transfer-from" readOnly className="font-mono" {...register('fromAgencyId')} />
+                <div
+                    id="transfer-from"
+                    className="bg-muted/40 space-y-1 rounded-lg border px-3 py-2"
+                >
+                    <p className="text-sm font-medium">{sourceName.value}</p>
+                    {sourceName.kind === 'contact' ? (
+                        <p className="text-muted-foreground text-xs">
+                            {PARTY_NAME_SOURCE_LABELS[sourceName.source]} — this agency has
+                            recorded no business name
+                        </p>
+                    ) : null}
+                    {sourceName.kind === 'identifier' ? (
+                        <p className="text-muted-foreground text-xs">No name recorded</p>
+                    ) : (
+                        <CopyableValue
+                            value={fromAgency.id}
+                            label="agency ID"
+                            truncate={false}
+                        />
+                    )}
+                </div>
+                <input type="hidden" {...register('fromAgencyId')} />
                 {errors.fromAgencyId ? (
                     <p className="text-destructive text-sm">{errors.fromAgencyId.message}</p>
                 ) : null}
             </div>
 
-            <FormField
-                id="transfer-to"
-                label="Joining"
-                error={errors.toAgencyId?.message}
-                hint="Copy it from the agency directory. There is no picker here: the platform decides which agencies may receive this agent, and offering a list this client filtered would be a second definition of that rule."
-            >
-                {(field) => (
-                    <Input
-                        className="font-mono"
-                        placeholder="24-character agency id"
-                        autoComplete="off"
-                        {...field}
-                        {...register('toAgencyId')}
+            {/*
+              ── Joining ────────────────────────────────────────────────────────
+              ⚠ The source agency is **excluded from the options**, and the
+              schema's `.refine()` that the two differ stays as the backstop. The
+              exclusion means the operator cannot reach that refusal by accident;
+              it is not what enforces it, because a list is an affordance and
+              never a validator.
+
+              ⚠ The picker is still not filtered to agencies that would accept
+              this agent. Which ones may is the platform's rule — it depends on
+              the agent's existing contracts and the destination's own state — and
+              a list this client narrowed would be a second definition of it, and
+              would quietly hide an agency the platform would have taken.
+            */}
+            {canBrowseAgencies ? (
+                <div className="space-y-1.5">
+                    <Label htmlFor="transfer-to-search">Joining</Label>
+                    <AgencyPicker
+                        label="Search the agency directory"
+                        searchFieldId="transfer-to-search"
+                        idFieldId="transfer-to"
+                        excludeId={fromAgency.id}
+                        value={toAgencyId}
+                        onChange={(agencyId) =>
+                            setValue('toAgencyId', agencyId, {
+                                shouldValidate: true,
+                                shouldDirty: true,
+                            })
+                        }
+                        error={errors.toAgencyId?.message}
                     />
-                )}
-            </FormField>
+                </div>
+            ) : (
+                <FormField
+                    id="transfer-to"
+                    label="Joining"
+                    error={errors.toAgencyId?.message}
+                    hint="Copy it from the agency directory. Searching for one here needs agency read access, which this account does not hold."
+                >
+                    {(field) => (
+                        <Input
+                            className="font-mono"
+                            placeholder="24-character agency id"
+                            autoComplete="off"
+                            {...field}
+                            {...register('toAgencyId')}
+                        />
+                    )}
+                </FormField>
+            )}
 
             <FormField
                 id="transfer-reason"

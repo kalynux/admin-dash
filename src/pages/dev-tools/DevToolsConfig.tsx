@@ -52,6 +52,19 @@ function ConfigRow({
     const parts = typeof value === 'string' && value.includes(',') ? value.split(',') : null;
     const scrubbed = value === null ? null : scrubText(String(value));
 
+    /*
+     * ⚠ **Nothing on this row is copyable, and both halves have their own reason.**
+     *
+     * The **key** is a configuration vocabulary, not a value: `SMTP_HOST` is a
+     * label for the thing beside it, there is no field anywhere on this service
+     * that takes one, and the screen is a two-column dump of a hundred of them.
+     *
+     * The **value** is worse than merely not worth it. Every one of them passes
+     * through `scrubText` or comes back as `REDACTED`, so what is on screen is
+     * frequently not what the service sent — a copy would hand over
+     * `[secret-removed]`, and copying the raw value instead would defeat the two
+     * nets this row exists to apply. Same trap as the cache key names.
+     */
     return (
         <div className="flex flex-wrap items-start justify-between gap-3 px-3 py-2 text-xs">
             <span className="text-muted-foreground min-w-0 font-mono break-all">{name}</span>

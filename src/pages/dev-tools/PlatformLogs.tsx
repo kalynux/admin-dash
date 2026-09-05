@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { AlertTriangle, RotateCw, ScrollText } from 'lucide-react';
 
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataState, EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
 import { SearchInput } from '@/components/common/SearchInput';
@@ -219,11 +220,40 @@ export function PlatformLogs() {
                                         {formatRelative(String(entry.at))}
                                     </span>
                                     {entry.requestId ? (
-                                        <span className="text-muted-foreground ml-auto font-mono text-[11px]">
-                                            {String(entry.requestId)}
-                                        </span>
+                                        /*
+                                         * The one value on this screen worth a copy button, and
+                                         * the reason is two controls up: `X-Request-Id` is the
+                                         * cross-service join, and "Search by request reference"
+                                         * is a filter on this very page. Retyping a UUID off a
+                                         * log row into that box is the workflow this replaces.
+                                         *
+                                         * ⚠ Never truncated. It is shown whole today and the
+                                         * filter matches the whole thing — a head-and-tail
+                                         * ellipsis would make the displayed value un-typeable
+                                         * for anyone whose clipboard is unavailable.
+                                         *
+                                         * `mono={false}` and the mono class on the wrapper
+                                         * instead: the component's own mono is `text-xs`, and
+                                         * inheriting keeps this row at the 11px it renders at
+                                         * today rather than nudging every log row taller.
+                                         */
+                                        <CopyableValue
+                                            value={String(entry.requestId)}
+                                            label="request reference"
+                                            truncate={false}
+                                            mono={false}
+                                            className="text-muted-foreground ml-auto font-mono text-[11px]"
+                                        />
                                     ) : null}
                                 </div>
+                                {/*
+                                  * ⚠ The line itself gets no copy button, and not only because
+                                  * a log line is prose rather than a value: what is rendered
+                                  * here is the *scrubbed* text. A copy would either hand over
+                                  * `Bearer [secret-removed]` — a string that is not what the
+                                  * platform logged — or put the credential the scrubber just
+                                  * caught onto the clipboard. Neither is worth an affordance.
+                                  */}
                                 <p className="text-sm break-words">
                                     {scrubbedMessages[index]?.text ?? ''}
                                 </p>

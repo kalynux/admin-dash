@@ -6,6 +6,7 @@ import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
 import { Pager } from '@/components/common/Pager';
+import { PartyValue } from '@/components/common/PartyValue';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,9 +24,11 @@ import {
     resolveDayFilter,
 } from '@/lib/datetime';
 import { formatCount, formatInstantInZone } from '@/lib/format';
+import { resolvePartyName } from '@/lib/party';
 import { PAGE_SIZE_DEFAULT, withQuery } from '@/lib/query';
 import { listAgencyContractHistory } from '@/services/agencies.service';
 import { listAgentContractHistory } from '@/services/agents.service';
+import { useCan } from '@/store';
 import {
     CONTRACT_ACTOR_ROLES,
     CONTRACT_EVENT_MAX_RANGE_DAYS,
@@ -70,6 +73,7 @@ const ANY = 'any';
  * list it was describing. Same rule the catalogue and activity panels follow.
  */
 export function ContractHistoryPanel({ side, ownerId, timeZone }: ContractHistoryPanelProps) {
+    const can = useCan();
     const [type, setType] = useState('');
     const [actorRole, setActorRole] = useState('');
     const [from, setFrom] = useState('');
@@ -143,6 +147,17 @@ export function ContractHistoryPanel({ side, ownerId, timeZone }: ContractHistor
             {
                 id: 'actor',
                 header: 'Who',
+                /*
+                  ⚠ The role badge and nothing else. `event.actorUserId` is on the
+                  row and is **not rendered anywhere in this panel** — deliberately
+                  so, per the contract: read the role, not the id, because an
+                  `admin` row's id belongs to the wi-admin database and resolves to
+                  nothing in the platform's. Putting it on screen is a decision
+                  about what this column says, not a copy affordance, so it is left
+                  to whoever revisits this column next. If it does land here it
+                  takes a `CopyableValue` and no name — it cannot be resolved to
+                  one for at least one of its two sources.
+                */
                 cell: (event) =>
                     event.actorRole ? (
                         <Badge variant="outline" className="capitalize">
@@ -155,8 +170,68 @@ export function ContractHistoryPanel({ side, ownerId, timeZone }: ContractHistor
             {
                 id: 'counterparty',
                 header: side === 'agency' ? 'Agent' : 'Agency',
-                className: 'text-muted-foreground font-mono text-xs',
-                cell: (event) => (side === 'agency' ? event.agentId : event.agencyId),
+                className: 'text-muted-foreground',
+                /*
+                  ⚠ Not shortened, though this is a table. The rest of the sweep
+                  lets a dense row take the head-and-tail form, and this column is
+                  the exception that proves why the rule is about *supplementary*
+                  ids: here the id is not beside an identifier, it **is** the only
+                  one the row has. Every row in this column is 24 hex characters
+                  and nothing else, and taking fourteen of them away attacks the
+                  exact complaint — "the table shows only ids" — from the wrong
+                  end.
+
+                  ⚠ **The two sides of this column are not symmetrical, and the
+                  asymmetry is the payload's.** BR-016 § 1 was granted and every
+                  row now carries `agent: { id, name }` — batched after
+                  `skip`/`limit`, so it touches one page however deep the history
+                  goes. But it names the **agent**, on both feeds, including the
+                  one whose own path already names them. So the agency side of
+                  this panel gets a name and the agent side still shows the
+                  agency's id: there is no `agency` decoration to read, and there
+                  is no batch-by-ids route to invent one from.
+
+                  ⚠ **`name`, not `businessName` — an agent is a person.** Sourced
+                  as `name` so `PartyValue` can never label it as a business; the
+                  sibling decoration on the agent's own contracts feed carries
+                  `businessName` because an agency *is* one, and mixing the two is
+                  the BR-006 confusion in the other direction.
+
+                  ⚠ `agent: null` means **the agent record is gone** — a broken
+                  state the row is kept to show. It renders as the id alone, which
+                  is what `PartyValue` does with an identifier-only party, and
+                  never as a fabricated label.
+
+                  ⚠ Not shortened, though this is a table: on the agent side the
+                  id is not beside an identifier, it **is** the only thing the row
+                  has, and taking fourteen characters off it attacks the exact
+                  complaint — "the table shows only ids" — from the wrong end.
+
+                  The link is gated on the permission that destination requires:
+                  what is visible must be reachable, and a link that lands on a
+                  denial is worse than no link.
+                */
+                cell: (event) => {
+                    const value = side === 'agency' ? event.agentId : event.agencyId;
+                    const reachable = side === 'agency' ? can('agents.read') : can('agencies.read');
+                    const base = side === 'agency' ? 'agents' : 'agencies';
+                    const to = value && reachable ? `/dashboard/${base}/${value}` : undefined;
+
+                    // Only the agent half is decorated — see the note above.
+                    const name = side === 'agency' ? (event.agent?.name ?? null) : null;
+
+                    return (
+                        <PartyValue
+                            party={resolvePartyName([{ source: 'name', value: name }], {
+                                source: 'id',
+                                value,
+                            })}
+                            id={value}
+                            idLabel={side === 'agency' ? 'agent ID' : 'agency ID'}
+                            to={to}
+                        />
+                    );
+                },
             },
             {
                 id: 'reason',
@@ -165,7 +240,7 @@ export function ContractHistoryPanel({ side, ownerId, timeZone }: ContractHistor
                 cell: (event) => event.reason ?? '—',
             },
         ],
-        [timeZone, side],
+        [timeZone, side, can],
     );
 
     return (

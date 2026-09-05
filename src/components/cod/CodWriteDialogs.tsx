@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
 import { AuthFormError } from '@/components/auth/AuthFormError';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { FormField } from '@/components/common/FormField';
 import { InlineLoader } from '@/components/common/Loading';
 import { Button } from '@/components/ui/button';
@@ -263,7 +264,18 @@ export function ConfirmRemittanceDialog({
                         {remittance.reference ? (
                             <p className="text-muted-foreground">
                                 Check the reference against the statement first:{' '}
-                                <span className="font-mono">{remittance.reference}</span>
+                                {/*
+                                  Copyable even here, in a dialog: "check it
+                                  against the statement" means pasting it into a
+                                  banking portal's search, and this dialog is
+                                  where the operator is when they do it.
+                                */}
+                                <CopyableValue
+                                    variant="plain"
+                                    mono
+                                    value={remittance.reference}
+                                    label="remittance reference"
+                                />
                             </p>
                         ) : (
                             /*
@@ -330,7 +342,13 @@ export function ConfirmDepositDialog({
                         </p>
                         {deposit.reference ? (
                             <p className="text-muted-foreground">
-                                Reference: <span className="font-mono">{deposit.reference}</span>
+                                Reference:{' '}
+                                <CopyableValue
+                                    variant="plain"
+                                    mono
+                                    value={deposit.reference}
+                                    label="deposit reference"
+                                />
                             </p>
                         ) : null}
                     </div>

@@ -75,9 +75,28 @@ export function orderDetailFixture(overrides: Partial<OrderDetail> = {}): OrderD
                 quantity: 3,
                 price: 2500,
                 currency: 'XAF',
+                // Resolved live against the listing's current media, and
+                // **batched** for the whole array — three reads however many
+                // lines the order has. Public tree, so it renders from `url`.
+                image: {
+                    id: '6612aabbccddeeff00112233',
+                    key: 'products/6660/plantain-1kg.jpg',
+                    url: 'https://cdn.example.com/products/6660/plantain-1kg.jpg',
+                    access: 'public',
+                    mimeType: 'image/jpeg',
+                    size: 84213,
+                    originalName: 'plantain.jpg',
+                },
                 delivery: {
                     agencyId: '665c0011223344556677889a',
+                    // ⚠ The **business** name, from the Magazin — never
+                    // `display_name`, which is the agency's contact person.
+                    agencyName: 'Littoral Express Delivery',
                     shipmentId: '6671aabbccddeeff00112233',
+                    // ⚠ The handle an operator can actually type into the
+                    // shipments search, which takes a prefix of this and cannot
+                    // find `shipmentId` at all.
+                    trackingNumber: 'WM-2026-0088412',
                     status: 'assigned',
                     freeDelivery: false,
                     hold: null,
@@ -135,6 +154,9 @@ export function timelineEntryFixture(
         description: 'Payment marked paid via MTN MoMo',
         actorType: 'system',
         actorId: null,
+        // ⚠ `null` for `system`, which is the default row here — the name is
+        // absent because nobody acted, not because it was not resolved.
+        actorName: null,
         metadata: { gateway: 'mtn_momo', reference: 'MP260812.1402.A44127' },
         occurredAt: '2026-08-12T14:02:31.000Z',
         ...overrides,

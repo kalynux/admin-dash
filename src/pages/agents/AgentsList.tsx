@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { RotateCw, Truck } from 'lucide-react';
 
 import { AgentStateAxesRow } from '@/components/agents/AgentStateAxes';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
@@ -163,9 +164,34 @@ export function AgentsList() {
                           Contact PII, and kept: a directory nobody can search by a
                           human identifier is unusable. It is not duplicated into
                           tooltips or exports.
+
+                          ⚠ Branched rather than left as one `??` chain, because
+                          the variant has to match what actually rendered — an
+                          email and a phone number are copied for different
+                          reasons and named differently to a screen reader. The
+                          link above stays a plain heading: `agentDisplayName`
+                          falls through to the email, and that render is the row's
+                          name and its route into the record, not a value.
+
+                          Neither variant may be clipped, so the `truncate` class
+                          goes with them; a long address wraps instead.
                         */}
-                        <p className="text-muted-foreground truncate text-xs">
-                            {agent.email ?? agent.phone ?? 'No contact on file'}
+                        <p className="text-muted-foreground text-xs">
+                            {agent.email ? (
+                                <CopyableValue
+                                    variant="email"
+                                    value={agent.email}
+                                    label="agent email"
+                                />
+                            ) : agent.phone ? (
+                                <CopyableValue
+                                    variant="phone"
+                                    value={agent.phone}
+                                    label="agent phone"
+                                />
+                            ) : (
+                                'No contact on file'
+                            )}
                         </p>
                     </div>
                 ),

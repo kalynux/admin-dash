@@ -98,7 +98,7 @@ function Holds({ held, label }: { held: boolean; label: string }) {
  *
  * ── Why this screen has to exist, and why it may not be hard-coded ────────────
  * Hard-coding the permission **vocabulary** is correct, and `types/permissions.types.ts` does it:
- * the 110 names are literal types, and a test diffs them against the policy document so a
+ * the 116 names are literal types, and a test diffs them against the policy document so a
  * backend change fails the suite rather than drifting silently. Hard-coding **which level holds
  * what** is not, and there is deliberately no tier → permission table anywhere in `src/`. The
  * tier sets in `src/test/fixtures.ts` exist for tests and are the one thing app code must never
@@ -113,6 +113,15 @@ function Holds({ held, label }: { held: boolean; label: string }) {
  * behind one (`permissions.read`), and Support does not hold it. So the tier columns are allowed
  * to be refused while the catalogue still renders: a screen that failed whole because half of it
  * was denied would tell an operator the vocabulary was unavailable, which is not true.
+ *
+ * ── ⚠ The mono strings here are the vocabulary, not values ───────────────────
+ * `entry.name` and `entry.family` are `font-mono` and neither gets a copy affordance, which is
+ * the same judgement stated three paragraphs up from the other side: this screen *is* the
+ * vocabulary, rendered as a table of a hundred-odd rows. A permission name is read against the
+ * ticks beside it and never pasted — the filters above it are a search box and two selects
+ * already populated from the same catalogue, so there is nothing to paste it into. A hundred
+ * copy buttons down the leftmost column would be a hundred controls competing with the six real
+ * ones on the row.
  */
 export function PermissionMatrix() {
     const { held, tierLabel } = usePermissions();

@@ -51,6 +51,13 @@ export function DependencyRow({
                 <span className="text-muted-foreground truncate">
                     {label ?? SYSTEM_DEPENDENCY_LABELS[name] ?? name}
                 </span>
+                {/*
+                  * ⚠ `database` is mono and is not a copyable value. It is an *assertion about
+                  * this row* — "up, and reached `jovi_mall_staging`" — read to notice that the
+                  * name is the wrong one, not to be carried anywhere. This row is also the
+                  * densest thing on Health: it repeats four to ten times per panel, and a copy
+                  * button on each would out-weigh the status dot the row exists for.
+                  */}
                 {database ? (
                     <span className="text-muted-foreground/70 ml-1.5 font-mono">{database}</span>
                 ) : null}

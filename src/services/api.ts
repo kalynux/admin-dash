@@ -709,6 +709,113 @@ export const api = {
             contentLength,
         };
     },
+
+    /**
+     * A request whose **body is bytes rather than JSON** — the only one.
+     *
+     * `POST /files/upload` is the first and so far only multipart route on this
+     * service, and it arrived on 2026-08-26 with BR-015. Every other write here
+     * sends `application/json`.
+     *
+     * ── ⚠ The `Content-Type` header is set by the BROWSER, never here ────────
+     * A multipart body is unreadable without the `boundary` token that separates
+     * its parts, and only the `FormData` serialiser knows what that token is.
+     * Writing `Content-Type: multipart/form-data` by hand omits it, and the
+     * service answers `415 FILE_UPLOAD_NOT_MULTIPART` on a request that *was*
+     * multipart. So this method deliberately sets no content type at all —
+     * which is also why it cannot go through `performRequest`, whose first act
+     * on a body is to stamp `application/json` and `JSON.stringify` it.
+     *
+     * ── It refreshes like everything else, and the retry is safe ─────────────
+     * The same `isRefreshable` rule `performRequest` and `download` apply, asked
+     * of the same function so the three cannot drift. A `FormData` is a
+     * structure rather than a consumed stream, so `fetch` re-serialises it on
+     * the second call — a retried upload sends the same bytes rather than an
+     * empty body.
+     *
+     * ── ⚠ `meta` is part of the answer here ─────────────────────────────────
+     * The response carries the constraints **declared rather than discovered** —
+     * `maxBytes`, `maxFiles`, `fieldName`, `acceptedMimeTypes` — which BR-015
+     * asked for by name. `unwrap` would throw them away, so this returns the
+     * envelope's three parts like `mutate` does.
+     *
+     * ── ⚠ There is no progress reporting, and that is a `fetch` limitation ───
+     * `fetch` exposes no upload-progress event; only `XMLHttpRequest` does. A
+     * 32 MiB ceiling on a dashboard used over an office connection did not
+     * justify a second transport with its own refresh handling, so the caller
+     * shows an indeterminate state. Recorded so it is not mistaken for an
+     * oversight.
+     */
+    async upload<T, TMeta = Record<string, unknown>>(
+        path: string,
+        form: FormData,
+        options: RequestOptions = {},
+        isRetry = false,
+    ): Promise<{ data: T; meta: TMeta | undefined; message: string | undefined }> {
+        const requestId = newRequestId();
+
+        const headers: Record<string, string> = {
+            Accept: 'application/json',
+            [REQUEST_ID_HEADER]: requestId,
+            ...options.headers,
+        };
+
+        // A cookie-authenticated `POST`, so it needs the CSRF echo like every
+        // other write. Absent or mismatched is `403 ADMIN_AUTH_CSRF_INVALID`.
+        const csrf = readCookie(CSRF_COOKIE);
+        if (csrf) headers[CSRF_HEADER] = csrf;
+
+        let response: Response;
+        try {
+            response = await fetch(`${env.apiBaseUrl}${path}`, {
+                method: 'POST',
+                credentials: 'include',
+                headers,
+                body: form,
+                signal: options.signal,
+            });
+        } catch (cause) {
+            if (cause instanceof DOMException && cause.name === 'AbortError') throw cause;
+            throw new NetworkError('Could not reach the server', cause);
+        }
+
+        if (!response.ok) {
+            const error = await errorFromResponse(response, requestId);
+            const canRefresh = isRefreshable(error) && !isRetry && !options.skipAuthRefresh;
+
+            if (!canRefresh) {
+                announceSessionState(error, options);
+                throw error;
+            }
+
+            await rotateSessionOnce();
+            return api.upload<T, TMeta>(path, form, options, true);
+        }
+
+        let parsed: unknown;
+        try {
+            parsed = await response.json();
+        } catch (cause) {
+            throw new NetworkError('The server sent a response that could not be read', cause);
+        }
+
+        const raw: RawResponse = {
+            status: response.status,
+            body: parsed,
+            requestId: response.headers.get(REQUEST_ID_HEADER) ?? requestId,
+        };
+        const envelope = envelopeOf(raw);
+
+        if (!envelope) {
+            return { data: unwrap<T>(raw), meta: undefined, message: undefined };
+        }
+
+        return {
+            data: envelope.data as T,
+            meta: envelope.meta as TMeta | undefined,
+            message: envelope.message,
+        };
+    },
 };
 
 // ─── Health probes ────────────────────────────────────────────────────────────

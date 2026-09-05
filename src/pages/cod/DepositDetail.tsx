@@ -9,6 +9,7 @@ import {
     DepositRecipientBadge,
 } from '@/components/cod/CodBadges';
 import { ConfirmDepositDialog, RejectDepositDialog } from '@/components/cod/CodWriteDialogs';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { ErrorState } from '@/components/common/DataState';
 import { Definition, DefinitionList, NotSet } from '@/components/common/DefinitionList';
 import { DetailSkeleton } from '@/components/common/Loading';
@@ -244,8 +245,19 @@ function DeclarationCard({ record, timeZone }: { record: Deposit; timeZone: stri
                     </Definition>
 
                     <Definition label="Reference">
+                        {/*
+                          `plain`: a bank reference is what ties this record to a
+                          statement, so it is reconciled character for character
+                          and never shortened. The ternary stays — `None given`
+                          says more than `NotSet`'s default here.
+                        */}
                         {record.reference ? (
-                            <span className="font-mono text-xs">{record.reference}</span>
+                            <CopyableValue
+                                variant="plain"
+                                mono
+                                value={record.reference}
+                                label="deposit reference"
+                            />
                         ) : (
                             <NotSet>None given</NotSet>
                         )}

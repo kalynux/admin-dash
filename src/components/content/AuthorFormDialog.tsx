@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Images } from 'lucide-react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -6,6 +7,7 @@ import { z } from 'zod';
 import { AuthFormError } from '@/components/auth/AuthFormError';
 import { FormField } from '@/components/common/FormField';
 import { InlineLoader } from '@/components/common/Loading';
+import { MediaPickerDialog } from '@/components/files/MediaPickerDialog';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -131,6 +133,7 @@ export function AuthorFormDialog({
     onSaved: () => void;
 }) {
     const [formError, setFormError] = useState<unknown>(null);
+    const [pickerOpen, setPickerOpen] = useState(false);
     const editing = author !== undefined;
     const english = author?.translations[DEFAULT_CONTENT_LOCALE];
 
@@ -330,22 +333,56 @@ export function AuthorFormDialog({
                         </p>
                     ) : null}
 
+                    {/*
+                      🔴 The hint here said *"no route on this service accepts a
+                      file"*, which was the contract until BR-015 landed
+                      `POST /files/upload` on 2026-08-26. The field is still a
+                      **url** — a byline's avatar is a stored string served to
+                      anonymous readers — so the picker is `requirePublicUrl`, and
+                      a private-tree file stays unusable here for a reason that has
+                      nothing to do with uploading.
+                    */}
                     <FormField
                         id="author-avatar"
                         label="Avatar URL"
                         error={form.formState.errors.avatarUrl?.message}
-                        hint="Optional, and a full address rather than an upload — no route on this service accepts a file. Leave blank to clear it."
+                        hint="Optional, and a full address rather than a file id. Leave blank to clear it."
                     >
                         {(field) => (
-                            <Input
-                                {...field}
-                                {...form.register('avatarUrl')}
-                                placeholder="https://cdn.example.com/authors/editorial.png"
-                                autoComplete="off"
-                                spellCheck={false}
-                            />
+                            <div className="flex items-start gap-2">
+                                <Input
+                                    {...field}
+                                    {...form.register('avatarUrl')}
+                                    placeholder="https://cdn.example.com/authors/editorial.png"
+                                    autoComplete="off"
+                                    spellCheck={false}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => setPickerOpen(true)}
+                                >
+                                    <Images className="size-4" />
+                                    Browse
+                                </Button>
+                            </div>
                         )}
                     </FormField>
+
+                    <MediaPickerDialog
+                        open={pickerOpen}
+                        onOpenChange={setPickerOpen}
+                        title="Choose an avatar"
+                        requirePublicUrl
+                        onSelect={(file) => {
+                            if (file.url) {
+                                // `shouldDirty` so the form knows it changed —
+                                // a picked value that leaves the form pristine
+                                // would be dropped by a submit guard.
+                                form.setValue('avatarUrl', file.url, { shouldDirty: true });
+                            }
+                        }}
+                    />
 
                     {formError ? <AuthFormError error={formError} /> : null}
 

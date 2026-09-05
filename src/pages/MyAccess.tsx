@@ -212,6 +212,16 @@ export function MyAccess() {
                                         className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6"
                                     >
                                         <div className="min-w-0 space-y-0.5">
+                                            {/*
+                                              ⚠ Every mono string on this screen is
+                                              a permission name — vocabulary, not a
+                                              value. It identifies a rule the
+                                              catalogue defines, never a record, so
+                                              there is nothing to paste it into;
+                                              the same reading leaves the badges in
+                                              `Forbidden` and `ModulePlaceholder`
+                                              alone, which render the same names.
+                                            */}
                                             <p className="font-mono text-xs break-all">
                                                 {entry.name}
                                                 {UNROUTED.has(entry.name) ? (

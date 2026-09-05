@@ -314,6 +314,15 @@ export function PayoutsQueue() {
                 */}
                 {values.ownerId ? (
                     <div className="flex flex-wrap items-center gap-2">
+                        {/*
+                          ⚠ Deliberately NOT a `CopyableValue`, unlike every other
+                          bare id on this module. This is a chip describing the
+                          filter that is applied, not a field of the record — its
+                          text reads "Owner <id>" as one label, and the id came
+                          from the URL the operator is already looking at. The
+                          same holds for the agency and agent chips on the COD
+                          lists.
+                        */}
                         <Badge variant="secondary" className="font-mono text-xs">
                             Owner {values.ownerId}
                         </Badge>

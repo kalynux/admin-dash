@@ -69,7 +69,7 @@ describe('loading the set', () => {
 
         await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('ready'));
         expect(calls.filter((call) => call.url.includes('/permissions/me'))).toHaveLength(1);
-        expect(screen.getByTestId('count')).toHaveTextContent('97');
+        expect(screen.getByTestId('count')).toHaveTextContent('99');
         expect(screen.getByTestId('label')).toHaveTextContent('Admin');
     });
 
@@ -135,7 +135,7 @@ describe('a level change', () => {
         });
 
         render(<MovableLevel initial={2} />);
-        await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('97'));
+        await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('99'));
 
         await userEvent.click(screen.getByRole('button', { name: 'demote' }));
 

@@ -11,6 +11,7 @@ import {
 } from '@/components/cod/CodBadges';
 import { ResolveDiscrepancyDialog } from '@/components/cod/CodWriteDialogs';
 import { trustEventColumns } from '@/components/cod/TrustEventsTable';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable } from '@/components/common/DataTable';
 import { EmptyState, ErrorState } from '@/components/common/DataState';
 import {
@@ -248,6 +249,7 @@ function FlagCard({ record, timeZone }: { record: Flag; timeZone: string }) {
 
                     <Definition label="Agent">
                         <PartyValue
+                            label="Agent"
                             name={record.agent.name}
                             id={record.agent.id}
                             to={can('agents.read') ? `/dashboard/agents/${record.agent.id}` : null}
@@ -256,6 +258,7 @@ function FlagCard({ record, timeZone }: { record: Flag; timeZone: string }) {
 
                     <Definition label="Agency">
                         <PartyValue
+                            label="Agency"
                             name={record.agency.name}
                             id={record.agency.id}
                             to={
@@ -323,8 +326,14 @@ function DepositCard({ deposit, timeZone }: { deposit: Deposit; timeZone: string
                     </Definition>
 
                     <Definition label="Reference">
+                        {/* `plain` — reconciled against a statement, never shortened. */}
                         {deposit.reference ? (
-                            <span className="font-mono text-xs">{deposit.reference}</span>
+                            <CopyableValue
+                                variant="plain"
+                                mono
+                                value={deposit.reference}
+                                label="deposit reference"
+                            />
                         ) : (
                             <NotSet>None given</NotSet>
                         )}
@@ -352,15 +361,41 @@ function DepositCard({ deposit, timeZone }: { deposit: Deposit; timeZone: string
     );
 }
 
-function PartyValue({ name, id, to }: { name: string | null; id: string; to: string | null }) {
-    const text = name ?? id;
-    const mono = name ? undefined : 'font-mono text-xs';
+/**
+ * ⚠ Only the **no-name** branch becomes a `CopyableValue`. Where a name arrived
+ * it is rendered exactly as before — pairing a name with its id belongs to
+ * `partyName()`, not to this sweep.
+ *
+ * `truncate={false}` because this is a detail screen and the id is shown whole
+ * today; only the list version of this shortens.
+ */
+function PartyValue({
+    name,
+    id,
+    to,
+    label,
+}: {
+    name: string | null;
+    id: string;
+    to: string | null;
+    label: string;
+}) {
+    if (!name) {
+        return (
+            <CopyableValue
+                value={id}
+                label={`${label.toLowerCase()} ID`}
+                to={to ?? undefined}
+                truncate={false}
+            />
+        );
+    }
 
     return to ? (
-        <Link to={to} className={mono ? `${mono} hover:underline` : 'font-medium hover:underline'}>
-            {text}
+        <Link to={to} className="font-medium hover:underline">
+            {name}
         </Link>
     ) : (
-        <span className={mono ?? 'font-medium'}>{text}</span>
+        <span className="font-medium">{name}</span>
     );
 }

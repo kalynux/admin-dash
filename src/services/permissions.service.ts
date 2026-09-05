@@ -48,7 +48,7 @@ export function fetchMyPermissions(options?: RequestOptions): Promise<Permission
  * sensitivity flags. No permission required — the vocabulary is what a dashboard
  * is written against, and none of it is secret.
  *
- * **Not called during boot.** It is static, complete and 110 rows long, and
+ * **Not called during boot.** It is static, complete and 116 rows long, and
  * nothing about drawing the navigation needs it; blocking the shell on a second
  * read to render summaries nobody has asked for yet would be paying for the
  * "My access" screen on every page load. That screen fetches it itself.
@@ -73,7 +73,7 @@ export function fetchPermissionCatalog(options?: RequestOptions): Promise<Permis
  * caller must degrade gracefully when the read is refused rather than blocking
  * on it.
  *
- * Fetched lazily by the tier-change dialog: it is a 110 × 3 payload that nobody
+ * Fetched lazily by the tier-change dialog: it is a 116 × 3 payload that nobody
  * needs until somebody is actually moving a level.
  */
 export function fetchTierMatrix(options?: RequestOptions): Promise<TierMatrix> {

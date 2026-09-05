@@ -291,6 +291,13 @@ export function Notifications() {
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                        {/*
+                          ⚠ Mono, and still not a value render — here and in the
+                          source select below. These are option *labels*: the
+                          string is the filter, not something identifying a row,
+                          and a copy button inside a `SelectItem` would swallow
+                          the click that selects it.
+                        */}
                         <SelectItem value={ANY}>Any type</SelectItem>
                         {typeOptions.map((value) => (
                             <SelectItem key={value} value={value} className="font-mono text-xs">

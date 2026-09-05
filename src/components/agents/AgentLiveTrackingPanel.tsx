@@ -3,6 +3,7 @@ import { MapPin, RotateCw } from 'lucide-react';
 
 import { Definition, DefinitionList, NotSet } from '@/components/common/DefinitionList';
 import { InlineLoader } from '@/components/common/Loading';
+import { OpenInGoogleMaps } from '@/components/tracking/OpenInGoogleMaps';
 import { RevealPositionDialog } from '@/components/tracking/RevealPositionDialog';
 import { TrackingDoorNotice } from '@/components/tracking/TrackingDoorNotice';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { formatInstantInZone, formatRelative, humaniseEnum } from '@/lib/format';
+import { googleMapsUrl } from '@/lib/geo';
 import {
     getAgentLivePosition,
     getAgentTrackingPresence,
@@ -276,6 +278,10 @@ function PositionReading({
     }
 
     const stale = isPositionStale(position.ageSeconds);
+    // Already latitude-first on this wire, unlike the last-known block's
+    // GeoJSON — so this does no inversion. Named because the two panels sit side
+    // by side and the difference between their payloads is invisible here.
+    const mapUrl = googleMapsUrl(position.position.latitude, position.position.longitude);
 
     return (
         <div className="space-y-3">
@@ -310,10 +316,21 @@ function PositionReading({
                 check is recorded.
             </p>
 
-            <Button variant="outline" size="sm" onClick={onAgain}>
-                <RotateCw className="size-4" />
-                Check again
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+                <Button variant="outline" size="sm" onClick={onAgain}>
+                    <RotateCw className="size-4" />
+                    Check again
+                </Button>
+                <OpenInGoogleMaps url={mapUrl} />
+            </div>
+
+            {mapUrl ? (
+                <p className="text-muted-foreground text-xs">
+                    The map opens in a small window and names the place. The coordinates travel to
+                    Google in the address bar — a second disclosure, on top of the one already
+                    recorded against your name.
+                </p>
+            ) : null}
         </div>
     );
 }

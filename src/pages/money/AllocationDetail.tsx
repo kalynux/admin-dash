@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom';
 import { AlertTriangle, ArrowLeft } from 'lucide-react';
 
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState, ErrorState } from '@/components/common/DataState';
 import { Definition, DefinitionList, NotSet } from '@/components/common/DefinitionList';
@@ -162,9 +163,19 @@ function SplitCard({
                                 {humaniseEnum(allocation.source.type) ?? '—'}
                             </span>
                             {allocation.source.id ? (
-                                <span className="text-muted-foreground font-mono text-xs break-all">
-                                    {allocation.source.id}
-                                </span>
+                                /*
+                                  `truncate={false}`: a detail screen shows this
+                                  whole today, and the sale it names is looked up
+                                  by eye against an order. The ternary stays —
+                                  `source.id` is nullable and this Definition
+                                  renders the type alone rather than a gap.
+                                */
+                                <CopyableValue
+                                    value={allocation.source.id}
+                                    label="source ID"
+                                    truncate={false}
+                                    className="text-muted-foreground"
+                                />
                             ) : null}
                         </span>
                     </Definition>

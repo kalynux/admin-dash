@@ -115,6 +115,45 @@ describe('the six things a row must identify', () => {
             screen.getByText('8f14c2a0-6b3e-4a91-9c7d-2e5f0a1b3c4d'),
         ).toBeInTheDocument();
     });
+
+    /**
+     * The values an operator carries off this screen — into a Mongo query, a
+     * ticket, a colleague's chat window. Named individually rather than counted,
+     * because the accessible name is the whole point: a row with six copy
+     * buttons all called "Copy" tells a screen-reader user nothing.
+     *
+     * ⚠ Whole, not shortened. Every one of these renders in full today and the
+     * assertions say so — the address especially, which is not an address once
+     * it has lost its middle.
+     */
+    it('offers each value on the row for copying, under its own name', async () => {
+        renderDetail();
+
+        expect(
+            await screen.findByRole('button', { name: 'Copy session ID' }),
+        ).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Copy request ID' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Copy request IP' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Copy resource ID' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Copy actor email' })).toBeInTheDocument();
+
+        expect(screen.getByText('0f9c8b7a-6d5e-4c3b-2a19-8f7e6d5c4b3a')).toBeInTheDocument();
+        expect(screen.getByText('102.244.18.7')).toBeInTheDocument();
+    });
+
+    /**
+     * The action name, the error code and the metadata dump are vocabulary and
+     * dumps, not values. Sweeping them in would have put a copy button beside
+     * every mono span on the screen.
+     */
+    it('does not offer one for the action name or the recorded state', async () => {
+        renderDetail();
+
+        await screen.findByRole('button', { name: 'Copy request ID' });
+
+        expect(screen.queryByRole('button', { name: /copy action/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /copy payload/i })).not.toBeInTheDocument();
+    });
 });
 
 describe('safe metadata', () => {
@@ -208,6 +247,27 @@ describe('the joins', () => {
         expect(
             screen.queryByRole('link', { name: 'PR-2026-004182' }),
         ).not.toBeInTheDocument();
+    });
+
+    /**
+     * The name slot falls through to the raw id when the row carries no label —
+     * on `relatedTarget` there is no other render of it anywhere on the screen.
+     * It has to keep the navigation *and* gain the copy affordance; a copy that
+     * navigated instead would be worse than no copy at all.
+     */
+    it('keeps the link and adds a copy button when the target has no name', async () => {
+        renderDetail({
+            target: {
+                type: 'payout',
+                id: '66a1b2c3d4e5f60718293a4b',
+                label: null,
+                subjectClass: 'platform_record',
+            },
+        });
+
+        const link = await screen.findByRole('link', { name: /66a1b2/ });
+        expect(link).toHaveAttribute('href', '/dashboard/money/payouts/66a1b2c3d4e5f60718293a4b');
+        expect(screen.getAllByRole('button', { name: 'Copy record ID' })).not.toHaveLength(0);
     });
 
     it('does not link a target type this dashboard has no screen for', async () => {

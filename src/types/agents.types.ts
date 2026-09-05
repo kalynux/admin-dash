@@ -30,6 +30,7 @@
  * agreed), and creating an agent — they sign up.
  */
 
+import { partyName } from '@/lib/party';
 import type { ActorSource, ActorStamp } from '@/types/actor.types';
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
@@ -751,9 +752,25 @@ export const TRACKING_STALE_AFTER_MS = 2 * 60 * 1000;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/** What to call an agent on screen. */
+/**
+ * What to call an agent on screen.
+ *
+ * An agent **is** a person, so `name` is the agent's own name and nothing here
+ * stands in for a different entity — unlike an agency's `contactName`. Both
+ * candidates are nullable, so the id is the last resort: it is what an
+ * administrator pastes into the search box.
+ *
+ * ⚠ **Behaviour change**: this used `??`, so an empty or whitespace-only `name`
+ * rendered a blank cell. It now falls through — see `lib/party.ts`.
+ */
 export function agentDisplayName(agent: Pick<Agent, 'name' | 'email' | 'id'>): string {
-    return agent.name ?? agent.email ?? agent.id;
+    return partyName(
+        [
+            { source: 'name', value: agent.name },
+            { source: 'email', value: agent.email },
+        ],
+        { source: 'id', value: agent.id },
+    );
 }
 
 /**

@@ -25,7 +25,9 @@
  *    surface removes one.
  */
 
+import { resolvePartyName, type ResolvedPartyName } from '@/lib/party';
 import type { ActorStamp } from '@/types/actor.types';
+import type { FileDetail } from '@/types/files.types';
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
@@ -471,6 +473,372 @@ export interface VendorProduct {
     updatedAt: string;
 }
 
+// ─── The product detail ─────────────────────────────────────────
+
+/**
+ * Stock, as `GET /vendors/:vendorId/products/:productId` reports it.
+ *
+ * ⚠ **`tracked: false` means stock is not counted, not that it is zero**, and
+ * every count below it is `null` when it is false. `available: 0` on a *tracked*
+ * listing is "sold out"; on an untracked one it is meaningless — opposite
+ * remedies, which is the whole reason this is a flag rather than a nullable
+ * count. Never render the two the same way.
+ *
+ * At **product** level the figures are summed across *active* variants and
+ * `tracked` is `false` if **any** of them is infinite-stock: a product one of
+ * whose units is uncounted has no honest total. `lowStockThreshold` is always
+ * `null` at product level because the alert is per SKU — read it off the variant
+ * rows.
+ */
+export interface ProductInventory {
+    tracked: boolean;
+    /** `null` when `tracked` is false. */
+    available: number | null;
+    /** Units held mid-checkout — active, unexpired holds. `null` when untracked. */
+    reserved: number | null;
+    /** `available − reserved`, floored at 0. `null` when untracked. */
+    sellable: number | null;
+    /** Vendor-set alert level; `null` means no alerting. Always `null` at product level. */
+    lowStockThreshold: number | null;
+    allowOversell: boolean;
+}
+
+/**
+ * Where a storage quote's dimensions came from.
+ *
+ * ⚠ `unknown` is a real third value and the published example does not show it
+ * (`storage-fee.calculator.ts:27`). *"We do not know how big this is"* and
+ * *"30×20×12"* have to be distinguishable on a screen justifying a charge, so
+ * it is not folded into `product_default`.
+ */
+export type StorageSizeSource = 'variant' | 'product_default' | 'unknown' | (string & {});
+
+/**
+ * How big the thing being shelved is.
+ *
+ * ⚠ **Information for sanity-checking the rate, never a multiplier.** The rate is
+ * flat per SKU; nothing here is arithmetic. Each field is independently `null`.
+ */
+export interface ProductStorageSize {
+    lengthCm: number | null;
+    widthCm: number | null;
+    heightCm: number | null;
+    /** `l × w × h`, only when all three are known. */
+    volumeCm3: number | null;
+    weightG: number | null;
+    source: StorageSizeSource;
+}
+
+/**
+ * What an agency's shelf costs — **a published rate, not an invoice**.
+ *
+ * ⚠ **The platform never charges this.** The rate has been collected at agency
+ * onboarding since day one and has never been charged: `EarningsQuoteService`
+ * deliberately excludes it from the per-order split, because it is rent rather
+ * than a delivery fee. So `monthlyEstimate` is what the agency *should be
+ * charging* to shelve the listing, which it collects out of band — there is no
+ * `accruedThisPeriod` and there should not be. A screen must never label it as
+ * owed.
+ */
+export interface ProductStorage {
+    /** The only basis there is today, named so a volumetric one is additive. */
+    basis: 'per_sku_monthly' | (string & {});
+    /**
+     * ⚠ **`false` means the agency does not offer warehousing at all**, so the
+     * estimate is 0 by definition rather than by accident. Say so rather than
+     * printing a rate nobody agreed to.
+     */
+    storageBasedEnabled: boolean;
+    /** The agency's published tariff, from `policies.pricing.storage_based`. */
+    monthlyRatePerSku: number;
+    /**
+     * The **catalogue** quantity the fee is quoted against — a figure both
+     * parties signed off on, since neither moves it unilaterally on a
+     * warehoused SKU. An infinite-stock SKU yields `0`; inventing a quantity for
+     * one would be a fabricated charge.
+     */
+    quantity: number;
+    /** `monthlyRatePerSku × quantity`. */
+    monthlyEstimate: number;
+    currency: string;
+    /** `null` at product level: a gallery of different-sized variants has no one size. */
+    size: ProductStorageSize | null;
+}
+
+/** The default variant's price, and the spread when active variants disagree. */
+export interface ProductPricing {
+    amount: number;
+    compareAtAmount: number | null;
+    /** A plain number in this currency. **Never minor units** — do not divide by 100. */
+    currency: string;
+    /** `{min,max}` only when active variants disagree; `null` when they agree. */
+    range: { min: number; max: number } | null;
+}
+
+/** One SKU. ⚠ **Archived ones are included** — check `status`. */
+export interface ProductVariant {
+    id: string;
+    name: string | null;
+    sku: string;
+    status: 'active' | 'archived' | (string & {});
+    amount: number;
+    compareAtAmount: number | null;
+    inventory: ProductInventory;
+    /** `null` when this listing is not warehoused by an agency. */
+    storage: ProductStorage | null;
+}
+
+/**
+ * `GET /vendors/:vendorId/products/:productId` — one listing, in full.
+ *
+ * Granted at [BR-005](../../docs/dashboard/backend-requests/BR-005-product-detail.md)
+ * and documented at `vendors.md` under its own heading.
+ *
+ * ── ⚠ Why this one vendor read is delegated ────────────────────────────
+ * Not a drift from ADR-004 D-2 but a consequence of ADR-009 D-6: `media` needs
+ * `storage.getPublicUrl(key)` and `storage` needs jovi-mall's fee calculator, and
+ * wi-admin owns neither. A record whose *projection* needs machinery this service
+ * may not own is delegated — which is why a `404` here arrives as
+ * `PLATFORM_OPERATION_REJECTED` carrying `VENDOR_NOT_FOUND` or
+ * `CATALOG_PRODUCT_NOT_FOUND` in `details.platformCode`, and **not** as a plain
+ * `NOT_FOUND`. Branch on `platformCode`.
+ *
+ * ── ⚠ Two fields the published page does not mention ───────────────────
+ * `vendorId` and `tags` are both on the wire and neither appears in `vendors.md`'s
+ * worked JSON or its field tables. Read from the source that computes them —
+ * `AdminProductDetailDto` in `backend/jovi-mall/src/modules/vendors/read-models/admin-product-detail.resolver.ts`
+ * — which is also where the nullability below comes from. Reported to the
+ * backend rather than worked around.
+ *
+ * ── Not an extension of `VendorProduct` ────────────────────────────
+ * The two projections genuinely disagree: the list types `title`, `slug` and
+ * `category` as nullable and this one does not, and `deliveryAgency` here carries
+ * a `status` the row has no room for. Declaring `extends VendorProduct` would
+ * make one of those a lie in order to keep a keyword.
+ */
+export interface VendorProductDetail {
+    id: string;
+    /** ⚠ Undocumented — see the note above. The path already carries it. */
+    vendorId: string;
+    title: string;
+    slug: string;
+    category: string;
+    /** ⚠ Undocumented — see the note above. `[]`, never `null`. */
+    tags: string[];
+    type: ProductType;
+    status: ProductStatus;
+    mode: ProductMode;
+    hasVariants: boolean;
+    /**
+     * `null` unless suspended.
+     *
+     * Deliberately the **list row's** shape, which types `previousStatus` and
+     * `at` as nullable where the detail's DTO declares them `string`. A non-null
+     * value satisfies the wider type, so reusing it costs nothing and keeps one
+     * definition of the block for both projections.
+     */
+    suspension: ProductSuspension | null;
+    /**
+     * Resolved `FileDetail` objects **with URLs**, thumbnail first, `image/*`
+     * only — a product's media may also hold a video or a spec sheet, and
+     * filtering is what makes the field's name true. `images: []` when the
+     * listing carries none; `primaryImage` is `images[0]`, or `null`.
+     */
+    media: {
+        images: FileDetail[];
+        primaryImage: FileDetail | null;
+    };
+    /**
+     * ⚠ **`null` on a product with no variants at all** — a broken listing, and
+     * saying so is the point. Not "free", and not "price unknown".
+     */
+    pricing: ProductPricing | null;
+    /** Summed across active variants — see `ProductInventory` for the trap. */
+    inventory: ProductInventory;
+    /**
+     * The product's own override, else the vendor's default. `status` is the
+     * agency's own, so a listing pointing at a deactivated agency is visible as
+     * such.
+     *
+     * ⚠ `null` means neither the product nor the vendor names an agency — a real
+     * and diagnostic state: a *physical* product in that condition cannot be
+     * activated.
+     */
+    deliveryAgency: {
+        id: string;
+        /** The Magazin's name. `null` where it has none — never `contactName`. */
+        businessName: string | null;
+        status: string | null;
+    } | null;
+    /**
+     * ⚠ **`null` when the listing is not warehoused by an agency** — a digital
+     * product, or a physical one collected from the vendor's own address.
+     * **`null` and "zero rent" are different facts** and must not both render
+     * as 0.
+     */
+    storage: ProductStorage | null;
+    /**
+     * Every variant, **including archived ones**: a listing that went wrong is
+     * exactly what an administrator opens this screen to understand, and hiding
+     * the archived unit makes a product with one archived variant look like a
+     * product with none. `[]` on a product with no variants — never `null`.
+     */
+    variants: ProductVariant[];
+    lastOrderedAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
+// ─── The vendor's delivery-agency connections ────────────────────────
+
+/**
+ * jovi-mall's `ConnectionStatus`, for rendering — **not for validating**.
+ *
+ * ⚠ The service validates `?status=` for **shape, not membership** (ADR-005 D-17:
+ * a vocabulary this service does not own), and BR-018's answer says outright that
+ * the dashboard "will render an unrecognised value rather than reject it". So
+ * this list labels what is known and nothing narrows on it — a seventh status
+ * added in jovi-mall renders raw rather than blanking a cell.
+ */
+export const AGENCY_CONNECTION_STATUSES = [
+    'pending',
+    'active',
+    'rejected',
+    'withdrawn',
+    'paused_reapproval',
+    'terminated',
+] as const;
+
+export type AgencyConnectionStatus =
+    | (typeof AGENCY_CONNECTION_STATUSES)[number]
+    | (string & {});
+
+/** Who refused the request, when, and why. */
+export interface ConnectionRejection {
+    reason: string | null;
+    byRole: string | null;
+    byUserId: string | null;
+    at: string | null;
+}
+
+/** Who took the request back, and when. */
+export interface ConnectionWithdrawal {
+    byRole: string | null;
+    byUserId: string | null;
+    at: string | null;
+}
+
+/** Who ended the relationship, when, and on what grounds. */
+export interface ConnectionTermination {
+    byRole: string | null;
+    byUserId: string | null;
+    at: string | null;
+    /** `unilateral` or `reapproval_declined`. jovi-mall's vocabulary, rendered raw. */
+    reason: string | null;
+    note: string | null;
+}
+
+/**
+ * A row of `GET /vendors/:vendorId/agencies` · `vendors.read` **+**
+ * `agencies.read`, `all` mode.
+ *
+ * The mirror image of the agency roster: that one answers *"who works for this
+ * agency, and on what terms"*, this one *"which agencies does this vendor ship
+ * through, and on what terms"*. Granted at
+ * [BR-018](../../docs/dashboard/backend-requests/BR-018-vendor-agency-connections.md).
+ *
+ * ── ⚠ Why both permissions ─────────────────────────────────────
+ * The rows name agencies and carry their business names, their contact people
+ * and their commercial state, so gating on `vendors.read` alone would be a
+ * **second door onto the agency directory** that bypasses the permission
+ * governing it. Gate the panel with `all` mode; do not discover this with a 403.
+ *
+ * ── The relationship to `counts.agencyConnections` ────────────────────
+ * The same population, read from the same collection with the same vendor scope:
+ * `total` there equals `meta.total` on an unfiltered first page here, and each of
+ * the other six equals `meta.total` with the matching `?status=`. The counts
+ * summarise; these rows enumerate.
+ *
+ * Source: `backend/admin/src/modules/vendors/read-models/vendor-agency-connection.dto.ts`.
+ */
+export interface VendorAgencyConnection {
+    id: string;
+    /**
+     * ⚠ **`null` when the joined agency row is missing** — a connection pointing
+     * at an agency that no longer exists. The row survives rather than being
+     * dropped, because that broken state is exactly what an administrator opens
+     * this panel to find. Render the breakage; do not filter it out.
+     */
+    agency: {
+        id: string;
+        /**
+         * ⚠ **The Magazin's business name, `null` where it has none** — never
+         * `""`, and never `contactName` substituted. The BR-006 distinction
+         * holds here unchanged.
+         */
+        businessName: string | null;
+        status: string | null;
+        /** The contact **person**. See the warning on `businessName`. */
+        contactName: string | null;
+        country: string | null;
+    } | null;
+    status: AgencyConnectionStatus;
+    /** Whether this agency is the vendor's `defaultDeliveryAgencyId`. */
+    isDefault: boolean;
+    /**
+     * How many of **this vendor's** products this agency answers for — the
+     * product's own override, else the vendor's default. Counted across every
+     * non-deleted listing in **every** status, so it relates to
+     * `counts.products.total` rather than to the active subset.
+     *
+     * ⚠ Two readings that look like bugs and are not. **The counts need not sum
+     * to `counts.products.total`**: a product naming no agency, belonging to a
+     * vendor with no default, resolves to nothing and is counted on no row. And
+     * a `pending`, `rejected` or `withdrawn` connection reports **`0`** — only
+     * an `active` connection lets a vendor point a product at that agency —
+     * while a `terminated` or `paused_reapproval` row may still report a
+     * non-zero count, because the products keep the override they were given.
+     *
+     * The drill-down is `GET /vendors/:vendorId/products?deliveryAgencyId=…`,
+     * whose `meta.total` is this number by construction.
+     */
+    productCount: number;
+    /**
+     * `vendor` or `agency`. ⚠ **On a `pending` row this is the entire question**
+     * — it says whose turn it is to answer, exactly as `terms.proposedBy` does
+     * on a pending contract.
+     */
+    requestedBy: string | null;
+    requestedAt: string | null;
+    respondedAt: string | null;
+    /** Each side's `policy_version` at (re)approval. `null` if never approved. */
+    policyVersions: {
+        vendorAtApproval: number | null;
+        agencyAtApproval: number | null;
+    };
+    /**
+     * ⚠ **Always a block, never `null`** — it is a *state*, not an event.
+     * Populated only while `status === 'paused_reapproval'`: `requiredFrom` names
+     * the side that must act and `pausedReason` (`vendor_policy_changed` ·
+     * `agency_policy_changed`) says whose edit caused it. On any other row these
+     * are nulls that truthfully mean "not paused".
+     */
+    reapproval: {
+        requiredFrom: string | null;
+        pausedAt: string | null;
+        pausedReason: string | null;
+    };
+    /**
+     * ⚠ **`null` when it did not happen, a whole object when it did** — the
+     * `dispute` pattern, never a block of nulls that reads as "unknown".
+     */
+    rejection: ConnectionRejection | null;
+    withdrawal: ConnectionWithdrawal | null;
+    termination: ConnectionTermination | null;
+    createdAt: string;
+    updatedAt: string;
+}
+
 // ─── Delegated-write shapes ───────────────────────────────────────────────────
 
 /**
@@ -604,8 +972,44 @@ export interface VendorProductListQuery {
      * two have very different remedies.
      */
     suspensionReason?: ProductSuspensionReason;
+    /**
+     * The listings a given agency answers for. Added with BR-018.
+     *
+     * ⚠ **Matched against the *resolved* agency, not the stored override**, so it
+     * means the same thing as the `deliveryAgency` column beside it. Most
+     * products carry no override at all, so asking for the **default** agency's
+     * listings returns every product with no `delivery.agency_id` as well as
+     * those naming it explicitly; asking for any other agency returns only its
+     * explicit overrides. A filter matching the stored column would disagree
+     * with the column printed next to it on the common case.
+     *
+     * **This is the drill-down from `productCount`** on
+     * `GET /vendors/:vendorId/agencies` — `meta.total` here and that number are
+     * the same figure, computed from one shared rule.
+     */
+    deliveryAgencyId?: string;
     page?: number;
     limit?: number;
+    sort?: string;
+}
+
+/**
+ * `GET /vendors/:vendorId/agencies` query parameters.
+ *
+ * ⚠ **Every status is returned by default, terminal rows included.** A live-only
+ * default would make a relationship's history impossible to fetch, which on an
+ * administrative surface is most of what the panel is for — a `rejected` row is
+ * precisely what an operator opens it to explain.
+ */
+export interface VendorAgencyConnectionQuery {
+    /**
+     * One of `AGENCY_CONNECTION_STATUSES`, but validated for **shape** (1–40
+     * characters), not membership. A blank string is a `400`; send no parameter.
+     */
+    status?: string;
+    page?: number;
+    limit?: number;
+    /** `createdAt` or `status`, `-` for descending. Nothing else is offered. */
     sort?: string;
 }
 
@@ -749,6 +1153,17 @@ export const PRODUCT_SORT_KEYS = ['createdAt', 'updatedAt', 'lastOrderedAt'] as 
 export const PRODUCT_SORT_DEFAULT = '-createdAt';
 
 /**
+ * The `?sort=` allowlist for `GET /vendors/:vendorId/agencies`, verbatim from
+ * `VENDOR_AGENCY_CONNECTION_SORT` in `vendor-context.read.repository.ts`.
+ *
+ * An undeclared key is a `400` naming the permitted set, so these two are the
+ * whole offer.
+ */
+export const AGENCY_CONNECTION_SORT_KEYS = ['createdAt', 'status'] as const;
+
+export const AGENCY_CONNECTION_SORT_DEFAULT = '-createdAt';
+
+/**
  * The `vendors.*` audit actions, for the activity feed's filter.
  *
  * Exactly seven today (`backend/admin/src/modules/audit/domain/audit.catalog.ts:447-495`).
@@ -855,12 +1270,41 @@ export function productSuspensionOwner(reason: string): 'platform' | 'agency' | 
  * the serializer — so a name has to fall through all of them before landing on
  * the id. The id is a genuine last resort rather than a placeholder: it is one of
  * the two things the search box accepts, so showing it is useful even when ugly.
+ *
+ * The order is this vendor's own; the *rule* is `lib/party.ts`'s, stated once.
+ * ⚠ **Behaviour change**: an empty or whitespace-only candidate is no longer a
+ * name. `businessName: "  "` used to render a blank cell and now falls through.
  */
 export function vendorDisplayName(
     vendor: Pick<Vendor, 'id' | 'businessName' | 'displayName' | 'email' | 'phone'>,
 ): string {
-    return (
-        vendor.businessName ?? vendor.displayName ?? vendor.email ?? vendor.phone ?? vendor.id
+    return resolveVendorName(vendor).value;
+}
+
+/**
+ * The same answer, **with the field it came from**.
+ *
+ * A caller that renders the name over the id has to know whether the two are the
+ * same string — a vendor with no store at all falls all the way through to the
+ * id, and printing it twice is the one render worse than printing it once. It
+ * also has to know when the label is an *identifier* (an email, a phone) rather
+ * than a name, because that is a value worth making copyable and a name is not.
+ * Neither question is answerable from a bare string.
+ *
+ * ⚠ The chain lives here and only here: `vendorDisplayName` is one line over it,
+ * so the two cannot disagree about what a vendor is called.
+ */
+export function resolveVendorName(
+    vendor: Pick<Vendor, 'id' | 'businessName' | 'displayName' | 'email' | 'phone'>,
+): ResolvedPartyName {
+    return resolvePartyName(
+        [
+            { source: 'businessName', value: vendor.businessName },
+            { source: 'displayName', value: vendor.displayName },
+            { source: 'email', value: vendor.email },
+            { source: 'phone', value: vendor.phone },
+        ],
+        { source: 'id', value: vendor.id },
     );
 }
 

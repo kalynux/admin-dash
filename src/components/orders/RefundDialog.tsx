@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
 import { AuthFormError } from '@/components/auth/AuthFormError';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { FormField } from '@/components/common/FormField';
 import { InlineLoader } from '@/components/common/Loading';
 import { Definition, DefinitionList } from '@/components/common/DefinitionList';
@@ -522,6 +523,10 @@ function Ceilings({ verdict }: { verdict: RefundEligibility }) {
                             verdict.vendorPolicy.currency,
                         )}
                     </Definition>
+                    {/* The three `<code>` renders in this dialog — this one, the
+                        platform's `reasonCode`, and the override gate names — stay
+                        bare. They are vocabulary, not values: an operator reads
+                        them, never pastes them. */}
                     {verdict.vendorPolicy.reasonCode ? (
                         <Definition label="Their reason">
                             <code className="font-mono text-xs">
@@ -582,7 +587,20 @@ export function RefundResultNotice({
 
             <DefinitionList>
                 <Definition label="Reference">
-                    <span className="font-mono text-xs">{result.refundId}</span>
+                    {/*
+                      ⚠ The one value on this screen that exists nowhere else. It
+                      arrives on this write's response and no later read reports
+                      it, so an operator who does not copy it before dismissing
+                      this notice has lost it. `plain`: it is `rf_66739911`, the
+                      refund's own reference and not an ObjectId — and a partial
+                      one reconciles against nothing.
+                    */}
+                    <CopyableValue
+                        variant="plain"
+                        mono
+                        value={result.refundId}
+                        label="refund reference"
+                    />
                 </Definition>
                 <Definition label="Amount">
                     {formatMoney(result.amount, result.currency)}

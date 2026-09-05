@@ -15,7 +15,7 @@ interface Options extends Omit<RenderOptions, 'wrapper'> {
     route?: string;
     /**
      * What the rendered tree may do. Defaults to a **ready Developer set** — all
-     * 110 permissions — because the question most screen tests are asking is not
+     * 116 permissions — because the question most screen tests are asking is not
      * "is this gated correctly" but "does it render", and gating them by accident
      * would make a passing test mean nothing.
      *
@@ -224,6 +224,16 @@ export interface FetchCall {
     method: string;
     headers: Headers;
     body?: string;
+    /**
+     * The body as it was handed to `fetch`, unconverted.
+     *
+     * ⚠ **`body` above is `undefined` for anything that is not a string**, which
+     * was every request on this client until `POST /files/upload` arrived with
+     * BR-015. A multipart upload sends a `FormData`, and the assertions that
+     * matter about it — the field name is `files`, the parts are the files that
+     * were chosen — are only reachable from the object itself.
+     */
+    formData?: FormData;
 }
 
 /**
@@ -241,6 +251,7 @@ export function stubFetch(handler: (call: FetchCall, index: number) => Response 
             method: (init?.method ?? 'GET').toUpperCase(),
             headers: new Headers(init?.headers),
             body: typeof init?.body === 'string' ? init.body : undefined,
+            formData: init?.body instanceof FormData ? init.body : undefined,
         };
         calls.push(call);
         return handler(call, calls.length - 1);

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { AlertTriangle, Handshake } from 'lucide-react';
 
 import { ContractStatusBadge } from '@/components/contracts/ContractStatusBadge';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { Pager } from '@/components/common/Pager';
@@ -12,8 +13,11 @@ import { InfoHint } from '@/components/ui/info-hint';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { resolveErrorMessage } from '@/lib/errors';
 import { formatCount, humaniseEnum } from '@/lib/format';
+import { PARTY_NAME_SOURCE_LABELS } from '@/lib/party';
 import { PAGE_SIZE_DEFAULT, withQuery } from '@/lib/query';
+import type { TransferSourceAgency } from '@/components/agents/AgentWriteDialogs';
 import { getAgentEligibility, listAgentContracts } from '@/services/agents.service';
+import { resolveAgencyDisplayName } from '@/types/agencies.types';
 import type { AgentDetail } from '@/types/agents.types';
 import {
     CONTRACT_SORT_DEFAULT,
@@ -25,16 +29,27 @@ import {
 interface AgentContractsPanelProps {
     agent: AgentDetail;
     reloadToken: number;
-    /** Opens the transfer dialog with `fromAgencyId` prefilled. */
-    onTransfer: (fromAgencyId: string) => void;
+    /**
+     * Opens the transfer dialog on the agency this row is for.
+     *
+     * ⚠ The whole agency, not the bare id it used to be. The dialog's "Leaving"
+     * field is read-only and an operator has to *recognise* it — a raw id tells
+     * them nothing about whether they opened the right row — and this panel
+     * already holds the name, so passing it costs no request. That matters
+     * beyond tidiness: it is what lets the read-only half work for a caller who
+     * does not hold `agencies.read` and so cannot look the agency up.
+     */
+    onTransfer: (fromAgency: TransferSourceAgency) => void;
     canTransfer: boolean;
 }
 
 /**
- * `GET /agents/:agentId/contracts` — the agencies this agent holds contracts with.
+ * `GET /agents/:agentId/contracts` — the agent's **roster**: the agencies they
+ * hold contracts with.
  *
  * The same rows the agency's Roster tab shows, read from the other end: one
- * backend mapper, decorated with `agency` here and with `agent` there.
+ * backend mapper, decorated with `agency` here and with `agent` there — which is
+ * why the two tabs now carry the same word.
  *
  * ── A banned agent's contract can read `active` ───────────────────────────────
  * Banning is deliberately not a cascade over contracts — one flag suppresses them
@@ -75,20 +90,65 @@ export function AgentContractsPanel({
             {
                 id: 'agency',
                 header: 'Agency',
-                cell: (contract) => (
-                    <div className="min-w-0">
-                        <Link
-                            to={`/dashboard/agencies/${contract.agencyId}`}
-                            className="font-medium hover:underline"
-                        >
-                            {contract.agency?.contactName ?? contract.agencyId}
-                        </Link>
-                        <p className="text-muted-foreground truncate text-xs">
-                            {contract.agency?.country ?? '—'}
-                            {contract.isPrimary ? ' · primary' : ''}
-                        </p>
-                    </div>
-                ),
+                /*
+                  ⚠ **This column was showing a person's name where a company was
+                  meant.** It rendered `agency.contactName ?? agencyId`, and
+                  `contactName` is the agency's contact *individual* — it always
+                  was. `businessName` landed on this row at BR-006 and neither the
+                  type nor this cell had taken it, so the bug survived the field
+                  arriving to fix it.
+
+                  `resolveAgencyDisplayName`, not the bare-string `agencyDisplayName`,
+                  because the heading asserts what kind of name it is: business
+                  name → the contact → the id, and where it falls through to the
+                  contact **the sub-line says so**. A fallback that silently
+                  substitutes one kind of name for another is how this went wrong
+                  in the first place.
+
+                  ⚠ `agency` itself is nullable — a contract pointing at an agency
+                  that no longer exists — and `agencyId` is on the contract rather
+                  than on the join, so the row stays identifiable either way.
+
+                  The copy affordance arrives with the fallback rather than before
+                  it: it sits on the id beneath, which is always an id, and never
+                  on the name above, which may be a person's.
+                */
+                cell: (contract) => {
+                    // The agency's own helper, not a fourth copy of the rule.
+                    // `agencyId` is on the contract rather than on the join, so a
+                    // missing agency still resolves to something identifiable.
+                    const name = resolveAgencyDisplayName({
+                        id: contract.agencyId,
+                        businessName: contract.agency?.businessName ?? null,
+                        contactName: contract.agency?.contactName ?? null,
+                    });
+
+                    return (
+                        <div className="min-w-0 space-y-0.5">
+                            <Link
+                                to={`/dashboard/agencies/${contract.agencyId}`}
+                                className="font-medium hover:underline"
+                            >
+                                {name.value}
+                            </Link>
+                            {name.kind === 'contact' ? (
+                                <p className="text-muted-foreground truncate text-xs">
+                                    {PARTY_NAME_SOURCE_LABELS[name.source]} — this agency has
+                                    recorded no business name
+                                </p>
+                            ) : null}
+                            <p className="text-muted-foreground flex flex-wrap items-center gap-1.5 truncate text-xs">
+                                {name.kind === 'identifier' ? (
+                                    <span>No name recorded</span>
+                                ) : (
+                                    <CopyableValue value={contract.agencyId} label="agency ID" />
+                                )}
+                                {contract.agency?.country ?? null}
+                                {contract.isPrimary ? 'primary' : null}
+                            </p>
+                        </div>
+                    );
+                },
             },
             {
                 id: 'status',
@@ -153,7 +213,13 @@ export function AgentContractsPanel({
                             <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => onTransfer(contract.agencyId)}
+                                onClick={() =>
+                                    onTransfer({
+                                        id: contract.agencyId,
+                                        businessName: contract.agency?.businessName ?? null,
+                                        contactName: contract.agency?.contactName ?? null,
+                                    })
+                                }
                             >
                                 Transfer
                             </Button>
@@ -189,7 +255,7 @@ export function AgentContractsPanel({
             </p>
 
             <DataTable
-                caption="Agencies this agent holds contracts with"
+                caption="The agencies this agent holds contracts with — their roster"
                 columns={columns}
                 rows={rows}
                 rowKey={(contract) => contract.id}
@@ -272,8 +338,16 @@ function EligibilityCheck({ agentId, agencyId }: { agentId: string; agencyId: st
                 >
                     {verdict.eligible ? 'Can be dispatched to' : 'Cannot be dispatched to'}
                 </Badge>
-                <span className="text-muted-foreground text-xs">
-                    by agency <span className="font-mono">{agencyId}</span> ·{' '}
+                <span className="text-muted-foreground flex flex-wrap items-center gap-1 text-xs">
+                    {/*
+                      A verdict is pairwise, so the agency it was asked about is
+                      part of the answer rather than decoration — and this is the
+                      only place the id appears in full, because the table cell
+                      above shows the agency's name whenever it has one.
+                      `truncate={false}` keeps what is on screen today.
+                    */}
+                    by agency
+                    <CopyableValue value={agencyId} label="agency ID" truncate={false} />·{' '}
                     {formatCount(verdict.activeShipmentCount)} of{' '}
                     {formatCount(verdict.maxConcurrentShipments)} shipments in hand
                 </span>
@@ -289,6 +363,12 @@ function EligibilityCheck({ agentId, agencyId }: { agentId: string; agencyId: st
                             }`}
                         />
                         <span className="capitalize">{humaniseEnum(rule.rule) ?? '—'}</span>
+                        {/*
+                          Mono because it is the platform's own token, but it is a
+                          *reason*, not a value — nothing is looked up by it and
+                          nothing is pasted anywhere with it, so it gets no copy
+                          button. Same call as the status badges beside it.
+                        */}
                         {rule.reason ? (
                             <span className="text-muted-foreground font-mono text-xs">
                                 {rule.reason}

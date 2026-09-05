@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 
 import { ExportDownloadButton } from '@/components/audit/ExportDownloadButton';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataState, ErrorState } from '@/components/common/DataState';
 import { Definition, DefinitionList, NotApplicable, NotSet } from '@/components/common/DefinitionList';
 import { DetailSkeleton } from '@/components/common/Loading';
@@ -117,13 +118,16 @@ function ExportBody({ record, timeZone }: { record: AuditExport; timeZone: strin
                 <CardContent>
                     <DefinitionList>
                         <Definition label="Name">
-                            {record.fileName ? (
-                                <span className="font-mono text-xs break-all">
-                                    {record.fileName}
-                                </span>
-                            ) : (
-                                <NotSet />
-                            )}
+                            {/* `plain`: this is the name the operator matches the
+                                downloaded file against, and half of it is the
+                                range and the export id — the part a shortening
+                                would eat. */}
+                            <CopyableValue
+                                variant="plain"
+                                mono
+                                value={record.fileName}
+                                label="file name"
+                            />
                         </Definition>
                         <Definition label="Rows">
                             {record.rowCount !== null ? formatCount(record.rowCount) : <NotSet />}
@@ -137,13 +141,16 @@ function ExportBody({ record, timeZone }: { record: AuditExport; timeZone: strin
                                 </span>
                             }
                         >
-                            {record.sha256 ? (
-                                <span className="font-mono text-xs break-all">
-                                    {record.sha256}
-                                </span>
-                            ) : (
-                                <NotSet />
-                            )}
+                            {/* The one field on this screen with a job to do off
+                                the screen — it is compared against `sha256sum` on
+                                a downloaded file, so it must be pasteable and
+                                must never be shortened. */}
+                            <CopyableValue
+                                variant="plain"
+                                mono
+                                value={record.sha256}
+                                label="SHA-256 checksum"
+                            />
                         </Definition>
                         <Definition label="Status">
                             <span className="capitalize">{record.status}</span>
@@ -186,9 +193,17 @@ function ExportBody({ record, timeZone }: { record: AuditExport; timeZone: strin
                             )}
                         </Definition>
                         <Definition label="Requested by">
+                            {/* Both fallbacks stay. The id is only reached when
+                                there is no name, and the `NotSet` beneath it says
+                                *why* there is neither — a CLI export has no
+                                administrator behind it at all. */}
                             {record.requestedByName ??
                                 (record.requestedBy ? (
-                                    <span className="font-mono text-xs">{record.requestedBy}</span>
+                                    <CopyableValue
+                                        value={record.requestedBy}
+                                        label="requester ID"
+                                        truncate={false}
+                                    />
                                 ) : (
                                     <NotSet>No administrator — written from the CLI</NotSet>
                                 ))}

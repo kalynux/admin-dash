@@ -1,19 +1,24 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 
 import {
     FulfillmentStatusBadge,
     PaymentStatusBadge,
 } from '@/components/orders/OrderStatusBadges';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import {
     Definition,
     DefinitionList,
     NotApplicable,
     NotSet,
 } from '@/components/common/DefinitionList';
+import { LineItemImage } from '@/components/common/LineItemImage';
+import { PartyValue } from '@/components/common/PartyValue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { formatCount, formatInstantInZone, formatMoney, humaniseEnum } from '@/lib/format';
+import { resolvePartyName } from '@/lib/party';
 import type { CanPredicate } from '@/store';
 import type { OrderDetail } from '@/types/orders.types';
 
@@ -65,11 +70,19 @@ export function OrderOverviewPanel({
                                 </InfoHint>
                             }
                         >
-                            {order.checkoutGroupId ? (
-                                <span className="font-mono text-xs">{order.checkoutGroupId}</span>
-                            ) : (
-                                <NotSet />
-                            )}
+                            {/*
+                              Shown whole. This is the value an operator pastes
+                              into `?checkoutGroupId=` to pull up the other orders
+                              from the same cart, and the panel has the room —
+                              truncation is for the dense rows, not for a
+                              definition list with one id in it.
+                            */}
+                            <CopyableValue
+                                variant="id"
+                                value={order.checkoutGroupId}
+                                label="checkout group ID"
+                                truncate={false}
+                            />
                         </Definition>
                         <Definition label="Placed">
                             {formatInstantInZone(order.createdAt, timeZone) ?? '—'}
@@ -86,18 +99,36 @@ export function OrderOverviewPanel({
                     <CardTitle>Parties</CardTitle>
                 </CardHeader>
                 <CardContent>
+                    {/*
+                      ── § C1 · the naming phase this card was waiting for ───────
+                      Both parties used to render `name ?? id` as one string, and
+                      the note here said a copy button would then copy a *name*
+                      whenever one existed — which is true, and is why the two
+                      are now **split apart** rather than given an affordance
+                      between them.
+
+                      `resolvePartyName` is what makes the split honest: the name
+                      is the label and the id is a value beneath it, and where
+                      there was never a name the label *is* the id, so printing
+                      it twice would be the only thing worse than printing it
+                      once. `kind` is what distinguishes those two renders, not a
+                      `=== id` string comparison.
+                    */}
                     <DefinitionList>
                         <Definition label="Vendor">
-                            {can('vendors.read') ? (
-                                <Link
-                                    to={`/dashboard/vendors/${order.vendorId}`}
-                                    className="hover:underline"
-                                >
-                                    {order.vendorName ?? order.vendorId}
-                                </Link>
-                            ) : (
-                                (order.vendorName ?? order.vendorId)
-                            )}
+                            <PartyValue
+                                party={resolvePartyName(
+                                    [{ source: 'name', value: order.vendorName }],
+                                    { source: 'id', value: order.vendorId },
+                                )}
+                                id={order.vendorId}
+                                idLabel="vendor ID"
+                                to={
+                                    can('vendors.read')
+                                        ? `/dashboard/vendors/${order.vendorId}`
+                                        : undefined
+                                }
+                            />
                         </Definition>
                         <Definition
                             label="Customer"
@@ -110,17 +141,33 @@ export function OrderOverviewPanel({
                                 </InfoHint>
                             }
                         >
-                            <span className="flex flex-wrap items-center gap-2">
-                                {order.customerName ?? 'Not recorded'}
-                                {can('orders.read') ? (
-                                    <Link
-                                        to={`/dashboard/orders?customerId=${order.customerId}`}
-                                        className="text-muted-foreground text-xs hover:underline"
-                                    >
-                                        Their other orders
-                                    </Link>
-                                ) : null}
-                            </span>
+                            {/*
+                              ⚠ No `to` on the name, and the id is still shown.
+                              A `customers._id` resolves in neither `/users/:id`
+                              nor `?search=<24hex>`, so there is nothing to link
+                              it to — but it is the parameter of the one query
+                              that *does* work, which is exactly what makes it
+                              worth copying. The sub-line is the affordance the
+                              "their other orders" link cannot be.
+                            */}
+                            <PartyValue
+                                party={resolvePartyName(
+                                    [{ source: 'name', value: order.customerName }],
+                                    { source: 'id', value: order.customerId },
+                                )}
+                                id={order.customerId}
+                                idLabel="customer ID"
+                                after={
+                                    can('orders.read') ? (
+                                        <Link
+                                            to={`/dashboard/orders?customerId=${order.customerId}`}
+                                            className="text-muted-foreground text-xs hover:underline"
+                                        >
+                                            Their other orders
+                                        </Link>
+                                    ) : null
+                                }
+                            />
                         </Definition>
                     </DefinitionList>
                 </CardContent>
@@ -176,11 +223,18 @@ export function OrderOverviewPanel({
                                 </InfoHint>
                             }
                         >
-                            {order.paymentIntentId ? (
-                                <span className="font-mono text-xs">{order.paymentIntentId}</span>
-                            ) : (
-                                <NotSet />
-                            )}
+                            {/*
+                              ⚠ `plain`, never `id`. This is `pi_9f2b8c1a…` — a
+                              gateway's own reference, not an ObjectId — and it is
+                              looked up character for character in the provider's
+                              dashboard. A shortened one is not a reference.
+                            */}
+                            <CopyableValue
+                                variant="plain"
+                                mono
+                                value={order.paymentIntentId}
+                                label="payment intent ID"
+                            />
                         </Definition>
                     </DefinitionList>
                 </CardContent>
@@ -226,13 +280,14 @@ export function OrderOverviewPanel({
                                 {formatInstantInZone(order.dispute.resolvedAt, timeZone) ?? '—'}
                             </Definition>
                             <Definition label="Gateway dispute">
-                                {order.dispute.gatewayDisputeId ? (
-                                    <span className="font-mono text-xs">
-                                        {order.dispute.gatewayDisputeId}
-                                    </span>
-                                ) : (
-                                    <NotSet />
-                                )}
+                                {/* `dp_44127` — the gateway's reference again, so
+                                    `plain` for the same reason as the intent. */}
+                                <CopyableValue
+                                    variant="plain"
+                                    mono
+                                    value={order.dispute.gatewayDisputeId}
+                                    label="gateway dispute ID"
+                                />
                             </Definition>
                         </DefinitionList>
                     )}
@@ -315,16 +370,55 @@ export function OrderOverviewPanel({
     );
 }
 
-/** `GET /orders/:orderId` items, with their per-item delivery. */
+/**
+ * `GET /orders/:orderId` items, with their per-item delivery and their picture.
+ *
+ * ── § C2 · the picture is an N+1, and it is bounded ──────────────────────────
+ * An order item carries a `productId` and no media at all, so each distinct
+ * listing is resolved through `GET /vendors/:vendorId/products/:productId` —
+ * whose `media.images` are **public URLs**, so they render immediately and
+ * write no audit row. The order's own `vendorId` is what completes the address;
+ * a product id alone is not one.
+ *
+ * ⚠ **The same trick is deliberately not applied to the agency name** on these
+ * rows. A picture is one request per *distinct product on a detail screen*; an
+ * agency name would be one per *row*, and the same shape on a list would be a
+ * page of lookups the client should not be making.
+ * [BR-017](../../docs/dashboard/backend-requests/BR-017-order-and-shipment-item-media.md)
+ * asks for the media to be folded into the order payload so this stops being
+ * needed at all.
+ */
 export function OrderItemsPanel({
     order,
     timeZone,
     can,
+    focusItemId = null,
 }: {
     order: OrderDetail;
     timeZone: string;
     can: CanPredicate;
+    /**
+     * The `orderItemId` a shipment's item card handed over, from `?item=`.
+     *
+     * ⚠ **Scrolled to on mount, not on a token change.** Radix unmounts an
+     * inactive `TabsContent`, so this panel mounts *because* the deep link
+     * selected the Items tab — there is no earlier render to compare against.
+     * The Phase B focus bug was the mirror image of that: a token seeded from
+     * its own prop, on a component that also mounted fresh, so `1 !== 1` and
+     * nothing applied.
+     */
+    focusItemId?: string | null;
 }) {
+    useEffect(() => {
+        if (!focusItemId) return;
+        // No `focus()`: these are cards, not controls, and moving focus onto a
+        // non-interactive region takes it away from wherever the operator's
+        // keyboard actually is. Bringing it into view is the whole hand-off.
+        document
+            .getElementById(orderItemDomId(focusItemId))
+            ?.scrollIntoView({ block: 'center' });
+    }, [focusItemId]);
+
     if (order.items.length === 0) {
         return (
             <Card>
@@ -338,7 +432,19 @@ export function OrderItemsPanel({
     return (
         <div className="space-y-4">
             {order.items.map((item, index) => (
-                <Card key={item.id ?? index}>
+                <Card
+                    key={item.id ?? index}
+                    id={item.id ? orderItemDomId(item.id) : undefined}
+                    // The hand-off has to be *visible* as well as scrolled to: an
+                    // order with nine similar lines otherwise lands the operator
+                    // in the middle of a list with nothing saying which one they
+                    // were sent to.
+                    className={
+                        item.id && item.id === focusItemId
+                            ? 'ring-primary/40 ring-2 ring-offset-2'
+                            : undefined
+                    }
+                >
                     <CardHeader>
                         <CardTitle className="text-base">
                             {item.title ?? 'Untitled item'}
@@ -350,8 +456,22 @@ export function OrderItemsPanel({
                             ) : null}
                         </CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <DefinitionList>
+                    <CardContent className="flex flex-col gap-4 sm:flex-row">
+                        {/*
+                          ⚠ The title comes from the **order's own snapshot**, not
+                          from the listing behind it — a product renamed after the
+                          sale must not rename what was bought. The picture is the
+                          listing's *current* one, resolved on this payload since
+                          BR-017; it was a lookup per product until 2026-08-26.
+                        */}
+                        <div className="w-full shrink-0 sm:w-40">
+                            <LineItemImage
+                                image={item.image}
+                                alt={item.title ?? 'This item'}
+                            />
+                        </div>
+
+                        <DefinitionList className="min-w-0 flex-1">
                             <Definition label="SKU">{item.sku ?? <NotSet />}</Definition>
                             <Definition label="Options">
                                 {item.optionsSnapshot ?? <NotSet />}
@@ -372,38 +492,64 @@ export function OrderItemsPanel({
                                             <NotSet />
                                         )}
                                     </Definition>
+                                    {/*
+                                      ⚠ Both keep their own null branch rather than
+                                      leaning on `CopyableValue`'s `<NotSet />`. The
+                                      fallbacks here *say something* — "not routed"
+                                      and "not dispatched" are different facts from
+                                      "not recorded", and the bare gap would lose
+                                      both. `to` is passed rather than wrapping, so
+                                      the link survives and the copy button sits
+                                      beside it instead of replacing it.
+                                    */}
+                                    {/*
+                                      ⚠ `agencyName` is the **business name**,
+                                      from the Magazin — never `display_name`,
+                                      which is the agency's contact *person*.
+                                      Sourced as `businessName` so a future
+                                      fallback cannot quietly rename a company
+                                      after whoever answers its phone; that is
+                                      the BR-006 confusion, refused at the
+                                      source this time.
+                                    */}
                                     <Definition label="Agency">
                                         {item.delivery.agencyId ? (
-                                            can('agencies.read') ? (
-                                                <Link
-                                                    to={`/dashboard/agencies/${item.delivery.agencyId}`}
-                                                    className="font-mono text-xs hover:underline"
-                                                >
-                                                    {item.delivery.agencyId}
-                                                </Link>
-                                            ) : (
-                                                <span className="font-mono text-xs">
-                                                    {item.delivery.agencyId}
-                                                </span>
-                                            )
+                                            <PartyValue
+                                                party={resolvePartyName(
+                                                    [
+                                                        {
+                                                            source: 'businessName',
+                                                            value: item.delivery.agencyName,
+                                                        },
+                                                    ],
+                                                    {
+                                                        source: 'id',
+                                                        value: item.delivery.agencyId,
+                                                    },
+                                                )}
+                                                id={item.delivery.agencyId}
+                                                idLabel="agency ID"
+                                                to={
+                                                    can('agencies.read')
+                                                        ? `/dashboard/agencies/${item.delivery.agencyId}`
+                                                        : undefined
+                                                }
+                                            />
                                         ) : (
                                             <NotSet>Not routed to an agency</NotSet>
                                         )}
                                     </Definition>
                                     <Definition label="Shipment">
                                         {item.delivery.shipmentId ? (
-                                            can('shipments.read') ? (
-                                                <Link
-                                                    to={`/dashboard/shipments/${item.delivery.shipmentId}`}
-                                                    className="font-mono text-xs hover:underline"
-                                                >
-                                                    {item.delivery.shipmentId}
-                                                </Link>
-                                            ) : (
-                                                <span className="font-mono text-xs">
-                                                    {item.delivery.shipmentId}
-                                                </span>
-                                            )
+                                            <ShipmentHandle
+                                                shipmentId={item.delivery.shipmentId}
+                                                trackingNumber={item.delivery.trackingNumber}
+                                                to={
+                                                    can('shipments.read')
+                                                        ? `/dashboard/shipments/${item.delivery.shipmentId}`
+                                                        : undefined
+                                                }
+                                            />
                                         ) : (
                                             <NotSet>Not dispatched</NotSet>
                                         )}
@@ -464,7 +610,84 @@ export function OrderItemsPanel({
     );
 }
 
+/**
+ * The anchor a deep link into the Items tab lands on.
+ *
+ * Prefixed rather than the bare id, because an `orderItemId` is a 24-hex string
+ * and a document-wide `getElementById` on a bare one would collide with any
+ * other element that happened to be keyed on the same record.
+ */
+function orderItemDomId(orderItemId: string): string {
+    return `order-item-${orderItemId}`;
+}
+
 function Amount({ value, currency }: { value: number | null | undefined; currency: string }) {
     if (value === null || value === undefined) return <NotSet />;
     return <>{formatMoney(value, currency)}</>;
+}
+
+/**
+ * The shipment behind a line, named by the handle an operator can actually use.
+ *
+ * ── ⚠ Which of the two ids goes on top is the whole point ────────────────────
+ * `shipmentId` is internal: `GET /shipments`'s `search` matches a
+ * **tracking-number prefix**, so the id in hand is a string that box cannot
+ * find, and a customer on the phone quotes a tracking number rather than an
+ * ObjectId. This panel used to carry an `InfoHint` explaining that the tracking
+ * number *"is not on this payload"* and telling the operator to open the
+ * shipment and read it — true when it was written, false from
+ * `RESPONSE-2026-08-26.md` onwards, and it kept saying so for two days.
+ *
+ * ⚠ **The id stays, underneath.** It is what a deep link and a support ticket
+ * quote, and the tracking number is a *label* for the shipment rather than a
+ * substitute for its identifier.
+ *
+ * `trackingNumber` is `null` while the item is unfulfilled — ordinary, and a
+ * different fact from "not dispatched", which is `shipmentId` being null and is
+ * handled by the caller.
+ */
+function ShipmentHandle({
+    shipmentId,
+    trackingNumber,
+    to,
+}: {
+    shipmentId: string;
+    trackingNumber: string | null;
+    to?: string;
+}) {
+    if (!trackingNumber) {
+        return (
+            <div className="space-y-1">
+                <CopyableValue
+                    variant="id"
+                    value={shipmentId}
+                    label="shipment ID"
+                    truncate={false}
+                    to={to}
+                />
+                <p className="text-muted-foreground text-xs">
+                    No tracking number yet — this item is not fulfilled.
+                </p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-1">
+            <CopyableValue
+                variant="plain"
+                value={trackingNumber}
+                label="tracking number"
+                to={to}
+            />
+            <div className="text-muted-foreground">
+                <CopyableValue
+                    variant="id"
+                    value={shipmentId}
+                    label="shipment ID"
+                    truncate={false}
+                />
+            </div>
+        </div>
+    );
 }

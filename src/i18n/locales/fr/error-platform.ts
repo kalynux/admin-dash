@@ -123,6 +123,9 @@ const platform = {
 
     // ─── Finances ────────────────────────────────────────────────────────────
     EARNINGS_PAYOUT_REQUEST_NOT_PENDING: 'Ce versement n’est plus en attente.',
+
+    // ─── Fichiers ────────────────────────────────────────────────────────────
+    UPLOAD_POLICY_VIOLATION: 'La plateforme a refusé l’un de ces fichiers.',
 };
 
 export default platform;

@@ -4,6 +4,7 @@ import { AlertTriangle, X } from 'lucide-react';
 
 import { DiscrepancyStatusBadge, RaisedByBadge } from '@/components/cod/CodBadges';
 import { ResolveDiscrepancyDialog } from '@/components/cod/CodWriteDialogs';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
@@ -421,19 +422,32 @@ function PartyLine({
     id: string;
     to: string | null;
 }) {
-    // `name` is null when the lookup missed — the id is then all there is, and it
-    // is still how the record is found.
-    const text = name ?? id;
-
     return (
         <p className="flex items-center gap-1.5">
             <span className="text-muted-foreground">{label}</span>
-            {to ? (
-                <Link to={to} className={name ? 'hover:underline' : 'font-mono hover:underline'}>
-                    {text}
-                </Link>
+            {/*
+              `name` is null when the lookup missed — the id is then all there
+              is, it is still how the record is found, and it is the branch that
+              needs copying. Where a name arrived it is left exactly as it was:
+              pairing the two is `partyName()`'s job, not this sweep's.
+
+              Shortened because this is a `text-xs` cell of an eight-column
+              table; the whole id is in the `title` and is what gets copied.
+            */}
+            {name ? (
+                to ? (
+                    <Link to={to} className="hover:underline">
+                        {name}
+                    </Link>
+                ) : (
+                    <span>{name}</span>
+                )
             ) : (
-                <span className={name ? undefined : 'font-mono'}>{text}</span>
+                <CopyableValue
+                    value={id}
+                    label={`${label.toLowerCase()} ID`}
+                    to={to ?? undefined}
+                />
             )}
         </p>
     );

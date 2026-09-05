@@ -4,6 +4,7 @@ import { Can } from '@/components/auth/Can';
 import { AuthFormError } from '@/components/auth/AuthFormError';
 import { ErrorState } from '@/components/common/DataState';
 import { InlineLoader } from '@/components/common/Loading';
+import { TicketActorName } from '@/components/support/TicketActorName';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -13,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { notify } from '@/lib/notify';
 import { createTicketNote, listTicketNotes } from '@/services/support.service';
-import { NOTE_MAX_LENGTH } from '@/types/support.types';
+import { NOTE_MAX_LENGTH, type TicketActorSummary } from '@/types/support.types';
 
 /**
  * Internal notes on a ticket.
@@ -43,6 +44,16 @@ import { NOTE_MAX_LENGTH } from '@/types/support.types';
  * Passed through verbatim — author identity resolved, snake_case included — and
  * this repository documents no field table for it. So the rows are rendered
  * defensively from whatever arrives rather than modelled.
+ *
+ * ── 🔴 An administrator's note is signed "Admin", and it is not a name ────────
+ * The author is jovi-mall's `ActorSummary`, the same object the attachment list
+ * carries — and it resolves an id against jovi-mall's own collections. **An
+ * administrator has no row there at all** (ADR-004 D-1, the synthetic actor),
+ * so every administrator's note comes back as `name: "Admin"`, and a deleted
+ * profile comes back as the capitalised role. This panel rendered that string
+ * raw until 2026-08-26, which signed staff commentary with a placeholder that
+ * reads exactly like somebody's name. `TicketActorName` holds the rule; the
+ * backend has been asked for a name snapshot, which is the real fix.
  */
 export function TicketNotesPanel({ ticketId, closed }: { ticketId: string; closed: boolean }) {
     const [reloadToken, setReloadToken] = useState(0);
@@ -99,9 +110,11 @@ export function TicketNotesPanel({ ticketId, closed }: { ticketId: string; close
                             {rows.map((note, index) => (
                                 <li key={note.id ?? index} className="rounded-lg border px-3 py-2">
                                     <div className="flex flex-wrap items-center gap-2">
-                                        <span className="text-sm font-medium">
-                                            {note.author ?? 'Unknown author'}
-                                        </span>
+                                        <TicketActorName
+                                            actor={note.author}
+                                            role={note.authorRole}
+                                            className="text-sm font-medium"
+                                        />
                                         {/*
                                           Stated on every row, not only the public
                                           ones: "private" is the reassurance, and a
@@ -191,7 +204,15 @@ export function TicketNotesPanel({ ticketId, closed }: { ticketId: string; close
 
 interface RenderableNote {
     id?: string;
-    author?: string;
+    /**
+     * The author as jovi-mall's `ActorSummary`, assembled defensively.
+     *
+     * ⚠ **Never rendered raw** — see the file note. `null` when the payload
+     * carried no author object this could recognise.
+     */
+    author: TicketActorSummary | null;
+    /** The role when it arrived outside the author object, or not at all. */
+    authorRole?: string | null;
     content: string;
     isPublic: boolean;
     createdAt?: string;
@@ -229,19 +250,10 @@ function normaliseNotes(data: unknown): RenderableNote[] {
                   ? true
                   : false;
 
-        const author =
-            typeof row.authorName === 'string'
-                ? row.authorName
-                : typeof row.author === 'string'
-                  ? row.author
-                  : typeof (row.author as { name?: unknown })?.name === 'string'
-                    ? ((row.author as { name: string }).name)
-                    : undefined;
-
         return [
             {
                 id: typeof row.id === 'string' ? row.id : undefined,
-                author,
+                ...readAuthor(row),
                 content,
                 isPublic,
                 createdAt:
@@ -253,4 +265,59 @@ function normaliseNotes(data: unknown): RenderableNote[] {
             },
         ];
     });
+}
+
+/**
+ * The author, out of a payload with no field table.
+ *
+ * Three spellings are accepted because three have been seen on this surface:
+ * the `ActorSummary` object jovi-mall documents on ATTACHMENTS, a bare
+ * `authorName` string, and a bare `author` string. ⚠ **The object form is the
+ * one that matters**, because it is the only one carrying a `role` — and
+ * without a role the placeholder rule has nothing to compare against, so
+ * `"Admin"` would go straight to the screen as a name.
+ *
+ * ⚠ **`avatar` is deliberately not read.** It is a whole `FileDetail` on a
+ * shape this repository has no field table for, and a half-validated one would
+ * put an `<img>` on screen built from a URL nothing checked. The name is what
+ * this row needs; the picture is not worth guessing at.
+ */
+function readAuthor(
+    row: Record<string, unknown>,
+): Pick<RenderableNote, 'author' | 'authorRole'> {
+    const nested = typeof row.author === 'object' && row.author !== null
+        ? (row.author as Record<string, unknown>)
+        : null;
+
+    // snake_case first: this object is jovi-mall's own and was never renamed.
+    const userId = nested
+        ? typeof nested.user_id === 'string'
+            ? nested.user_id
+            : typeof nested.userId === 'string'
+              ? nested.userId
+              : ''
+        : '';
+
+    const role =
+        nested && typeof nested.role === 'string'
+            ? nested.role
+            : typeof row.authorRole === 'string'
+              ? row.authorRole
+              : null;
+
+    const name =
+        nested && typeof nested.name === 'string'
+            ? nested.name
+            : typeof row.authorName === 'string'
+              ? row.authorName
+              : typeof row.author === 'string'
+                ? row.author
+                : null;
+
+    if (!name) return { author: null, authorRole: role };
+
+    return {
+        author: { user_id: userId, role: role ?? '', name, avatar: null },
+        authorRole: role,
+    };
 }

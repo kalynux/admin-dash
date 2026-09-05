@@ -52,6 +52,25 @@ export function OneTimePasswordPanel({
      * `resetAfterMs` is effectively disabled — unlike every other copy control
      * on the dashboard, this one is shown once and never again, so "Copied"
      * should stay put as the record that it worked.
+     *
+     * ── ⚠ Why this is not `<CopyableValue variant="plain">` ───────────────────
+     * The A2 sweep folded the dashboard's value renders onto that primitive and
+     * stopped at this panel on purpose. `CopyableValue` is documented as *"an
+     * enhancement, never the only route"* — a ghost icon beside a value that is
+     * already legible. Here copying **is** the screen: the password is shown
+     * once, stored nowhere, and an operator who leaves without it has to reset
+     * the account and end every session it has. That wants a labelled button
+     * with a real hit target, not a 24px icon competing with the value beside
+     * it. The two behaviours the primitive exists to standardise — the shared
+     * `useClipboard`, and a value that stays rendered and `select-all` whatever
+     * the clipboard did — are both already here.
+     *
+     * The 10-minute "Copied" is the other half of it: the primitive resets
+     * after 1.5s, which is right for a row you can copy again and wrong for a
+     * disclosure you cannot.
+     *
+     * `PayoutDestinationReveal` and `MfaEnrolmentWizard` are the same shape and
+     * kept for the same reason.
      */
     const { copy: writeToClipboard, copied } = useClipboard({ resetAfterMs: 10 * 60_000 });
 
@@ -73,6 +92,14 @@ export function OneTimePasswordPanel({
             </div>
 
             <div className="space-y-2">
+                {/*
+                  ⚠ The email is left as prose, though the A2 sweep makes every
+                  other one on this surface copyable. This dialog has exactly
+                  one thing to copy, it is shown once, and a second copy control
+                  eight pixels away is how somebody leaves with the address in
+                  their clipboard and the password gone. The same address is
+                  copyable on the administrator's own screen behind this dialog.
+                */}
                 <p className="text-muted-foreground text-xs">
                     One-time password for {administratorDisplayName(administrator)} (
                     {administrator.email})

@@ -29,6 +29,7 @@
  * creating. Do not build affordances for them expecting an endpoint to appear.
  */
 
+import { resolvePartyName, type ResolvedPartyName } from '@/lib/party';
 import type { ActorStamp } from '@/types/actor.types';
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
@@ -433,15 +434,44 @@ export const AGENCY_AUDIT_ACTION_LABELS: Record<AgencyAuditAction, string> = {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * What to call an agency on screen.
+ * What to call an agency on screen, **and which of the three it is**.
  *
  * The business name when there is one, the contact's name when there is not, and
  * the id as a last resort — a Magazin is provisioned during onboarding, so an
  * agency mid-flow legitimately has no business name yet and must still be
  * identifiable in a list.
+ *
+ * ⚠ This is the fallthrough that made
+ * [BR-006](../../docs/dashboard/backend-requests/BR-006-agency-name-on-contract-rows.md)
+ * necessary: `contactName` is the agency's contact **person**, and a column
+ * headed *"Agency"* rendering it has been showing a human where a company was
+ * meant. The resolved form exists so that column can tell the difference —
+ * `kind === 'contact'` means demote it to a sub-line labelled
+ * `PARTY_NAME_SOURCE_LABELS.contactName` rather than pass it off as the
+ * business. **This is the only one of the five helpers whose fallthrough names
+ * a different entity**, which is why it is the only one with a resolved form.
+ */
+export function resolveAgencyDisplayName(
+    agency: Pick<Agency, 'businessName' | 'contactName' | 'id'>,
+): ResolvedPartyName {
+    return resolvePartyName(
+        [
+            { source: 'businessName', value: agency.businessName },
+            { source: 'contactName', value: agency.contactName },
+        ],
+        { source: 'id', value: agency.id },
+    );
+}
+
+/**
+ * The same answer as a bare string, for the many places that only want a label.
+ *
+ * ⚠ **Behaviour change**: this used `??`, so an empty or whitespace-only
+ * `businessName` rendered a blank cell. It now falls through to `contactName`
+ * and then to the id — see `lib/party.ts`.
  */
 export function agencyDisplayName(agency: Pick<Agency, 'businessName' | 'contactName' | 'id'>): string {
-    return agency.businessName ?? agency.contactName ?? agency.id;
+    return resolveAgencyDisplayName(agency).value;
 }
 
 /**

@@ -14,6 +14,7 @@ import {
     platformVendorFixture,
     suspendedVendorDetailFixture,
     vendorAccountFixture,
+    vendorAgencyConnectionFixture,
     vendorDetailFixture,
     vendorProductFixture,
 } from '@/test/fixtures';
@@ -29,24 +30,42 @@ const VENDOR_ID = '6650aa11bb22cc33dd44ee55';
 interface StubOptions {
     detail?: ReturnType<typeof vendorDetailFixture>;
     products?: ReturnType<typeof vendorProductFixture>[];
+    connections?: ReturnType<typeof vendorAgencyConnectionFixture>[];
     write?: () => Response;
 }
 
 /**
- * Answers the four reads this screen can make, and throws on anything else.
+ * Answers the five reads this screen can make, and throws on anything else.
  *
  * The order matters: the sub-resource paths are prefixes of the detail path, so
  * they are matched first. Getting that backwards hands the detail's payload to the
  * catalogue, which renders rows with no `status` — a shape the service cannot
- * produce.
+ * produce. `/agencies` joined the list with the connections panel and fell into
+ * exactly that trap: without its own branch it was answered with the vendor
+ * document, whose `data` is an object, and the table threw while mapping it.
  */
-function stubDetail({ detail = vendorDetailFixture(), products = [], write }: StubOptions = {}) {
+function stubDetail({
+    detail = vendorDetailFixture(),
+    products = [],
+    connections = [vendorAgencyConnectionFixture()],
+    write,
+}: StubOptions = {}) {
     return stubFetch((call: FetchCall) => {
         if (call.method !== 'GET' && write) return write();
 
         if (call.url.includes('/products')) {
             return successResponse(products, {
                 meta: { total: products.length, page: 1, limit: 20, pages: products.length ? 1 : 0 },
+            });
+        }
+        if (call.url.includes('/agencies')) {
+            return successResponse(connections, {
+                meta: {
+                    total: connections.length,
+                    page: 1,
+                    limit: 20,
+                    pages: connections.length ? 1 : 0,
+                },
             });
         }
         if (call.url.includes('/activity')) {
@@ -62,6 +81,33 @@ function stubDetail({ detail = vendorDetailFixture(), products = [], write }: St
         }
         throw new Error(`unexpected request: ${call.method} ${call.url}`);
     });
+}
+
+/**
+ * The same as `detail`, but handing back the stub's call log.
+ *
+ * Split out rather than changing `detail`'s return type, which is `render`'s and
+ * is used for its `rerender` elsewhere.
+ */
+function detailCalls(options: StubOptions & { tier?: 1 | 2 | 3; id?: string } = {}) {
+    const { tier = 1, id = VENDOR_ID, ...stubOptions } = options;
+    const calls = stubDetail(stubOptions);
+
+    renderWithProviders(
+        <Routes>
+            <Route path="/dashboard/vendors/:vendorId" element={<VendorDetail />} />
+        </Routes>,
+        {
+            route: `/dashboard/vendors/${id}`,
+            auth: {
+                status: 'authenticated',
+                admin: adminFixture({ timezone: 'Africa/Douala' }),
+            },
+            permissions: { held: heldFixture(tier) },
+        },
+    );
+
+    return calls;
 }
 
 /** Mounted through a route so `useParams` sees a real `:vendorId`. */
@@ -294,8 +340,20 @@ describe('the cascade', () => {
         expect(screen.getByText(/expect fewer to return/i)).toBeInTheDocument();
     });
 
+    /**
+     * ⚠ **Assert the query, not just the tab.** This test used to check that the
+     * Catalogue tab became selected and that a suspended listing was on screen —
+     * neither of which depends on the filter actually being applied, because the
+     * stub answers every catalogue request with the same rows. It passed for a
+     * round while the hand-off was silently doing nothing: Radix unmounts an
+     * inactive tab, so the panel mounted fresh with the token already set and its
+     * "has the token changed" check compared a value against itself.
+     *
+     * A pre-filter that switches tab and then shows the unfiltered catalogue is
+     * worse than not offering one, so what is asserted here is the request.
+     */
     it('offers a way to see what stayed off sale after a reinstatement', async () => {
-        detail({
+        const calls = detailCalls({
             detail: suspendedVendorDetailFixture(),
             products: [oversightSuspendedProductFixture()],
             write: () =>
@@ -326,6 +384,14 @@ describe('the cascade', () => {
             ),
         );
         expect(await screen.findByText('Cassava flour — 5 kg')).toBeInTheDocument();
+
+        // The half that actually matters: the catalogue was asked for the
+        // suspended listings, not merely opened.
+        await waitFor(() => {
+            const catalogue = calls.filter((call) => call.url.includes('/products'));
+            const last = new URL(catalogue[catalogue.length - 1].url, 'http://localhost');
+            expect(last.searchParams.get('status')).toBe('suspended');
+        });
     });
 });
 

@@ -135,7 +135,14 @@ describe('the cash ledger', () => {
         );
 
         expect(await screen.findByText('cash collection')).toBeInTheDocument();
-        expect(screen.getByText('6674aabbccddeeff00112233')).toBeInTheDocument();
+        /*
+         * Head-and-tail: the id is a `CopyableValue` in a table cell, so it is
+         * shortened for display. The whole value is still the `title` and is
+         * still what the copy button writes — which is what the assertion below
+         * pins.
+         */
+        expect(screen.getByText('6674aa…2233')).toBeInTheDocument();
+        expect(screen.getByTitle('6674aabbccddeeff00112233')).toBeInTheDocument();
     });
 
     it('tolerates a null reference, which the doc example does not show', async () => {

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
 import { Receipt } from 'lucide-react';
 
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
@@ -161,10 +161,13 @@ export function PlatformLedger() {
                     <div className="space-y-0.5">
                         <p className="text-xs capitalize">{humaniseEnum(row.source.type) ?? '—'}</p>
                         {row.source.id ? (
-                            <p className="text-muted-foreground font-mono text-xs break-all">
-                                {row.source.id}
-                            </p>
+                            <CopyableValue
+                                value={row.source.id}
+                                label="source ID"
+                                className="text-muted-foreground"
+                            />
                         ) : (
+                            /* The column's own wording for the gap, kept. */
                             <NotSet>No source id</NotSet>
                         )}
                     </div>
@@ -174,14 +177,15 @@ export function PlatformLedger() {
                 id: 'allocationId',
                 header: 'Allocation',
                 className: 'align-top',
+                // The link is kept and the copy button sits beside it: navigating
+                // to the allocation and quoting its id are different errands.
                 cell: (row) =>
                     row.allocationId ? (
-                        <Link
+                        <CopyableValue
+                            value={row.allocationId}
+                            label="allocation ID"
                             to={`/dashboard/money/allocations/${row.allocationId}`}
-                            className="font-mono text-xs break-all hover:underline"
-                        >
-                            {row.allocationId}
-                        </Link>
+                        />
                     ) : (
                         <NotSet>None</NotSet>
                     ),

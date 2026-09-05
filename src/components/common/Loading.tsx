@@ -118,8 +118,17 @@ export function TableSkeleton({
                 style={{ gridTemplateColumns: `repeat(${count}, minmax(0, 1fr))` }}
                 aria-hidden
             >
-                {columns.map((header) => (
-                    <span key={header} className="truncate">
+                {/* ⚠ Keyed by position, not by the header string. A column
+                    legitimately has no header — an actions or flags column
+                    declares `header: ''` — and `SystemWorkers` declares two,
+                    which made React warn *"two children with the same key"* on
+                    every render of this skeleton. Position is the right key
+                    here for the reason it is usually the wrong one: this list
+                    is static, never reordered and never filtered, the elements
+                    hold no state, and the whole row is `aria-hidden`
+                    decoration. The data rows below already key this way. */}
+                {columns.map((header, index) => (
+                    <span key={index} className="truncate">
                         {header}
                     </span>
                 ))}

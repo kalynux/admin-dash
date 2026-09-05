@@ -51,7 +51,9 @@ import type {
     PlatformVendor,
     Vendor,
     VendorDetail,
+    VendorAgencyConnection,
     VendorProduct,
+    VendorProductDetail,
 } from '@/types/vendors.types';
 import type { ReadinessReport } from '@/services/api';
 import type { UserListMeta } from '@/services/users.service';
@@ -623,7 +625,7 @@ export function tierMatrixFixture(overrides: Partial<TierMatrix> = {}): TierMatr
 }
 
 /**
- * `GET /permissions/catalog` — a small, representative slice rather than all 110.
+ * `GET /permissions/catalog` — a small, representative slice rather than all 116.
  *
  * Deliberately mixes the cases the matrix screen has to tell apart: an ordinary read, a
  * `destructive` write that no family grant can confer, and **a `†` permission whose endpoint
@@ -986,6 +988,238 @@ export function agencySuspendedProductFixture(
 }
 
 /**
+ * `GET /vendors/:vendorId/products/:productId` — one listing, in full.
+ *
+ * ⚠ Deliberately the **awkward** case rather than the tidy one, because every
+ * reading trap on this payload is a trap about a *state* rather than a number:
+ * stock is tracked, the listing is warehoused, and the variants disagree on
+ * price, so the panels have something real to render for each. The absent
+ * states get their own fixtures below — they are not `overrides` of this one,
+ * because "untracked" and "not warehoused" are what a screen is most likely to
+ * flatten and each deserves a named starting point.
+ *
+ * `vendorId` and `tags` are on the wire and are **not** in `vendors.md`; they
+ * are here because the source that computes the payload declares them. See
+ * `VendorProductDetail`.
+ */
+export function vendorProductDetailFixture(
+    overrides: Partial<VendorProductDetail> = {},
+): VendorProductDetail {
+    return {
+        id: '66601122334455667788990a',
+        vendorId: '6650aa11bb22cc33dd44ee55',
+        title: 'Plantain — 1 kg',
+        slug: 'plantain-1kg',
+        category: 'produce',
+        tags: ['produce', 'fresh'],
+        type: 'physical',
+        status: 'active',
+        mode: 'simple',
+        hasVariants: true,
+        suspension: null,
+        media: {
+            images: [
+                {
+                    id: '6612aabbccddeeff00112233',
+                    key: 'vendors/6650aa11bb22cc33dd44ee55/plantain-1.jpg',
+                    // A public tree, so a real URL — which is what lets the
+                    // gallery render without an audited content fetch.
+                    url: 'https://cdn.example.com/vendors/6650aa11bb22cc33dd44ee55/plantain-1.jpg',
+                    access: 'public',
+                    mimeType: 'image/jpeg',
+                    size: 148213,
+                    originalName: 'plantain.jpg',
+                },
+            ],
+            primaryImage: {
+                id: '6612aabbccddeeff00112233',
+                key: 'vendors/6650aa11bb22cc33dd44ee55/plantain-1.jpg',
+                url: 'https://cdn.example.com/vendors/6650aa11bb22cc33dd44ee55/plantain-1.jpg',
+                access: 'public',
+                mimeType: 'image/jpeg',
+                size: 148213,
+                originalName: 'plantain.jpg',
+            },
+        },
+        pricing: { amount: 4500, compareAtAmount: 5200, currency: 'XAF', range: null },
+        inventory: {
+            tracked: true,
+            available: 42,
+            reserved: 6,
+            sellable: 36,
+            // ⚠ Always null at product level — the alert is per SKU.
+            lowStockThreshold: null,
+            allowOversell: false,
+        },
+        deliveryAgency: {
+            id: '665c0011223344556677889a',
+            businessName: 'Littoral Express Delivery',
+            status: 'active',
+        },
+        storage: {
+            basis: 'per_sku_monthly',
+            storageBasedEnabled: true,
+            monthlyRatePerSku: 500,
+            quantity: 42,
+            monthlyEstimate: 21000,
+            currency: 'XAF',
+            // ⚠ Null at product level: a gallery of different-sized variants has
+            // no single size.
+            size: null,
+        },
+        variants: [
+            {
+                id: '6613aabbccddeeff00112233',
+                name: '1 kg',
+                sku: 'PLT-1KG',
+                status: 'active',
+                amount: 4500,
+                compareAtAmount: 5200,
+                inventory: {
+                    tracked: true,
+                    available: 42,
+                    reserved: 6,
+                    sellable: 36,
+                    lowStockThreshold: 10,
+                    allowOversell: false,
+                },
+                storage: {
+                    basis: 'per_sku_monthly',
+                    storageBasedEnabled: true,
+                    monthlyRatePerSku: 500,
+                    quantity: 42,
+                    monthlyEstimate: 21000,
+                    currency: 'XAF',
+                    size: {
+                        lengthCm: 30,
+                        widthCm: 20,
+                        heightCm: 12,
+                        volumeCm3: 7200,
+                        weightG: 1000,
+                        source: 'variant',
+                    },
+                },
+            },
+        ],
+        lastOrderedAt: '2026-08-09T18:22:00.000Z',
+        createdAt: '2026-01-20T07:00:00.000Z',
+        updatedAt: '2026-08-10T13:02:41.008Z',
+        ...overrides,
+    };
+}
+
+/**
+ * A listing whose stock is **not counted**, and which nobody warehouses.
+ *
+ * ⚠ The two states this exists for are the two a screen is most likely to
+ * flatten into a zero: `inventory.tracked: false` (every count below is `null`,
+ * and `available: 0` would mean something completely different) and
+ * `storage: null` (not warehoused at all — **not** a rent of zero).
+ */
+export function untrackedProductDetailFixture(
+    overrides: Partial<VendorProductDetail> = {},
+): VendorProductDetail {
+    const untracked = {
+        tracked: false,
+        available: null,
+        reserved: null,
+        sellable: null,
+        lowStockThreshold: null,
+        allowOversell: true,
+    };
+
+    return vendorProductDetailFixture({
+        id: '66601122334455667788990d',
+        title: 'Recipe pack — download',
+        type: 'digital',
+        tags: [],
+        inventory: untracked,
+        deliveryAgency: null,
+        storage: null,
+        media: { images: [], primaryImage: null },
+        /*
+         * ⚠ The variant is untracked too, and that is not tidiness: the product
+         * roll-up sets `tracked: false` when **any** active variant is
+         * infinite-stock, so a fixture whose product is untracked while its only
+         * variant counts stock is a shape the service cannot produce — and a
+         * screen tested against it would look right while flattening exactly the
+         * distinction the flag exists for.
+         */
+        variants: [
+            {
+                id: '6613aabbccddeeff00112255',
+                name: null,
+                sku: 'RCP-PACK',
+                status: 'active',
+                amount: 2500,
+                compareAtAmount: null,
+                inventory: untracked,
+                storage: null,
+            },
+        ],
+        ...overrides,
+    });
+}
+
+/**
+ * A **broken** listing: no variants at all, so no price.
+ *
+ * ⚠ `pricing: null` is not "free" and not "we could not load it" — the product
+ * cannot be bought in this state, and saying so is the point.
+ */
+export function unpricedProductDetailFixture(
+    overrides: Partial<VendorProductDetail> = {},
+): VendorProductDetail {
+    return vendorProductDetailFixture({
+        id: '66601122334455667788990e',
+        title: 'Draft listing',
+        status: 'draft',
+        hasVariants: false,
+        pricing: null,
+        variants: [],
+        ...overrides,
+    });
+}
+
+/**
+ * A row of `GET /vendors/:vendorId/agencies` — one delivery-agency connection.
+ *
+ * ⚠ `reapproval` is **always a block, never `null`**: it is a state rather than
+ * an event, so on a row that is not paused these three nulls truthfully mean
+ * "not paused". The three event blocks below it are the opposite — `null` when
+ * they did not happen, a whole object when they did.
+ */
+export function vendorAgencyConnectionFixture(
+    overrides: Partial<VendorAgencyConnection> = {},
+): VendorAgencyConnection {
+    return {
+        id: '6690aabbccddeeff00112233',
+        agency: {
+            id: '665c0011223344556677889a',
+            businessName: 'Littoral Express Delivery',
+            status: 'active',
+            // ⚠ A PERSON, never the business.
+            contactName: 'Nadege Mballa',
+            country: 'CM',
+        },
+        status: 'active',
+        isDefault: true,
+        productCount: 42,
+        requestedBy: 'agency',
+        requestedAt: '2026-02-11T09:00:00.000Z',
+        respondedAt: '2026-02-11T14:20:00.000Z',
+        policyVersions: { vendorAtApproval: 3, agencyAtApproval: 7 },
+        reapproval: { requiredFrom: null, pausedAt: null, pausedReason: null },
+        rejection: null,
+        withdrawal: null,
+        termination: null,
+        createdAt: '2026-02-11T09:00:00.000Z',
+        updatedAt: '2026-08-02T10:11:00.000Z',
+        ...overrides,
+    };
+}
+
+/**
  * What a **delegated vendor write** answers: jovi-mall's narrower DTO.
  *
  * Deliberately not the detail shape — no `store`, no `account`, no `counts` — so a
@@ -1200,18 +1434,18 @@ export function platformEarningsFixture(
  * reach.
  *
  * Two of the three are *derived* rather than transcribed, so there is less to
- * get wrong: the counts (114 / 97 / 30) are asserted below, and
+ * get wrong: the counts (116 / 99 / 30) are asserted below, and
  * `permissions.types.test.ts` already proves every name here exists in the
  * catalogue — and that `permissions.md` states those same three numbers.
  */
 
-/** Developer. Holds all 114, and is the only level for which MFA is mandatory. */
+/** Developer. Holds all 116, and is the only level for which MFA is mandatory. */
 export const TIER_1_PERMISSIONS: readonly string[] = [...PERMISSION_NAMES];
 
 /**
  * The seventeen an Admin does **not** hold: the four named in
  * `permissions.md` § "What Admin (tier 2) deliberately does not hold", plus the
- * whole `developer_tools` family. 114 − 17 = 97.
+ * whole `developer_tools` family. 116 − 17 = 99.
  */
 const TIER_2_EXCLUSIONS: readonly string[] = [
     'administrators.tier.set',
@@ -1220,13 +1454,13 @@ const TIER_2_EXCLUSIONS: readonly string[] = [
     'users.roles.manage',
 ];
 
-/** Admin — the operational level, including the money. 97 of 114. */
+/** Admin — the operational level, including the money. 99 of 116. */
 export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
     (name) => !TIER_2_EXCLUSIONS.includes(name) && !name.startsWith('developer_tools.'),
 );
 
 /**
- * Support. **30 of 114**, and every one of them is routed — Support holds none
+ * Support. **30 of 116**, and every one of them is routed — Support holds none
  * of the four `†` permissions, so a Support administrator can use everything
  * they hold. That is new: the set was 24 with twelve unusable before Phase 5
  * built the `support` and `content` surfaces.

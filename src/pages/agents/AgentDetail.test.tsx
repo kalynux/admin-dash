@@ -7,6 +7,8 @@ import { AgentDetail } from '@/pages/agents/AgentDetail';
 import {
     agentDetailFixture,
     bannedAgentDetailFixture,
+    agentContractFixture,
+    agentListMetaFixture,
     codAllocationFixture,
     lastKnownFixture,
     trackingPolicyFixture,
@@ -31,6 +33,7 @@ function stubDetail(
         policy?: () => Response;
         allocation?: () => Response;
         presence?: () => Response;
+        contracts?: () => Response;
     } = {},
 ) {
     return stubFetch((call) => {
@@ -56,6 +59,20 @@ function stubDetail(
         }
         if (call.url.includes('/cod-allocation')) {
             return overrides.allocation?.() ?? successResponse(codAllocationFixture());
+        }
+        /*
+         * ⚠ Ahead of the `/agents/:id` branch for exactly the reason stated
+         * below it about `/trust-events`, and it caught the same way: the Cash
+         * tab joins `GET /agents/:id/contracts` to put agency names on the COD
+         * slices, and without this branch that request is answered with the
+         * agent document — a page whose `data` is an object rather than an
+         * array — and the panel throws while iterating it.
+         */
+        if (call.url.includes('/contracts')) {
+            return (
+                overrides.contracts?.() ??
+                successResponse([agentContractFixture()], { meta: agentListMetaFixture() })
+            );
         }
         /*
          * Ahead of the `/agents/:id` branch on purpose: the trust feed lives at
@@ -249,6 +266,51 @@ describe('the last known position', () => {
             screen.queryByRole('button', { name: /show last known position/i }),
         ).not.toBeInTheDocument();
     });
+
+    /**
+     * BR-003's ask, and the assertion that catches the failure it warned about
+     * at the *screen* level rather than only in `lib/geo`'s own suite.
+     *
+     * The fixture is GeoJSON — `[9.7043, 4.0611]` is `[longitude, latitude]` —
+     * so the map URL must read `4.0611,9.7043`. Read the other way round it is
+     * a perfectly plausible pin in the wrong country, and nothing downstream of
+     * this line can tell the difference.
+     */
+    it('offers a Google Maps link, latitude first, behind the same reveal', async () => {
+        stubDetail();
+        detail();
+
+        await userEvent.click(await screen.findByRole('tab', { name: /tracking/i }));
+
+        // A third disclosure behind the one button, so it waits with the others.
+        expect(screen.queryByRole('link', { name: /google maps/i })).not.toBeInTheDocument();
+
+        await userEvent.click(
+            await screen.findByRole('button', { name: /show last known position/i }),
+        );
+
+        const href = (await screen.findByRole('link', { name: /open in google maps/i })).getAttribute(
+            'href',
+        );
+        expect(new URL(href ?? '').searchParams.get('query')).toBe('4.0611,9.7043');
+    });
+
+    it('offers no map link when there is nothing to point at', async () => {
+        stubDetail(
+            agentDetailFixture({
+                tracking: {
+                    ...agentDetailFixture().tracking,
+                    lastKnown: lastKnownFixture({ position: null, reportedAt: null }),
+                },
+            }),
+        );
+        detail();
+
+        await userEvent.click(await screen.findByRole('tab', { name: /tracking/i }));
+
+        expect(await screen.findByText(/no position has ever been reported/i)).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: /google maps/i })).not.toBeInTheDocument();
+    });
 });
 
 describe('the tracking verdict', () => {
@@ -299,12 +361,12 @@ describe('permissions', () => {
      * A tab whose only content is a denial teaches people the screen is broken, so
      * a caller missing the second permission does not get the tab at all.
      */
-    it('omits Agencies, Account and Activity for a caller holding only agents.read', async () => {
+    it('omits the roster, Account and Activity for a caller holding only agents.read', async () => {
         stubDetail();
         detail(new Set(['agents.read']));
 
         await screen.findByRole('tab', { name: /overview/i });
-        expect(screen.queryByRole('tab', { name: /agencies/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole('tab', { name: /roster/i })).not.toBeInTheDocument();
         expect(screen.queryByRole('tab', { name: /account/i })).not.toBeInTheDocument();
         expect(screen.queryByRole('tab', { name: /activity/i })).not.toBeInTheDocument();
     });
@@ -319,11 +381,20 @@ describe('permissions', () => {
         expect(screen.queryByRole('button', { name: /^ban$/i })).not.toBeInTheDocument();
     });
 
-    it('shows the Agencies tab once agencies.read is held too', async () => {
+    /**
+     * ⚠ The tab reads **Roster**, and its `value` is still `agencies`.
+     *
+     * The rename is the whole visible change — the agent's contract list and the
+     * agency's roster are one collection read from two ends, so the two screens
+     * now use one word for it. The value stays because it is not in the URL and
+     * moving it would churn selectors for nothing.
+     */
+    it('shows the roster tab, named Roster, once agencies.read is held too', async () => {
         stubDetail();
         detail(new Set(['agents.read', 'agencies.read']));
 
-        expect(await screen.findByRole('tab', { name: /agencies/i })).toBeInTheDocument();
+        expect(await screen.findByRole('tab', { name: /^roster$/i })).toBeInTheDocument();
+        expect(screen.queryByRole('tab', { name: /^agencies$/i })).not.toBeInTheDocument();
     });
 });
 

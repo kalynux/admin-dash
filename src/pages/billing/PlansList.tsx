@@ -4,6 +4,7 @@ import { CreditCard, Plus } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
 import { PlanFormDialog } from '@/components/billing/PlanFormDialog';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
@@ -102,7 +103,22 @@ export function PlansList() {
                         >
                             {plan.name}
                         </Link>
-                        <p className="text-muted-foreground font-mono text-xs">{plan.code}</p>
+                        {/*
+                          ⚠ `plain` with `mono`, not `id`. The code is an
+                          opaque reference the platform matches exactly — this
+                          screen's own search box offers "Code, name or id", and
+                          a subscription term carries the code denormalised, so
+                          a dangling tier is findable by this string and nothing
+                          else. It must survive whole; it still reads as a
+                          machine value, which is what `mono` preserves.
+                        */}
+                        <CopyableValue
+                            variant="plain"
+                            value={plan.code}
+                            label="plan code"
+                            mono
+                            className="text-muted-foreground"
+                        />
                     </div>
                 ),
             },

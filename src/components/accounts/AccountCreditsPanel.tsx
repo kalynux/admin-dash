@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Coins } from 'lucide-react';
 
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
@@ -130,10 +131,21 @@ export function AccountCreditsPanel({
                 className: 'align-top',
                 cell: (entry) =>
                     entry.ref ? (
-                        // Free-form in jovi-mall — a product id, a message id, a
-                        // plan id, with nothing on the row saying which. Rendered
-                        // raw rather than linked to a guess.
-                        <span className="font-mono text-xs break-all">{entry.ref}</span>
+                        /*
+                          Free-form in jovi-mall — a product id, a message id, a
+                          plan id, with nothing on the row saying which. Rendered
+                          raw rather than linked to a guess.
+
+                          ⚠ `plain` and NOT `id` for exactly that reason: it is
+                          not known to be an ObjectId, so `id`'s head-and-tail
+                          shortening could hide the whole of a short reference.
+                        */
+                        <CopyableValue
+                            variant="plain"
+                            mono
+                            value={entry.ref}
+                            label="reference"
+                        />
                     ) : (
                         <NotSet>None</NotSet>
                     ),

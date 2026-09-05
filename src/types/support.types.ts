@@ -30,6 +30,8 @@
  * refuses.
  */
 
+import type { FileDetail } from '@/types/files.types';
+
 // ─── Vocabularies that are NOT ours ───────────────────────────────────────────
 
 /**
@@ -276,6 +278,62 @@ export interface TicketAvailableActions {
 
 // ─── The ticket ───────────────────────────────────────────────────────────────
 
+/**
+ * What a ticket is **about**, and — on the detail read only — enough to open it.
+ *
+ * ── ⚠ The list and the detail carry the same KEYS and not the same DATA ──────
+ * `vendorId` and `label` are **always `null` on `GET /support/tickets`** and are
+ * resolved only by `GET /support/tickets/:ticketId`. They are one shape rather
+ * than two because the keys are present on both — a hundred-row page would be a
+ * hundred lookups across three collections to decorate a column that shows an
+ * id, so the backend resolves at most **one** query, dispatched on the type, and
+ * only on the detail.
+ *
+ * The consequence for this dashboard is concrete and easy to get wrong: **the
+ * `about` link belongs on the ticket detail screen and nowhere else.** A queue
+ * column built on `label` would render blank on every row, and one built on
+ * `vendorId` would drop the product link on every row, and both would look like
+ * a bug in the join rather than the documented shape.
+ *
+ * Granted at [BR-016 § 7](../../docs/dashboard/backend-requests/BR-016-names-on-reference-rows.md).
+ */
+export interface TicketEntityRef {
+    /**
+     * A 1–60 token. {@link TICKET_ENTITY_TYPES} is jovi-mall's closed eleven and
+     * a client may rely on it for **routing**; wi-admin still validates by shape
+     * rather than membership, so render an unrecognised token as plain text.
+     */
+    type: TicketToken;
+    id: string | null;
+    /**
+     * ⚠ **Set for `type: "PRODUCT"` only** — `null` on every other type, which
+     * are not products rather than products with an unknown vendor.
+     *
+     * It is what makes the product link possible at all: a product's detail
+     * route is `/vendors/:vendorId/products/:productId` and needs **two** ids
+     * where the ticket carries one, and there is no vendor-agnostic product read
+     * anywhere on this service.
+     *
+     * ⚠ `null` on a `PRODUCT` **whose record is gone**, too. The lookup
+     * deliberately does not filter `deletedAt`, so a soft-deleted listing still
+     * resolves — but a hard-deleted one is served with no link rather than a
+     * fabricated one, and a catalogue complaint is exactly the ticket that tends
+     * to end in a deletion.
+     */
+    vendorId: string | null;
+    /**
+     * Something an operator recognises: the **order number** for `ORDER`, the
+     * **tracking number** for `SHIPMENT`, the **title** for `PRODUCT`. `null`
+     * for every other type and for a missing record.
+     *
+     * ⚠ **A convenience, never a substitute for the id.** The contract says so
+     * outright, and the reason is that an order number and a tracking number are
+     * both searchable strings an operator may need to copy — so the id keeps its
+     * own render rather than being replaced by a prettier one.
+     */
+    label: string | null;
+}
+
 export interface Ticket {
     id: string;
     subject: string;
@@ -289,7 +347,7 @@ export interface Ticket {
      */
     priorityLocked: boolean;
     importance: TicketToken;
-    entity: { type: TicketToken; id: string | null } | null;
+    entity: TicketEntityRef | null;
     trackingNumber: string | null;
     createdBy: {
         role: string;
@@ -475,7 +533,15 @@ export interface AttachFileBody {
 // ─── Attachments ──────────────────────────────────────────────────────────────
 
 /**
- * jovi-mall's attachment row, passed through verbatim.
+ * jovi-mall's attachment row — passed through, plus one field wi-admin adds.
+ *
+ * ⚠ **It stopped being verbatim on 2026-08-26**, and the exception is the whole
+ * reason this row is usable: `fileId` is **not** in jovi-mall's payload.
+ * wi-admin reads it off the attachment record in the shared database and stamps
+ * it onto each row, because a plain reference needs none of the machinery `url`
+ * needs (ADR-018 D-4 — delegate the projection that needs jovi-mall, read the
+ * record directly). Everything else here is still jovi-mall's own shape,
+ * `uploadedByActor`'s snake_case included.
  *
  * 🔴 **`url` NEVER EXPIRES, and this file said the opposite until 2026-08-24.**
  *
@@ -502,15 +568,109 @@ export interface AttachFileBody {
  * `access: "public"` and the same URL.
  */
 export interface TicketAttachment {
+    /**
+     * ⚠ **The ATTACHMENT's id, and not the file's.** It is what the delete route
+     * takes; it resolves to nothing in `/files`. See `fileId`.
+     */
     id: string;
+    /**
+     * The jovi-mall **File** behind this attachment — the same id `POST` takes,
+     * and the only thing on this row that addresses the file itself.
+     *
+     * ⚠ **`id` and `fileId` are both 24-hex and sit on the same object**, so
+     * confusing them is a one-character mistake that resolves the wrong record.
+     * The delete takes `id`; everything in `/files` takes `fileId`.
+     *
+     * `null` only in a race — the attachment was deleted between jovi-mall
+     * answering and wi-admin reading the row. **The key is always present**, so
+     * read it unconditionally rather than guarding on its existence.
+     *
+     * ⚠ **Not stamped on the `POST` response**, deliberately: you already hold
+     * it there, because it is what you sent.
+     */
+    fileId: string | null;
     fileName: string | null;
     fileSize: number | null;
     mimeType: string | null;
     url: string | null;
+    /** The uploader's id. Same value as `uploadedByActor.user_id`. */
     uploadedBy: string | null;
+    /** The uploader's role. Same value as `uploadedByActor.role`. */
     uploadedByRole: string | null;
+    /**
+     * The uploader as a person. `null` is "unknown", never an error.
+     *
+     * ⚠ **Read `.user_id`, not `.userId`** — see `TicketActorSummary`, and read
+     * its placeholder note before rendering `.name`.
+     */
+    uploadedByActor: TicketActorSummary | null;
     createdAt: string;
 }
+
+/**
+ * jovi-mall's resolved actor summary — the uploader of an attachment, and the
+ * author of a note.
+ *
+ * ⚠ **This is snake_case inside, unlike every ticket field around it**, and the
+ * reason is worth knowing rather than working around: the ticket rows on this
+ * surface are *wi-admin's* projection (`createdBy.userId`), while the attachment
+ * list is jovi-mall's own payload passed through, and its inner objects were
+ * never renamed.
+ *
+ * ⚠ **Not `ActorStamp`.** That is wi-admin's actor shape, from a different
+ * service, with different fields and different nullability. Two services'
+ * records of "who did this"; do not unify them.
+ *
+ * ── 🔴 `name` is a PLACEHOLDER more often than it looks ──────────────────────
+ * For `role: "admin"` it is the literal string `"Admin"` — never the
+ * administrator's name, and that is exactly the case a dashboard most wants.
+ * An administrator has no `users` row and no `admins` row in `jovi_mall`
+ * (ADR-004 D-1, the synthetic actor): the id jovi-mall stores is the
+ * `X-Actor-Id` wi-admin sent, an `admin_accounts._id` out of *wi-admin's* own
+ * database. jovi-mall looks it up in its own `admins` collection, matches
+ * nothing, and falls back to the capitalised role.
+ *
+ * The same fallback yields `"Customer"` / `"Vendor"` / `"Agency"` / `"Agent"`
+ * for a **deleted profile**. So **a `name` equal to the capitalised `role` is
+ * the signal that nothing resolved, and it is the only signal there is** —
+ * `avatar` is `null` in that case too. Use `isRolePlaceholderName` from
+ * `lib/party.ts`; never render `name` raw.
+ */
+export interface TicketActorSummary {
+    /**
+     * ⚠ **Snake_case, and it is not always a `users._id`.** For every role but
+     * `admin` it is one, and routes to `/users/:userId` behind `users.read`.
+     * For `admin` it is an `admin_accounts._id` — a different database — and
+     * routes to `/administrators/:adminId` behind `administrators.read`, which
+     * **Support does not hold**.
+     */
+    user_id: string;
+    role: TicketActorRole;
+    /** ⚠ Read the placeholder note above before rendering this. */
+    name: string;
+    /**
+     * Their picture, or the business's logo. A full `FileDetail`, so its own
+     * `url` may be `null` on a private tree — check `isDisplayableImage` before
+     * building an `<img>` around it.
+     */
+    avatar: FileDetail | null;
+}
+
+/**
+ * Who uploaded or wrote it.
+ *
+ * `string`-widened like every enum on this client: adding a member upstream is
+ * an additive, non-breaking change, so a closed `switch` would break on a
+ * routine deploy. ⚠ **`admin` is the odd one** — it names an actor in a
+ * different database from the other four.
+ */
+export type TicketActorRole =
+    | 'customer'
+    | 'vendor'
+    | 'agency'
+    | 'agent'
+    | 'admin'
+    | (string & {});
 
 // ─── Errors ───────────────────────────────────────────────────────────────────
 

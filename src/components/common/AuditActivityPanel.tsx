@@ -278,6 +278,23 @@ export function AuditActivityPanel({
                 className: 'align-top',
                 cell: (entry) => (
                     <div className="min-w-0">
+                        {/*
+                          ⚠ Left as text by the A2 sweep, and this one is a
+                          judgement rather than an oversight. The cell is a
+                          three-way fallback: a display name (not a value), an
+                          email (a value), or the actor *kind* (an enum). One
+                          `CopyableValue` here would have to claim a single
+                          `label` — the accessible name is "Copy {label}" — for
+                          a string that is a person's name on most rows. Naming
+                          it "email" would be wrong two thirds of the time, and
+                          branching on which field survived would put the
+                          fallback rule in two places.
+
+                          It costs little: every one of the six screens that
+                          mounts this panel is a record page whose own header
+                          already carries the copyable identity, and this column
+                          answers "who", not "which address".
+                        */}
                         <p className="truncate text-sm">
                             {entry.actor.displayName ?? entry.actor.email ?? entry.actor.kind}
                         </p>
@@ -297,7 +314,13 @@ export function AuditActivityPanel({
                 cell: (entry) => (
                     <div className="space-y-1">
                         <AuditStatusBadge status={entry.status} />
-                        {/* On a failed delegated write this is the only handle on why. */}
+                        {/* On a failed delegated write this is the only handle on why.
+
+                            Mono but not copyable: both are registry codes from
+                            a closed catalogue — `errors.md` here,
+                            `details.platformCode` from jovi-mall there — which
+                            the sweep's rules put with the enums and the badges,
+                            not with the ids. */}
                         {entry.outcome.platformCode ? (
                             <p className="text-muted-foreground font-mono text-xs">
                                 {entry.outcome.platformCode}

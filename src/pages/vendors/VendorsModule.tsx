@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom';
 
 import { NotFound } from '@/pages/NotFound';
 import { VendorDetail } from '@/pages/vendors/VendorDetail';
+import { VendorProductDetail } from '@/pages/vendors/VendorProductDetail';
 import { VendorsList } from '@/pages/vendors/VendorsList';
 
 /**
@@ -29,6 +30,19 @@ export function VendorsModule() {
         <Routes>
             <Route index element={<VendorsList />} />
             <Route path=":vendorId" element={<VendorDetail />} />
+            {/*
+              The listing detail, from BR-005. Nested under the vendor because the
+              endpoint is — `GET /vendors/:vendorId/products/:productId`, where the
+              ownership IS the authorisation, so a product's address needs both ids
+              and there is no vendor-free product read anywhere on this service.
+
+              No extra permission: the route requires `vendors.read`, exactly as the
+              catalogue does, so the module gate above has already run.
+            */}
+            <Route
+                path=":vendorId/products/:productId"
+                element={<VendorProductDetail />}
+            />
             {/*
               The module's own 404. Without it the shell-level catch-all never sees
               these paths — `vendors/*` already matched — and the gated element would

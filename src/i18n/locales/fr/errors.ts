@@ -101,6 +101,10 @@ const codes = {
     // ─── Fichiers ────────────────────────────────────────────────────────────
     FILE_NOT_FOUND: 'Ce fichier n’est plus stocké',
     FILE_DELETE_NOT_CONFIRMED: 'Saisissez la confirmation exacte pour supprimer ce fichier',
+    FILE_UPLOAD_NOT_MULTIPART: 'Cet envoi n’a pas été transmis comme un fichier',
+    // Pas de taille ici : le plafond est une configuration de déploiement et la
+    // réponse le porte dans `details.maxBytes`.
+    FILE_UPLOAD_TOO_LARGE: 'Ce fichier est trop volumineux pour être envoyé',
     FILE_CONTENT_NOT_SUPPORTED: 'Cette plateforme ne peut pas afficher les fichiers stockés',
 
     // ─── Notifications ───────────────────────────────────────────────────────
@@ -169,6 +173,10 @@ const codeHints = {
     CONTRACT_NOT_FOUND: 'Vérifiez l’identifiant, ou ouvrez le contrat depuis le livreur ou l’agence.',
     FILE_NOT_FOUND:
         'L’enregistrement qui le référençait existe toujours ; le fichier lui-même a été supprimé.',
+    FILE_UPLOAD_NOT_MULTIPART:
+        'Rien n’a été envoyé. Sélectionnez à nouveau le fichier, et citez la référence si cela persiste.',
+    FILE_UPLOAD_TOO_LARGE:
+        'Rien n’a été envoyé. Transmettez une version plus légère, ou répartissez-la sur plusieurs fichiers.',
     FILE_CONTENT_NOT_SUPPORTED:
         'Le mode de stockage de ce déploiement empêche d’ouvrir le contenu des fichiers ici. Rien n’est en panne — les informations ci-dessus restent exactes.',
 

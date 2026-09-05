@@ -14,6 +14,7 @@ import { formatCount, formatInstantInZone, humaniseEnum } from '@/lib/format';
 import { isPlatformActor, type ActorStamp } from '@/types/actor.types';
 import type { AgentDetail } from '@/types/agents.types';
 import { CopyableId } from '@/components/common/CopyableId';
+import { CopyableValue } from '@/components/common/CopyableValue';
 
 /**
  * The read-only panels of an agent's detail screen.
@@ -48,10 +49,22 @@ export function AgentOverviewPanel({
                 <CardContent>
                     <DefinitionList>
                         <Definition label="Name">{agent.name ?? <NotSet />}</Definition>
+                        {/*
+                          The outer conditional stays and `CopyableValue`'s own
+                          `NotSet` branch goes unused on purpose: the Verified
+                          badge is only meaningful beside an address that exists,
+                          so the presence test has to happen out here anyway.
+                          Neither variant truncates — an operator ringing this
+                          agent needs the whole number.
+                        */}
                         <Definition label="Email">
                             {agent.email ? (
                                 <span className="flex flex-wrap items-center gap-2">
-                                    {agent.email}
+                                    <CopyableValue
+                                        variant="email"
+                                        value={agent.email}
+                                        label="agent email"
+                                    />
                                     {agent.emailVerified ? (
                                         <Badge variant="outline">Verified</Badge>
                                     ) : null}
@@ -63,7 +76,11 @@ export function AgentOverviewPanel({
                         <Definition label="Phone">
                             {agent.phone ? (
                                 <span className="flex flex-wrap items-center gap-2">
-                                    {agent.phone}
+                                    <CopyableValue
+                                        variant="phone"
+                                        value={agent.phone}
+                                        label="agent phone"
+                                    />
                                     {agent.phoneVerified ? (
                                         <Badge variant="outline">Verified</Badge>
                                     ) : null}

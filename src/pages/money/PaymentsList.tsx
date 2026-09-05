@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { CreditCard } from 'lucide-react';
 
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
@@ -167,8 +168,15 @@ export function PaymentsList() {
                 id: 'gatewayRef',
                 header: 'Reference',
                 className: 'align-top',
+                // `plain`, so it is never shortened: this is the string an
+                // operator matches against the gateway's own settlement report.
                 cell: (row) => (
-                    <span className="font-mono text-xs break-all">{row.gatewayRef}</span>
+                    <CopyableValue
+                        variant="plain"
+                        mono
+                        value={row.gatewayRef}
+                        label="gateway reference"
+                    />
                 ),
             },
             {
@@ -344,8 +352,14 @@ function SettlesCell({ payment }: { payment: Payment }) {
     return (
         <div className="min-w-0 space-y-0.5">
             {single ? (
-                <p className="font-mono text-xs break-all">{single}</p>
+                /*
+                  Shortened, unlike the same id on the detail screen: this is one
+                  cell of a seven-column list, and the head-and-tail form still
+                  tells two rows apart. The whole value is what gets copied.
+                */
+                <CopyableValue value={single} label={orderId ? 'order ID' : 'booking ID'} />
             ) : (
+                /* The cell's own gap text, not `NotSet` — unchanged. */
                 <p className="text-muted-foreground text-xs">Nothing linked</p>
             )}
             <p className="text-muted-foreground text-xs capitalize">

@@ -247,6 +247,19 @@ export function DestructiveActionDialog({
                         </div>
 
                         {confirmation ? (
+                            /*
+                             * ⚠ **`confirmation.expected` is never rendered as a copyable
+                             * value, and never will be.** The whole of step 4 is that a human
+                             * re-types the one field that decides the blast radius — `db` for
+                             * a flush, `olderThanDays` for an outbox prune, `confirmFileId`
+                             * for a file delete. Offering that string with a copy button beside
+                             * it, or auto-filling it, reduces the gate to two clicks and leaves
+                             * the *appearance* of a confirmation, which is worse than having
+                             * none: it teaches operators that typed confirmations are a formality.
+                             *
+                             * The label names the value and the hint says why it is that value
+                             * — that is the whole of what the dialog owes the operator here.
+                             */
                             <div className="space-y-1.5">
                                 <Label htmlFor="destructive-confirm">{confirmation.label}</Label>
                                 <Input

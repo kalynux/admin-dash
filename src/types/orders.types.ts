@@ -42,6 +42,7 @@
  */
 
 import type { AuditStatus } from '@/types/audit.types';
+import type { FileDetail } from '@/types/files.types';
 
 // ─── Status vocabularies ──────────────────────────────────────────────────────
 
@@ -106,6 +107,47 @@ export type OrderPaymentMethod = (typeof ORDER_PAYMENT_METHODS)[number];
 /** `TimelineActorType` — pinned, and this service writes `admin` itself. */
 export const ORDER_TIMELINE_ACTOR_TYPES = ['vendor', 'customer', 'system', 'admin'] as const;
 export type OrderTimelineActorType = (typeof ORDER_TIMELINE_ACTOR_TYPES)[number];
+
+/**
+ * `TimelineEventType` — **the nine values a timeline row can carry**, mirrored
+ * from [`docs/jovi-mall/order-timeline-events.ts`](../../docs/jovi-mall/order-timeline-events.ts)
+ * and diffed against it by `order-timeline-events.test.ts`.
+ *
+ * ── ⚠ Why this one is pinned when the standing rule says not to ──────────────
+ * `orders.md` calls `eventType` *"format-validated, not pinned"*, which is true
+ * of wi-admin's validator and misleading about the data: jovi-mall's
+ * `order-timeline.model.ts` declares a **closed Mongoose enum** on an
+ * append-only collection whose `pre` hooks throw on update and delete. So the
+ * vocabulary is closed *at the model*, not by convention — a tenth value cannot
+ * be written without a code change in a file this repository mirrors.
+ *
+ * That is what makes the timeline's event-type filter a `<Select>` rather than
+ * the free-text box the rest of this dashboard uses. The standing rule exists
+ * because **`listQuery` is not `.strict()` service-wide**: a misspelt filter is
+ * dropped silently and the unfiltered list comes back `200`, looking filtered,
+ * so a picker built from a stale vocabulary matches nothing while looking
+ * correct. This list meets the same bar `ticket-vocabularies.ts` does.
+ *
+ * ⚠ **The order is jovi-mall's**, and the guard pins it: an operator reads down
+ * the menu, and the model's order is roughly the lifecycle's.
+ *
+ * ⚠ **Tell the backend before a tenth event type** —
+ * [BR-019 § 2](../../docs/dashboard/backend-requests/BR-019-contract-clarifications.md)
+ * asks them to document the nine and to say when one is added, because the
+ * mirror cannot know on its own.
+ */
+export const ORDER_TIMELINE_EVENT_TYPES = [
+    'order.created',
+    'payment.updated',
+    'fulfillment.updated',
+    'delivery.agency_updated',
+    'order.completed',
+    'note.added',
+    'entitlement.revoked',
+    'entitlement.restored',
+    'system.action',
+] as const;
+export type OrderTimelineEventType = (typeof ORDER_TIMELINE_EVENT_TYPES)[number];
 
 // ─── The records ──────────────────────────────────────────────────────────────
 
@@ -220,9 +262,56 @@ export interface OrderItem {
     quantity: number;
     price: number;
     currency: string | null;
+    /**
+     * The **primary** image of what was sold — never the gallery.
+     *
+     * ⚠ **Resolved live against the product's current media, not snapshotted.**
+     * `title`, `sku` and `price` are snapshots because they are terms of the
+     * sale and must not drift; a picture is an aid to recognising the object, so
+     * the *current* one is the more useful answer — and every existing order got
+     * one with no backfill.
+     *
+     * **Variant-preferred as a fallback, never a merge**: a line naming a
+     * `variantId` shows that variant's own media, so a red shirt cannot show the
+     * blue one, and falls back to the product's media where the variant has
+     * none. Same rule as jovi-mall's `media.primaryImage`, deliberately — this
+     * screen and the customer's own order page cannot disagree.
+     *
+     * ⚠ **Gate rendering on all three of `access === 'public'`, `url !== null`
+     * and `mimeType.startsWith('image/')`** — `isDisplayableImage`. The field is
+     * a full `FileDetail` rather than a URL string precisely so a client is not
+     * left guessing at the first two.
+     *
+     * `null` is ordinary: a digital line, media swept by the orphan cleanup, a
+     * product deleted since the order. Render the title alone.
+     *
+     * ✅ **Batched server-side** — three reads for the whole `items` array
+     * regardless of its length, never one per line. This is what replaced the
+     * per-item `GET /vendors/:vendorId/products/:productId` the dashboard used
+     * to make (BR-017).
+     */
+    image: FileDetail | null;
     delivery: {
         agencyId: string | null;
+        /**
+         * The agency's **business name**, from the Magazin.
+         *
+         * ⚠ **Never `display_name`**, which is the agency's contact *person* —
+         * the BR-006 confusion, refused at the source this time. `null` where
+         * the item has no agency, the agency row is gone, or the Magazin has no
+         * name.
+         */
+        agencyName: string | null;
         shipmentId: string | null;
+        /**
+         * ⚠ **The handle an operator actually works with.**
+         *
+         * `shipmentId` is an internal id that cannot be typed into anything;
+         * `GET /shipments`'s `search` takes a tracking-number **prefix**, and a
+         * customer on the phone quotes a tracking number. `null` while the item
+         * is unfulfilled — the ordinary state, not an error.
+         */
+        trackingNumber: string | null;
         status: string | null;
         freeDelivery: boolean;
         /** Set when an agency deactivation put this item on hold. */
@@ -255,11 +344,48 @@ export interface OrderDetail extends Order {
  */
 export interface OrderTimelineEntry {
     id: string;
-    /** Dotted tokens like `payment.updated`. Format-validated, not pinned. */
+    /**
+     * Dotted tokens like `payment.updated`.
+     *
+     * ⚠ **Typed `string`, not `OrderTimelineEventType`, on purpose.** The
+     * vocabulary is closed at jovi-mall's model and
+     * {@link ORDER_TIMELINE_EVENT_TYPES} mirrors it — which is enough to build a
+     * *filter* from, because a value that cannot be written cannot be missed.
+     * It is not enough to narrow a *read* to: an enum member added in jovi-mall
+     * and deployed before this mirror is re-taken arrives here as a real row,
+     * and rendering it raw is the contract's own rule. Unknown enum values are
+     * unknown, never an error.
+     */
     eventType: string;
     description: string | null;
     actorType: OrderTimelineActorType | (string & {});
+    /**
+     * ⚠ **Not a user id for ANY actor type**, whatever
+     * `order-timeline.model.ts`'s "User ID if applicable" comment says. Which
+     * collection it resolves in is decided by `actorType`: an `admin` id is a
+     * **wi-admin `admin_accounts._id`**, a `vendor` id is a `vendors._id`, a
+     * `customer` id is a `customers._id`, and `system` is always `null`. Do not
+     * link it anywhere from this row.
+     */
     actorId: string | null;
+    /**
+     * Who acted, by name — resolved across **three id spaces and two
+     * databases**, which is why no client could do this for itself.
+     *
+     * The `admin` row is the one no other service could answer: jovi-mall stamps
+     * a wi-admin administrator id into a column declared `ref: MODELS.USER`,
+     * where it dereferences to nothing (ADR-004 D-1). *"Which of us did this"*
+     * is the question an order timeline is opened for, and the platform database
+     * cannot answer it.
+     *
+     * ⚠ A `vendor` resolves to the **Store's** name, matching jovi-mall's own
+     * vendor-facing timeline so the two surfaces name the same vendor the same
+     * way. `vendors.display_name` is a *person* and is deliberately not used.
+     *
+     * **`null`, never the id** — for `system`, and wherever the record is gone.
+     * Resolution is three batched reads for the page, never one per row.
+     */
+    actorName: string | null;
     /** Opaque, written by every transition path. Treat as free-form. */
     metadata: Record<string, unknown> | null;
     occurredAt: string | null;

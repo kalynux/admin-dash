@@ -33,6 +33,37 @@ describe('the session list', () => {
         expect(screen.getByText(/41\.202\.219\.90/)).toBeInTheDocument();
     });
 
+    /**
+     * ⚠ `plain`, never `id`. An address shortened in the middle is a *different*
+     * address, so the variant that truncates is the wrong one here even though
+     * an IP looks like an opaque machine value — this is the string an operator
+     * pastes into a lookup when a session on the list looks wrong.
+     *
+     * The `null` branch keeps its own sentence: `CopyableValue` would render
+     * "Not set", and a session the service recorded no address for is an
+     * unknown address, not an unset field.
+     */
+    it('offers the address as a copyable value, whole, and still names an unknown one', async () => {
+        stubFetch(() => successResponse([OTHER_SESSION, sessionSummaryFixture({ ip: null })]));
+        renderPage();
+
+        await screen.findByText('Chrome on Android');
+
+        expect(screen.getByText('41.202.219.90')).toHaveAttribute('title', '41.202.219.90');
+        expect(screen.getByRole('button', { name: 'Copy session IP address' })).toBeInTheDocument();
+        expect(screen.getByText(/unknown address/i)).toBeInTheDocument();
+    });
+
+    /** The one address on this page that is not an IP. */
+    it('offers the account email as a copyable value', async () => {
+        stubFetch(() => successResponse([sessionSummaryFixture()]));
+        renderPage();
+
+        await screen.findByText('This device');
+
+        expect(screen.getByRole('button', { name: 'Copy your email address' })).toBeInTheDocument();
+    });
+
     it('refetches after revoking another device', async () => {
         let listCalls = 0;
         const calls = stubFetch((call) => {

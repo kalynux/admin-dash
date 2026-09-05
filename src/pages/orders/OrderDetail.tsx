@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Ban, Scale, Send, Undo2 } from 'lucide-react';
 
 import { OrderActivityPanel } from '@/components/orders/OrderActivityPanel';
@@ -100,12 +100,42 @@ function InvalidOrderId() {
     );
 }
 
+/**
+ * The tabs a deep link may name.
+ *
+ * Only the three every holder of `orders.read` has: the conditional ones would
+ * need the permission check the link's *author* cannot make, and landing on a
+ * tab that is not there is worse than landing on Overview.
+ */
+const LINKABLE_TABS = ['overview', 'items', 'timeline'];
+
 function OrderDetailScreen({ orderId }: { orderId: string }) {
     const admin = useAdmin();
     const can = useCan();
     const timeZone = resolveTimeZone(admin.timezone);
 
-    const [tab, setTab] = useState('overview');
+    /**
+     * ── § C4 · where `?tab=items&item=` is read ──────────────────────────────
+     * A shipment's item card links back to the order line the parcel came from,
+     * which is a cross-screen hand-off: the two live at different route paths,
+     * so this component always mounts fresh on arrival and the query is read
+     * **once**, as the initial tab.
+     *
+     * ⚠ Deliberately not synchronised afterwards. Keeping the tab in the URL
+     * would mean every tab click wrote history, and re-applying the parameter on
+     * every render would fight an operator who then clicked a different tab. A
+     * hand-off is an opening position, not a binding.
+     *
+     * An unrecognised or absent value falls back to Overview rather than
+     * rendering nothing — a query parameter is the one input an operator can
+     * mistype into this screen.
+     */
+    const [searchParams] = useSearchParams();
+    const focusItemId = searchParams.get('item');
+    const [tab, setTab] = useState(() => {
+        const requested = searchParams.get('tab');
+        return requested && LINKABLE_TABS.includes(requested) ? requested : 'overview';
+    });
     const [resolving, setResolving] = useState(false);
     const [cancelling, setCancelling] = useState(false);
     const [dispatching, setDispatching] = useState(false);
@@ -240,7 +270,12 @@ function OrderDetailScreen({ orderId }: { orderId: string }) {
                 </TabsContent>
 
                 <TabsContent value="items">
-                    <OrderItemsPanel order={record} timeZone={timeZone} can={can} />
+                    <OrderItemsPanel
+                        order={record}
+                        timeZone={timeZone}
+                        can={can}
+                        focusItemId={focusItemId}
+                    />
                 </TabsContent>
 
                 <TabsContent value="timeline">

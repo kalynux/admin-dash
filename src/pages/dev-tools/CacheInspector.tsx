@@ -208,6 +208,16 @@ export function CacheInspector() {
                         report.available ? (
                             <div className="space-y-3">
                                 <div className="flex flex-wrap items-center gap-2">
+                                    {/*
+                                      * ⚠ **Deliberately not copyable**, and this is the one
+                                      * place on the screen where that is a safety decision
+                                      * rather than a taste one. The database name is exactly
+                                      * the string the flush dialog makes an operator retype
+                                      * (`confirmation.expected = db`), because the database is
+                                      * what decides the blast radius. A copy button beside it
+                                      * turns that confirmation into a paste — which is the
+                                      * ceremony being deleted, not performed.
+                                      */}
                                     <Badge variant="outline" className="font-mono font-normal">
                                         {report.constant}
                                     </Badge>
@@ -261,6 +271,18 @@ export function CacheInspector() {
                                               * which that promise does not reach. The namespace
                                               * survives the scrub, so the key is still identifiable
                                               * and still countable.
+                                              *
+                                              * ⚠ Which is also why these get **no copy button**.
+                                              * What is on screen is the scrubbed key, so a copy
+                                              * would hand over `download:token:[secret-removed]`
+                                              * — a string that is not a key and will match
+                                              * nothing — and copying `entry.key` instead would
+                                              * put on the clipboard the exact value the scrub
+                                              * above exists to keep off the screen. There is no
+                                              * third option, and nothing here is pasted anywhere:
+                                              * the flush takes a *prefix*, which the operator
+                                              * already typed, and a *database*, which it makes
+                                              * them retype on purpose.
                                               */}
                                             <span className="text-muted-foreground min-w-0 font-mono break-all">
                                                 {scrubbedText(entry.key)}

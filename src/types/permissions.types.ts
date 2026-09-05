@@ -8,7 +8,7 @@
  * draw that line themselves: `GET /permissions/catalog` requires no permission
  * because "the vocabulary is what a dashboard is written against"
  * (`authorization.md`), while `permissions.md` says in as many words *"Do not
- * hard-code the matrix below into the dashboard"*. So the 114 **names** live
+ * hard-code the matrix below into the dashboard"*. So the 116 **names** live
  * here as literal types — a typo becomes a compile error rather than a module
  * that silently never renders — and **who holds what** comes only from
  * `GET /permissions/me`, never from this file.
@@ -22,12 +22,14 @@ import type { AdminTier } from '@/types/auth.types';
 // ─── The catalogue ────────────────────────────────────────────────────────────
 
 /**
- * All 114 permissions, `family.resource.action`, in the doc's own family order.
+ * All 116 permissions, `family.resource.action`, in the doc's own family order.
  *
- * The 114th is `files.content.read`, added at BR-011. `permissions.md`'s prose
- * lagged the matrix by one for a day and was re-counted at BR-013; the guard now
- * derives the tier totals from the matrix and checks the prose against them, so
- * the two cannot drift apart again quietly.
+ * The 115th and 116th are `files.library.read` and `files.upload`, added at
+ * BR-015 (ADR-021) and absorbed at the 2026-08-26 doc resync; the 114th was
+ * `files.content.read`, at BR-011. `permissions.md`'s prose lagged the matrix by
+ * one for a day and was re-counted at BR-013; the guard now derives the tier
+ * totals from the matrix and checks the prose against them, so the two cannot
+ * drift apart again quietly.
  *
  * `†` in the comments marks the **four** that are catalogued policy with no
  * endpoint built yet. They are real grants — `/permissions/me` returns them —
@@ -111,8 +113,23 @@ export const PERMISSION_NAMES = [
     'content.authors.write',
     'content.authors.delete',
 
-    // files — all four routed. wi-admin still accepts no multipart body; these
-    // resolve, open, list and delete records that something else uploaded.
+    // files — six names, all routed, and the family stopped being read-only at
+    // BR-015. ⚠ **The rule this comment used to state was narrowed, in writing.**
+    // The contract said twice that "wi-admin accepts no multipart bodies
+    // anywhere"; ADR-021 D-2 replaces it with **wi-admin never *parses* a
+    // multipart body**, which is the property that sentence was protecting.
+    // `POST /files/upload` is a stream proxy: the raw body is piped through to
+    // jovi-mall unread, with no `multer`, no `busboy` and no new dependency,
+    // because `express.json`/`urlencoded` are content-type gated and so a
+    // multipart request matches neither parser and arrives with the socket
+    // untouched — which is exactly what makes it pipeable.
+    // ⚠ Two consequences the old wording would have hidden. The 1 MB body limit
+    // belongs to `express.json` and therefore does **not** apply on this path,
+    // so the route declares a ceiling of its own — `ADMIN_UPLOAD_MAX_BYTES`,
+    // 32 MiB, refused before the hop as `FILE_UPLOAD_TOO_LARGE`. And because
+    // nothing is parsed there is no parsed body to validate and no field path to
+    // report, so a wrong content type is `FILE_UPLOAD_NOT_MULTIPART` at 415
+    // rather than a `VALIDATION_ERROR`.
     'files.resolve',
     // ⚠ Its own name, NOT `files.resolve`, and the split is load-bearing: every
     // tier holds `files.resolve` on the reasoning that resolving an id you were
@@ -123,6 +140,33 @@ export const PERMISSION_NAMES = [
     // row committing before jovi-mall is asked. Do not fold the two together.
     'files.content.read',
     'files.orphans.read',
+    // ⚠ A **listing** gets its own name, and this is the third time the mount
+    // has drawn that line. `files.resolve` is grantable to every tier on a
+    // single argument — the caller already holds the id, so resolving it
+    // discloses nothing new — and that argument does not survive enumeration: a
+    // caller who can browse never needed an id to begin with.
+    // `files.orphans.read` established the rule, the media library follows it,
+    // and both stop at Admin for the same reason.
+    // ⚠ It is **not** audited, and the dashboard asked for the opposite. The
+    // refusal is reasoned (ADR-021 D-6): ADR-006 D-5's exception test is *"the
+    // output IS the disclosure"* — true of a payout destination, a live
+    // position, a trail and a file's bytes, and not of a filename and a size —
+    // and auditing a browse surface would bury the four real disclosures under
+    // picker traffic. Adding it later is purely additive, so do not build
+    // against the absence.
+    'files.library.read',
+    // The first **write** path for files on this service, and audited because
+    // every write here is — no exception argument was needed. The row matters
+    // more than most: jovi-mall stamps the file `ownerId: <X-Actor-Id>`, an id
+    // in *this* service's database that it can never dereference, and it audits
+    // nothing on its own side because it authenticates a **service** rather than
+    // a person. This row is the only record of who uploaded it.
+    // ⚠ Support holds `content.articles.write` and **not** this, so a Support
+    // administrator may fix a typo in a live article and may not add a picture
+    // to it. That asymmetry is deliberate — *"they can already edit the
+    // article"* is precisely the argument that would widen it without anyone
+    // revisiting the enumeration question.
+    'files.upload',
     'files.delete',
 
     // messaging
@@ -255,14 +299,14 @@ export const PERMISSION_FAMILIES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Any of the 114. Use for what the *server* may send us. */
+/** Any of the 116. Use for what the *server* may send us. */
 export type PermissionName = (typeof PERMISSION_NAMES)[number];
 
 /** One of the four `†`. */
 export type UnroutedPermissionName = (typeof UNROUTED_PERMISSION_NAMES)[number];
 
 /**
- * The 109 that gate a real endpoint. **Use for what *our code* asks for** — nav
+ * The 112 that gate a real endpoint. **Use for what *our code* asks for** — nav
  * items, `<Can>`, `RequirePermission` — so that gating a screen on a permission
  * whose endpoint does not exist is a `tsc` error.
  */

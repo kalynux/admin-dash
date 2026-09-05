@@ -99,6 +99,18 @@ export function SystemWorkers() {
                 header: 'Worker',
                 cell: (worker) => (
                     <div className="min-w-0 space-y-0.5">
+                        {/*
+                          * ⚠ Not copyable. `key` is the registry's own vocabulary sitting
+                          * directly above the label that translates it, with the control that
+                          * uses it — "Run now" — at the far end of the same row. It goes
+                          * nowhere else: `runWorker` takes it from the row, not from an
+                          * operator's clipboard.
+                          *
+                          * ⚠ And there is no **run id** to copy either. `POST /dev-tools/
+                          * workers/:key/run` answers `{worker, durationMs, ran, processed,
+                          * note}` and mints no handle, so a completed run cannot be referred to
+                          * afterwards — worth knowing before somebody goes looking for one.
+                          */}
                         <p className="font-mono text-xs">{worker.key}</p>
                         <p className="text-muted-foreground text-sm">{worker.label}</p>
                         {worker.notTriggerableReason ? (

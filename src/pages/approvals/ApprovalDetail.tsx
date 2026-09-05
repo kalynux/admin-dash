@@ -22,6 +22,7 @@ import { getApproval } from '@/services/approvals.service';
 import { useAdmin, usePermissions } from '@/store';
 import { ApiError, CODE_CLIENT_INVALID_ID } from '@/types/api.types';
 import { CopyableId } from '@/components/common/CopyableId';
+import { CopyableValue } from '@/components/common/CopyableValue';
 
 /** An approval id is 24-hex — unlike session and challenge ids, which are UUIDs. */
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
@@ -207,6 +208,9 @@ function ApprovalDetailScreen({ approvalId }: { approvalId: string }) {
                         <Definition label="Status">
                             <ApprovalStatusBadge status={approval.status} />
                         </Definition>
+                        {/* A permission name, not a value — the same string the
+                            paragraph above renders as inline code, and the thing
+                            an approver must *hold* rather than paste. */}
                         <Definition label="Action">
                             <span className="font-mono text-xs">{approval.action}</span>
                         </Definition>
@@ -214,7 +218,11 @@ function ApprovalDetailScreen({ approvalId }: { approvalId: string }) {
                             {approval.requestedBy === admin.id ? (
                                 'You'
                             ) : (
-                                <span className="font-mono text-xs">{approval.requestedBy}</span>
+                                <CopyableValue
+                                    value={approval.requestedBy}
+                                    label="requester ID"
+                                    truncate={false}
+                                />
                             )}
                             <span className="text-muted-foreground">
                                 {' '}
@@ -231,14 +239,35 @@ function ApprovalDetailScreen({ approvalId }: { approvalId: string }) {
                             ) : null}
                         </Definition>
                         <Definition label="Target">
-                            <span className="font-mono text-xs">
-                                {approval.targetType} · {approval.targetId}
-                            </span>
+                            {/* Two different things were sharing one span: the
+                                type is vocabulary, the id is the value. Split so
+                                the copy button takes the id alone.
+
+                                ⚠ `plain`, not `id`: `targetId` is *"whatever the
+                                queued action operates on — not necessarily a
+                                Mongo id"*, so head-and-tail shortening would be
+                                shortening a string of unknown shape. The variant
+                                refuses it outright rather than trusting a prop. */}
+                            <span className="font-mono text-xs">{approval.targetType}</span>
+                            {' · '}
+                            <CopyableValue
+                                variant="plain"
+                                mono
+                                value={approval.targetId}
+                                label="target ID"
+                            />
                         </Definition>
                         <Definition label="Decided by">
                             {approval.approverId ? (
-                                <span className="font-mono text-xs">{approval.approverId}</span>
+                                <CopyableValue
+                                    value={approval.approverId}
+                                    label="approver ID"
+                                    truncate={false}
+                                />
                             ) : (
+                                // "Not decided" rather than `NotSet`'s "Not set":
+                                // the field is empty because nobody has signed
+                                // yet, not because the record lacks it.
                                 <NotSet>Not decided</NotSet>
                             )}
                         </Definition>

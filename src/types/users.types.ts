@@ -22,6 +22,7 @@
  *    no `POST /users` or `DELETE /users/:id` to write a payload for.
  */
 
+import { partyName } from '@/lib/party';
 import type { ActorStamp } from '@/types/actor.types';
 
 /**
@@ -389,9 +390,22 @@ export const USER_AUDIT_ACTION_LABELS: Record<string, string> = {
  * a name has to fall through both before landing on the id. The id is a genuine
  * last resort rather than a placeholder: it is what an administrator pastes into
  * the search box, so showing it is useful even when it is ugly.
+ *
+ * ⚠ There is **no name at all** on this projection — a `users` row is a login
+ * identity, not a person — so every answer here is an identifier standing in for
+ * one. That is a property of the surface, not of the fallback rule.
+ *
+ * ⚠ **Behaviour change**: this used `??`, so an empty or whitespace-only `email`
+ * rendered a blank cell. It now falls through — see `lib/party.ts`.
  */
 export function userDisplayName(user: Pick<User, 'id' | 'email' | 'phone'>): string {
-    return user.email ?? user.phone ?? user.id;
+    return partyName(
+        [
+            { source: 'email', value: user.email },
+            { source: 'phone', value: user.phone },
+        ],
+        { source: 'id', value: user.id },
+    );
 }
 
 /** The identifier not used as the display name, when there is one. */

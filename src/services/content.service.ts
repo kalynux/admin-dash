@@ -37,8 +37,10 @@ import type {
     ArticleListQuery,
     ArticleSummary,
     AuthorKey,
+    ContentLocale,
     CreateArticleBody,
     CreateAuthorBody,
+    PublicArticleDetail,
     PublishArticleBody,
     UpdateArticleBody,
     UpdateAuthorBody,
@@ -93,15 +95,32 @@ export function getArticle(key: ArticleKey, options?: RequestOptions): Promise<A
  * and a preview is an authenticated read of what it would look like if it were
  * not. **Do not ask for a flag that makes the public route serve drafts.**
  *
- * Typed `unknown` because the public projection is jovi-mall's shape and is not
- * documented in this repository — render it, do not model it.
+ * ✅ **Typed, since BR-019 § 3.** It returned `unknown` for a round because the
+ * projection was documented nowhere; `content.md` now carries a
+ * `### The public shape` section and names the source file, and
+ * [`docs/admin/public-article-dto.ts`](../../docs/admin/public-article-dto.ts)
+ * mirrors it byte for byte. The DTO is **wi-admin's own** — not a jovi-mall
+ * shape reached over HTTP — and `content-contract.test.ts` diffs
+ * `PublicArticleDetail` against the mirror.
+ *
+ * ⚠ **`?locale=` is REQUIRED and the query schema is `.strict()`** — unlike the
+ * list endpoints, an unrecognised parameter here is a `400` rather than a
+ * silent drop. An article with no translation in that language answers
+ * `404 BLOG_ARTICLE_NOT_FOUND` with `details: { id, locale }`.
+ *
+ * ⚠ **It can only render a SAVED article**, which is why the editor also
+ * carries a local renderer for unsaved state. The two are complements: this one
+ * is exact and behind by one save, the local one is approximate and current.
  */
 export function previewArticle(
     key: ArticleKey,
-    locale: string,
+    locale: ContentLocale,
     options?: RequestOptions,
-): Promise<unknown> {
-    return api.get<unknown>(withQuery(`${articlePath(key)}/preview`, { locale }), options);
+): Promise<PublicArticleDetail> {
+    return api.get<PublicArticleDetail>(
+        withQuery(`${articlePath(key)}/preview`, { locale }),
+        options,
+    );
 }
 
 /**

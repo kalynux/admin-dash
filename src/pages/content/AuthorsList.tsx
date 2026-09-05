@@ -3,6 +3,7 @@ import { PenLine, RotateCw, Trash2, UserPlus } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
 import { AuthorFormDialog } from '@/components/content/AuthorFormDialog';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
@@ -113,7 +114,20 @@ export function AuthorsList() {
             cell: (row) => (
                 <div className="min-w-0 space-y-0.5">
                     <p className="text-sm font-medium">{row.name}</p>
-                    <p className="text-muted-foreground font-mono text-xs">{row.id}</p>
+                    {/*
+                      ⚠ `plain`, not `id` — an author id is a kebab key, not an
+                      ObjectId, so there is no redundant middle to shorten. It
+                      also has to stay whole to be *findable*: the search box
+                      above matches on this string, and truncating it would show
+                      a row whose visible id does not contain what was typed.
+                    */}
+                    <CopyableValue
+                        variant="plain"
+                        mono
+                        value={row.id}
+                        label="author ID"
+                        className="text-muted-foreground"
+                    />
                 </div>
             ),
         },

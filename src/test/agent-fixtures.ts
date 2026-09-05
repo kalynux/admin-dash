@@ -17,6 +17,7 @@ import type {
     CodAllocation,
     TrackingPolicy,
 } from '@/types/agents.types';
+import type { AgentContract } from '@/types/contracts.types';
 
 /** A healthy agent: active, verified, unbanned, trackable, online, not full. */
 export function agentFixture(overrides: Partial<Agent> = {}): Agent {
@@ -241,4 +242,63 @@ export function agentListMetaFixture(
     overrides: Partial<{ total: number; page: number; limit: number; pages: number }> = {},
 ) {
     return { total: 1, page: 1, limit: 20, pages: 1, ...overrides };
+}
+
+/**
+ * A row of `GET /agents/:agentId/contracts` — the agent's roster.
+ *
+ * ⚠ **`agency.businessName` is on this row and is the whole point of the
+ * fixture.** It landed at BR-006 and neither `AgentContract` nor the panel that
+ * renders it had taken it, so the roster went on showing `contactName` — the
+ * agency's contact *person* — under a column headed "Agency". Nothing caught it
+ * because there was no fixture for this shape at all.
+ *
+ * The two names are deliberately different people-vs-company strings here, so a
+ * test that asserts the wrong one fails loudly rather than matching both.
+ */
+export function agentContractFixture(overrides: Partial<AgentContract> = {}): AgentContract {
+    return {
+        id: '6671aabbccddeeff00112240',
+        agentId: '6660112233445566778899aa',
+        agencyId: '6650bb22cc33dd44ee55ff66',
+        status: 'active',
+        origin: 'agency_invite',
+        isPrimary: true,
+        cod: {
+            threshold: 90000,
+            outstandingBalance: 12500,
+            lastSettledAt: '2026-08-10T09:00:00.000Z',
+        },
+        payment: { outstandingToAgent: 18500, lastPaidAt: '2026-08-01T09:00:00.000Z' },
+        terms: {
+            employment: null,
+            remittance: null,
+            feeSplit: null,
+            // ⚠ Empty means EVERY region, not none.
+            coverageRegions: [],
+            shipmentValueCeiling: null,
+            proposedBy: 'agency',
+            version: 3,
+        },
+        lifecycle: {
+            approvedAt: '2026-02-11T14:20:00.000Z',
+            suspendedAt: null,
+            suspensionReason: null,
+            deactivatedAt: null,
+            deactivationReason: null,
+            withdrawnAt: null,
+            withdrawalReason: null,
+        },
+        agency: {
+            id: '6650bb22cc33dd44ee55ff66',
+            businessName: 'Littoral Express Delivery',
+            status: 'active',
+            // ⚠ A PERSON. Never the business — see the fixture note.
+            contactName: 'Nadege Mballa',
+            country: 'CM',
+        },
+        createdAt: '2026-02-11T09:00:00.000Z',
+        updatedAt: '2026-08-02T10:11:00.000Z',
+        ...overrides,
+    };
 }

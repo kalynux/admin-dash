@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
 import { Undo2 } from 'lucide-react';
 
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
@@ -137,12 +137,11 @@ export function RefundsList() {
                 className: 'align-top',
                 cell: (row) =>
                     row.paymentTransactionId ? (
-                        <Link
+                        <CopyableValue
+                            value={row.paymentTransactionId}
+                            label="payment ID"
                             to={`/dashboard/money/payments/${row.paymentTransactionId}`}
-                            className="font-mono text-xs break-all hover:underline"
-                        >
-                            {row.paymentTransactionId}
-                        </Link>
+                        />
                     ) : (
                         <NotSet>No payment linked</NotSet>
                     ),
@@ -151,18 +150,22 @@ export function RefundsList() {
                 id: 'vendor',
                 header: 'Vendor',
                 className: 'align-top',
+                /*
+                  One render, two shapes: the permission decides whether there is
+                  somewhere to go, never whether the id can be copied. Quoting a
+                  vendor id in a ticket needs no `vendors.read`.
+                */
                 cell: (row) =>
                     row.vendorId ? (
-                        can('vendors.read') ? (
-                            <Link
-                                to={`/dashboard/vendors/${row.vendorId}`}
-                                className="font-mono text-xs break-all hover:underline"
-                            >
-                                {row.vendorId}
-                            </Link>
-                        ) : (
-                            <span className="font-mono text-xs break-all">{row.vendorId}</span>
-                        )
+                        <CopyableValue
+                            value={row.vendorId}
+                            label="vendor ID"
+                            to={
+                                can('vendors.read')
+                                    ? `/dashboard/vendors/${row.vendorId}`
+                                    : undefined
+                            }
+                        />
                     ) : (
                         <NotSet />
                     ),

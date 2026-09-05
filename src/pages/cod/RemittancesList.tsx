@@ -7,6 +7,7 @@ import {
     ConfirmRemittanceDialog,
     RejectRemittanceDialog,
 } from '@/components/cod/CodWriteDialogs';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
@@ -107,18 +108,34 @@ export function RemittancesList() {
                 className: 'align-top',
                 cell: (row) => (
                     <div className="min-w-0 space-y-1">
-                        <Link
-                            to={`/dashboard/cod/remittances/${row.id}`}
-                            className="font-medium hover:underline"
-                        >
-                            {/*
-                              The bank reference is how a person recognises this
-                              row against a statement. Where there is none, the id
-                              is all there is — and its absence is worth showing
-                              rather than hiding behind the id silently.
-                            */}
-                            {row.reference ?? 'No reference'}
-                        </Link>
+                        {/*
+                          The bank reference is how a person recognises this row
+                          against a statement — so it keeps its link to the record
+                          and gains a copy button beside it, as `plain`: it is
+                          reconciled character for character and must never be
+                          shortened.
+
+                          Where there is none, the plain link stays. Its absence
+                          is worth showing rather than hiding behind the id
+                          silently, and `NotSet` would take the way in with it.
+                        */}
+                        {row.reference ? (
+                            <CopyableValue
+                                variant="plain"
+                                mono={false}
+                                value={row.reference}
+                                label="remittance reference"
+                                to={`/dashboard/cod/remittances/${row.id}`}
+                                className="font-medium"
+                            />
+                        ) : (
+                            <Link
+                                to={`/dashboard/cod/remittances/${row.id}`}
+                                className="font-medium hover:underline"
+                            >
+                                No reference
+                            </Link>
+                        )}
                         {row.note ? (
                             <p className="text-muted-foreground line-clamp-1 text-xs">
                                 {row.note}
@@ -131,17 +148,24 @@ export function RemittancesList() {
                 id: 'agency',
                 header: 'Agency',
                 className: 'align-top',
-                cell: (row) =>
-                    can('agencies.read') ? (
-                        <Link
-                            to={`/dashboard/agencies/${row.agencyId}`}
-                            className="font-mono text-xs hover:underline"
-                        >
-                            {row.agencyId}
-                        </Link>
-                    ) : (
-                        <CopyableId value={row.agencyId} label="agency ID" />
-                    ),
+                /*
+                  One render, two shapes. The two branches used to disagree about
+                  more than the link: only the permission-less one was copyable,
+                  so the operator who COULD open the agency was the one who could
+                  not quote its id. `agencies.read` decides whether there is
+                  somewhere to go and nothing else.
+                */
+                cell: (row) => (
+                    <CopyableId
+                        value={row.agencyId}
+                        label="agency ID"
+                        to={
+                            can('agencies.read')
+                                ? `/dashboard/agencies/${row.agencyId}`
+                                : undefined
+                        }
+                    />
+                ),
             },
             {
                 id: 'amount',

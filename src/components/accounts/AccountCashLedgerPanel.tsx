@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Wallet } from 'lucide-react';
 
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { NotSet } from '@/components/common/DefinitionList';
@@ -127,9 +128,19 @@ export function AccountCashLedgerPanel({
                             <p className="text-xs capitalize">
                                 {humaniseEnum(entry.ref.type) ?? '—'}
                             </p>
-                            <p className="text-muted-foreground font-mono text-xs break-all">
-                                {entry.ref.id}
-                            </p>
+                            {/*
+                              The source record this movement came from — a
+                              deposit, a remittance, an order — and the type above
+                              is the only thing saying which. Nothing here can
+                              link to it, so copying the id is the whole errand.
+                              Shortened because it is the muted second line of a
+                              table cell; the whole value is copied.
+                            */}
+                            <CopyableValue
+                                value={entry.ref.id}
+                                label="source ID"
+                                className="text-muted-foreground"
+                            />
                         </div>
                     ) : (
                         /* Nullable, despite the doc example showing it always present. */

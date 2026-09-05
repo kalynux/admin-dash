@@ -49,7 +49,10 @@ import type {
     VendorActivityQuery,
     VendorDetail,
     VendorListQuery,
+    VendorAgencyConnection,
+    VendorAgencyConnectionQuery,
     VendorProduct,
+    VendorProductDetail,
     VendorProductListQuery,
     VendorSettingsResult,
 } from '@/types/vendors.types';
@@ -92,6 +95,16 @@ export interface VendorProductPage {
     };
 }
 
+export interface VendorAgencyConnectionPage {
+    data: VendorAgencyConnection[];
+    meta: {
+        total: number;
+        page: number;
+        limit: number;
+        pages: number;
+    };
+}
+
 /**
  * Coerce the envelope's `meta` into numbers, keeping the vendor-only flag.
  *
@@ -120,6 +133,20 @@ function toPage(page: Paginated<Vendor>): VendorPage {
 }
 
 function toProductPage(page: Paginated<VendorProduct>): VendorProductPage {
+    return {
+        data: page.data,
+        meta: {
+            total: Number(page.meta.total ?? 0),
+            page: Number(page.meta.page ?? 1),
+            limit: Number(page.meta.limit ?? page.data.length),
+            pages: Number(page.meta.pages ?? (page.data.length > 0 ? 1 : 0)),
+        },
+    };
+}
+
+function toConnectionPage(
+    page: Paginated<VendorAgencyConnection>,
+): VendorAgencyConnectionPage {
     return {
         data: page.data,
         meta: {
@@ -189,6 +216,83 @@ export async function listVendorProducts(
     return toProductPage(
         await api.list<VendorProduct>(
             withQuery(`/vendors/${encodeURIComponent(vendorId)}/products`, { ...query }),
+            options,
+        ),
+    );
+}
+
+/**
+ * `GET /vendors/:vendorId/products/:productId` · `vendors.read` — one listing, in
+ * full.
+ *
+ * Granted at BR-005 and in `ROUTE-MAP.md` since; it had no function here until
+ * Phase B2, which is why the catalogue tab could only ever show the thirteen
+ * fields a list row carries.
+ *
+ * ── ⚠ It is DELEGATED, so a "not found" does not arrive as `NOT_FOUND` ────────
+ * The only delegated *read* on this whole gateway, and for a stated reason
+ * (ADR-009 D-6): `media` needs `storage.getPublicUrl(key)` and `storage` needs
+ * jovi-mall's fee calculator, neither of which wi-admin owns. The consequence at
+ * the call site is the part that bites — a missing vendor **or** a product that
+ * is not theirs both come back as **`404 PLATFORM_OPERATION_REJECTED`** carrying
+ * `VENDOR_NOT_FOUND` or `CATALOG_PRODUCT_NOT_FOUND` in `details.platformCode`.
+ * `ApiError.isNotFound` still answers on the status, so an ordinary
+ * "no such record" branch works; anything wanting to tell the two apart must read
+ * `platformCode`, never `error.code`.
+ *
+ * Scoped by **both** ids: the ownership is the authorisation. A malformed id is a
+ * `400 VALIDATION_ERROR` at the edge before either lookup runs.
+ *
+ * **Not audited.** It is a read, and this service audits exactly one of those —
+ * the payout destination, where the disclosure *is* the action. Opening a
+ * product listing is not.
+ */
+export function getVendorProduct(
+    vendorId: string,
+    productId: string,
+    options?: RequestOptions,
+): Promise<VendorProductDetail> {
+    return api.get<VendorProductDetail>(
+        `/vendors/${encodeURIComponent(vendorId)}/products/${encodeURIComponent(productId)}`,
+        options,
+    );
+}
+
+/**
+ * `GET /vendors/:vendorId/agencies` · **`vendors.read` AND `agencies.read`**,
+ * `all` mode — the vendor's delivery-agency connections, as rows.
+ *
+ * Granted at BR-018. The mirror image of the agency roster, and the enumeration
+ * behind `counts.agencyConnections`: the seven integers on the vendor detail say
+ * six connections are active, and these rows say **which** six.
+ *
+ * ── ⚠ The second permission is not incidental ────────────────────────────────
+ * The rows carry business names, contact people and commercial state, so gating
+ * on `vendors.read` alone would make this a second door onto the agency
+ * directory. Gate the affordance with
+ * `<Can permission={['vendors.read','agencies.read']} mode="all">` — `satisfies`
+ * takes no default mode precisely so this cannot be read as `any`. A caller
+ * holding one and not the other gets a `403` whose `details.required` names the
+ * **missing** one, so a client can say which permission is short.
+ *
+ * ── A direct read, unlike every write on the same collection ─────────────────
+ * A `vendor_agency_connections` document is a *record*, and there is no verdict
+ * on this surface. Every **write** on the collection stays delegated, and there
+ * the reason is concrete: a status change suspends or restores the vendor's
+ * products in the same transaction.
+ *
+ * `status` is validated for shape rather than membership, so send jovi-mall's
+ * token through unchanged and render an unrecognised one rather than rejecting
+ * it. A blank string is a `400`; `buildQuery` already drops `''`.
+ */
+export async function listVendorAgencyConnections(
+    vendorId: string,
+    query: VendorAgencyConnectionQuery = {},
+    options?: RequestOptions,
+): Promise<VendorAgencyConnectionPage> {
+    return toConnectionPage(
+        await api.list<VendorAgencyConnection>(
+            withQuery(`/vendors/${encodeURIComponent(vendorId)}/agencies`, { ...query }),
             options,
         ),
     );

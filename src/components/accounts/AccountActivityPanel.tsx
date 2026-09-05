@@ -124,7 +124,17 @@ export function AccountActivityPanel({
                             <Badge variant="outline" className="text-[11px]">
                                 {ACCOUNT_ACTIVITY_CATEGORY_LABELS[item.category] ?? item.category}
                             </Badge>
-                            {/* Unenumerated in both services — rendered raw, never switched on. */}
+                            {/*
+                              Unenumerated in both services — rendered raw, never
+                              switched on.
+
+                              Mono, but not a `CopyableValue`: this is the row's
+                              kind (`plan_purchase`, `credit_topup`), a vocabulary
+                              rather than an identifier. The feed carries no
+                              opaque value at all — `item.id` is a merge key the
+                              server invents and names nothing an operator can
+                              look up.
+                            */}
                             <span className="text-muted-foreground font-mono text-xs">
                                 {item.type}
                             </span>

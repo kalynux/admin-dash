@@ -173,6 +173,21 @@ export function NotificationRow({
                         {/* Rendered raw, never switched on. */}
                         {notification.severity}
                     </Badge>
+                    {/*
+                      ⚠ Mono, and deliberately **not** a `CopyableValue`. The
+                      A2 sweep replaces value renders — an id, a reference, an
+                      address — and `type` is none of those: it is the row's
+                      enum, rendered raw beside the severity badge for the same
+                      reason that badge is. Nothing pastes it anywhere.
+
+                      Worth stating because this row is the awkward case the
+                      primitive's copy button calls `preventDefault()` and
+                      `stopPropagation()` for — the anchor above stretches an
+                      overlay across the whole row, so any control inside it
+                      that does not stop the event navigates instead of acting.
+                      Nothing here needs that today; the *other* value on this
+                      model, `target.id`, is never rendered at all.
+                    */}
                     <span className="font-mono">{notification.type}</span>
                     <span>·</span>
                     <time dateTime={notification.occurredAt}>{occurred}</time>

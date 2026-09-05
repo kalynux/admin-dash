@@ -42,6 +42,10 @@ import type {
     ArticleTranslationInput,
     CreateArticleBody,
     CreateAuthorBody,
+    PublicArticleCover,
+    PublicArticleDetail,
+    PublicArticleSummary,
+    PublicAuthor,
     UpdateArticleBody,
     UpdateAuthorBody,
 } from '@/types/content.types';
@@ -50,11 +54,31 @@ import { ARTICLE_SORT_DEFAULT, ARTICLE_SORT_KEYS, toTranslationInput } from '@/t
 const here = dirname(fileURLToPath(import.meta.url));
 const dto = readFileSync(resolve(here, '../../docs/admin/content-dto.ts'), 'utf8');
 const validators = readFileSync(resolve(here, '../../docs/admin/content-validators.ts'), 'utf8');
+/**
+ * The fifth mirror, taken 2026-08-26 for § E2.
+ *
+ * ⚠ **The backend deliberately did NOT write this one**, and said why: the
+ * mirror mechanism is entirely frontend-side — we copy their source into
+ * `docs/admin/` and diff against it here — so a sixth file on their side would
+ * have had nothing to diff against. `content.md`'s `### The public shape`
+ * section names the source path and says *"mirror the source file rather than
+ * transcribing this table"*. This is that file.
+ */
+const publicDto = readFileSync(resolve(here, '../../docs/admin/public-article-dto.ts'), 'utf8');
 
 /** The property names declared in `interface Name { … }` in the DTO mirror. */
 function dtoFields(name: string): string[] {
-    const match = new RegExp(`interface ${name}[^{]*\\{([\\s\\S]*?)\\n\\}`).exec(dto);
-    expect(match, `${name} is no longer an interface in the DTO mirror`).not.toBeNull();
+    return interfaceFields(dto, name, 'the DTO mirror');
+}
+
+/** The same, in the public-projection mirror. */
+function publicFields(name: string): string[] {
+    return interfaceFields(publicDto, name, 'the public DTO mirror');
+}
+
+function interfaceFields(source: string, name: string, where: string): string[] {
+    const match = new RegExp(`interface ${name}[^{]*\\{([\\s\\S]*?)\\n\\}`).exec(source);
+    expect(match, `${name} is no longer an interface in ${where}`).not.toBeNull();
     return fieldsIn(match![1]);
 }
 
@@ -142,6 +166,7 @@ describe('the article shape', () => {
             updatedAt: 0,
             archivedAt: 0,
             availableLocales: 0,
+            sourceLocale: 0,
             createdBy: 0,
             updatedBy: 0,
             createdAt: 0,
@@ -159,6 +184,29 @@ describe('the article shape', () => {
         expect(dtoFields('AdminArticleBaseDto')).not.toContain('key');
         expect(dtoFields('AdminArticleBaseDto')).toContain('authorId');
         expect(dtoFields('AdminArticleBaseDto')).not.toContain('authorKey');
+    });
+
+    it('names the language the article was written in, so nothing derives it from a position', () => {
+        /**
+         * 🔴 **The assertion this repository owed after BR-019 § 1.** § E3 was
+         * planned on `translations[0]` being "the language the article was
+         * created in". It is not: `translations` comes back in the order the
+         * last write sent it, a `PATCH` is a full-array replace, and nothing on
+         * the service reorders it — so a client that sorts for display and saves
+         * repoints a positional driver with a request that cannot fail.
+         *
+         * The field is stamped at create and never mutated, and the mirror's own
+         * comment says **"use this, never `translations[0]`"**. Pinned here on
+         * its own so a re-copy that removed it fails naming the field rather than
+         * disappearing into a set diff — which is exactly how the stale mirror
+         * that hid it for two days went unnoticed.
+         */
+        expect(dtoFields('AdminArticleBaseDto')).toContain('sourceLocale');
+        expect(dto).toContain('Use this, never `translations[0]`');
+        // It lives on the base DTO, so the LIST rows carry it too — the article
+        // inbox picks a title per row and would otherwise have to guess.
+        expect(dtoFields('AdminArticleSummaryDto')).not.toContain('sourceLocale');
+        expect(dto).toContain('AdminArticleSummaryDto extends AdminArticleBaseDto');
     });
 
     it('matches the cover schema, which is where `alt` used to be', () => {
@@ -208,6 +256,7 @@ describe('the article shape', () => {
             updatedAt: 0,
             archivedAt: 0,
             availableLocales: 0,
+            sourceLocale: 0,
             createdBy: 0,
             updatedBy: 0,
             createdAt: 0,
@@ -311,6 +360,114 @@ describe('the translation shape', () => {
         expect(narrowed.metaTitle).toBe('Un titre pour la recherche');
         expect(narrowed.coverAlt).toBe('Un étal acceptant un paiement mobile');
         expect(narrowed.published).toBe(false);
+    });
+});
+
+describe('the public shape — what `/preview` returns', () => {
+    /**
+     * ⚠ **A different shape from the editor's, not "the editor's minus a few
+     * fields".** `previewArticle` returned `unknown` until BR-019 § 3 because
+     * nothing documented it; typing it off the field table in `content.md`
+     * rather than off the source would have been the exact mistake that made the
+     * whole module wrong on the wire for months. So it is diffed against the
+     * mirror, like everything else here.
+     */
+    it('parses the public mirror at all', () => {
+        expect(publicFields('PublicArticleSummaryDto').length).toBeGreaterThan(10);
+    });
+
+    it('names every field the detail projection carries, and invents none', () => {
+        const wire = [...publicFields('PublicArticleSummaryDto'), 'body'];
+
+        const ours = keysOf<Required<PublicArticleDetail>>({
+            id: 0,
+            locale: 0,
+            slug: 0,
+            title: 0,
+            metaTitle: 0,
+            excerpt: 0,
+            categoryKey: 0,
+            author: 0,
+            publishedAt: 0,
+            updatedAt: 0,
+            featured: 0,
+            cover: 0,
+            wordCount: 0,
+            availableLocales: 0,
+            body: 0,
+        });
+
+        expectSameFields(ours, wire, 'PublicArticleDetail');
+    });
+
+    it('keeps `metaTitle` and `updatedAt` OPTIONAL, because the public DTO omits them', () => {
+        /**
+         * ⚠ **The one difference that would break a renderer silently.** The
+         * admin DTO nulls both; this one **drops the key**. A type that declared
+         * `metaTitle: string | null` would compile against a payload that does
+         * not have the property at all, and `null`-checking prose that is simply
+         * absent renders an empty `<title>` override rather than none.
+         *
+         * `Required<>` above proves the fields exist; these two prove they are
+         * declared `?:` rather than nullable.
+         */
+        const optional: PublicArticleSummary = {
+            id: 'a',
+            locale: 'en',
+            slug: 'a',
+            title: 'A',
+            excerpt: 'A',
+            categoryKey: 'payments',
+            author: null,
+            publishedAt: '2026-08-01T00:00:00.000Z',
+            featured: false,
+            cover: null,
+            wordCount: 0,
+            availableLocales: [],
+        };
+        expect('metaTitle' in optional).toBe(false);
+        expect('updatedAt' in optional).toBe(false);
+
+        // And the mirror still says so, in both directions.
+        expect(publicDto).toContain('metaTitle?: string;');
+        expect(publicDto).toContain('updatedAt?: string;');
+        // `cover` is the exception and is an explicit null — "no cover" is a
+        // state the card renders rather than a field it skips.
+        expect(publicDto).toContain('cover: PublicArticleCover | null;');
+    });
+
+    it('puts `alt` back on the cover, assembled from this language’s coverAlt', () => {
+        /**
+         * ⚠ **The admin cover has no `alt` and the public one does**, and that
+         * is not a contradiction: the stored image is shared across languages
+         * and the sentence describing it is per locale, so the projection
+         * reassembles `{ url, alt, width, height }` for the one language it is
+         * serving. Sending `alt` to the *write* schema is still a `400`.
+         */
+        const ours = keysOf<PublicArticleCover>({ url: 0, alt: 0, width: 0, height: 0 });
+        expectSameFields(ours, [...schemaFields('CoverSchema'), 'alt'], 'PublicArticleCover');
+        expect(publicDto).toContain('interface PublicArticleCover extends ArticleCover');
+    });
+
+    it('resolves the byline into one language and never names an administrator', () => {
+        const ours = keysOf<PublicAuthor>({
+            id: 0,
+            name: 0,
+            type: 0,
+            title: 0,
+            bio: 0,
+            avatarUrl: 0,
+        });
+        expectSameFields(ours, publicFields('PublicAuthorDto'), 'PublicAuthor');
+
+        // The three that must never reach a public payload. Asserted against the
+        // mirror rather than against our own type, because our type not having
+        // them proves nothing about what the service sends.
+        for (const staff of ['createdBy', 'updatedBy', 'status']) {
+            expect(publicFields('PublicArticleSummaryDto'), `${staff} is staff or draft state`).not.toContain(
+                staff,
+            );
+        }
     });
 });
 

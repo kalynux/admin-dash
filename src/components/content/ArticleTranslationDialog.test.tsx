@@ -23,7 +23,10 @@ function translation(overrides: Partial<ArticleTranslation> = {}): ArticleTransl
     };
 }
 
-function article(translations: ArticleTranslation[]): Article {
+function article(
+    translations: ArticleTranslation[],
+    overrides: Partial<Article> = {},
+): Article {
     return {
         id: 'getting-paid-on-whatsapp',
         status: 'draft',
@@ -36,11 +39,20 @@ function article(translations: ArticleTranslation[]): Article {
         updatedAt: null,
         archivedAt: null,
         availableLocales: translations.map((row) => row.locale),
+        /*
+          ⚠ **Set, and deliberately NOT `translations[0].locale`.** Several tests
+          below pass the array with French first precisely because the two
+          disagree — `translations` comes back in the order the last write sent
+          it, so a fixture that let them agree would pass for a driver derived
+          from a position, which is the defect BR-019 § 1 shipped a field to fix.
+        */
+        sourceLocale: 'en',
         createdBy: null,
         updatedBy: null,
         createdAt: '2026-08-01T00:00:00.000Z',
         lastSavedAt: '2026-08-01T00:00:00.000Z',
         translations,
+        ...overrides,
     };
 }
 
@@ -251,5 +263,160 @@ describe('the body blocks the save', () => {
         expect(await screen.findByText(/duplicate anchor id/i)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /save this language/i })).toBeDisabled();
         expect(calls).toHaveLength(0);
+    });
+});
+
+// ─── § E3 · structural inheritance ───────────────────────────────────────────
+
+const para = (text: string): ArticleTranslation['body'][number] => ({
+    type: 'paragraph',
+    text: [{ type: 'text', text }],
+});
+
+describe('a language inherits the source language’s components', () => {
+    it('starts a new language on a clone of the source language’s blocks', async () => {
+        /**
+         * The operator ask: *"the first blog is the component driver; all other
+         * language blogs added for the same article inherit the same
+         * components."* Adding a language does not start on a blank paragraph —
+         * it starts on the article's structure, carrying the source's words
+         * until they are replaced.
+         */
+        const en = translation({ body: [para('One'), para('Two')] });
+        const calls = stubFetch(() => successResponse({ id: 'getting-paid-on-whatsapp' }));
+
+        open(article([en]));
+
+        expect(screen.getByText(/structure inherited from en/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/not yet translated/i)).toHaveLength(2);
+
+        await userEvent.type(screen.getByLabelText(/^slug$/i), 'etre-paye');
+        await userEvent.type(screen.getByLabelText(/^title$/i), 'Être payé');
+        await userEvent.type(screen.getByLabelText(/excerpt/i), 'Comment.');
+        await userEvent.click(screen.getByRole('button', { name: /add this language/i }));
+
+        const rows = body(calls[calls.length - 1]).translations;
+        const added = rows.find((row: { locale: string }) => row.locale !== 'en');
+        expect(added.body).toHaveLength(2);
+    });
+
+    it('reads the source language from `sourceLocale`, not from a position', async () => {
+        /**
+         * 🔴 **The premise § E3 was planned on, and the backend falsified it.**
+         * `translations` comes back in the order the last write sent it, so
+         * `translations[0]` is "the first element of the most recent PATCH".
+         * Here the array is `[fr, en]` and the source is `en`, so a positional
+         * implementation would seed the new language from **French**.
+         */
+        const en = translation({ locale: 'en', body: [para('The English block')] });
+        const fr = translation({ locale: 'fr', slug: 'fr-slug', body: [para('Le bloc français')] });
+
+        open(article([fr, en], { sourceLocale: 'en' }));
+
+        expect(screen.getByText(/structure inherited from en/i)).toBeInTheDocument();
+        expect(
+            within(screen.getByRole('dialog')).getAllByLabelText(/^text run 1$/i)[0],
+        ).toHaveValue('The English block');
+    });
+
+    it('appends what the source language grew, and keeps the words already written', () => {
+        // The additive half, and it is automatic **because** it destroys
+        // nothing: a block the driver gained appears here carrying the driver's
+        // words, and every block already translated is left alone.
+        const en = translation({ body: [para('One'), para('Two')] });
+        const fr = translation({ locale: 'fr', slug: 'fr-slug', body: [para('Un')] });
+
+        open(article([en, fr]), fr);
+
+        // ⚠ /run 1/ also matches each run's "Remove run 1" button — anchored.
+        const runs = within(screen.getByRole('dialog')).getAllByLabelText(/^text run 1$/i);
+        expect(runs[0]).toHaveValue('Un');
+        expect(runs[1]).toHaveValue('Two');
+        expect(screen.getAllByText(/not yet translated/i)).toHaveLength(1);
+    });
+
+    it('never locks the source language’s own editor', () => {
+        const en = translation({ body: [para('One')] });
+        const fr = translation({ locale: 'fr', slug: 'fr-slug', body: [para('Un')] });
+
+        open(article([en, fr], { sourceLocale: 'en' }), en);
+
+        expect(screen.getByLabelText(/add a block/i)).toBeInTheDocument();
+        expect(screen.getByLabelText(/remove block 1/i)).toBeEnabled();
+    });
+});
+
+describe('removing a component is confirmed per language, never silent', () => {
+    /**
+     * 🔴 **The most expensive mistake available on this endpoint, in its
+     * sharpest form.** `translations` is a full-array replace and this dialog
+     * sends every language on every save — so a literal reading of *"a deleted
+     * component should equally affect all other languages"* is one request that
+     * destroys translated prose in up to four languages, with a `200` and no
+     * undo.
+     */
+    const en = () => translation({ body: [para('One'), para('Two'), para('Three')] });
+    const fr = () =>
+        translation({
+            locale: 'fr',
+            slug: 'fr-slug',
+            body: [para('Un'), para('Deux'), para('Trois')],
+        });
+
+    it('leaves the other languages untouched when nothing is ticked', async () => {
+        const calls = stubFetch(() => successResponse({ id: 'getting-paid-on-whatsapp' }));
+
+        open(article([en(), fr()], { sourceLocale: 'en' }), en());
+        await userEvent.click(screen.getByLabelText(/remove block 2/i));
+
+        expect(
+            await screen.findByText(/components of this article have changed/i),
+        ).toBeInTheDocument();
+        await userEvent.click(screen.getByRole('button', { name: /save this language/i }));
+
+        const rows = body(calls[calls.length - 1]).translations;
+        const french = rows.find((row: { locale: string }) => row.locale === 'fr');
+        expect(french.body).toHaveLength(3);
+    });
+
+    it('names what each language would lose before it is ticked', async () => {
+        open(article([en(), fr()], { sourceLocale: 'en' }), en());
+        await userEvent.click(screen.getByLabelText(/remove block 2/i));
+
+        // The sentence leads with the prose, not the block count: "one block
+        // removed" reads as tidying.
+        expect(
+            await screen.findByText(/1 block of fr prose would be destroyed/i),
+        ).toBeInTheDocument();
+    });
+
+    it('carries the right prose across when a language IS ticked', async () => {
+        /**
+         * ⚠ **By origin, never by position.** Removing the middle paragraph must
+         * leave French reading `[Un, Trois]`. Keeping whatever block has the
+         * same type at each index — the obvious implementation — leaves it
+         * reading `[Un, Deux]`, which renders perfectly and is wrong.
+         */
+        const calls = stubFetch(() => successResponse({ id: 'getting-paid-on-whatsapp' }));
+
+        open(article([en(), fr()], { sourceLocale: 'en' }), en());
+        await userEvent.click(screen.getByLabelText(/remove block 2/i));
+        await userEvent.click(await screen.findByLabelText(/apply to fr/i));
+        await userEvent.click(screen.getByRole('button', { name: /save this language/i }));
+
+        const rows = body(calls[calls.length - 1]).translations;
+        const french = rows.find((row: { locale: string }) => row.locale === 'fr');
+        expect(french.body).toEqual([para('Un'), para('Trois')]);
+    });
+
+    it('says nothing when the only change was adding a block', async () => {
+        // Additions are carried when each language is next opened, so there is
+        // nothing to confirm and nothing that can be lost.
+        open(article([en(), fr()], { sourceLocale: 'en' }), en());
+
+        await userEvent.click(screen.getByLabelText(/add a block/i));
+        await userEvent.click(await screen.findByRole('option', { name: /^divider/i }));
+
+        expect(screen.queryByText(/components of this article have changed/i)).toBeNull();
     });
 });

@@ -4,6 +4,7 @@ import { Laptop, Pencil, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { EditOwnProfileDialog } from '@/components/administrators/EditOwnProfileDialog';
 import { MfaEnrolmentWizard } from '@/components/auth/MfaEnrolmentWizard';
 import { ChangePasswordForm } from '@/components/auth/ChangePasswordForm';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataState } from '@/components/common/DataState';
 import { ListSkeleton } from '@/components/common/Loading';
 import { TierBadge } from '@/components/layout/TierBadge';
@@ -181,7 +182,16 @@ export function AccountSecurity() {
                 </CardHeader>
                 <CardContent className="grid gap-4 sm:grid-cols-2">
                     <Detail label="Name" value={admin.displayName} />
-                    <Detail label="Email" value={admin.email} />
+                    <Detail
+                        label="Email"
+                        value={
+                            <CopyableValue
+                                variant="email"
+                                value={admin.email}
+                                label="your email address"
+                            />
+                        }
+                    />
                     <Detail label="Access level" value={<TierBadge tier={admin.tier} />} />
                     <Detail label="Job title" value={admin.jobTitle ?? '—'} />
                     <Detail label="Department" value={admin.department ?? '—'} />
@@ -391,7 +401,28 @@ function SessionRow({
                     {session.mfaUsed ? <Badge variant="outline">2FA</Badge> : null}
                 </div>
                 <p className="text-muted-foreground text-xs">
-                    {session.ip ?? 'Unknown address'} · started {formatInstant(session.startedAt, zone)}
+                    {/*
+                      ⚠ `plain`, never `id`: an address must survive whole —
+                      `41.202.219.90` shortened in the middle is a different
+                      address, and this is the value an operator pastes into a
+                      geolocation lookup when a session looks wrong. Left
+                      un-mono, which is how it reads today.
+
+                      The `??` stays: `CopyableValue` would render `<NotSet />`
+                      for a null, and "Unknown address" is the sentence this row
+                      has always used for a session the service recorded no
+                      address for.
+                    */}
+                    {session.ip ? (
+                        <CopyableValue
+                            variant="plain"
+                            value={session.ip}
+                            label="session IP address"
+                        />
+                    ) : (
+                        'Unknown address'
+                    )}{' '}
+                    · started {formatInstant(session.startedAt, zone)}
                 </p>
                 <p className="text-muted-foreground text-xs">
                     Expires by {formatInstant(session.absoluteExpiresAt, zone)}

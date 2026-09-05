@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { EyeOff, Info, RotateCw, ScrollText } from 'lucide-react';
 
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataState, EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
 import { SearchInput } from '@/components/common/SearchInput';
@@ -321,6 +322,11 @@ export function SystemErrors() {
                                     </span>
                                 </span>
                                 <span className="text-sm">{entry.message}</span>
+                                {/*
+                                  * ⚠ No copy button on the code or the reference *here*. The
+                                  * row is a `<button>` and a nested button is invalid nesting;
+                                  * both are copyable one click away, in the detail dialog.
+                                  */}
                                 <span className="text-muted-foreground font-mono text-[11px]">
                                     {entry.requestId ?? 'no reference'}
                                 </span>
@@ -354,7 +360,35 @@ export function SystemErrors() {
             <Dialog open={Boolean(detail)} onOpenChange={(open) => !open && setDetail(null)}>
                 <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
                     <DialogHeader>
-                        <DialogTitle className="font-mono text-sm">{detail?.code}</DialogTitle>
+                        {/*
+                          * ⚠ The code and the reference are copyable **here and not on the
+                          * row**, and the reason is structural rather than aesthetic: the row
+                          * is itself a `<button>`, and a button inside a button is nesting the
+                          * browser reparents — the copy control would end up outside the row it
+                          * belongs to. Opening the entry is one click and this is where an
+                          * operator is standing when they quote a code into a ticket anyway.
+                          *
+                          * `variant="plain"` because an error code is a whole word, not an id:
+                          * `PAYMENT_GATEWAY_TIMEOUT` truncated to `PAYMEN…MEOUT` is unquotable.
+                          * `mono={false}` so the title's own `font-mono text-sm` survives —
+                          * the component's mono is `text-xs` and would shrink the heading.
+                          *
+                          * ⚠ Radix names the dialog from this element, so the accessible name
+                          * becomes "PAYMENT_GATEWAY_TIMEOUT Copy error code". Left as it is
+                          * deliberately: the extra clause announces the control rather than
+                          * misdescribing the dialog, and the alternative — a second copy of the
+                          * code two lines below its own heading — is worse to read.
+                          */}
+                        <DialogTitle className="font-mono text-sm">
+                            {detail ? (
+                                <CopyableValue
+                                    variant="plain"
+                                    mono={false}
+                                    value={detail.code}
+                                    label="error code"
+                                />
+                            ) : null}
+                        </DialogTitle>
                     </DialogHeader>
                     {detail ? (
                         <div className="space-y-3 text-sm">
@@ -364,7 +398,22 @@ export function SystemErrors() {
                             </p>
 
                             <Field label="Reference">
-                                <code>{detail.requestId ?? '—'}</code>
+                                {/*
+                                  * Never truncated: this is the cross-service join — the same
+                                  * value travels as `X-Request-Id` into the platform's logs and
+                                  * into Platform logs' own filter — and half of it joins
+                                  * nothing. The `—` stays rather than `NotSet`, because every
+                                  * other `Field` on this dialog says `—` for an absent value.
+                                  */}
+                                {detail.requestId ? (
+                                    <CopyableValue
+                                        value={detail.requestId}
+                                        label="request reference"
+                                        truncate={false}
+                                    />
+                                ) : (
+                                    '—'
+                                )}
                             </Field>
                             <Field label="Shown to the caller">{detail.message}</Field>
                             <Field label="What to tell them">{detail.hint}</Field>

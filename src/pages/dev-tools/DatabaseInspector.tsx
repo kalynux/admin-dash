@@ -75,6 +75,14 @@ function IndexList({
  * `truncated` and `notReached` are rendered prominently, because silent truncation reads as
  * completeness. Drift also reflects only the models that process registered, and an index build
  * in progress reads as `missing`.
+ *
+ * ── ⚠ Nothing on this screen is a copyable value ─────────────────────────────
+ * Worth stating because the name invites the opposite guess: an "inspector" sounds like it
+ * returns documents, and a document `_id` would be the obvious thing to copy. It returns
+ * **no documents**. Every mono string here is a schema name — a collection, an index, an index
+ * key object — read as a set and never pasted anywhere: there is no query box on this service to
+ * paste one into, and the screen reports rather than repairs. The counts and byte sizes are
+ * figures, not identifiers.
  */
 export function DatabaseInspector() {
     const { token, refresh } = useRefreshToken();

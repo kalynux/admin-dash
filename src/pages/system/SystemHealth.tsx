@@ -63,6 +63,13 @@ function Panel({
  * `mongoAdmin`/`mongoPlatform` there. Every label on this screen goes through
  * `SYSTEM_DEPENDENCY_LABELS`, so the reconciliation happens once and a reader is never told the
  * wi-admin database is the platform's.
+ *
+ * ── ⚠ Nothing here is a copyable value ───────────────────────────────────────
+ * Every mono string on this screen is a **dependency's name** — a Mongo database, a logical Redis
+ * database — rendered as the subject of a status line and never carried anywhere. The Redis
+ * constants in the cache panel are the same names the Cache screen offers in a select, so there
+ * is nothing to type them into. `correlationId` and `X-Request-Id` in the audit note are inline
+ * code in a sentence: they name the *field* to go looking for, not a value this page holds.
  */
 export function SystemHealth() {
     const { token, refresh } = useRefreshToken();

@@ -5,17 +5,21 @@ import {
     AssignmentStateBadge,
     ShipmentStatusBadge,
 } from '@/components/shipments/ShipmentStatusBadge';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import {
     Definition,
     DefinitionList,
     NotApplicable,
     NotSet,
 } from '@/components/common/DefinitionList';
-import { ResolvedFileViewer } from '@/components/files/FileViewer';
+import { LineItemImage } from '@/components/common/LineItemImage';
+import { PartyValue } from '@/components/common/PartyValue';
+import { ResolvedImageBox } from '@/components/files/ResolvedImageBox';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { formatCount, formatInstantInZone, formatMoney, humaniseEnum } from '@/lib/format';
+import { resolvePartyName } from '@/lib/party';
 import { isPlatformActor } from '@/types/actor.types';
 import type { CanPredicate } from '@/store';
 import { SHIPMENT_OFFER_CAP, type ShipmentDetail } from '@/types/shipments.types';
@@ -41,7 +45,29 @@ export function ShipmentOverviewPanel({
                 <CardContent>
                     <DefinitionList>
                         <Definition label="Tracking number">
-                            {shipment.trackingNumber ?? <NotSet>Not minted yet</NotSet>}
+                            {/*
+                              ⚠ `plain`, and it must stay `plain`. `GET
+                              /shipments?search=` matches a tracking-number
+                              **prefix**, so copying this and pasting it into that
+                              box is the whole workflow this value exists for — a
+                              head-and-tail form would be a string that matches
+                              nothing. Mono because it is a machine value, even
+                              though it was not mono before: the affordance beside
+                              it now invites character-by-character reading.
+
+                              Its own null branch stays: "not minted yet" is a
+                              stage of the shipment's life, not a missing field.
+                            */}
+                            {shipment.trackingNumber ? (
+                                <CopyableValue
+                                    variant="plain"
+                                    mono
+                                    value={shipment.trackingNumber}
+                                    label="tracking number"
+                                />
+                            ) : (
+                                <NotSet>Not minted yet</NotSet>
+                            )}
                         </Definition>
                         <Definition label="Status">
                             <ShipmentStatusBadge status={shipment.status} />
@@ -89,8 +115,29 @@ export function ShipmentOverviewPanel({
                                 </InfoHint>
                             }
                         >
+                            {/*
+                              ⚠ **This is the reason `ImageBox` exists**, and the
+                              upgrade from `ResolvedFileViewer` is the whole of it:
+                              a delivery proof is a photograph, and a button
+                              labelled "Open the file" is not how anybody looks at
+                              one. The box is drawn at the picture's size before
+                              anything loads, and the click is still the consent —
+                              `deliveryProofFileId` resolves with `url: null` and
+                              `access: "authorized"`, so the audited content route
+                              is the only way to see it and the box says the open
+                              is recorded *before* it happens.
+
+                              A non-image still falls through to the metadata card:
+                              `ResolvedImageBox` reads the resolve's own type and
+                              hands anything that is not an image to `FileViewer`,
+                              without spending an audited read to find out.
+                            */}
                             {shipment.deliveryProofFileId ? (
-                                <ResolvedFileViewer fileId={shipment.deliveryProofFileId} />
+                                <ResolvedImageBox
+                                    fileId={shipment.deliveryProofFileId}
+                                    alt="the delivery proof"
+                                    className="max-w-sm"
+                                />
                             ) : (
                                 <NotSet />
                             )}
@@ -203,23 +250,31 @@ export function ShipmentOverviewPanel({
                                 <NotSet />
                             )}
                         </Definition>
-                        <Definition label="Vendor">
-                            {shipment.order?.vendorId ? (
-                                can('vendors.read') ? (
-                                    <Link
-                                        to={`/dashboard/vendors/${shipment.order.vendorId}`}
-                                        className="font-mono text-xs hover:underline"
-                                    >
-                                        {shipment.order.vendorId}
-                                    </Link>
-                                ) : (
-                                    <span className="font-mono text-xs">
-                                        {shipment.order.vendorId}
-                                    </span>
-                                )
-                            ) : (
-                                <NotSet />
-                            )}
+                        <Definition
+                            label="Vendor"
+                            hint={
+                                <InfoHint label="Which name this is">
+                                    The shop&apos;s registered business name. The orders list shows
+                                    a different field of the same name — the vendor&apos;s own
+                                    personal name — so the two screens can legitimately call one
+                                    vendor two things.
+                                </InfoHint>
+                            }
+                        >
+                            {/*
+                              ⚠ **This hint used to explain a request.** It said
+                              the payload "carries the vendor's id and no name" and
+                              that the name cost a second read — true when it was
+                              written, false from BR-016 § 6 onwards, and it kept
+                              saying so after the field arrived. The read is gone;
+                              what is worth saying now is *which* name this is,
+                              because the orders list shows the other one.
+                            */}
+                            <VendorRef
+                                vendorId={shipment.order?.vendorId ?? null}
+                                vendorName={shipment.order?.vendorName ?? null}
+                                can={can}
+                            />
                         </Definition>
                         <Definition label="Agency">
                             {can('agencies.read') ? (
@@ -239,46 +294,33 @@ export function ShipmentOverviewPanel({
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Items</CardTitle>
+                    <CardTitle className="flex items-center gap-1">
+                        Items
+                        <InfoHint label="Where these titles and prices come from">
+                            <p>
+                                A shipment line carries ids and a quantity. The title, the price
+                                and the picture are read from the vendor&apos;s listing, one
+                                request per distinct product, and need the vendor catalogue
+                                permission.
+                            </p>
+                            {/*
+                              ⚠ Money, so said plainly rather than implied by the
+                              per-row "listed" suffix alone. A listing's price is
+                              today's; what the customer paid is on the order
+                              line, which every row links to.
+                            */}
+                            <p>
+                                <strong>
+                                    A listed price is what the item costs now, not what was
+                                    charged.
+                                </strong>{' '}
+                                Open the order line for the figure that settles a money question.
+                            </p>
+                        </InfoHint>
+                    </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    {shipment.items.length === 0 ? (
-                        <p className="text-muted-foreground text-sm">
-                            This shipment carries no items.
-                        </p>
-                    ) : (
-                        <>
-                            <p className="text-muted-foreground mb-3 text-sm">
-                                Ids only. Product titles live on the order —{' '}
-                                {can('orders.read') ? (
-                                    <Link
-                                        to={`/dashboard/orders/${shipment.orderId}`}
-                                        className="hover:underline"
-                                    >
-                                        open it
-                                    </Link>
-                                ) : (
-                                    'behind orders.read'
-                                )}{' '}
-                                to see what is actually in the parcel.
-                            </p>
-                            <ul className="space-y-1 text-sm">
-                                {shipment.items.map((item, index) => (
-                                    <li
-                                        key={item.orderItemId ?? index}
-                                        className="flex flex-wrap gap-2"
-                                    >
-                                        <span className="font-mono text-xs">
-                                            {item.productId ?? 'unknown product'}
-                                        </span>
-                                        <span className="text-muted-foreground">
-                                            × {formatCount(item.quantity)}
-                                        </span>
-                                    </li>
-                                ))}
-                            </ul>
-                        </>
-                    )}
+                    <ShipmentItems shipment={shipment} can={can} />
                 </CardContent>
             </Card>
         </div>
@@ -612,7 +654,14 @@ export function ShipmentCodPanel({
                 </p>
                 <DefinitionList>
                     <Definition label="Collection">
-                        <span className="font-mono text-xs">{cod.collectionId}</span>
+                        {/* The handle on this cash in the `/cod` module, and the
+                            record carries no other name for it. Shown whole. */}
+                        <CopyableValue
+                            variant="id"
+                            value={cod.collectionId}
+                            label="collection ID"
+                            truncate={false}
+                        />
                     </Definition>
                     <Definition label="State">
                         <span className="capitalize">{humaniseEnum(cod.status) ?? '—'}</span>
@@ -672,6 +721,17 @@ export function ShipmentCodPanel({
  * One component for all five places — `agent.id`, `offers[].agentId`,
  * `deliveryFailures[].reportedByAgentId`, `agentCancellation.cancelledByAgentId`
  * and `handover.fromAgentId` — so the link and the fallback cannot diverge.
+ *
+ * ── ⚠ The copy affordance is on the id branch only ────────────────────────────
+ * Where a name arrived, the name is what is rendered, and a copy button beside a
+ * name copies the *name* — which is not a value anybody pastes into a search box,
+ * a ticket or a Mongo query. Pairing the two is the naming phase's job. Here, the
+ * branch that already shows nothing but a 24-hex id is the one that gains a way
+ * to take it.
+ *
+ * `truncate={false}` because every one of these sites renders the id in full
+ * today, in a definition list or a table cell with room for it. The affordance is
+ * additive; it must not quietly take characters away.
  */
 export function AgentRef({
     id,
@@ -682,18 +742,187 @@ export function AgentRef({
     name?: string | null;
     can: CanPredicate;
 }) {
-    const label = name ?? id;
+    if (!name) {
+        return (
+            <CopyableValue
+                variant="id"
+                value={id}
+                label="agent ID"
+                truncate={false}
+                to={can('agents.read') ? `/dashboard/agents/${id}` : undefined}
+            />
+        );
+    }
 
     if (!can('agents.read')) {
-        return <span className={name ? undefined : 'font-mono text-xs'}>{label}</span>;
+        return <span>{name}</span>;
     }
 
     return (
-        <Link
-            to={`/dashboard/agents/${id}`}
-            className={name ? 'hover:underline' : 'font-mono text-xs hover:underline'}
-        >
-            {label}
+        <Link to={`/dashboard/agents/${id}`} className="hover:underline">
+            {name}
         </Link>
+    );
+}
+
+/**
+ * The vendor behind the order, by name.
+ *
+ * ── ✅ This used to be a request, and now it is a field ──────────────────────
+ * Phase C paid one `GET /vendors/:vendorId` for this name, behind `vendors.read`
+ * and with three states because a read can fail. BR-016 § 6 was granted and
+ * `order.vendorName` is on the shipment payload, so the read is gone and so are
+ * two of the states: the name either came with the record or does not exist.
+ *
+ * ⚠ **It is `stores.name` — the vendor's BUSINESS name.** Not the same source as
+ * `GET /orders`'s field of the same spelling, which is `vendors.display_name`,
+ * a *person*. Sourced as `businessName` here so `PartyValue` can never label it
+ * as anything else, and so the two fields cannot be quietly unified later.
+ *
+ * `null` where the vendor has no Store row — mid-onboarding, an ordinary state —
+ * and the id is the honest answer there, exactly as it was when a read failed.
+ * The id was always the load-bearing half; the name is a convenience on top.
+ */
+function VendorRef({ vendorId, vendorName, can }: {
+    vendorId: string | null;
+    vendorName: string | null;
+    can: CanPredicate;
+}) {
+    if (!vendorId) return <NotSet />;
+
+    const to = can('vendors.read') ? `/dashboard/vendors/${vendorId}` : undefined;
+
+    return (
+        <PartyValue
+            party={resolvePartyName(
+                [{ source: 'businessName', value: vendorName }],
+                { source: 'id', value: vendorId },
+            )}
+            id={vendorId}
+            idLabel="vendor ID"
+            to={to}
+        />
+    );
+}
+
+/**
+ * What is actually in the parcel.
+ *
+ * ── The card used to say "ids only", and then it said too much ───────────────
+ * A shipment item once carried `orderItemId`, `productId`, `variantId` and a
+ * quantity and nothing else — `6670…40 × 3` on the screen an operator opens
+ * mid-dispute. Phase C filled that in by resolving
+ * `GET /vendors/:vendorId/products/:productId` per distinct listing, which was
+ * the only door open at the time.
+ *
+ * ✅ **BR-017 put `title`, `price`, `currency` and `image` on the payload**, so
+ * the lookup is gone. It is not merely cheaper — **it is more correct**. The
+ * catalogue could only ever quote *today's listed* price, which the old card had
+ * to label "listed" and caveat, because what the customer actually paid was not
+ * reachable from it. These four are joined from the **order line's own
+ * snapshot**, so this card now shows the terms of the sale.
+ *
+ * ⚠ **Batched upstream**: the titles are one read of the order document these
+ * items already belong to, and the images are the same three reads the order
+ * detail makes, however many lines the shipment has.
+ *
+ * ── ⚠ The links do not depend on any read ────────────────────────────────────
+ * Both are built from ids this component already holds, so they ship whether or
+ * not the caller holds `vendors.read`. A screen that loses its navigation
+ * because an enrichment failed is worse than one that never had it.
+ */
+function ShipmentItems({ shipment, can }: { shipment: ShipmentDetail; can: CanPredicate }) {
+    const vendorId = shipment.order?.vendorId ?? null;
+
+    if (shipment.items.length === 0) {
+        return <p className="text-muted-foreground text-sm">This shipment carries no items.</p>;
+    }
+
+    return (
+        <ul className="space-y-4">
+            {shipment.items.map((item, index) => {
+                /*
+                  ⚠ The order line, not the product. `orderItemId` identifies
+                  *this parcel's* line in the order it came from, which is the
+                  only way back to what the customer actually paid — the price on
+                  a listing today is not what was charged then.
+                */
+                const orderItemHref = item.orderItemId
+                    ? `/dashboard/orders/${shipment.orderId}?tab=items&item=${item.orderItemId}`
+                    : `/dashboard/orders/${shipment.orderId}?tab=items`;
+
+                const productHref =
+                    vendorId && item.productId && can('vendors.read')
+                        ? `/dashboard/vendors/${vendorId}/products/${item.productId}`
+                        : undefined;
+
+                return (
+                    <li key={item.orderItemId ?? index} className="flex flex-col gap-3 sm:flex-row">
+                        <div className="w-full shrink-0 sm:w-32">
+                            <LineItemImage image={item.image} alt={item.title || 'this item'} />
+                        </div>
+
+                        <div className="min-w-0 flex-1 space-y-1.5 text-sm">
+                            <p className="font-medium">
+                                {item.title ? (
+                                    productHref ? (
+                                        <Link to={productHref} className="hover:underline">
+                                            {item.title}
+                                        </Link>
+                                    ) : (
+                                        item.title
+                                    )
+                                ) : (
+                                    /* ⚠ A sentence, not a gap — and the two are
+                                       different facts. No `productId` is a broken
+                                       row; a `null` title means the ORDER LINE is
+                                       gone, because the title is joined from it
+                                       rather than refreshed from the catalogue. */
+                                    <NotSet>
+                                        {item.productId
+                                            ? 'The order line behind this is gone'
+                                            : 'No product on this line'}
+                                    </NotSet>
+                                )}
+                            </p>
+
+                            <p className="text-muted-foreground">
+                                × {formatCount(item.quantity)}
+                                {/*
+                                  ⚠ **What was charged, not what is listed.** This
+                                  is the order line's own snapshot, so it needs no
+                                  "listed" caveat and no variant lookup — the card
+                                  used to carry both because the catalogue price
+                                  was the only one it could reach.
+                                */}
+                                {item.price !== null ? (
+                                    <> · {formatMoney(item.price, item.currency)}</>
+                                ) : null}
+                            </p>
+
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                                {item.productId ? (
+                                    <CopyableValue
+                                        variant="id"
+                                        value={item.productId}
+                                        label="product ID"
+                                        truncate={false}
+                                        to={productHref}
+                                    />
+                                ) : null}
+                                {can('orders.read') ? (
+                                    <Link
+                                        to={orderItemHref}
+                                        className="text-muted-foreground text-xs hover:underline"
+                                    >
+                                        This line on the order
+                                    </Link>
+                                ) : null}
+                            </div>
+                        </div>
+                    </li>
+                );
+            })}
+        </ul>
     );
 }

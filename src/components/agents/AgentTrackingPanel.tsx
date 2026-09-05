@@ -7,6 +7,7 @@ import {
     NotSet,
 } from '@/components/common/DefinitionList';
 import { InlineLoader } from '@/components/common/Loading';
+import { OpenInGoogleMaps } from '@/components/tracking/OpenInGoogleMaps';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +15,7 @@ import { InfoHint } from '@/components/ui/info-hint';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { resolveErrorMessage } from '@/lib/errors';
 import { formatCount, formatInstantInZone, formatRelative } from '@/lib/format';
+import { googleMapsUrlFromGeoJson } from '@/lib/geo';
 import { getTrackingPolicy } from '@/services/agents.service';
 import { isPlatformActor } from '@/types/actor.types';
 import type { AgentDetail, AgentLastKnown, TrackingDenyReason } from '@/types/agents.types';
@@ -205,12 +207,20 @@ export function AgentTrackingPanel({
  * street name above them would be a gate in name only. One reveal, both fields,
  * label first because it is the one an operator can actually use.
  *
- * ── Why there is still no map ─────────────────────────────────────────────────
- * More right now than when this was written. The pipe behind this field had
- * never worked — every agent carried the schema default — so the panel was
- * rendering an empty record. It carries real coordinates now, which means a pin
- * would look live and simply stop moving. An empty panel is obviously empty; a
- * stationary marker is a lie.
+ * ── Why there is still no map, and what ships instead ─────────────────────────
+ * The refusal is of an **embedded** map and it stands. More right now than when
+ * this was written: the pipe behind this field had never worked — every agent
+ * carried the schema default — so the panel was rendering an empty record. It
+ * carries real coordinates now, which means a pin would look live and simply
+ * stop moving. An empty panel is obviously empty; a stationary marker is a lie.
+ *
+ * ⚠ **A link-out is not that, and BR-003 asked for one in as many words.** After
+ * the reveal there is an *Open in Google Maps* button, which is where the
+ * operator's "give it a name" comes from — this application has no geocoder, and
+ * `place.label` is null whenever nothing resolved server-side. It is an act the
+ * operator chooses, with the staleness badge already read, and it hands the
+ * coordinates to a third party in a URL. All three of those are said on the
+ * button.
  */
 export function LastKnownPositionReveal({
     lastKnown,
@@ -221,6 +231,10 @@ export function LastKnownPositionReveal({
 }) {
     const [revealed, setRevealed] = useState(false);
     const position = lastKnown.position;
+    // 🔴 GeoJSON is [longitude, latitude] and Google is latitude-first. The
+    // inversion is done once, in `lib/geo`, and never at a call site — read the
+    // 'wrong hemisphere' warning there before touching this line.
+    const mapUrl = googleMapsUrlFromGeoJson(position?.coordinates);
 
     return (
         <Card>
@@ -297,10 +311,42 @@ export function LastKnownPositionReveal({
                             <p className="text-muted-foreground text-xs">
                                 Longitude, latitude — GeoJSON order
                             </p>
+                            {/*
+                              ⚠ Mono, and deliberately **not** a `CopyableValue`.
+                              A pair of coordinates is a reading, not an identifier
+                              — nothing is looked up by it, and a one-press copy
+                              button beside a stale position invites exactly the
+                              thing this panel refuses to imply: pasting it
+                              somewhere as though it were where the agent is. It
+                              stays `select-all`, so the operator who genuinely
+                              wants it still gets it in one click.
+                            */}
                             <p className="font-mono text-sm select-all">
                                 {position.coordinates.join(', ')}
                             </p>
                         </div>
+                        {/*
+                          The link-out BR-003 specified and this repository owed.
+                          It is NOT the embedded map the panel above refuses: a
+                          pin drawn on this screen would sit there implying
+                          liveness, whereas a window the operator chose to open
+                          is an act taken with the staleness badge already read.
+
+                          `mapUrl` is null when the pair is not a place — and
+                          then nothing renders, this explanation included.
+                        */}
+                        {mapUrl ? (
+                            <div className="space-y-2 border-t pt-3">
+                                <OpenInGoogleMaps url={mapUrl} />
+                                <p className="text-muted-foreground text-xs">
+                                    Opens a small window on Google&rsquo;s map, which names the
+                                    place for you. Two things to know before pressing it: the
+                                    coordinates travel to Google in the address bar, and this is
+                                    where the agent was <em>last seen</em> &mdash; the pin will
+                                    not move.
+                                </p>
+                            </div>
+                        ) : null}
                     </div>
                 ) : (
                     <Button variant="outline" size="sm" onClick={() => setRevealed(true)}>

@@ -73,6 +73,15 @@ export function TrackingOutboxPanel({
                         )}
                     </Definition>
                     <Definition label="Last error">
+                        {/*
+                          ⚠ Mono, and deliberately **not** a `CopyableValue`. This
+                          is a transport failure the queue wrote down — `ECONNREFUSED`,
+                          a socket timeout, whatever the last attempt said. It reads
+                          as machine text, which is why it is mono, but it is not a
+                          value: there is nowhere to paste it, no record it looks up,
+                          and no shape it is promised to have. A copy button here
+                          would claim it is a handle on something.
+                        */}
                         {outbox.lastError ? (
                             <span className="font-mono text-xs">{outbox.lastError}</span>
                         ) : (

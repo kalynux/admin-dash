@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { Clock } from 'lucide-react';
 
 import { AuthFormError } from '@/components/auth/AuthFormError';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { FormField } from '@/components/common/FormField';
 import { InlineLoader } from '@/components/common/Loading';
 import { Button } from '@/components/ui/button';
@@ -303,9 +304,15 @@ export function MarkPaidQueuedNotice({
                     <dt className="inline font-medium">Approval id: </dt>
                     {/*
                       Text, not a link: `/dashboard/approvals` is a placeholder
-                      until it ships, and linking into one is a trap.
+                      until it ships, and linking into one is a trap. Which is
+                      why it is copyable and shown whole — this notice is the
+                      ONLY place the approval id appears (see the header on
+                      `queuedIntent`), so quoting it to the approver is the one
+                      thing an operator can do with it.
                     */}
-                    <dd className="inline font-mono">{approval.id}</dd>
+                    <dd className="inline">
+                        <CopyableValue value={approval.id} label="approval ID" truncate={false} />
+                    </dd>
                 </div>
             </dl>
 

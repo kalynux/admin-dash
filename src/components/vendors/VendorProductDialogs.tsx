@@ -344,6 +344,14 @@ export function BlockerList({ blockers }: { blockers: ActivationBlocker[] }) {
                     {blockers.map((blocker, index) => (
                         <li key={`${blocker.code}-${index}`}>
                             {blocker.message}
+                            {/*
+                              ⚠ Mono and left alone: a blocker code is a *reason*
+                              in the middle of a sentence, not a value — it names
+                              which rule refused, the way a status does, and
+                              nothing is looked up by it. A copy button inside each
+                              bullet would also break the one thing this list has
+                              to do, which is read as prose.
+                            */}
                             <span className="text-muted-foreground font-mono text-xs">
                                 {' '}
                                 ({blocker.code})

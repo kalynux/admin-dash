@@ -2,6 +2,7 @@ import { Bold, Code, Italic, Link2, Plus, Trash2, Unlink } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Toggle } from '@/components/ui/toggle';
 import { hrefProblem } from '@/lib/article-body';
 import { cn } from '@/lib/utils';
@@ -21,6 +22,13 @@ import { HREF_MAX, type RichText, type RichTextSpan } from '@/types/content.type
  * Building a WYSIWYG surface over it would mean writing an HTML→spans parser,
  * which is the sanitiser problem again wearing a different hat. So the editor
  * shows the runs the way they are stored: one row per span, marks as toggles.
+ *
+ * ⚠ **§ E1 grew the surface and not the model.** Each run is a multi-line
+ * `Textarea` rather than an `<Input>` sized for a full name, because a run is
+ * usually a paragraph and was being written through a one-line slot. That is a
+ * change to how much of the prose is visible while typing it. **It is not a
+ * step towards free HTML**, and a future round that reads "make the paragraph
+ * field richer" has to answer the paragraph above before it touches this file.
  *
  * ── ⚠ Spans are never trimmed ────────────────────────────────────────────────
  * `"Commission is taken "` and its trailing space are meaningful — the renderer
@@ -105,8 +113,23 @@ export function RichTextField({
                             key={index}
                             className="bg-muted/30 space-y-2 rounded-lg border p-2"
                         >
-                            <div className="flex flex-wrap items-center gap-1.5">
-                                <Input
+                            <div className="flex flex-wrap items-start gap-1.5">
+                                {/*
+                                  ⚠ A `Textarea`, and still a span — § E1.
+
+                                  The ask was for "an input format suited to a
+                                  paragraph rather than a name", and the trap in
+                                  it is that a paragraph field reads like a
+                                  request for a rich-text box. It is not one and
+                                  must not become one: the wire format is a flat
+                                  span array **because** an HTML string would
+                                  have to be sanitised on the way in and rendered
+                                  with `dangerouslySetInnerHTML` on the way out,
+                                  on the same origin as the auth pages. What
+                                  grows here is the writing surface. The model
+                                  underneath is unchanged.
+                                */}
+                                <Textarea
                                     id={`${idPrefix}-span-${index}`}
                                     value={span.text}
                                     // No trim, deliberately — see the header.
@@ -114,8 +137,9 @@ export function RichTextField({
                                         replace(index, { ...span, text: event.target.value })
                                     }
                                     placeholder="A run of text"
+                                    rows={3}
                                     className={cn(
-                                        'min-w-40 flex-1',
+                                        'min-h-20 min-w-40 flex-1 resize-y',
                                         span.bold && 'font-bold',
                                         span.italic && 'italic',
                                         span.code && 'font-mono',

@@ -39,6 +39,7 @@ import { ApiError, CODE_CLIENT_INVALID_ID } from '@/types/api.types';
 import { RoleBadges } from '@/components/users/RoleBadges';
 import { userDisplayName } from '@/types/users.types';
 import { CopyableId } from '@/components/common/CopyableId';
+import { CopyableValue } from '@/components/common/CopyableValue';
 
 /** Ids on this service are 24-hex ObjectIds, validated at the service's edge. */
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
@@ -281,11 +282,37 @@ function UserDetailScreen({ userId }: { userId: string }) {
                         </CardHeader>
                         <CardContent>
                             <dl className="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[10rem_1fr]">
+                                {/*
+                                  ⚠ Both identifiers are individually optional and
+                                  only the pair is guaranteed, so a `null` here is
+                                  routine — `CopyableValue` renders `NotSet` for it
+                                  itself, which is why the `?? <NotSet />` is gone
+                                  rather than wrapped around a second fallback. The
+                                  local `NotSet` these two were the only users of
+                                  went with them; the shared one it duplicated
+                                  renders the identical span.
+
+                                  Neither shortens: the h1 above may already be one
+                                  of these two standing in for a name, and this is
+                                  where they are values.
+                                */}
                                 <dt className="text-muted-foreground">Email</dt>
-                                <dd>{record.email ?? <NotSet />}</dd>
+                                <dd>
+                                    <CopyableValue
+                                        variant="email"
+                                        value={record.email}
+                                        label="user email"
+                                    />
+                                </dd>
 
                                 <dt className="text-muted-foreground">Phone</dt>
-                                <dd>{record.phone ?? <NotSet />}</dd>
+                                <dd>
+                                    <CopyableValue
+                                        variant="phone"
+                                        value={record.phone}
+                                        label="user phone"
+                                    />
+                                </dd>
 
                                 <dt className="text-muted-foreground">Status</dt>
                                 <dd>
@@ -304,7 +331,20 @@ function UserDetailScreen({ userId }: { userId: string }) {
                                 <dd>{formatInstantInZone(record.updatedAt, timeZone) ?? '—'}</dd>
 
                                 <dt className="text-muted-foreground">User id</dt>
-                                <dd className="font-mono text-xs">{record.id}</dd>
+                                {/*
+                                  The same id the page description carries, and it
+                                  keeps its own affordance for the same reason the
+                                  vendor, agency and agent screens do: this row is
+                                  where somebody reading the account looks for it.
+                                  `truncate={false}` — it is whole today.
+                                */}
+                                <dd>
+                                    <CopyableValue
+                                        value={record.id}
+                                        label="user ID"
+                                        truncate={false}
+                                    />
+                                </dd>
                             </dl>
                         </CardContent>
                     </Card>
@@ -395,14 +435,3 @@ function BackLink() {
     );
 }
 
-/**
- * An identifier the account does not have.
- *
- * Distinct from "we did not load it": on this service a field that exists is
- * always present and absent data is `null`, never omitted and never `''`. So
- * `null` here is a fact about the account, and saying "Not set" reports it rather
- * than leaving a blank that reads as a rendering bug.
- */
-function NotSet() {
-    return <span className="text-muted-foreground">Not set</span>;
-}

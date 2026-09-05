@@ -251,3 +251,388 @@ export interface FileContent {
  * `STORAGE_DOWNLOAD_NOT_SUPPORTED`.
  */
 export const CODE_FILE_CONTENT_NOT_SUPPORTED = 'FILE_CONTENT_NOT_SUPPORTED';
+
+// ─── The library ──────────────────────────────────────────────────────────────
+
+/**
+ * `GET /files/library` — the media library, and the picker's source.
+ *
+ * Source: `docs/admin/api/files.md`, the section added with BR-015 on
+ * 2026-08-26.
+ *
+ * ── ⚠ It is a DIRECT read, not a delegated one ───────────────────────────────
+ * Every other route on this mount hops to jovi-mall. This one does not: wi-admin
+ * queries `jovi_mall.files` and `file_references` itself (ADR-021 D-1), which is
+ * why it keeps answering while jovi-mall is down — and why a
+ * `SERVICE_DEPENDENCY_UNAVAILABLE` here would be a surprise rather than the
+ * ordinary platform-outage answer the rest of the mount gives.
+ *
+ * ── ⚠ It gets its own permission because it ENUMERATES ───────────────────────
+ * `files.resolve` is grantable to every tier on one argument: the caller already
+ * holds the id, so resolving it discloses nothing new. That argument does not
+ * survive a listing, so browsing is `files.library.read` and it is **tiers 1–2**
+ * — the line `files.orphans.read` already drew. Support enumerates no files.
+ *
+ * ⚠ **Not audited**, and this dashboard asked for the opposite. The refusal is
+ * reasoned at ADR-021 D-6: the exception test is the *disclosure*, and a
+ * filename with a size is not one — while auditing every page of a media picker
+ * would bury the four real disclosures under thousands of rows. Recorded so it
+ * is revisited rather than rediscovered.
+ */
+
+/**
+ * Who uploaded a file. **`ownerType` is set once on upload and never mutated.**
+ *
+ * ⚠ **`owner` itself is `null` on a legacy row with no owner recorded**, which
+ * is a different fact from an owner whose *name* did not resolve. Keep the two
+ * distinguishable: "nobody recorded who uploaded this" and "a vendor uploaded
+ * this and their record is gone" call for different reactions.
+ */
+export interface FileOwner {
+    /**
+     * `vendor` · `admin` · `customer` · `agent` · `agency` · `system`.
+     *
+     * ⚠ **Kept open on the backend's own instruction** — render an unrecognised
+     * value rather than rejecting it. Adding an owner type is an additive change
+     * on a service this dashboard does not deploy.
+     */
+    type: string | null;
+    /**
+     * The owner's id **in its own id space** — a `vendors._id`, a
+     * `delivery_agents._id`, and for `admin` a **wi-admin `admin_accounts._id`**.
+     *
+     * ⚠ **Never a `users._id`.** Handing this to `GET /users/:userId` resolves to
+     * nothing, or worse, to the wrong person.
+     */
+    id: string | null;
+    /**
+     * ⚠ **`null`, never `""` and never the id substituted silently.**
+     *
+     * Four things produce `null` and the wire cannot tell them apart —
+     * deliberately, because they render the same way: `ownerType: "system"`
+     * (which has no name by construction), a deleted role record, an owner
+     * mid-onboarding with no business name yet, and an administrator removed
+     * from this service.
+     */
+    name: string | null;
+}
+
+/**
+ * One live thing that refers to a file.
+ *
+ * `IFileReference` is jovi-mall's single source of truth for what points at a
+ * file — one live row per `(fileId, entityType, entityId, field)`.
+ */
+export interface FileReferenceRow {
+    /**
+     * One of twelve: `product`, `variant`, `digital_asset`, `ticket`, `vendor`,
+     * `store`, `agency`, `agency_magazin`, `customer`, `agent`, `admin`,
+     * `shipment`. **Open**, for the same reason `FileOwner['type']` is.
+     */
+    entityType: string;
+    entityId: string;
+    /** The field on that entity holding the reference — `media`, `attachments`. */
+    field: string;
+    /**
+     * ⚠ **`null` on every row today, and that is the built answer rather than a
+     * placeholder.** Filling it means a read of a different collection per
+     * entity type present on the page, each with its own projection and its own
+     * permission question, to produce a caption. The field is on the wire so the
+     * shape need not change on the day one of those is worth paying for.
+     *
+     * **Do not treat a `null` label as an error** — render the id.
+     */
+    label: string | null;
+}
+
+/** What refers to a file, and how many things do. */
+export interface FileUsage {
+    /**
+     * ⚠ **The true total, and never `references.length`.** Live references only.
+     * `0` is what the library shows as "not attached to anything".
+     */
+    referenceCount: number;
+    /**
+     * ⚠ **Capped at `meta.referenceSampleCap`**, which is sent on every response
+     * rather than only when something was truncated — a client needs the cap to
+     * know the shape is possible at all. Render `referenceCount >
+     * references.length` as "and N more"; a page that quietly drops the rest is
+     * the failure this cap exists to avoid.
+     */
+    references: FileReferenceRow[];
+}
+
+/**
+ * A row of the library: a `FileDetail` plus the three things a browse surface
+ * needs and a resolve does not.
+ *
+ * ⚠ **`url` and `access` here are built by wi-admin**, not by jovi-mall — the
+ * one place on this mount where that is true (ADR-021 D-3, which knowingly
+ * reverses ADR-009 D-6). Under a provider whose URL form wi-admin cannot
+ * reproduce, every `url` is `null` and `meta.publicUrlsConfigured` is `false`;
+ * see `FileLibraryMeta`.
+ */
+export interface LibraryFile extends FileDetail {
+    /** ISO-8601. Present here and on no other file route. */
+    createdAt: string;
+    /** ⚠ `null` on a legacy row with no owner recorded. See `FileOwner`. */
+    owner: FileOwner | null;
+    usage: FileUsage;
+}
+
+/**
+ * `meta` on the library listing — the four pagination keys plus four that decide
+ * what the screen may claim.
+ */
+export interface FileLibraryMeta {
+    total: number;
+    page: number;
+    limit: number;
+    /** ⚠ **An empty list reports `0`**, not `1`. */
+    pages: number;
+    /**
+     * How many `usage.references` a row may carry. **Sent on every response**,
+     * truncated or not.
+     */
+    referenceSampleCap: number;
+    /**
+     * ⚠ **`false` means this deployment cannot build public URLs at all** — it
+     * has no reproducible `STORAGE_PROVIDER` on the wi-admin side, or one whose
+     * URL form wi-admin cannot reproduce (`cloudinary`).
+     *
+     * That is a *third* cause of `url: null`, and the only one that is not about
+     * the file. Render "previews are not configured on this deployment" rather
+     * than a page of broken images — the same `configured: false` shape the two
+     * geo-tracker doors use, and for the same reason: *"not set up here"* and
+     * *"there is nothing to show"* are different answers.
+     */
+    publicUrlsConfigured: boolean;
+    /**
+     * ⚠ **Present only when the `entityType`/`entityId` filter hit its cap.**
+     * That filter resolves through `file_references` first and is capped at
+     * `entityFilterCap` file ids; ADR-005 D-13 forbids a silent truncation, so a
+     * broad answer says so.
+     */
+    entityFilterTruncated?: boolean;
+    entityFilterCap?: number;
+}
+
+export interface FileLibraryResult {
+    files: LibraryFile[];
+    meta: FileLibraryMeta;
+}
+
+/**
+ * `GET /files/library` query.
+ *
+ * ⚠ **Sorting is a single `sort` token, NOT `sortBy` + `sortOrder`.** jovi-mall's
+ * own file listing uses the second form and the two are not interchangeable —
+ * and getting it wrong is **silent**, because this service's list-query schema
+ * is not `.strict()`: `sortBy=size` answers `200` in the default order with
+ * nothing saying the sort was ignored.
+ *
+ * ⚠ **`limit` is 100 here, not jovi-mall's 50.** This read never reaches that
+ * validator; nothing about the request goes to jovi-mall at all.
+ */
+export interface FileLibraryQuery {
+    page?: number;
+    /** 1–100. `101` is a `400`. */
+    limit?: number;
+    /** `createdAt` · `updatedAt` · `size` · `originalName`, `-` for descending. */
+    sort?: string;
+    /**
+     * 1–120 chars, case-insensitive substring on `originalName`.
+     * ⚠ **An empty one is rejected** — send no parameter instead.
+     */
+    search?: string;
+    /** Exact. ⚠ **Wins over `category`** when both are sent. */
+    mimeType?: string;
+    category?: string;
+    provider?: string;
+    /** **`admin` is the picker's filter** — the whole of "uploaded by the administration". */
+    ownerType?: string;
+    /** Bytes. `minSize` must be ≤ `maxSize`. */
+    minSize?: number;
+    maxSize?: number;
+    /** ⚠ ISO-8601 **instants** with a zone. A date-only value is a `400`. */
+    createdAfter?: string;
+    createdBefore?: string;
+    /** `used` · `unused`. ⚠ See `FILE_USAGE_FILTERS`. */
+    usage?: string;
+    /** ⚠ **Both or neither** — one alone is a `400`. */
+    entityType?: string;
+    entityId?: string;
+}
+
+/** The sort tokens the endpoint's allowlist declares, without the `-` prefix. */
+export const FILE_LIBRARY_SORT_FIELDS = ['createdAt', 'updatedAt', 'size', 'originalName'] as const;
+
+/** The default the service applies when `sort` is absent. */
+export const FILE_LIBRARY_SORT_DEFAULT = '-createdAt';
+
+/** `category` — jovi-mall's coarse grouping of a MIME type. */
+export const FILE_CATEGORIES = ['image', 'video', 'audio', 'document', 'archive', 'other'] as const;
+
+/**
+ * `ownerType` — the six values `IFile.ownerType` may hold.
+ *
+ * ⚠ **A filter vocabulary, not a rendering one.** `FileOwner['type']` stays open:
+ * this list is what the *filter* may send, and an owner type added upstream must
+ * still render rather than being refused on the way in.
+ */
+export const FILE_OWNER_TYPES = [
+    'vendor',
+    'admin',
+    'customer',
+    'agent',
+    'agency',
+    'system',
+] as const;
+
+/**
+ * `provider` — six accepted, of which **only three can ever appear**.
+ *
+ * `IFile.provider`'s Mongoose enum is the column's legal domain and has six
+ * values; `storage.config.ts` implements `local`, `firebase` and `cloudinary`,
+ * and `s3` / `gcs` / `r2` have no provider implementation in jovi-mall at all.
+ * The filter is accepted at its widest anyway — refusing `s3` would refuse a
+ * value the database is schema-permitted to hold — and answers honestly:
+ * `?provider=s3` is an **empty page because nothing is stored that way**, not a
+ * rejected parameter.
+ *
+ * ⚠ A third number matters for `url`: wi-admin can reproduce the public-URL form
+ * of **two** of the three real providers. Under `cloudinary` every `url` is
+ * `null` and `meta.publicUrlsConfigured` is `false`.
+ */
+export const FILE_PROVIDERS = ['local', 'firebase', 'cloudinary', 's3', 'gcs', 'r2'] as const;
+
+/**
+ * `usage` — and ⚠ **it is not the exact complement of `referenceCount`.**
+ *
+ * `unused` means jovi-mall's file-reference layer has stamped the file as having
+ * no live references. `used` means it has **not** — which includes a file that
+ * was never attached to anything. So a file uploaded a minute ago and not yet
+ * used reports `usage: used` and `referenceCount: 0` on the same row.
+ *
+ * That is not a contradiction: the filter is the indexed answer and the count is
+ * the precise one. **Render the count.**
+ */
+export const FILE_USAGE_FILTERS = ['used', 'unused'] as const;
+
+// ─── Uploading ────────────────────────────────────────────────────────────────
+
+/**
+ * `POST /files/upload` · `files.upload` (tiers 1–2) · **audited**.
+ *
+ * The first write path for files this service has ever had, and what makes the
+ * media picker non-empty.
+ *
+ * ── ⚠ "wi-admin accepts no multipart bodies anywhere" — narrowed, not abandoned
+ * The rule is now **"wi-admin never *parses* one"**. It holds no `multer` and no
+ * `busboy`, gained no dependency, and pipes the raw body straight through to
+ * jovi-mall unread. `express.json` is content-type gated and never sees this
+ * request — which is *why* the route declares its own byte ceiling, since the
+ * 1 MB body limit does not apply on this path at all.
+ *
+ * ── ⚠ Only the byte ceiling is enforced by wi-admin ──────────────────────────
+ * It cannot see a part boundary, a field name or a per-part content type. Max
+ * files, field name and the accepted MIME list are **published, not policed** —
+ * filter the file dialog with them and expect jovi-mall to be the authority. A
+ * file that slips past comes back as `PLATFORM_OPERATION_REJECTED` with
+ * `details.platformCode: "UPLOAD_POLICY_VIOLATION"`. **That is a normal refusal,
+ * not a bug.**
+ */
+
+/**
+ * ⚠ **32 MiB of WHOLE REQUEST BODY**, not per file — multipart framing and every
+ * part counts against it. `ADMIN_UPLOAD_MAX_BYTES` on the service.
+ *
+ * jovi-mall's `Admin: 2 GB per file` figure still resolves behind this and is a
+ * backstop that never binds. 32 MiB is sized for what an administrator actually
+ * uploads — blog imagery and ticket attachments — so a doomed body is never
+ * streamed across the hop.
+ */
+export const FILE_UPLOAD_MAX_BYTES = 33_554_432;
+
+/** ⚠ Published, not policed here — jovi-mall's pipeline is the authority. */
+export const FILE_UPLOAD_MAX_FILES = 10;
+
+/** The multipart field name. ⚠ Published, not policed here. */
+export const FILE_UPLOAD_FIELD_NAME = 'files';
+
+/**
+ * What jovi-mall's pipeline accepts. ⚠ Published, not policed here — use it to
+ * filter the file dialog, and expect the refusal to arrive from the platform.
+ */
+export const FILE_UPLOAD_ACCEPTED_MIME_TYPES = [
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/gif',
+    'application/pdf',
+    'application/zip',
+    'audio/mpeg',
+    'audio/wav',
+] as const;
+
+/**
+ * `meta` on the upload response — the constraints, **declared rather than
+ * discovered**, exactly as BR-015 asked.
+ *
+ * Prefer these over the constants above wherever a response is in hand: the
+ * constants describe the deployment this dashboard was written against, and the
+ * meta describes the one it is talking to.
+ */
+export interface FileUploadMeta {
+    count: number;
+    maxBytes: number;
+    maxFiles: number;
+    fieldName: string;
+    acceptedMimeTypes: string[];
+}
+
+/**
+ * `201`. **`files` is an array even for one file** — the route accepts up to ten,
+ * so the shape has to describe ten, and it is the same `{ files: [...] }` shape
+ * `GET /files?ids=` answers. **Order matches the parts sent.**
+ *
+ * ⚠ **What comes back is what was STORED, which may not be what was sent.**
+ * jovi-mall's pipeline sniffs the real type — a spoofed extension is filed as
+ * whatever the bytes actually are — and **converts PNG to WebP** by its own
+ * policy. A client that records `image/png` because that is what it uploaded has
+ * the wrong type on file. **Read the response; never echo the request.**
+ *
+ * ✅ **An admin upload lands PUBLIC**, and it is a property of where the bytes go
+ * rather than anything the route chooses: jovi-mall files each part under the
+ * folder for its own detected media type, and all six of those trees are
+ * classified `public`. So a blog cover comes back with `access: "public"` and a
+ * real, unauthenticated `url`. **There is no way to ask for a private tree here
+ * and no reason to want one.**
+ */
+export interface FileUploadResult {
+    files: FileDetail[];
+    meta: FileUploadMeta;
+}
+
+/**
+ * `413`. ⚠ The body exceeded `ADMIN_UPLOAD_MAX_BYTES`; `details.maxBytes` carries
+ * the limit the service actually applied, which is the one to render.
+ */
+export const CODE_FILE_UPLOAD_TOO_LARGE = 'FILE_UPLOAD_TOO_LARGE';
+
+/**
+ * `415`. ⚠ **Not a `VALIDATION_ERROR`, and the difference is structural**: this
+ * service never parses the body, so there is no field path to report. It is the
+ * answer to a `Content-Type` that is not `multipart/form-data`.
+ */
+export const CODE_FILE_UPLOAD_NOT_MULTIPART = 'FILE_UPLOAD_NOT_MULTIPART';
+
+/**
+ * `details.platformCode` on a `400 PLATFORM_OPERATION_REJECTED` from the upload —
+ * jovi-mall's pipeline refused a file on max-files, field name or MIME type.
+ * `details.violations[]` names the offending file.
+ *
+ * ⚠ **Branch on this, never on `error.code`**: the outer code is the same for
+ * every delegated refusal on the service.
+ */
+export const PLATFORM_CODE_UPLOAD_POLICY_VIOLATION = 'UPLOAD_POLICY_VIOLATION';

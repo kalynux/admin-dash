@@ -3,6 +3,7 @@ import { Route as RouteIcon, RotateCw } from 'lucide-react';
 
 import { Definition, DefinitionList } from '@/components/common/DefinitionList';
 import { InlineLoader } from '@/components/common/Loading';
+import { OpenInGoogleMaps } from '@/components/tracking/OpenInGoogleMaps';
 import { RevealPositionDialog } from '@/components/tracking/RevealPositionDialog';
 import { TrackingDoorNotice } from '@/components/tracking/TrackingDoorNotice';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { formatCount, formatInstantInZone, humaniseEnum } from '@/lib/format';
+import { googleMapsUrl } from '@/lib/geo';
 import {
     getShipmentTrackingEvents,
     getShipmentTrackingTrail,
@@ -38,10 +40,16 @@ import type { ShipmentTrackingTrail, TrackingSession } from '@/types/tracking.ty
  * It is one delivery whose agent's phone dropped and came back. The events card
  * says so rather than leaving the count to be misread.
  *
- * ── There is no map, and that is not an omission ──────────────────────────────
+ * ── There is no map here, and that is not an omission ─────────────────────────
  * There is no realtime on this door — no WebSocket, no SSE — and no agent-scoped
  * history of any kind. What exists is a completed delivery's record, and it is
- * rendered as one.
+ * rendered as one: a table of points, not a drawn route.
+ *
+ * ⚠ **Each row does link out to Google Maps**, which is a different thing from
+ * drawing the route — the trail is per *session* and merging two couriers'
+ * points into one polyline is the reading trap named above, whereas one point
+ * in one window cannot be misread that way. It is behind the same audited
+ * reveal as the coordinates it opens.
  */
 export function ShipmentTrackingPanel({
     shipmentId,
@@ -249,6 +257,14 @@ function TrailReading({
 
             <SessionList sessions={trail.sessions} timeZone={timeZone} />
 
+            {bySession.size > 0 ? (
+                <p className="text-muted-foreground text-xs">
+                    Each point opens on Google&rsquo;s map in a small window, which names the
+                    place. The coordinates travel to Google in the address bar, and the window is
+                    reused &mdash; a second point steers the one already open.
+                </p>
+            ) : null}
+
             {bySession.size === 0 ? (
                 <p className="text-muted-foreground text-sm">
                     No positions were recorded for this delivery.
@@ -273,6 +289,9 @@ function TrailReading({
                                             Longitude
                                         </th>
                                         <th className="px-3 py-1.5 text-left font-medium">Speed</th>
+                                        <th className="px-3 py-1.5 text-left font-medium">
+                                            <span className="sr-only">Open on a map</span>
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -291,6 +310,35 @@ function TrailReading({
                                             <td className="px-3 py-1.5">{checkpoint.lng}</td>
                                             <td className="px-3 py-1.5">
                                                 {checkpoint.speed ?? '—'}
+                                            </td>
+                                            <td className="px-3 py-1.5">
+                                                {/*
+                                                  Icon-only, because this column
+                                                  can run to thousands of rows and
+                                                  a labelled button on each would
+                                                  be the loudest thing on the
+                                                  screen. The accessible name
+                                                  carries the timestamp, so the
+                                                  forty links in view are not
+                                                  forty identical "Open"s.
+
+                                                  Already latitude-first here —
+                                                  no GeoJSON inversion on this
+                                                  payload.
+                                                */}
+                                                <OpenInGoogleMaps
+                                                    url={googleMapsUrl(
+                                                        checkpoint.lat,
+                                                        checkpoint.lng,
+                                                    )}
+                                                    iconOnly
+                                                    label={`Open the ${
+                                                        formatInstantInZone(
+                                                            checkpoint.recordedAt,
+                                                            timeZone,
+                                                        ) ?? checkpoint.recordedAt
+                                                    } point in Google Maps`}
+                                                />
                                             </td>
                                         </tr>
                                     ))}

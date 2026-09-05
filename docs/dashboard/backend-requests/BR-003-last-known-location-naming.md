@@ -61,6 +61,26 @@ the data does not have. What ships instead:
 - The GeoJSON `[lng, lat]` → Google's `lat,lng` inversion is a named, unit-tested helper. Getting it
   wrong drops the pin in the wrong hemisphere and fails silently.
 
+> ### 🔴 The last two bullets described something that did not exist, for a year
+>
+> **Built 2026-09-05, on an operator asking for it a second time.** The two bullets above were
+> written in the present tense when this request was raised and were never implemented: there was no
+> helper, no link and no `window.open` anywhere in `src/`. Nothing caught it, because a
+> backend-request document is prose and the tests were written against what the panel actually did.
+>
+> What now exists is [`src/lib/geo.ts`](../../../src/lib/geo.ts) — `googleMapsUrl(lat, lng)` and
+> `googleMapsUrlFromGeoJson([lng, lat])`, the inversion in one place, 14 tests — and
+> [`OpenInGoogleMaps`](../../../src/components/tracking/OpenInGoogleMaps.tsx), applied at **all
+> three** sites that render coordinates: this one, the audited live position
+> (`AgentLiveTrackingPanel`) and every row of the audited GPS trail
+> (`ShipmentTrackingPanel`). It opens a small popup window by the operator's preference, and a
+> blocked popup falls through to the anchor rather than to an error.
+>
+> ⚠ **The "give it a name" half is Google's doing, not ours.** The URL is Google's key-free
+> `maps/search/?api=1&query=` form, which reverse-geocodes the pin on their side. That is
+> independent of `place.label` below, which is still the ask — a label this dashboard can *read*,
+> print beside the coordinates and search on, without opening a third party's window.
+
 **Naming the location is not possible client-side.** There is no address on the payload and no
 geocoder in this application. So it is here.
 

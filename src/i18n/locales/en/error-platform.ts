@@ -159,6 +159,19 @@ const platform = {
 
     // ─── Money ───────────────────────────────────────────────────────────────
     EARNINGS_PAYOUT_REQUEST_NOT_PENDING: 'This payout is no longer pending.',
+
+    // ─── Files ───────────────────────────────────────────────────────────────
+    /**
+     * `POST /files/upload`, arrived with BR-015 on 2026-08-26.
+     *
+     * ⚠ **The only one of the four upload constraints wi-admin cannot check.**
+     * It never parses the body, so max files, field name and the accepted MIME
+     * list are enforced by jovi-mall's pipeline and arrive here as a delegated
+     * refusal. `details.violations[]` names the offending file, which the upload
+     * panel renders — this sentence is the frame around that list, so it says
+     * what to do rather than repeating what was wrong.
+     */
+    UPLOAD_POLICY_VIOLATION: 'The platform would not accept one of these files.',
 };
 
 export default platform;

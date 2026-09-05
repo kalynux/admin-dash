@@ -10,6 +10,7 @@ import { DetailSkeleton } from '@/components/common/Loading';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { TierBadge } from '@/components/layout/TierBadge';
 import { TicketAttachmentsPanel } from '@/components/support/TicketAttachmentsPanel';
+import { TicketEntityLink } from '@/components/support/TicketEntityLink';
 import { TicketNotesPanel } from '@/components/support/TicketNotesPanel';
 import { AssignTicketDialog } from '@/components/support/TicketWriteDialogs';
 import { Badge } from '@/components/ui/badge';
@@ -278,21 +279,36 @@ function TicketDetailScreen({ ticketId }: { ticketId: string }) {
                                 <Definition label="Importance">
                                     {humaniseEnum(record.importance) ?? record.importance}
                                 </Definition>
-                                <Definition label="About">
-                                    {record.entity ? (
-                                        <span>
-                                            {humaniseEnum(record.entity.type) ??
-                                                record.entity.type}
-                                            {record.entity.id ? (
-                                                <span className="text-muted-foreground">
-                                                    {' '}
-                                                    · {record.entity.id}
-                                                </span>
-                                            ) : null}
-                                        </span>
-                                    ) : (
-                                        <NotSet />
-                                    )}
+                                <Definition
+                                    label="About"
+                                    hint={
+                                        <InfoHint label="Which records open from here">
+                                            <p>
+                                                A ticket names one record. Orders, shipments,
+                                                products, vendors, agencies, agents and users open
+                                                from here when you hold the permission their
+                                                directory needs.
+                                            </p>
+                                            {/*
+                                              ⚠ Four types do not link, for three
+                                              different reasons, and saying so is
+                                              what stops the absence being read as
+                                              a broken join. See
+                                              `TicketEntityLink` for the CUSTOMER
+                                              disagreement with `support.md`.
+                                            */}
+                                            <p>
+                                                Bookings and deliveries have no screen on this
+                                                dashboard, <strong>Other</strong> names no record
+                                                by definition, and a customer id belongs to a
+                                                different collection from the user directory — so
+                                                those four show the id instead of a link that
+                                                could not resolve.
+                                            </p>
+                                        </InfoHint>
+                                    }
+                                >
+                                    <TicketEntityLink entity={record.entity} />
                                 </Definition>
                                 <Definition label="Tracking number">
                                     {record.trackingNumber ?? <NotSet />}

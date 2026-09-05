@@ -1,5 +1,6 @@
 import { AlertTriangle, BadgeCheck, BadgeX } from 'lucide-react';
 
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatInstantInZone } from '@/lib/format';
@@ -91,8 +92,22 @@ export function RoleProfilesPanel({ profiles, timeZone }: RoleProfilesPanelProps
                                         {profile.name ?? 'Unnamed'}
                                     </span>
                                 </div>
-                                <p className="text-muted-foreground mt-1 font-mono text-xs">
-                                    {profile.id}
+                                {/*
+                                  No entry links anywhere (see the note above), so
+                                  this id is the *only* way to reach the role's own
+                                  screen — the operator pastes it into that
+                                  module's search box. `truncate={false}` because
+                                  that is what a whole id being on screen already
+                                  bought them, and the label names the role because
+                                  an account can carry four of these.
+                                */}
+                                <p className="mt-1">
+                                    <CopyableValue
+                                        value={profile.id}
+                                        label={`${profile.role} profile ID`}
+                                        truncate={false}
+                                        className="text-muted-foreground"
+                                    />
                                 </p>
                             </div>
 

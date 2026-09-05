@@ -80,6 +80,13 @@ import { PERMISSION_FAMILIES } from '@/types/permissions.types';
  * ── The span cap here is 92 days, not 366 ─────────────────────────────────────
  * Every other feed in this app caps at 366. `MAX_DAYS_AUDIT` is the tighter one
  * and must not be replaced by the shared default.
+ *
+ * ── Almost none of this table's `font-mono` is a copyable value ───────────────
+ * The Action column's second line is an **action name** and the Result column's
+ * is an **error code**: both are vocabulary you filter on, not handles you
+ * paste, and both are already reachable as filters. The one genuine value in a
+ * row is the resource id, and it is `AuditTargetLink` that renders it — so the
+ * affordance lives there, once, rather than in this column definition.
  */
 
 /** Every key this screen owns. `page` is managed separately by the hook. */
@@ -400,6 +407,11 @@ export function AuditTrail() {
 
             {pinned.length > 0 ? (
                 <div className="flex flex-wrap items-center gap-2">
+                    {/* These do hold real ids, and they still do not get a copy
+                        button: a chip is one control that removes a filter, and a
+                        second icon button inside it competes with the X for the
+                        same few pixels. The id is in the address bar, and the row
+                        it came from renders it as a value. */}
                     {pinned.map(({ key, label }) => (
                         <Badge key={key} variant="secondary" className="gap-1 py-1 pr-1 pl-2">
                             <span className="text-muted-foreground">{label}:</span>

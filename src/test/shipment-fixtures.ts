@@ -116,6 +116,9 @@ export function shipmentDetailFixture(
             fulfillmentStatus: 'processing',
             customerId: '665f1c2a9b3e4a91c7d2e5f0',
             vendorId: '6650aa11bb22cc33dd44ee55',
+            // ⚠ `stores.name` — the **business**. `GET /orders` has a field of
+            // the same spelling that is `vendors.display_name`, a *person*.
+            vendorName: 'Douala Fresh Market',
         },
         assignment: {
             state: 'accepted',
@@ -147,6 +150,23 @@ export function shipmentDetailFixture(
                 productId: '66601122334455667788990a',
                 variantId: null,
                 quantity: 3,
+                // ⚠ The **sale's** terms, joined from the order line's snapshot
+                // on `orderItemId` — not the catalogue's, which is today's price
+                // and drifts the moment the vendor edits one.
+                title: 'Plantain — 1 kg',
+                price: 2500,
+                currency: 'XAF',
+                // The same picture the order detail shows, by construction: one
+                // resolution rule, so the two screens cannot disagree.
+                image: {
+                    id: '6612aabbccddeeff00112233',
+                    key: 'products/6660/plantain-1kg.jpg',
+                    url: 'https://cdn.example.com/products/6660/plantain-1kg.jpg',
+                    access: 'public',
+                    mimeType: 'image/jpeg',
+                    size: 84213,
+                    originalName: 'plantain.jpg',
+                },
             },
         ],
         deliveryProofFileId: null,

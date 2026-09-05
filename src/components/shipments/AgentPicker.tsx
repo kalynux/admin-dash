@@ -31,6 +31,20 @@ import { agentDisplayName, type AgentListQuery } from '@/types/agents.types';
  * What the picker *does* narrow is the obviously-useless: an agent who is banned
  * or whose account is not active cannot take anything, and those two are on the
  * row already.
+ *
+ * ── ⚠ Nothing here takes a copy affordance, and that is the answer ────────────
+ * The ids, emails and phone numbers on this screen look like the sweep's targets
+ * and are not, for two separate reasons:
+ *
+ * - **The result rows are `<button>`s.** Their second line is a *label for the
+ *   choice*, not a value on display — and a copy button nested inside a button is
+ *   invalid markup that also steals the click from the thing the row is for.
+ * - **The id field is an `<Input>`.** It is already selectable, already whole, and
+ *   already the operator's to copy by the ordinary means. An affordance beside a
+ *   text box duplicates the text box.
+ *
+ * Where the chosen agent is *displayed* rather than picked — the offer trail, the
+ * assignment card — that render carries the affordance instead. See `AgentRef`.
  */
 export function AgentPicker({
     value,

@@ -6,7 +6,20 @@ import tseslint from 'typescript-eslint'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores([
+    'dist',
+    // ⚠ `docs/` is NOT this repository's code and must never be linted.
+    //
+    // It holds eight **source mirrors** — `error-codes.ts`, `article-blocks.ts`,
+    // `content-domain.ts`, `content-dto.ts`, `content-validators.ts` and three of
+    // jovi-mall's — each a verbatim copy of a backend file, taken so that a
+    // contract can be `diff`ed rather than transcribed. `order-timeline-events.ts`
+    // trips `no-explicit-any` twice, and that is the point: the `any` is in
+    // jovi-mall's model and editing it out would make the copy stop being one.
+    // A mirror is re-copied or it is wrong; it is never edited to please a rule
+    // it was not written against.
+    'docs',
+  ]),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [
