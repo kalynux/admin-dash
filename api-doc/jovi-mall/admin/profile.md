@@ -140,7 +140,7 @@ there is no admin-id path parameter.
 ### Example error `400` (validation)
 
 ```json
-{ "success": false, "requestId": "req_abc", "error": { "code": "VALIDATION_ERROR", "message": "Validation failed", "statusCode": 400, "details": { "fields": [{ "path": "avatar_file_id", "message": "avatar_file_id must be a valid file id", "code": "invalid_string" }] } } }
+{ "success": false, "requestId": "req_abc", "error": { "code": "VALIDATION_ERROR", "message": "Validation failed", "statusCode": 400, "category": "validation", "details": { "fields": [{ "path": "avatar_file_id", "message": "avatar_file_id must be a valid file id", "code": "invalid_string" }] } } }
 ```
 
 ## Possible error codes

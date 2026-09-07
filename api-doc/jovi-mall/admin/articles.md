@@ -214,8 +214,11 @@ re-stamping it silently reorders pages that link to each other.
 
 ```json
 {
+  "success": false,
+  "requestId": "req_9f3c1a",
   "error": {
     "code": "BLOG_ARTICLE_NOT_PUBLISHABLE",
+    "category": "business_rule",
     "statusCode": 422,
     "details": {
       "id": "getting-paid-on-whatsapp",

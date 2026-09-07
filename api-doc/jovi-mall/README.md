@@ -427,6 +427,7 @@ offending field in `error.details.fields[]`:
   "requestId": "req_abc123",
   "error": {
     "code": "VALIDATION_ERROR",
+    "category": "validation",
     "message": "Validation failed",
     "statusCode": 400,
     "details": {

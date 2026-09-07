@@ -37,7 +37,7 @@ All billing endpoints use the platform-standard envelope.
 
 **Error:**
 ```json
-{ "success": false, "error": { "code": "ERROR_CODE", "message": "Human-readable description", "details": { } } }
+{ "success": false, "requestId": "req_9f3c1a", "error": { "code": "ERROR_CODE", "message": "Human-readable description", "statusCode": 400, "category": "validation", "details": { } } }
 ```
 `details` is present on some errors (e.g. insufficient credits, limit exceeded).
 
