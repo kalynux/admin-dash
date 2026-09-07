@@ -1,8 +1,8 @@
 /**
  * The authorization vocabulary.
  *
- * Source of truth: `docs/admin/api/permissions.md` (the matrix) and
- * `docs/admin/api/authorization.md` (the three `/permissions` endpoints).
+ * Source of truth: `api-doc/admin/api/permissions.md` (the matrix) and
+ * `api-doc/admin/api/authorization.md` (the three `/permissions` endpoints).
  *
  * **Why the names are hard-coded here and the level matrix is not.** The docs
  * draw that line themselves: `GET /permissions/catalog` requires no permission

@@ -8,8 +8,8 @@
  *
  * | Mirror | Source |
  * |---|---|
- * | `docs/admin/article-blocks.ts` | `content/validators/article-body.validator.ts` |
- * | `docs/admin/content-domain.ts` | `content/domain/content.types.ts` |
+ * | `api-doc/admin/article-blocks.ts` | `content/validators/article-body.validator.ts` |
+ * | `api-doc/admin/content-domain.ts` | `content/domain/content.types.ts` |
  *
  * `content.md` names none of this — it says `body` is *"a discriminated union of
  * nine block types, `.strict()` throughout"* and stops. So the mirrors are the
@@ -49,8 +49,8 @@ import {
 } from '@/types/content.types';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const blocks = readFileSync(resolve(here, '../../docs/admin/article-blocks.ts'), 'utf8');
-const domain = readFileSync(resolve(here, '../../docs/admin/content-domain.ts'), 'utf8');
+const blocks = readFileSync(resolve(here, '../../api-doc/admin/article-blocks.ts'), 'utf8');
+const domain = readFileSync(resolve(here, '../../api-doc/admin/content-domain.ts'), 'utf8');
 
 /**
  * The discriminator of every member of `ArticleBlockSchema`.

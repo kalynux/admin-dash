@@ -337,7 +337,7 @@ function buildSections(refreshToken: number, timeZone: string, today: InstantRan
  *
  * **wi-admin has no aggregate, summary, KPI or stats endpoint** — not one, in
  * any of its eighteen route groups. That is verified in the api bundle, recorded
- * as gap D1 in `docs/dashboard/BACKEND-INTEGRATION-MATRIX.md`, and confirmed
+ * as gap D1 in `api-doc/admin/dashboard/BACKEND-INTEGRATION-MATRIX.md`, and confirmed
  * against the service's own route table. So this page is composed, and the rule
  * every figure on it obeys is:
  *

@@ -18,7 +18,7 @@
  * model**, not by convention: `order-timeline.model.ts` declares a Mongoose
  * `enum` on an append-only collection whose `pre` hooks throw on update and
  * delete. A tenth value cannot be written without a code change in the file
- * mirrored at `docs/jovi-mall/order-timeline-events.ts`. That is the same
+ * mirrored at `api-doc/jovi-mall/order-timeline-events.ts`. That is the same
  * standard `ticket-vocabularies.ts` met, and this suite is the same arrangement.
  *
  * ⚠ **A failure here means jovi-mall moved.** Re-copy the mirror and reconcile
@@ -39,7 +39,7 @@ import {
 
 const MIRROR = resolve(
     dirname(fileURLToPath(import.meta.url)),
-    '../../docs/jovi-mall/order-timeline-events.ts',
+    '../../api-doc/jovi-mall/order-timeline-events.ts',
 );
 
 const mirror = readFileSync(MIRROR, 'utf8');

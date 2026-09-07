@@ -10,7 +10,7 @@
  * audits `{ passwordRotated: true }` rather than the one-time password itself.
  *
  * **This is not a transcription of that list.** `REDACTED_PATHS` is not in
- * `docs/`, so it cannot be copied, and claiming parity with a list we cannot read
+ * `api-doc/`, so it cannot be copied, and claiming parity with a list we cannot read
  * would be exactly the drift this codebase keeps recording. What follows is a
  * deliberately broad heuristic whose only job is to make a server-side regression
  * non-fatal: if a credential ever does reach a row, the screen that reads rows

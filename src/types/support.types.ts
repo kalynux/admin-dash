@@ -1,7 +1,7 @@
 /**
  * `/support/tickets` — the support queue.
  *
- * Source: `docs/admin/api/support.md`. **The only administrative door onto
+ * Source: `api-doc/admin/api/support.md`. **The only administrative door onto
  * tickets** — jovi-mall's own `/api/admin/tickets` mount was deleted when this
  * one was built, so anything still pointing there is calling a 404.
  *
@@ -60,7 +60,7 @@ export type TicketToken = string;
  * jovi-mall; a route on wi-admin publishing them would be wi-admin taking
  * ownership of a list it does not own, and a second place for that list to live.
  * So they are mirrored from
- * [`docs/jovi-mall/ticket-vocabularies.ts`](../../docs/jovi-mall/ticket-vocabularies.ts)
+ * [`api-doc/jovi-mall/ticket-vocabularies.ts`](../../api-doc/jovi-mall/ticket-vocabularies.ts)
  * — byte-identical to `modules/tickets/types/ticket.types.ts` — and the drift
  * risk is handled by `support-vocabularies.test.ts` rather than by a request.
  *
@@ -295,7 +295,7 @@ export interface TicketAvailableActions {
  * `vendorId` would drop the product link on every row, and both would look like
  * a bug in the join rather than the documented shape.
  *
- * Granted at [BR-016 § 7](../../docs/dashboard/backend-requests/BR-016-names-on-reference-rows.md).
+ * Granted at [BR-016 § 7](../../api-doc/admin/dashboard/backend-requests/BR-016-names-on-reference-rows.md).
  */
 export interface TicketEntityRef {
     /**

@@ -2,7 +2,7 @@
  * `/content` — the marketing blog: article drafts, translations, the publish
  * lifecycle, and the editorial bylines articles are credited to.
  *
- * Source: `docs/admin/api/content.md` for the routes, the permissions, the
+ * Source: `api-doc/admin/api/content.md` for the routes, the permissions, the
  * lifecycle and every rule below.
  *
  * ✅ **`content.md` now specifies the shapes**, since BR-014: a `## The shapes`
@@ -13,7 +13,7 @@
  *
  * ── 🔴 What that gap cost, and how it is closed ───────────────────────────────
  * Until 2026-08-25 every shape in this file was read out of
- * `docs/jovi-mall/admin/articles.md`, the obsolete page the capability moved
+ * `api-doc/jovi-mall/admin/articles.md`, the obsolete page the capability moved
  * *from*, whose banner says that beyond the base path only "keys instead of ids"
  * and the permissions changed. **The whole module was wrong on the wire because
  * of that one sentence.** The payload fields are `id` and `authorId`.
@@ -55,11 +55,11 @@
  *
  * | Mirror | Source | Carries |
  * |---|---|---|
- * | [`article-blocks.ts`](../../docs/admin/article-blocks.ts) | `content/validators/article-body.validator.ts` | The nine blocks and every body rule |
- * | [`content-domain.ts`](../../docs/admin/content-domain.ts) | `content/domain/content.types.ts` | Locales, categories, author types, reserved slugs |
- * | [`content-dto.ts`](../../docs/admin/content-dto.ts) | `content/read-models/article.dto.ts` | **Every response shape** |
- * | [`content-validators.ts`](../../docs/admin/content-validators.ts) | `content/validators/article.validator.ts` | Every request shape, query and limit |
- * | [`public-article-dto.ts`](../../docs/admin/public-article-dto.ts) | `content/read-models/public-article.dto.ts` | **The `/preview` shape** — taken 2026-08-26, BR-019 § 3 |
+ * | [`article-blocks.ts`](../../api-doc/admin/article-blocks.ts) | `content/validators/article-body.validator.ts` | The nine blocks and every body rule |
+ * | [`content-domain.ts`](../../api-doc/admin/content-domain.ts) | `content/domain/content.types.ts` | Locales, categories, author types, reserved slugs |
+ * | [`content-dto.ts`](../../api-doc/admin/content-dto.ts) | `content/read-models/article.dto.ts` | **Every response shape** |
+ * | [`content-validators.ts`](../../api-doc/admin/content-validators.ts) | `content/validators/article.validator.ts` | Every request shape, query and limit |
+ * | [`public-article-dto.ts`](../../api-doc/admin/public-article-dto.ts) | `content/read-models/public-article.dto.ts` | **The `/preview` shape** — taken 2026-08-26, BR-019 § 3 |
  *
  * ── `owned` is a third transport ──────────────────────────────────────────────
  * This family reaches neither jovi-mall over HTTP nor a wi-admin collection: it
@@ -215,7 +215,7 @@ export type RichText = RichTextSpan[];
  * ── Where these came from, and why they are safe to hard-code ─────────────────
  * `content.md` still specifies no block types — it says *"a discriminated union
  * of nine block types"* and names none. This union is read from
- * [`docs/admin/article-blocks.ts`](../../docs/admin/article-blocks.ts), a
+ * [`api-doc/admin/article-blocks.ts`](../../api-doc/admin/article-blocks.ts), a
  * **byte-identical mirror** of the backend's own validator, on the precedent
  * `error-codes.ts` set: where a contract is fully specified in backend code and
  * not in a doc page, mirror the file rather than transcribe it, **because a copy
@@ -692,7 +692,7 @@ export interface AuthorTranslation {
  * authenticated read of what it would look like if it were not. **Do not ask
  * for a flag that makes the public route serve drafts.**
  *
- * Source: [`docs/admin/public-article-dto.ts`](../../docs/admin/public-article-dto.ts),
+ * Source: [`api-doc/admin/public-article-dto.ts`](../../api-doc/admin/public-article-dto.ts),
  * a byte-identical mirror of wi-admin's own `read-models/public-article.dto.ts`,
  * taken on this repository's own rule that **a copy can be `diff`ed and a
  * transcription cannot**. `content.md` gained a `### The public shape` section

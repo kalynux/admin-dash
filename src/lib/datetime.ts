@@ -2,7 +2,7 @@
  * Instants, timezones and half-open date ranges.
  *
  * The single rule this module exists to enforce, from
- * `docs/admin/api/README.md`:
+ * `api-doc/admin/api/README.md`:
  *
  * > **Date ranges are half-open `[from, to)` and date-only values are refused.**
  * > `2026-08-11` is not an instant — the client resolves the day in the

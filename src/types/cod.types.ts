@@ -3,7 +3,7 @@
  *
  * ── Why this shape is declared here and not taken from the api docs ───────────
  *
- * [cod.md](../../docs/admin/api/cod.md) says only *"`data` is the platform's own
+ * [cod.md](../../api-doc/admin/api/cod.md) says only *"`data` is the platform's own
  * overview object: totals across every cash account, cross-referenced against
  * unsettled collections"* — no field list and no example, because the route is a
  * **verbatim pass-through**: `cod.gateway.ts` returns jovi-mall's `result.data`
@@ -13,7 +13,7 @@
  * `backend/jovi-mall/src/modules/cod/services/cod-summary.service.ts`
  * (`adminOverview`, and `unsettledCollections` for the third block), reached from
  * `admin-cod.controller.ts:70`. That is the same use `CLAUDE.md` already
- * sanctions for `docs/jovi-mall/` — *"useful for decoding `details.platformCode`
+ * sanctions for `api-doc/jovi-mall/` — *"useful for decoding `details.platformCode`
  * on a delegated failure, and for domain vocabulary"*. What it forbids is
  * building a **client** against jovi-mall, and this dashboard still calls only
  * wi-admin.

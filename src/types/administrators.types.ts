@@ -1,7 +1,7 @@
 /**
  * `/administrators` — the surface that decides who may use this service.
  *
- * Source of truth: `docs/admin/api/administrators.md`.
+ * Source of truth: `api-doc/admin/api/administrators.md`.
  *
  * ── This is not `AdminProfile`, and must never alias it ───────────────────────
  * `types/auth.types.ts` already promises "Phase 8 declares its own" — this is

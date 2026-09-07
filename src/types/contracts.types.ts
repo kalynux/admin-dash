@@ -14,7 +14,7 @@
  * declared once in `agencies.types.ts` and again in `agents.types.ts`. Same move
  * as `actor.types.ts` in Phase 7.
  *
- * Sources: `docs/admin/api/agencies.md`, `docs/admin/api/agents.md`,
+ * Sources: `api-doc/admin/api/agencies.md`, `api-doc/admin/api/agents.md`,
  * `backend/admin/src/modules/agencies/read-models/contract.dto.ts`, and — for the
  * vocabularies and the sub-document shapes the docs leave undocumented —
  * `backend/jovi-mall/src/modules/agents/models/agent-agency-membership.model.ts`.
@@ -125,7 +125,7 @@ export type ContractRemittanceCadence =
  * These types were pinned to the storage casing on purpose, so that they would
  * **break loudly** when the mapper landed rather than silently rendering
  * `undefined`. This is that break, taken — see
- * `docs/dashboard/backend-requests/RESPONSE-2026-08-17.md` breaking change (1),
+ * `api-doc/admin/dashboard/backend-requests/RESPONSE-2026-08-17.md` breaking change (1),
  * which moved five nested blocks at once.
  */
 export interface ContractEmployment {
@@ -359,7 +359,7 @@ export interface ContractDetail extends ContractCore {
  * ⚠ **These three freeze or end a relationship. They invent, alter and approve
  * nothing.** Approving a pending contract, editing terms and adjusting
  * `cod.threshold` are all refused by the service, each for its own reason — see
- * `docs/admin/api/contracts.md` § "What they do NOT do". The case these serve is
+ * `api-doc/admin/api/contracts.md` § "What they do NOT do". The case these serve is
  * the one nothing else covered: an agency abusing an agent, or an agent under
  * investigation, is a situation an administrator should be able to stop without
  * transferring anybody.

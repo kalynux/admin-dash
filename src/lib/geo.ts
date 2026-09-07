@@ -1,7 +1,7 @@
 /**
  * Handing a coordinate pair to Google Maps.
  *
- * This exists because [BR-003](../../docs/dashboard/backend-requests/BR-003-last-known-location-naming.md)
+ * This exists because [BR-003](../../api-doc/admin/dashboard/backend-requests/BR-003-last-known-location-naming.md)
  * asked for it in exactly these words — *"open the long and lat on a real map …
  * and give it a name"* — and named the trap in the same breath:
  *

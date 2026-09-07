@@ -1,7 +1,7 @@
 /**
  * `/agents` — the fifteen endpoints of the delivery-agent surface.
  *
- * Sources: `docs/admin/api/agents.md`, `docs/admin/ADR-009-DELIVERY-NETWORK.md`,
+ * Sources: `api-doc/admin/api/agents.md`, `api-doc/admin/ADR-009-DELIVERY-NETWORK.md`,
  * `backend/admin/src/modules/agents/`, and — for the three verdict shapes and
  * every delegated failure code, none of which any doc publishes —
  * `backend/jovi-mall/src/modules/agents/`. See `types/agents.types.ts` for the
@@ -374,7 +374,7 @@ export function setAgentTracking(
  * audit row's `after` by reading `agent.cod.maxThreshold`, and an allocation
  * carries `maxThreshold` at the top level — so `after.codMaxThreshold` is always
  * `null` on this action. The audit trail under-records it. Reported upstream; see
- * `docs/dashboard/DATA-EXPOSURE-REGISTER.md`.
+ * `api-doc/admin/dashboard/DATA-EXPOSURE-REGISTER.md`.
  *
  * Bounds are **not** checked client-side. jovi-mall owns the min/max and owns the
  * rule this write can actually fail — lowering the pool below what the contracts

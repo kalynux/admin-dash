@@ -1,7 +1,7 @@
 /**
  * `/accounts/:ownerType/:ownerId` — one party's financial account, composed.
  *
- * Sources: `docs/admin/api/accounts.md` and, for the field-by-field shape,
+ * Sources: `api-doc/admin/api/accounts.md` and, for the field-by-field shape,
  * `backend/admin/src/modules/accounts/read-models/account.dto.ts` — which is the
  * authority here because the mount is a composition of two delegated verdicts and
  * eleven direct reads, and the docs describe some of it in prose.
@@ -35,7 +35,7 @@
  * ── The one place a vendor's commission is readable ───────────────────────────
  * `subscription.entitlements.commissionPercent`. It is **not** on the `/vendors`
  * surface at all: it lives on the billing `PricingPlan` and moves only by
- * assigning a plan ([ADR-008 D-8](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md)).
+ * assigning a plan ([ADR-008 D-8](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)).
  */
 
 import type { ActorStamp } from '@/types/actor.types';

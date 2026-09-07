@@ -1,7 +1,7 @@
 /**
  * The `/auth` wire contract.
  *
- * Source of truth: `docs/admin/api/auth.md`. Every shape here was read off that
+ * Source of truth: `api-doc/admin/api/auth.md`. Every shape here was read off that
  * page; nothing is inferred from the sibling dashboards, which authenticate
  * against jovi-mall and have no login call, no MFA and no CSRF at all.
  */

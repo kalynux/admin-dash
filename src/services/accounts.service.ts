@@ -1,11 +1,11 @@
 /**
  * `/accounts/:ownerType/:ownerId` — one party's financial account.
  *
- * Sources: `docs/admin/api/accounts.md` and
+ * Sources: `api-doc/admin/api/accounts.md` and
  * `backend/admin/src/modules/accounts/`.
  *
  * ── Why this is not on the `/vendors` surface ─────────────────────────────────
- * [ADR-008](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md) explicitly excludes
+ * [ADR-008](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md) explicitly excludes
  * billing, earnings and payouts from `/vendors`: assembling them there would let
  * `vendors.read` alone reach what `billing.*` and `money.*` exist to gate. So the
  * vendor screen reads *this* mount instead, behind *its* permissions — which is

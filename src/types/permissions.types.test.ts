@@ -2,12 +2,12 @@
  * The transcription guard.
  *
  * `permissions.types.ts` copies 116 permission names out of
- * `docs/admin/api/permissions.md` by hand. A single typo there is invisible at
+ * `api-doc/admin/api/permissions.md` by hand. A single typo there is invisible at
  * runtime — a permission that does not exist can never be held, so the screen it
  * gates simply never appears, for everybody, forever.
  *
  * So this suite does not test the code: it **diffs the code against the
- * contract**. `CLAUDE.md` records that `docs/admin/` is a verbatim copy of
+ * contract**. `CLAUDE.md` records that `api-doc/admin/` is a verbatim copy of
  * `backend/admin/docs/`, re-copied when the backend changes, which makes the
  * markdown a moving target this file is pinned to. When the policy changes, this
  * fails first and names exactly what moved.
@@ -26,7 +26,7 @@ import {
 
 const DOC_PATH = resolve(
     dirname(fileURLToPath(import.meta.url)),
-    '../../docs/admin/api/permissions.md',
+    '../../api-doc/admin/api/permissions.md',
 );
 
 const doc = readFileSync(DOC_PATH, 'utf8');
@@ -75,7 +75,7 @@ function expectSameSet(actual: readonly string[], expected: readonly string[]) {
     ).toEqual([]);
 }
 
-describe('the permission catalogue matches docs/admin/api/permissions.md', () => {
+describe('the permission catalogue matches api-doc/admin/api/permissions.md', () => {
     it('finds the matrix at all', () => {
         // If the doc is restructured the regexes go quiet rather than wrong, and
         // every assertion below would pass against nothing. Fail loudly instead.

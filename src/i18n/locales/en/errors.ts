@@ -3,7 +3,7 @@
  *
  * `codes` is exhaustive over `KNOWN_ERROR_CODES`, so a code added to the
  * registry without copy is a **compile error**, and `error-catalog.test.ts`
- * additionally diffs both against `docs/admin/api/errors.md`.
+ * additionally diffs both against `api-doc/admin/api/errors.md`.
  *
  * Three rules govern the wording:
  *
@@ -238,7 +238,7 @@ const category = {
 
 /**
  * The intended per-category explanation, verbatim from
- * `docs/admin/api/errors.md`. These are also what `GET /system/errors` returns
+ * `api-doc/admin/api/errors.md`. These are also what `GET /system/errors` returns
  * to a Support-level caller in place of the internal message, so using the same
  * words here keeps the dashboard and the error journal telling one story.
  */

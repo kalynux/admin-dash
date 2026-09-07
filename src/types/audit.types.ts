@@ -2,7 +2,7 @@
  * `/audit` — the trail: the list row, the entry detail, the action catalog, the
  * exports and the interim jovi-mall feed.
  *
- * The list row is field for field what `docs/admin/api/audit.md` documents for
+ * The list row is field for field what `api-doc/admin/api/audit.md` documents for
  * `GET /audit`, and it is shared verbatim with `GET /administrators/me/activity`,
  * whose *"query parameters, response shape, pagination and sorting are
  * identical"* — and which carries **no permission at all**, because an audit

@@ -1,7 +1,7 @@
 /**
  * `/orders` — the ten endpoints of the order-administration surface.
  *
- * Sources: `docs/admin/api/orders.md`, `docs/admin/ADR-010-ORDERS-AND-SHIPMENTS.md`,
+ * Sources: `api-doc/admin/api/orders.md`, `api-doc/admin/ADR-010-ORDERS-AND-SHIPMENTS.md`,
  * `backend/admin/src/modules/orders/`, and — for the delegated failures' real
  * codes, which the wi-admin docs do not publish —
  * `backend/jovi-mall/src/core/error-codes.ts` and
@@ -34,7 +34,7 @@
  * function that never returns the document makes rendering one structurally
  * impossible. Every caller refetches, which is the house rule for a delegated
  * write anyway, so nothing is lost. Recorded in
- * `docs/dashboard/DATA-EXPOSURE-REGISTER.md` as a backend ask.
+ * `api-doc/admin/dashboard/DATA-EXPOSURE-REGISTER.md` as a backend ask.
  *
  * ── No order action is dual-controlled ────────────────────────────────────────
  * `orders.refund` and `orders.disputes.resolve` are flagged `financial`, which is

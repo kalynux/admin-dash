@@ -2,7 +2,7 @@
  * `/files` — **seven routes** since BR-015: resolve one, resolve a batch, open
  * one, **browse them all**, **upload**, list orphans, destroy one.
  *
- * Source: `docs/admin/api/files.md`. Five of the seven are **delegated** to
+ * Source: `api-doc/admin/api/files.md`. Five of the seven are **delegated** to
  * jovi-mall, where the storage provider is configured, so a failure can arrive
  * as `PLATFORM_OPERATION_REJECTED` with jovi-mall's code in
  * `details.platformCode`.

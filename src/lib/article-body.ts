@@ -1,7 +1,7 @@
 /**
  * The article-body rules, client side.
  *
- * Source: [`docs/admin/article-blocks.ts`](../../docs/admin/article-blocks.ts),
+ * Source: [`api-doc/admin/article-blocks.ts`](../../api-doc/admin/article-blocks.ts),
  * a byte-identical mirror of wi-admin's own Zod validator.
  *
  * ── Why validate here at all, when the server already does ────────────────────

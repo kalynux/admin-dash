@@ -1,8 +1,8 @@
 /**
  * The wi-admin wire contract.
  *
- * Source of truth: `docs/admin/api/README.md` (envelope, pagination, sorting)
- * and `docs/admin/api/errors.md` (the registry, the nine categories, the
+ * Source of truth: `api-doc/admin/api/README.md` (envelope, pagination, sorting)
+ * and `api-doc/admin/api/errors.md` (the registry, the nine categories, the
  * exposure rule). Nothing here is inferred from the sibling dashboards — their
  * backend is jovi-mall, whose envelope is byte-identical but whose *codes*,
  * *casing* and *details shapes* are not.
@@ -338,14 +338,14 @@ export const CLIENT_CODE_PREFIX = 'CLIENT_';
  * Every code wi-admin can put in `error.code` and a client can actually see.
  *
  * Read from **two** registries, because they have disagreed in both directions
- * and the guard is what keeps them honest: `docs/admin/api/errors.md` publishes
- * **92** distinct codes, and `docs/admin/error-codes.ts` — a copy of the
+ * and the guard is what keeps them honest: `api-doc/admin/api/errors.md` publishes
+ * **92** distinct codes, and `api-doc/admin/error-codes.ts` — a copy of the
  * backend's own source — declares **83**. Seven of the nine in the doc alone are
  * jovi-mall's verdicts, which wi-admin's registry correctly never declares.
  *
  * ⚠ **The other two are `FILE_UPLOAD_NOT_MULTIPART` and `FILE_UPLOAD_TOO_LARGE`,
  * and there the mirror is simply stale.** `backend/admin/src/core/errors/
- * error-codes.ts` declares 85 and names both; the copy under `docs/admin/` was
+ * error-codes.ts` declares 85 and names both; the copy under `api-doc/admin/` was
  * not re-taken when `errors.md` grew the rows at the 2026-08-26 resync. They are
  * included here on the doc's authority and on the backend source's, which agree.
  * Historically the gap ran the other way — `errors.md` once omitted sixteen

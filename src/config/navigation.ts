@@ -33,7 +33,7 @@ import type { PermissionMode, RoutedPermissionName } from '@/types/permissions.t
  *
  * 1. **Navigation is built from `GET /api/v1/permissions/me`, not hard-coded.**
  *    Each entry names the permission(s) that make it reachable, taken verbatim
- *    from `docs/admin/api/permissions.md`, and the shell filters this list
+ *    from `api-doc/admin/api/permissions.md`, and the shell filters this list
  *    against the caller's own set. The alternative the docs warn against —
  *    discovering capability by collecting 403s — is never done here.
  *

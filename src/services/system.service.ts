@@ -17,9 +17,9 @@
  * local read still answers when the delegated one has stopped.
  *
  * ── Where these shapes came from ──────────────────────────────────────────────
- * `docs/admin/api/system.md` publishes a response shape for six of the seventeen. The rest were
+ * `api-doc/admin/api/system.md` publishes a response shape for six of the seventeen. The rest were
  * read from `backend/admin/src/modules/system/gateways/system.gateway.ts` and cross-checked
- * against `docs/jovi-mall/admin/system.md`. See the header of `types/system.types.ts`.
+ * against `api-doc/jovi-mall/admin/system.md`. See the header of `types/system.types.ts`.
  */
 
 import { withQuery } from '@/lib/query';

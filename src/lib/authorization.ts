@@ -5,7 +5,7 @@
  * the bottom of the authorization stack, so navigation, the store, the gates and
  * the guards can all depend on it without depending on each other.
  *
- * This is layer 1 of four. `docs/admin/api/permissions.md` describes the rest:
+ * This is layer 1 of four. `api-doc/admin/api/permissions.md` describes the rest:
  * escalation rules on administrator-on-administrator actions (layer 2), row-level
  * resource scope (layer 3, which refuses as a **404**, not a 403), and dual
  * control (layer 4, which answers **202**, not an error). None of those can be

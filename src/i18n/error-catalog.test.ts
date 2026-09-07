@@ -1,13 +1,13 @@
 /**
  * The transcription guard for the error registry.
  *
- * `KNOWN_ERROR_CODES` copies 50 codes out of `docs/admin/api/errors.md` by
+ * `KNOWN_ERROR_CODES` copies 50 codes out of `api-doc/admin/api/errors.md` by
  * hand, and the English catalog writes copy for each. Both drift silently: a
  * mistyped code can never match, so its message never appears and the failure
  * quietly renders as its category instead — plausible, and wrong.
  *
  * So this suite does not test the code: it **diffs the code against the
- * contract**. `CLAUDE.md` records that `docs/admin/` is a verbatim copy of
+ * contract**. `CLAUDE.md` records that `api-doc/admin/` is a verbatim copy of
  * `backend/admin/docs/`, re-copied when the backend changes, which makes the
  * markdown a moving target this file is pinned to.
  *
@@ -31,7 +31,7 @@ import {
     type ErrorCategory,
 } from '@/types/api.types';
 
-const DOC_PATH = resolve(dirname(fileURLToPath(import.meta.url)), '../../docs/admin/api/errors.md');
+const DOC_PATH = resolve(dirname(fileURLToPath(import.meta.url)), '../../api-doc/admin/api/errors.md');
 const doc = readFileSync(DOC_PATH, 'utf8');
 
 /**
@@ -231,7 +231,7 @@ describe('the registry parses', () => {
 });
 
 /**
- * Every key of `ERROR_CODES` in `docs/admin/error-codes.ts`.
+ * Every key of `ERROR_CODES` in `api-doc/admin/error-codes.ts`.
  *
  * ── Why a second source, when `errors.md` is the contract ─────────────────────
  * Because `errors.md` is a **claim about** the registry and this file **is** the
@@ -259,7 +259,7 @@ describe('the registry parses', () => {
  * bitten.
  */
 function sourceRegistryCodes(): string[] {
-    const path = resolve(dirname(fileURLToPath(import.meta.url)), '../../docs/admin/error-codes.ts');
+    const path = resolve(dirname(fileURLToPath(import.meta.url)), '../../api-doc/admin/error-codes.ts');
     const source = readFileSync(path, 'utf8');
     // `    SOME_CODE: 'SOME_CODE',` — key and value are identical by discipline.
     return [...source.matchAll(/^\s{4}([A-Z][A-Z0-9_]+):\s*'([A-Z][A-Z0-9_]+)'/gm)].map(
@@ -272,7 +272,7 @@ function sourceRegistryCodes(): string[] {
  *
  * ⚠ **This exact drift happened on 2026-08-26 and nothing caught it.** The
  * 2026-08-24 resync re-copied `errors.md` — which gained the two BR-015 upload
- * codes — but did **not** re-take `docs/admin/error-codes.ts`, which stayed at
+ * codes — but did **not** re-take `api-doc/admin/error-codes.ts`, which stayed at
  * 83. Every assertion in this file still passed, because the one that pins
  * `KNOWN_ERROR_CODES` against the registries is anchored to their **union**, and
  * a union cannot notice that one of its members has fallen behind.
@@ -302,7 +302,7 @@ describe('the source mirror is in step with the contract', () => {
 
         expect(
             undeclared,
-            'codes in errors.md that docs/admin/error-codes.ts does not declare — re-copy backend/admin/src/core/errors/error-codes.ts',
+            'codes in errors.md that api-doc/admin/error-codes.ts does not declare — re-copy backend/admin/src/core/errors/error-codes.ts',
         ).toEqual([]);
     });
 });

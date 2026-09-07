@@ -9,7 +9,7 @@
  *
  * ── The one field-name disagreement in the bundle, and how it was settled ─────
  *
- * [money.md](../../docs/admin/api/money.md) describes the response in prose as
+ * [money.md](../../api-doc/admin/api/money.md) describes the response in prose as
  * *"the platform's earnings-account object (pending, available, reserved,
  * withdrawn)"* and gives no example block. Three other sources say something
  * different, and they agree with each other:
@@ -18,7 +18,7 @@
  * |---|---|
  * | wi-admin `money.gateway.ts` docstring | `pending`, `available`, `reserve`, `requested`, `currency` |
  * | jovi-mall `earnings-account.service.ts` `getBalances` | the same five, as a return type |
- * | `docs/admin/api/accounts.md` `balances.earnings` | the same, plus `unit` and `direction` |
+ * | `api-doc/admin/api/accounts.md` `balances.earnings` | the same, plus `unit` and `direction` |
  *
  * `admin-earnings.controller.ts:27` calls `getBalances('platform', null)`, so the
  * jovi-mall return type *is* the wire shape. **The prose is stale**; `reserved`

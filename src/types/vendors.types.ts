@@ -1,7 +1,7 @@
 /**
  * `/vendors` — the shop, the person behind it, and the catalogue they sell.
  *
- * Sources: `docs/admin/api/vendors.md`, `docs/admin/ADR-008-VENDOR-MANAGEMENT.md`,
+ * Sources: `api-doc/admin/api/vendors.md`, `api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md`,
  * and — where those two disagree with the running service —
  * `backend/admin/src/modules/vendors/`. **Four shapes below are read from the
  * code because the published contract is wrong about them**; each is marked with
@@ -41,7 +41,7 @@ import type { FileDetail } from '@/types/files.types';
  *
  * ⚠ Enforcement is narrow by design: jovi-mall's auth path refuses
  * `=== 'inactive'`, never `!== 'active'`
- * ([ADR-008 D-2](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md)), so a
+ * ([ADR-008 D-2](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)), so a
  * `pending_verification` vendor still trades.
  */
 export type VendorStatus = 'active' | 'pending_verification' | 'inactive' | (string & {});
@@ -51,7 +51,7 @@ export type VendorStatus = 'active' | 'pending_verification' | 'inactive' | (str
  *
  * The old boolean could not tell **never reviewed** from **reviewed and
  * rejected**: both were `false`, which makes a review queue unbuildable
- * ([ADR-008 D-5](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md)). `pending` is
+ * ([ADR-008 D-5](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)). `pending` is
  * also what rows written before the field existed report.
  */
 export type VendorKycStatus = 'pending' | 'verified' | 'rejected' | (string & {});
@@ -78,7 +78,7 @@ export type ProductMode = 'simple' | 'advanced' | (string & {});
  *
  * The first four are the delivery/agency sweeps; `vendor_suspended` is the
  * cascade from suspending the shop; `platform_oversight` is one listing taken
- * down by an administrator. [ADR-008 D-3](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md)
+ * down by an administrator. [ADR-008 D-3](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)
  * forbids widening any set to include another's members, and the consequence the
  * UI must respect is: **reinstating a vendor never republishes a
  * `platform_oversight` takedown.**
@@ -203,7 +203,7 @@ export interface VendorSuspension {
  * **Verification gates nothing today.** It is visible to agencies and it is now
  * settable and explicable, but no vendor behaviour depends on it — gating selling
  * on it would lock out the entire existing roster until each vendor is reviewed
- * ([ADR-008 D-5](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md)). The UI says so
+ * ([ADR-008 D-5](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)). The UI says so
  * rather than implying a rejected vendor is blocked from trading.
  */
 export interface VendorVerification {
@@ -331,7 +331,7 @@ export interface VendorPolicies {
  * The platform-governed order settings — what the **read** returns.
  *
  * Four fields here, **three writable**. The rule that picked them
- * ([ADR-008 D-8](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md)): a setting is
+ * ([ADR-008 D-8](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)): a setting is
  * the administrator's when its effect lands on somebody other than the vendor.
  * `notifyDaysBeforeExpiry` is a notification to the vendor, about the vendor, so
  * it is theirs — see `UpdateVendorSettingsBody`.
@@ -591,7 +591,7 @@ export interface ProductVariant {
 /**
  * `GET /vendors/:vendorId/products/:productId` — one listing, in full.
  *
- * Granted at [BR-005](../../docs/dashboard/backend-requests/BR-005-product-detail.md)
+ * Granted at [BR-005](../../api-doc/admin/dashboard/backend-requests/BR-005-product-detail.md)
  * and documented at `vendors.md` under its own heading.
  *
  * ── ⚠ Why this one vendor read is delegated ────────────────────────────
@@ -745,7 +745,7 @@ export interface ConnectionTermination {
  * The mirror image of the agency roster: that one answers *"who works for this
  * agency, and on what terms"*, this one *"which agencies does this vendor ship
  * through, and on what terms"*. Granted at
- * [BR-018](../../docs/dashboard/backend-requests/BR-018-vendor-agency-connections.md).
+ * [BR-018](../../api-doc/admin/dashboard/backend-requests/BR-018-vendor-agency-connections.md).
  *
  * ── ⚠ Why both permissions ─────────────────────────────────────
  * The rows name agencies and carry their business names, their contact people
@@ -919,7 +919,7 @@ export interface VendorSettingsResult {
  * the surface, and the only one worth rendering as a list rather than a sentence.
  * A known member is `CATALOG_PRODUCT_VENDOR_SUSPENDED`, the guard that stops an
  * agency problem resolving while the vendor is suspended from walking their
- * listings back onto the storefront ([ADR-008 D-4](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md)).
+ * listings back onto the storefront ([ADR-008 D-4](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)).
  */
 export interface ActivationBlocker {
     code: string;
@@ -1108,7 +1108,7 @@ export const VENDOR_ONBOARDING_FILTERS = ['complete', 'incomplete'] as const;
  * **Business name is deliberately absent.** It lives on `stores`, so sorting by
  * it would need a `$lookup` before the `$sort` — which cannot use an index and
  * cannot carry the `_id` tiebreaker that keeps skip/limit paging stable
- * ([ADR-008 D-6](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md)). The backend's
+ * ([ADR-008 D-6](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)). The backend's
  * own suite asserts it stays absent, so the UI offers exactly these three.
  */
 export const VENDOR_SORT_KEYS = ['createdAt', 'updatedAt', 'email'] as const;
@@ -1241,7 +1241,7 @@ export function productSuspensionReasonLabel(reason: string): string {
 /**
  * Who an operator should go to about a takedown.
  *
- * The whole point of [ADR-008 D-3](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md)'s
+ * The whole point of [ADR-008 D-3](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)'s
  * four disjoint reason sets is that the remedy differs, and *"which of these did
  * **we** do?"* is the question the catalogue's `suspensionReason` filter exists to
  * answer. `null` for an unknown reason rather than a guess.

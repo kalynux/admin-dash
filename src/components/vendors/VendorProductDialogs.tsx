@@ -60,7 +60,7 @@ interface ProductDialogProps {
  * The takedown is recorded as `platform_oversight`, which is **disjoint from every
  * automatic sweep**: reinstating the vendor will not put this listing back, and
  * neither will an agency problem being resolved. A human took it down, so a human
- * puts it back ([ADR-008 D-3](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md)).
+ * puts it back ([ADR-008 D-3](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)).
  *
  * The audit row targets the **vendor**, with the product in its payload, so this
  * appears in the vendor's activity feed — which is where somebody asking *this
@@ -324,7 +324,7 @@ export function RestoreProductDialog({
  * One blocker code is worth recognising by name: `CATALOG_PRODUCT_VENDOR_SUSPENDED`
  * is the guard that stops an agency problem being resolved *while the vendor is
  * suspended* from walking their listings back onto the storefront
- * ([ADR-008 D-4](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md)). Its remedy is on
+ * ([ADR-008 D-4](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)). Its remedy is on
  * a different screen — reinstate the vendor first — which is worth saying, because
  * an operator staring at a product dialog will not otherwise think to look there.
  *

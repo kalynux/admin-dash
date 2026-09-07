@@ -43,7 +43,7 @@ import type { AgentDetail, AgentLastKnown, TrackingDenyReason } from '@/types/ag
  * `lastKnown.position` ships **unconditionally** — regardless of the flag,
  * regardless of the verdict, under plain `agents.read` which **tier-3 Support
  * holds**, and unaudited. That is a backend exposure question, written up in
- * `docs/dashboard/DATA-EXPOSURE-REGISTER.md`. What this screen does about it is
+ * `api-doc/admin/dashboard/DATA-EXPOSURE-REGISTER.md`. What this screen does about it is
  * put the coordinates behind an explicit action, the way a payout destination is
  * revealed rather than printed.
  *

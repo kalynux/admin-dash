@@ -11,7 +11,7 @@ import { NotificationsContext, type NotificationsState } from '@/store/notificat
  * **There is no realtime on this platform** — no WebSocket, no SSE — so
  * `GET /notifications/unread-count` is the only way the number moves. The
  * contract does not name an interval (gap D12 in
- * `docs/dashboard/BACKEND-INTEGRATION-MATRIX.md`); this is where that choice is
+ * `api-doc/admin/dashboard/BACKEND-INTEGRATION-MATRIX.md`); this is where that choice is
  * made and why.
  *
  * Three rules, each of which prevents a specific misbehaviour:

@@ -1,7 +1,7 @@
 /**
  * `/agents` — delivery agents: platform identities, not agency-owned rows.
  *
- * Sources: `docs/admin/api/agents.md`, `docs/admin/ADR-009-DELIVERY-NETWORK.md`,
+ * Sources: `api-doc/admin/api/agents.md`, `api-doc/admin/ADR-009-DELIVERY-NETWORK.md`,
  * and — where those disagree with the running service —
  * `backend/admin/src/modules/agents/` plus
  * `backend/jovi-mall/src/modules/agents/`. **Six shapes below are read from the

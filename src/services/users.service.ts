@@ -1,7 +1,7 @@
 /**
  * `/users` — the six endpoints of the platform user directory.
  *
- * Source: `docs/admin/api/users.md` and `docs/admin/ADR-007-USER-MANAGEMENT.md`.
+ * Source: `api-doc/admin/api/users.md` and `api-doc/admin/ADR-007-USER-MANAGEMENT.md`.
  *
  * ── Read direct, write delegated, in one module ───────────────────────────────
  * The three reads are answered from jovi-mall's collection by wi-admin itself; the

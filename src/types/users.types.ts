@@ -1,10 +1,10 @@
 /**
  * `/users` — the sign-in identity behind every role.
  *
- * Field for field what `docs/admin/api/users.md` documents, with four shapes the
+ * Field for field what `api-doc/admin/api/users.md` documents, with four shapes the
  * docs leave unstated read from `backend/admin/src/modules/users/` instead —
  * each marked below with the file that settles it. Guessing any of them would
- * have been a plausible-looking lie: `docs/dashboard/BACKEND-INTEGRATION-MATRIX.md`
+ * have been a plausible-looking lie: `api-doc/admin/dashboard/BACKEND-INTEGRATION-MATRIX.md`
  * guessed one (`suspension.fromStatus`) and got it wrong.
  *
  * Three properties of this surface shape the types more than usual:
@@ -65,7 +65,7 @@ export type SuspensionActor = ActorStamp;
  *
  * The wire field names are **not documented** — read from
  * `backend/admin/src/modules/users/controllers/user.controller.ts:91-102`. There
- * is no `fromStatus` despite `docs/dashboard/BACKEND-INTEGRATION-MATRIX.md`
+ * is no `fromStatus` despite `api-doc/admin/dashboard/BACKEND-INTEGRATION-MATRIX.md`
  * claiming one.
  *
  * The server keys this whole block on `status`, so it is `null` on an active

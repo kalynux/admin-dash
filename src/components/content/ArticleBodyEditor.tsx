@@ -65,7 +65,7 @@ const BLOCK_LABELS: Record<ArticleBlockType, { label: string; hint: string }> = 
  * ── What made this buildable ──────────────────────────────────────────────────
  * `content.md` still names none of the nine block types — it says `body` is *"a
  * discriminated union of nine block types, `.strict()` throughout"* and stops.
- * The union comes from [`docs/admin/article-blocks.ts`](../../../docs/admin/article-blocks.ts),
+ * The union comes from [`api-doc/admin/article-blocks.ts`](../../../api-doc/admin/article-blocks.ts),
  * a byte-identical mirror of the backend's own validator, and
  * `content-blocks.test.ts` diffs it against `ARTICLE_BLOCK_TYPES` so a tenth
  * block type fails the build rather than leaving this editor silently unable to

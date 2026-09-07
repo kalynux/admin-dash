@@ -1,7 +1,7 @@
 /**
  * `/agencies` — the delivery network: who carries shipments, and whether they may.
  *
- * Sources: `docs/admin/api/agencies.md`, `docs/admin/ADR-009-DELIVERY-NETWORK.md`,
+ * Sources: `api-doc/admin/api/agencies.md`, `api-doc/admin/ADR-009-DELIVERY-NETWORK.md`,
  * and — where those disagree with the running service —
  * `backend/admin/src/modules/agencies/` plus
  * `backend/jovi-mall/src/modules/delivery/delivery-agency.model.ts`.
@@ -442,7 +442,7 @@ export const AGENCY_AUDIT_ACTION_LABELS: Record<AgencyAuditAction, string> = {
  * identifiable in a list.
  *
  * ⚠ This is the fallthrough that made
- * [BR-006](../../docs/dashboard/backend-requests/BR-006-agency-name-on-contract-rows.md)
+ * [BR-006](../../api-doc/admin/dashboard/backend-requests/BR-006-agency-name-on-contract-rows.md)
  * necessary: `contactName` is the agency's contact **person**, and a column
  * headed *"Agency"* rendering it has been showing a human where a company was
  * meant. The resolved form exists so that column can tell the difference —

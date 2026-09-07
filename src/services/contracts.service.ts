@@ -2,7 +2,7 @@
  * `/contracts` — one agent↔agency contract, and the three administrative
  * interventions that may be performed on it.
  *
- * Source: `docs/admin/api/contracts.md`, added in the dashboard-request round
+ * Source: `api-doc/admin/api/contracts.md`, added in the dashboard-request round
  * (BR-004).
  *
  * ── One read direct, three writes delegated ───────────────────────────────────

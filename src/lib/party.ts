@@ -17,9 +17,9 @@
  * agency's contact, not the agency. A column headed *"Agency"* that fell
  * through to `contactName` has been showing a human's name where a company was
  * meant, which is the confusion
- * [BR-006](../../docs/dashboard/backend-requests/BR-006-agency-name-on-contract-rows.md)
+ * [BR-006](../../api-doc/admin/dashboard/backend-requests/BR-006-agency-name-on-contract-rows.md)
  * was granted to fix and which § B6 of
- * [UX-REMEDIATION-2026-08-25](../../docs/dashboard/UX-REMEDIATION-2026-08-25.md)
+ * [UX-REMEDIATION-2026-08-25](../../api-doc/admin/dashboard/UX-REMEDIATION-2026-08-25.md)
  * records the roster panel still committing.
  *
  * A bare `string` return cannot carry *"this is a person's name standing in for

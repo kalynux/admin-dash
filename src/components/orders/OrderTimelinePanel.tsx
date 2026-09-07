@@ -283,7 +283,7 @@ export function OrderTimelinePanel({
 
                   This one cannot. `event_type` is a closed Mongoose enum on an
                   append-only collection, mirrored byte-for-byte at
-                  `docs/jovi-mall/order-timeline-events.ts` and diffed against
+                  `api-doc/jovi-mall/order-timeline-events.ts` and diffed against
                   `ORDER_TIMELINE_EVENT_TYPES` by a guard test. The same standard
                   `ticket-vocabularies.ts` met.
 

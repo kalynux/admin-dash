@@ -1,7 +1,7 @@
 /**
  * `/messaging` — one Telegram message, to one person.
  *
- * Source: `docs/admin/api/messaging.md`.
+ * Source: `api-doc/admin/api/messaging.md`.
  *
  * ── ⚠ This is not a broadcast, and the old name said it was ───────────────────
  * The permission used to be `broadcast.send`, summarised *"Send a broadcast

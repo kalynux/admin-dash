@@ -3,7 +3,7 @@
  *
  * ── 🔴 Why this file exists ──────────────────────────────────────────────────
  * Because the module was wrong on the wire for months and every test agreed with
- * it. The field names had been read out of `docs/jovi-mall/admin/articles.md` —
+ * it. The field names had been read out of `api-doc/jovi-mall/admin/articles.md` —
  * the obsolete page the capability moved *from*, whose banner says that beyond
  * the base path only "keys instead of ids" changed. **That sentence was never
  * true.** The deleted original documented `GET /api/admin/articles/:id` and a
@@ -17,8 +17,8 @@
  * catches it is diffing against something neither of them wrote.
  *
  * So this suite parses two **byte-identical mirrors of backend source** —
- * `docs/admin/content-dto.ts` (every response) and
- * `docs/admin/content-validators.ts` (every request) — and holds
+ * `api-doc/admin/content-dto.ts` (every response) and
+ * `api-doc/admin/content-validators.ts` (every request) — and holds
  * `content.types.ts` to them. `content.md` cannot serve: it carries thirty-six
  * field tables about *behaviour* and **zero JSON examples**, which is what left
  * the shapes to guesswork in the first place (reported as BR-014).
@@ -52,19 +52,19 @@ import type {
 import { ARTICLE_SORT_DEFAULT, ARTICLE_SORT_KEYS, toTranslationInput } from '@/types/content.types';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const dto = readFileSync(resolve(here, '../../docs/admin/content-dto.ts'), 'utf8');
-const validators = readFileSync(resolve(here, '../../docs/admin/content-validators.ts'), 'utf8');
+const dto = readFileSync(resolve(here, '../../api-doc/admin/content-dto.ts'), 'utf8');
+const validators = readFileSync(resolve(here, '../../api-doc/admin/content-validators.ts'), 'utf8');
 /**
  * The fifth mirror, taken 2026-08-26 for § E2.
  *
  * ⚠ **The backend deliberately did NOT write this one**, and said why: the
  * mirror mechanism is entirely frontend-side — we copy their source into
- * `docs/admin/` and diff against it here — so a sixth file on their side would
+ * `api-doc/admin/` and diff against it here — so a sixth file on their side would
  * have had nothing to diff against. `content.md`'s `### The public shape`
  * section names the source path and says *"mirror the source file rather than
  * transcribing this table"*. This is that file.
  */
-const publicDto = readFileSync(resolve(here, '../../docs/admin/public-article-dto.ts'), 'utf8');
+const publicDto = readFileSync(resolve(here, '../../api-doc/admin/public-article-dto.ts'), 'utf8');
 
 /** The property names declared in `interface Name { … }` in the DTO mirror. */
 function dtoFields(name: string): string[] {

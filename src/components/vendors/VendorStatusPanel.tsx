@@ -12,7 +12,7 @@ import type { VendorDetail } from '@/types/vendors.types';
  * The four state axes, side by side, each labelled with what it governs.
  *
  * ── Why this is one card and not four scattered fields ────────────────────────
- * `docs/admin/api/vendors.md:29` opens a section titled *"Three status axes, and
+ * `api-doc/admin/api/vendors.md:29` opens a section titled *"Three status axes, and
  * they are not the same thing"* and calls confusing them the commonest mistake
  * here. The failure it describes is an operator seeing one word — "active" — and
  * concluding the shop is fine when the account behind it is suspended, or seeing a
@@ -26,7 +26,7 @@ import type { VendorDetail } from '@/types/vendors.types';
  *
  * The fourth is verification, which is on its own axis again: it is written by an
  * administrator like `status` is, but it **gates nothing**
- * ([ADR-008 D-5](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md)) — so it sits here
+ * ([ADR-008 D-5](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)) — so it sits here
  * with that stated, rather than beside the trading status where it would read as a
  * second thing stopping the shop.
  */

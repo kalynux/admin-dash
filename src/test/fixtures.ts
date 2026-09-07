@@ -1,7 +1,7 @@
 /**
  * Wire-shaped fixtures.
  *
- * Field for field what `docs/admin/api/auth.md` shows, so a test that passes here
+ * Field for field what `api-doc/admin/api/auth.md` shows, so a test that passes here
  * is a test that would pass against the service — the whole point of writing them
  * out rather than reaching for `Partial<>` everywhere.
  */
@@ -143,7 +143,7 @@ export function loginOrdinaryTier1Fixture(): IssuedSession {
 /**
  * A row from `GET /notifications`, field for field.
  *
- * The defaults are the worked example in `docs/admin/api/notifications.md`,
+ * The defaults are the worked example in `api-doc/admin/api/notifications.md`,
  * including the two that catch a lazy client: `readAt`/`archivedAt` are present
  * and `null` rather than absent, and `actionPath` arrives **without** this
  * dashboard's `/dashboard` prefix.
@@ -1425,7 +1425,7 @@ export function platformEarningsFixture(
 /**
  * The level → permission matrix, **for tests only**.
  *
- * `docs/admin/api/permissions.md` says "Do not hard-code the matrix below into
+ * `api-doc/admin/api/permissions.md` says "Do not hard-code the matrix below into
  * the dashboard", and that holds: **nothing under `src/` outside `src/test/` may
  * import these.** The application learns what it holds from
  * `GET /permissions/me` and from nowhere else. What tests need is different —

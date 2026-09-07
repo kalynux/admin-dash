@@ -1,7 +1,7 @@
 /**
  * `/content` — fourteen routes: nine on articles, five on bylines.
  *
- * Source: `docs/admin/api/content.md`. **This is the only editorial door onto
+ * Source: `api-doc/admin/api/content.md`. **This is the only editorial door onto
  * them** — jovi-mall's `/api/admin/articles` and `/api/admin/article-authors`
  * mounts were deleted when this one was built, so anything still pointing there
  * is calling a 404.
@@ -98,7 +98,7 @@ export function getArticle(key: ArticleKey, options?: RequestOptions): Promise<A
  * ✅ **Typed, since BR-019 § 3.** It returned `unknown` for a round because the
  * projection was documented nowhere; `content.md` now carries a
  * `### The public shape` section and names the source file, and
- * [`docs/admin/public-article-dto.ts`](../../docs/admin/public-article-dto.ts)
+ * [`api-doc/admin/public-article-dto.ts`](../../api-doc/admin/public-article-dto.ts)
  * mirrors it byte for byte. The DTO is **wi-admin's own** — not a jovi-mall
  * shape reached over HTTP — and `content-contract.test.ts` diffs
  * `PublicArticleDetail` against the mirror.

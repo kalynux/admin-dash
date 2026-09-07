@@ -2,8 +2,8 @@
  * How the overview gets a number when there is no endpoint that returns one.
  *
  * **wi-admin exposes no aggregate, summary, KPI or stats route** — verified
- * across all 18 route groups in `docs/admin/api/`, recorded as gap D1 in
- * `docs/dashboard/BACKEND-INTEGRATION-MATRIX.md`, and confirmed against
+ * across all 18 route groups in `api-doc/admin/api/`, recorded as gap D1 in
+ * `api-doc/admin/dashboard/BACKEND-INTEGRATION-MATRIX.md`, and confirmed against
  * `backend/admin`'s own route table. The instruction there is explicit: *"Do not
  * invent one; compose client-side."*
  *

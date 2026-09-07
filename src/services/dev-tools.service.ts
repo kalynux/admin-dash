@@ -19,8 +19,8 @@
  * problem, and the screens render it as one. `getFeatureFlags` is deliberately not behind the
  * gate, which is what lets the dashboard always know the flag's state.
  *
- * Design records: [ADR-014](../../docs/admin/ADR-014-SYSTEM-OPERATIONS.md),
- * [ADR-015](../../docs/admin/ADR-015-DEVELOPER-TOOLS.md).
+ * Design records: [ADR-014](../../api-doc/admin/ADR-014-SYSTEM-OPERATIONS.md),
+ * [ADR-015](../../api-doc/admin/ADR-015-DEVELOPER-TOOLS.md).
  */
 
 import { api, type RequestOptions } from '@/services/api';

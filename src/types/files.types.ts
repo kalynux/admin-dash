@@ -1,9 +1,9 @@
 /**
  * `/files` — resolving the opaque ids every other DTO on this service ships.
  *
- * Source: `docs/admin/api/files.md`, re-copied 2026-08-24 — it now documents
+ * Source: `api-doc/admin/api/files.md`, re-copied 2026-08-24 — it now documents
  * `access`, names `shipments/` and `digital/` as the private trees, and carries
- * the both-conditions rule below verbatim. `docs/MIGRATION-2026-08.md` § 4
+ * the both-conditions rule below verbatim. `api-doc/MIGRATION-2026-08.md` § 4
  * describes a disagreement that no longer exists; see `FileDetail`.
  *
  * ── Why this mount exists ─────────────────────────────────────────────────────
@@ -257,7 +257,7 @@ export const CODE_FILE_CONTENT_NOT_SUPPORTED = 'FILE_CONTENT_NOT_SUPPORTED';
 /**
  * `GET /files/library` — the media library, and the picker's source.
  *
- * Source: `docs/admin/api/files.md`, the section added with BR-015 on
+ * Source: `api-doc/admin/api/files.md`, the section added with BR-015 on
  * 2026-08-26.
  *
  * ── ⚠ It is a DIRECT read, not a delegated one ───────────────────────────────

@@ -10,7 +10,7 @@
  * `<prefix>_name` beside a `<prefix>_user_id`. One writer, one shape; declaring a
  * second copy per surface is how the two drift.
  *
- * ⚠ **`docs/admin/api/vendors.md` gets this wrong.** Its examples show
+ * ⚠ **`api-doc/admin/api/vendors.md` gets this wrong.** Its examples show
  * `"source": "wi-admin"` (lines 188 and 394). That value is never written. The
  * enum is exactly `['platform', 'admin']`
  * (`actor-source.types.ts:39`), and a screen that special-cased `"wi-admin"`

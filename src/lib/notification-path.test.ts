@@ -4,7 +4,7 @@ import { toDashboardPath } from '@/lib/notification-path';
 
 describe('toDashboardPath', () => {
     it('adds the prefix the service leaves off', () => {
-        // The live coupling. `docs/admin/api/notifications.md` shows exactly this
+        // The live coupling. `api-doc/admin/api/notifications.md` shows exactly this
         // shape, and this dashboard mounts every module under /dashboard.
         expect(toDashboardPath('/cod/discrepancies/6683aabbccddeeff00112233')).toBe(
             '/dashboard/cod/discrepancies/6683aabbccddeeff00112233',

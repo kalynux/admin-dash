@@ -31,7 +31,7 @@ interface VendorActivityPanelProps {
  *
  * ── Why product takedowns are in here at all ──────────────────────────────────
  * They are filed under `target: 'vendor'` rather than a `product` target type,
- * deliberately ([ADR-008 D-7](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md)):
+ * deliberately ([ADR-008 D-7](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)):
  * this feed filters on the vendor target, so a separate type would silently drop
  * every takedown out of the one place an administrator asking *this vendor's
  * listings went dark, why* would look.

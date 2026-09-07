@@ -1,7 +1,7 @@
 /**
  * The wi-admin HTTP client.
  *
- * Written against `docs/admin/api/README.md` and `errors.md`, **not** ported
+ * Written against `api-doc/admin/api/README.md` and `errors.md`, **not** ported
  * from the sibling dashboards: theirs target jovi-mall, which rotates the access
  * cookie mid-request, uses snake_case, and needs no CSRF. Copying it would be
  * wrong in five load-bearing places, each marked below.

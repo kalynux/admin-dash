@@ -1,7 +1,7 @@
 /**
  * The geo-tracker **data door** — four direct reads of a second service.
  *
- * Source: `docs/TRACKING-DOORS.md`, verified on both sides (wi-admin TypeScript
+ * Source: `api-doc/TRACKING-DOORS.md`, verified on both sides (wi-admin TypeScript
  * and geo-tracker Go). Contract detail lives on the types in
  * `types/tracking.types.ts`; this file is about how to call them.
  *

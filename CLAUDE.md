@@ -13,7 +13,7 @@ resolves to a real screen and nothing reaches it.
 ✅ **Every path `src/services` calls resolves to a documented route, and Phase B closed two holes
 in the reverse direction on 2026-08-26.**
 `GET /vendors/:vendorId/products/:productId` (BR-005) and `GET /vendors/:vendorId/agencies`
-(BR-018) had been granted, were in [docs/ROUTE-MAP.md](docs/ROUTE-MAP.md), and had no service
+(BR-018) had been granted, were in [api-doc/ROUTE-MAP.md](api-doc/ROUTE-MAP.md), and had no service
 function at all — so the catalogue tab could only ever show the thirteen fields a list row carries.
 Both now have one, and a screen: a real product-detail route at
 `/dashboard/vendors/:vendorId/products/:productId`, and a connections panel on the vendor
@@ -69,7 +69,7 @@ of anything**. The fields are `id` and `authorId`, and the path params are `:art
 byline list sent `page`/`limit` at an endpoint that takes no parameters, and three article-list
 filters were silently stripped. **Our own tests agreed with all of it**, because they were written
 from the same misreading. Corrected against two new source mirrors and guarded by
-`content-contract.test.ts`. See [BR-014](docs/dashboard/backend-requests/BR-014-content-wire-shapes.md).
+`content-contract.test.ts`. See [BR-014](api-doc/admin/dashboard/backend-requests/BR-014-content-wire-shapes.md).
 
 🔴 **And one more `/content` rule, from BR-019 § 1: the order of `translations[]` is NOT a
 contract.** It comes back in the order the **last write** sent — `PATCH` is a full-array replace
@@ -98,7 +98,7 @@ The two doc-parsing guards
 (`permissions.types.test.ts`, `error-catalog.test.ts`) went red when the docs were resynchronised
 on 2026-08-24, which is exactly what they exist for, and were fixed by correcting `src/` rather
 than by weakening them. **Keep it that way.** `error-catalog.test.ts` was additionally
-*strengthened* in that round: it now diffs against `docs/admin/error-codes.ts` — a verbatim copy of
+*strengthened* in that round: it now diffs against `api-doc/admin/error-codes.ts` — a verbatim copy of
 the backend's own registry — as well as against `errors.md`, because the two disagreed and only the
 source is authoritative. **They agree at 85 / 85 since BR-015**, and the double diff stays anyway,
 because what keeps them in step is the test.
@@ -106,7 +106,7 @@ because what keeps them in step is the test.
 ⚠ **It was strengthened a third time on 2026-08-26, and this one closed a hole that had already
 been walked through.** The 2026-08-24 resync re-copied `errors.md` — which gained
 `FILE_UPLOAD_NOT_MULTIPART` and `FILE_UPLOAD_TOO_LARGE` — but did **not** re-take
-`docs/admin/error-codes.ts`, which sat at 83 for two days with **every assertion in the file still
+`api-doc/admin/error-codes.ts`, which sat at 83 for two days with **every assertion in the file still
 green**. The reason is instructive: the assertion pinning `KNOWN_ERROR_CODES` was anchored to the
 **union** of the two registries, and a union cannot notice that one of its members has fallen
 behind. `the source mirror is in step with the contract` now asserts the direction that catches it
@@ -172,20 +172,32 @@ and returns the result in its own envelope. There is no second base URL and no s
 
 ## The docs bundle
 
-**Start at [docs/README.md](docs/README.md), and read
-[docs/MIGRATION-2026-08.md](docs/MIGRATION-2026-08.md) before writing code.** The whole bundle was
+**Start at [api-doc/README.md](api-doc/README.md), and read
+[api-doc/MIGRATION-2026-08.md](api-doc/MIGRATION-2026-08.md) before writing code.** The whole bundle was
 resynchronised against backend *source* on 2026-08-24; the migration document is the delta, and it
 names the `src/` edits this repository still owes.
 
-[docs/admin/](docs/admin/) is a **verbatim copy** of `backend/admin/docs/` (verified byte-identical;
+[api-doc/admin/](api-doc/admin/) is a **verbatim copy** of `backend/admin/docs/` (verified byte-identical;
 four pages re-copied 2026-08-25 after BR-010/011/012). Treat it as read-only: corrections belong
 upstream in `backend/admin` and get re-copied.
 
-**The deviations are now seven**, so `diff -r backend/admin/docs frontend/admin-dash/docs/admin`
-reports seven extra names rather than two. `dashboard/` sits at [docs/dashboard/](docs/dashboard/)
-rather than inside it (14 files under `src/` point there); the other six are **source mirrors** —
+**The deviations are now six**, so `diff -r backend/admin/docs frontend/admin-dash/api-doc/admin`
+reports six extra names rather than seven. **`dashboard/` is no longer one of them.** It used to be
+hoisted out of this mirror to `api-doc/dashboard/`, for the sake of `src/` comments pointing at it;
+on 2026-09-06 it moved back **inside**, to [api-doc/admin/dashboard/](api-doc/admin/dashboard/),
+matching where the backend keeps it.
+
+⚠ **That hoist was costing 46 permanently-broken links, and the arithmetic is worth keeping.** The
+BR channel is mirrored on both sides, so a relative link out of a BR file has to resolve in two
+repositories — and while the two nested it one level apart, `../../admin/api/errors.md` was correct
+here and `../../api/errors.md` was correct upstream, with **no path correct in both**. Measured
+before the move: 30 links worked on both sides, 12 only upstream, 34 only here, 1 nowhere. Aligning
+the nesting and normalising every link to the upstream form took `backend/admin/docs` to **0 broken
+of 401** and this tree to its floor. The 21 `src/` comments were repointed in the same change.
+
+The remaining six are **source mirrors** —
 `error-codes.ts`, `article-blocks.ts`, `content-domain.ts`, `content-dto.ts`,
-`content-validators.ts`, and [`public-article-dto.ts`](docs/admin/public-article-dto.ts).
+`content-validators.ts`, and [`public-article-dto.ts`](api-doc/admin/public-article-dto.ts).
 
 ⚠ **The seventh was taken on 2026-08-26 at the backend's own suggestion, and the reasoning
 generalises.** BR-019 § 3 asked them for a mirror of the `/preview` shape; they declined to write
@@ -197,7 +209,7 @@ repository's job, not a favour to ask for.**
 
 **Nine source mirrors in total**, three of them jovi-mall's and therefore outside that diff:
 `jovi-mall/error-codes.ts`, `jovi-mall/ticket-vocabularies.ts`, and
-[`jovi-mall/order-timeline-events.ts`](docs/jovi-mall/order-timeline-events.ts) — added
+[`jovi-mall/order-timeline-events.ts`](api-doc/jovi-mall/order-timeline-events.ts) — added
 2026-08-25, because `orders.md` calls the order-timeline `eventType` *"format-validated, not
 pinned"* while the data is a **closed nine-value Mongoose enum** on an append-only collection.
 That mirror is what makes the timeline's event-type filter a select instead of a text box.
@@ -211,12 +223,12 @@ careful reading, every time.
 
 | Folder | What it is |
 |---|---|
-| [docs/README.md](docs/README.md) · [MIGRATION](docs/MIGRATION-2026-08.md) · [ROUTE-MAP](docs/ROUTE-MAP.md) · [TRACKING-DOORS](docs/TRACKING-DOORS.md) · [VERIFICATION](docs/VERIFICATION-2026-08-24.md) | **Authored here**, not mirrored. The route map covers all 236 routes with permission and audit flag. |
-| [docs/admin/api/](docs/admin/api/) | **The contract.** 234 versioned endpoints across 23 route groups, plus 2 health probes. ⚠ Its own `README.md` still says **230**; it is a mirror, so that is reported rather than patched. If a behaviour is not written here, it is not promised. Start at [README.md](docs/admin/api/README.md). |
-| [docs/admin/](docs/admin/) ADR-001…020 | Why the contract is shaped this way. Read when a rule looks arbitrary — [ADR-005](docs/admin/ADR-005-API-CONTRACT.md) is the one that governs client code, and [ADR-020](docs/admin/ADR-020-ADMIN-DATA-DOOR.md) is the geo-tracker data door. |
-| [docs/dashboard/](docs/dashboard/) | This dashboard's own backend-requests and the backend's answers. **Start a UI change at [UX-REMEDIATION-2026-08-25](docs/dashboard/UX-REMEDIATION-2026-08-25.md)** — the current round of 31 operator asks, what ships, and what each blocked one is waiting on (BR-015…BR-019). |
-| [docs/admin/IMPLEMENTATION-BLUEPRINT.md](docs/admin/IMPLEMENTATION-BLUEPRINT.md) | Phase plan and what is shipped. Phases 0.5–4 done, 5–6 in progress, 7–8 pending. |
-| [docs/jovi-mall/](docs/jovi-mall/), [docs/geo-tracker/](docs/geo-tracker/) | **Background only.** The dashboard calls neither. Useful for decoding `details.platformCode` on a delegated failure, and for domain vocabulary. Do not build a client against them. |
+| [api-doc/README.md](api-doc/README.md) · [MIGRATION](api-doc/MIGRATION-2026-08.md) · [ROUTE-MAP](api-doc/ROUTE-MAP.md) · [TRACKING-DOORS](api-doc/TRACKING-DOORS.md) · [VERIFICATION](api-doc/VERIFICATION-2026-08-24.md) | **Authored here**, not mirrored. The route map covers all 236 routes with permission and audit flag. |
+| [api-doc/admin/api/](api-doc/admin/api/) | **The contract.** 234 versioned endpoints across 23 route groups, plus 2 health probes. ⚠ Its own `README.md` still says **230**; it is a mirror, so that is reported rather than patched. If a behaviour is not written here, it is not promised. Start at [README.md](api-doc/admin/api/README.md). |
+| [api-doc/admin/](api-doc/admin/) ADR-001…020 | Why the contract is shaped this way. Read when a rule looks arbitrary — [ADR-005](api-doc/admin/ADR-005-API-CONTRACT.md) is the one that governs client code, and [ADR-020](api-doc/admin/ADR-020-ADMIN-DATA-DOOR.md) is the geo-tracker data door. |
+| [api-doc/admin/dashboard/](api-doc/admin/dashboard/) | This dashboard's own backend-requests and the backend's answers. **Start a UI change at [UX-REMEDIATION-2026-08-25](api-doc/admin/dashboard/UX-REMEDIATION-2026-08-25.md)** — the current round of 31 operator asks, what ships, and what each blocked one is waiting on (BR-015…BR-019). |
+| [api-doc/admin/IMPLEMENTATION-BLUEPRINT.md](api-doc/admin/IMPLEMENTATION-BLUEPRINT.md) | Phase plan and what is shipped. Phases 0.5–4 done, 5–6 in progress, 7–8 pending. |
+| [api-doc/jovi-mall/](api-doc/jovi-mall/), [api-doc/geo-tracker/](api-doc/geo-tracker/) | **Background only.** The dashboard calls neither. Useful for decoding `details.platformCode` on a delegated failure, and for domain vocabulary. Do not build a client against them. |
 
 ## How the app is built
 
@@ -241,7 +253,7 @@ careful reading, every time.
   - `src/i18n/locales/en/errors.ts` is the **schema**: `codes` is `Record<KnownErrorCode, string>`,
     so a registry code with no copy is a compile error. `fr` is a `DeepPartial` and falls back key
     by key.
-  - `src/i18n/error-catalog.test.ts` **parses `docs/admin/api/errors.md`** and diffs it against
+  - `src/i18n/error-catalog.test.ts` **parses `api-doc/admin/api/errors.md`** and diffs it against
     both, the same guard `permissions.types.test.ts` applies to the permission vocabulary.
   - Non-React code (`services/api.ts`, `lib/notify.ts`, `lib/errors.ts`) translates through
     `tStatic`/`hasStaticKey`, the module-level snapshot `I18nProvider` republishes on every switch.
@@ -261,7 +273,7 @@ was a backend ask and it landed on 2026-08-26**; the panel now resolves the whol
 `GET /files?ids=` and every attachment waits for a click, like every other image here. ⚠ **The
 public-and-permanent warning did not soften** — the audit row records *our* access, never the file's
 exposure. Read
-[UX-REMEDIATION-2026-08-25](docs/dashboard/UX-REMEDIATION-2026-08-25.md) § Phase A before changing
+[UX-REMEDIATION-2026-08-25](api-doc/admin/dashboard/UX-REMEDIATION-2026-08-25.md) § Phase A before changing
 one — each replaces a pattern that was hand-rolled at dozens of sites.
 
 Two Phase-C additions sit on top of them and are worth knowing before writing a third:
@@ -306,10 +318,10 @@ Two Phase-C additions sit on top of them and are worth knowing before writing a 
 
 ### The authorization layer
 
-Read [permissions.md](docs/admin/api/permissions.md) before touching any of it.
+Read [permissions.md](api-doc/admin/api/permissions.md) before touching any of it.
 
 - `src/types/permissions.types.ts` — the **116** permission names as literal types.
-  `permissions.types.test.ts` **parses `docs/admin/api/permissions.md` and diffs it against them**,
+  `permissions.types.test.ts` **parses `api-doc/admin/api/permissions.md` and diffs it against them**,
   so a backend policy change fails the suite rather than drifting silently.
 
   **Corrected at the 2026-08-24 doc-sync and green again.** It had drifted by six names —
@@ -348,7 +360,7 @@ resolved level → permission table). Its own suites are `npm run test:*` (DB-fr
 
 ## Where the contract bites
 
-Full detail in [docs/admin/api/README.md](docs/admin/api/README.md); these are the points where the
+Full detail in [api-doc/admin/api/README.md](api-doc/admin/api/README.md); these are the points where the
 obvious guess is wrong.
 
 **No silent refresh.** jovi-mall rotates the access cookie mid-request; wi-admin does not, on purpose.
@@ -368,7 +380,7 @@ clients or safe methods. Cookies are `admin_access_token` / `admin_refresh_token
 — send `credentials: 'include'`.
 
 **Wire fields are `camelCase`.** Both databases are snake_case; the translation happens in wi-admin
-and never leaks. Every jovi-mall example in [docs/jovi-mall/](docs/jovi-mall/) is in the *storage*
+and never leaks. Every jovi-mall example in [api-doc/jovi-mall/](api-doc/jovi-mall/) is in the *storage*
 casing — do not copy field names from there.
 
 **Money is a plain number in the account currency** (default `XAF`), not minor units — the docs also
@@ -380,7 +392,7 @@ array, or `null`). Error `{ success: false, requestId, error: { code, message, s
 details? } }`. **Branch on `error.code`**, never `message`. `details` is *omitted* when absent —
 never `null`, never `{}`. `category` is one of nine values and is the right key for generic handling
 (re-login / hide affordance / show field errors / back off / escalate) — see
-[errors.md](docs/admin/api/errors.md).
+[errors.md](api-doc/admin/api/errors.md).
 
 **Delegated failures carry a second code.** A platform refusal is `PLATFORM_OPERATION_REJECTED` at
 jovi-mall's *original* status, with jovi-mall's own code in `details.platformCode` — that is the only
@@ -390,7 +402,7 @@ write; only delegated ones can produce these.
 
 **`202` is not an error.** Three dual-control actions are *queued* rather than executed and answer
 `202 Accepted` with an approval id. Render "waiting for approval", not a failure. See
-[authorization.md](docs/admin/api/authorization.md).
+[authorization.md](api-doc/admin/api/authorization.md).
 
 **`404` is the denial for out-of-scope records**, not `403` — a 403 on an id would confirm the id
 exists. Do not treat a scoped 404 as a bug.
@@ -420,7 +432,7 @@ Arrays are `[]`, never `null`.
 member is an additive, non-breaking change, so a closed `switch` will break on a routine deploy.
 
 **No file uploads — ⚠ narrowed on 2026-08-25, and the narrowing is in writing.** The rule was
-*"wi-admin accepts no multipart bodies anywhere"*. [ADR-021](docs/admin/ADR-021-ADMIN-MEDIA-LIBRARY.md)
+*"wi-admin accepts no multipart bodies anywhere"*. [ADR-021](api-doc/admin/ADR-021-ADMIN-MEDIA-LIBRARY.md)
 D-2 amends it to **"wi-admin never *parses* one"**: `POST /files/upload` pipes the raw multipart
 body through to jovi-mall **unread**, with no multer, no busboy and no new dependency. Two
 consequences. The **1 MB body limit does not apply on that path** — it belongs to `express.json`,
@@ -440,7 +452,7 @@ echoed back — surface it in generic error toasts.
 ## Authentication and authorization in the UI
 
 **Login has three success shapes, all `200`.** Branch on the presence of fields in `data`, never on the
-status code ([auth.md](docs/admin/api/auth.md)):
+status code ([auth.md](api-doc/admin/api/auth.md)):
 
 1. ordinary — `{ admin, accessToken, refreshToken, expiresIn, csrfToken }`, cookies set;
 2. `{ mfaRequired: true, challengeId }` — no cookies, no session yet; post `challengeId` + 6-digit
@@ -470,7 +482,7 @@ permission → escalation rules (`AUTHZ_SELF_ACTION_FORBIDDEN`, `AUTHZ_TARGET_TI
 `AUTHZ_TIER_ESCALATION_FORBIDDEN` on admin-on-admin actions) → resource scope (row-level, on `audit`
 and `tickets`, failing as 404) → dual control. Thirteen endpoints are composite guards requiring two
 or three permissions in `all` mode; `GET /system/errors` is the one `any`-mode guard and returns a
-*different projection* per level. Matrix: [permissions.md](docs/admin/api/permissions.md).
+*different projection* per level. Matrix: [permissions.md](api-doc/admin/api/permissions.md).
 
 ## What exists, and what does not
 
@@ -479,7 +491,7 @@ The **23** built route groups are `/auth`, `/administrators`, `/permissions`, `/
 `/cod`, `/billing`, `/money`, `/accounts`, `/support`, `/content`, `/messaging`, `/files`,
 `/system`, `/dev-tools`, `/notifications` (+ unversioned `/health/live`, `/health/ready`) —
 **236 routes in total**. Every one is listed with its permission in
-[docs/ROUTE-MAP.md](docs/ROUTE-MAP.md).
+[api-doc/ROUTE-MAP.md](api-doc/ROUTE-MAP.md).
 
 **`/support` has 19 routes — the largest module in the service — `/content` has 14, `/files` has
 **7** since BR-015, and `/messaging` has 1**, and all of them have screens. The blog editor *moved
@@ -491,7 +503,7 @@ and Support desk is where a tier-3 administrator lives.
 
 What genuinely does not exist is **`/broadcast` and `/customers`**, and those are no longer even
 in the permission catalogue. **Still true:** do not build screens against
-[docs/jovi-mall/](docs/jovi-mall/) — that folder is context only, and its `articles.md`,
+[api-doc/jovi-mall/](api-doc/jovi-mall/) — that folder is context only, and its `articles.md`,
 `catalogue-vectorisation.md` and `profile.md` are obsolete.
 
 ⚠ **Two route paths carry the service's own vocabulary rather than a shorter one**, and must keep
@@ -508,7 +520,7 @@ jovi-mall user token, which an administrator does not have — so there will be 
 **"wi-admin has no door into geo-tracker" was falsified on 2026-08-22** (ADR-020) and the screens
 are built. There are **two** doors — a data door (four routes: presence, live position, shipment
 trail, shipment events) and an operations door — reached through wi-admin, never directly. Read
-[docs/TRACKING-DOORS.md](docs/TRACKING-DOORS.md) before building any tracking screen; the two
+[api-doc/TRACKING-DOORS.md](api-doc/TRACKING-DOORS.md) before building any tracking screen; the two
 coordinate reads require a `reason` the UI must collect and are **audited fail-closed**.
 **Still true:** `agent.tracking.lastKnown` is an explicitly **stale business mirror**, the
 authoritative dispatch answer is `GET /agents/:agentId/tracking-policy`, and the live position is a
@@ -564,11 +576,11 @@ what is outstanding is integration. See the table.
 
 | Gap | State |
 |---|---|
-| ~~**The article body editor**~~ | ✅ **Built.** `content.md` still names none of the nine block types, but [`docs/admin/article-blocks.ts`](docs/admin/article-blocks.ts) mirrors the backend's validator byte for byte and `content-blocks.test.ts` diffs the nine names against `ARTICLE_BLOCK_TYPES`. ⚠ **Tell the backend before adding a tenth** — their own file calls it a three-repo change; **we are the fourth** |
-| ~~**A ticket-creation form**~~ | ✅ **Built.** The five vocabularies are mirrored from [`docs/jovi-mall/ticket-vocabularies.ts`](docs/jovi-mall/ticket-vocabularies.ts) and guarded, order included. **No endpoint should ever serve them** — they are jovi-mall's. ⚠ **Filters stay free-text; only the create form gets pickers**: a stale filter matches nothing *while looking correct*, a stale create is refused with a reason |
+| ~~**The article body editor**~~ | ✅ **Built.** `content.md` still names none of the nine block types, but [`api-doc/admin/article-blocks.ts`](api-doc/admin/article-blocks.ts) mirrors the backend's validator byte for byte and `content-blocks.test.ts` diffs the nine names against `ARTICLE_BLOCK_TYPES`. ⚠ **Tell the backend before adding a tenth** — their own file calls it a three-repo change; **we are the fourth** |
+| ~~**A ticket-creation form**~~ | ✅ **Built.** The five vocabularies are mirrored from [`api-doc/jovi-mall/ticket-vocabularies.ts`](api-doc/jovi-mall/ticket-vocabularies.ts) and guarded, order included. **No endpoint should ever serve them** — they are jovi-mall's. ⚠ **Filters stay free-text; only the create form gets pickers**: a stale filter matches nothing *while looking correct*, a stale create is refused with a reason |
 | ~~**Rendering a private-tree file**~~ | ✅ **Built at BR-011** — `GET /files/:fileId/content` streams the bytes for any tree. ⚠ **It is a byte stream, not a signed URL**, because the configured provider (`local`) has no signing primitive: fetch → `URL.createObjectURL`, and a bare `<img src>` cannot work. `url` stays `null` on a private file **and always will** — the content route is a different mechanism, not a URL that field could have carried |
 | **Live verification against :8033** | ⏸ **Still open.** Nothing in `src/` has been exercised against a running service beyond `/auth`. Note the audited reads need wi-admin to be a **replica set** — in a single-node development database they fail while everything else works. ⚠ **Start with `/content`**: its wire shapes were wrong for months and nothing caught it |
-| ~~🔴 **`docs/admin/content-dto.ts` is a STALE mirror**~~ | ✅ **Closed 2026-08-26, and the guard did its job on the first run.** Re-copied as the first act of Phase E, exactly as this row instructed; `content-contract.test.ts` went red naming `sourceLocale`, and `src/` was corrected rather than the test. ⚠ **The lesson stands, which is why the row is kept**: a stale mirror and a stale `src/` agree with each other, so **nothing catches a mirror that was never re-taken** — only re-taking it does. Re-copy every mirror the backend's action list names, in the phase that consumes it |
+| ~~🔴 **`api-doc/admin/content-dto.ts` is a STALE mirror**~~ | ✅ **Closed 2026-08-26, and the guard did its job on the first run.** Re-copied as the first act of Phase E, exactly as this row instructed; `content-contract.test.ts` went red naming `sourceLocale`, and `src/` was corrected rather than the test. ⚠ **The lesson stands, which is why the row is kept**: a stale mirror and a stale `src/` agree with each other, so **nothing catches a mirror that was never re-taken** — only re-taking it does. Re-copy every mirror the backend's action list names, in the phase that consumes it |
 | ~~🔴 **Four granted routes with no service function**~~ | ✅ **All four closed.** `GET /vendors/:vendorId/products/:productId` (BR-005) and `GET /vendors/:vendorId/agencies` (BR-018) shipped with Phase B; `GET /files/library` and `POST /files/upload` (BR-015) shipped with **Phase F** on 2026-08-27 as the Media module and the media picker |
 | 🔴 **`vendors.md` omits two fields on the product detail** | ⏸ **Open, and reported rather than worked around.** `vendorId` and `tags` are on the wire and appear in neither its worked JSON nor its field tables, and its nullability differs from the source's on `title`, `slug` and `category`. `VendorProductDetail` follows `AdminProductDetailDto` in `backend/jovi-mall/src/modules/vendors/read-models/admin-product-detail.resolver.ts`, which is what computes the payload, and names the disagreement at each field. ⚠ Also `StorageSizeSource` has a third value the page does not show — **`unknown`**, which must stay distinguishable from a real measurement on a screen justifying a charge |
 | ~~🔴 **Phases B and C are BEHIND the contract, and four screens say so in the wrong direction**~~ | ✅ **Closed 2026-08-26.** All six items shipped: `items[].delivery.agencyName`, `items[].delivery.trackingNumber`, `timeline[].actorName`, `contract-history`'s `agent: {id, name}`, `items[].image` on both order and shipment, and `order.vendorName`. **Four false `InfoHint`s deleted** and **four lookups deleted with them** — the per-product catalogue N+1 on two screens, and the shipment overview's `GET /vendors/:vendorId`. ⚠ **`useVendorProducts` and `ProductImage` are gone**; `components/common/LineItemImage` renders a `FileDetail` the payload already carried. The stubs in `OrderDetail.test.tsx` and `ShipmentDetail.test.tsx` now **throw on `/products/` and `/vendors/`**, so re-introducing either lookup fails the suite |
@@ -588,12 +600,12 @@ BR-012 and are kept here as settled precedent**; the rest are open.
    the 15 other pages quote).
 3. ✅ ~~`content.md` specifies no response shapes.~~ **Fixed at BR-014** — it now carries a
    `## The shapes` section with field tables and worked JSON. **This one was not harmless while it
-   lasted:** the types were read from `docs/jovi-mall/admin/articles.md`, whose banner said only
+   lasted:** the types were read from `api-doc/jovi-mall/admin/articles.md`, whose banner said only
    "the base path, the keys and the permissions" changed. The backend read the deleted original and
    established that sentence was **never true** — the old page documented `:id` and a payload of
    `id`. The whole `/content` module was wrong on the wire because of it. Now pinned to
-   [`content-dto.ts`](docs/admin/content-dto.ts) and
-   [`content-validators.ts`](docs/admin/content-validators.ts) and guarded by
+   [`content-dto.ts`](api-doc/admin/content-dto.ts) and
+   [`content-validators.ts`](api-doc/admin/content-validators.ts) and guarded by
    `content-contract.test.ts`.
 4. ✅ ~~`permissions.md`'s prose counts were not re-counted.~~ **Fixed at BR-013** — 114 / 97 / 30 *as they stood then*; BR-015 added `files.library.read`
    and `files.upload`, so the live figures are **116 / 99 / 30**.

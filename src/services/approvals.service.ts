@@ -1,7 +1,7 @@
 /**
  * `/approvals` — the dual-control queue.
  *
- * Source: `docs/admin/api/authorization.md`.
+ * Source: `api-doc/admin/api/authorization.md`.
  *
  * ── Approving performs the action ─────────────────────────────────────────────
  * A `200` from `/approve` means the promotion **happened**, the payout **was**

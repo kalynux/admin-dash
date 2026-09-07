@@ -41,7 +41,7 @@ import { vendorDisplayName, type VendorDetail } from '@/types/vendors.types';
  * **Verification gates nothing.** It is visible to delivery agencies, and no
  * vendor behaviour depends on it — gating selling on it would have locked out the
  * entire existing roster until each vendor was reviewed, which was an explicit
- * product decision ([ADR-008 D-5](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md)).
+ * product decision ([ADR-008 D-5](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)).
  * Both dialogs say so, because "reject" reads like a stop and is not one.
  *
  * ── Both can lose a race ──────────────────────────────────────────────────────

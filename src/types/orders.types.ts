@@ -2,7 +2,7 @@
  * `/api/v1/orders` — the wire shapes, the query types and the write bodies.
  *
  * ── Sources ───────────────────────────────────────────────────────────────────
- * `docs/admin/api/orders.md` and `docs/admin/ADR-010-ORDERS-AND-SHIPMENTS.md` for
+ * `api-doc/admin/api/orders.md` and `api-doc/admin/ADR-010-ORDERS-AND-SHIPMENTS.md` for
  * the contract; `backend/admin/src/modules/orders/read-models/order.dto.ts` and
  * `.../repositories/order.read.repository.ts` for the shapes, because the docs are
  * wrong in four places on this surface. Where they disagree, **the code is the
@@ -110,7 +110,7 @@ export type OrderTimelineActorType = (typeof ORDER_TIMELINE_ACTOR_TYPES)[number]
 
 /**
  * `TimelineEventType` — **the nine values a timeline row can carry**, mirrored
- * from [`docs/jovi-mall/order-timeline-events.ts`](../../docs/jovi-mall/order-timeline-events.ts)
+ * from [`api-doc/jovi-mall/order-timeline-events.ts`](../../api-doc/jovi-mall/order-timeline-events.ts)
  * and diffed against it by `order-timeline-events.test.ts`.
  *
  * ── ⚠ Why this one is pinned when the standing rule says not to ──────────────
@@ -132,7 +132,7 @@ export type OrderTimelineActorType = (typeof ORDER_TIMELINE_ACTOR_TYPES)[number]
  * the menu, and the model's order is roughly the lifecycle's.
  *
  * ⚠ **Tell the backend before a tenth event type** —
- * [BR-019 § 2](../../docs/dashboard/backend-requests/BR-019-contract-clarifications.md)
+ * [BR-019 § 2](../../api-doc/admin/dashboard/backend-requests/BR-019-contract-clarifications.md)
  * asks them to document the nine and to say when one is added, because the
  * mirror cannot know on its own.
  */

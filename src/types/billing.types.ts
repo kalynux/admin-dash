@@ -1,7 +1,7 @@
 /**
  * `/billing` — the pricing-plan catalog, and who is on it.
  *
- * Sources: `docs/admin/api/billing.md` and, for the field-by-field shape,
+ * Sources: `api-doc/admin/api/billing.md` and, for the field-by-field shape,
  * `backend/admin/src/modules/billing/read-models/billing.dto.ts` — which is the
  * authority, because the doc is wrong in twenty-four places on this surface.
  *

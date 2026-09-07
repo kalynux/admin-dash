@@ -4,8 +4,8 @@
  * `systemHealthFixture`, `readinessFixture`, `outboxSummaryFixture` and `maintenanceFixture`
  * already live in `fixtures.ts` from Phase 5 and are not repeated here.
  *
- * Where `docs/admin/api/system.md` publishes no shape — eight routes have none anywhere in the
- * bundle — these follow `system.gateway.ts` and `docs/jovi-mall/admin/system.md`, which is the
+ * Where `api-doc/admin/api/system.md` publishes no shape — eight routes have none anywhere in the
+ * bundle — these follow `system.gateway.ts` and `api-doc/jovi-mall/admin/system.md`, which is the
  * same evidence `types/system.types.ts` was written from.
  */
 

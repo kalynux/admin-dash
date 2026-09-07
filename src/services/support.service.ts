@@ -1,7 +1,7 @@
 /**
  * `/support/tickets` — nineteen routes, the largest module on the service.
  *
- * Source: `docs/admin/api/support.md`. Contract detail lives on the types in
+ * Source: `api-doc/admin/api/support.md`. Contract detail lives on the types in
  * `types/support.types.ts`; this file is about how to call them.
  *
  * ── Two reads direct, seventeen routes delegated ──────────────────────────────

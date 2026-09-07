@@ -31,7 +31,7 @@ export function ModulePlaceholder() {
                 title={`${entry?.label ?? 'This screen'} is not built yet`}
                 description={
                     entry
-                        ? `Scheduled for phase ${entry.phase}. The backend surface it will call is verified and documented in docs/dashboard/BACKEND-INTEGRATION-MATRIX.md.`
+                        ? `Scheduled for phase ${entry.phase}. The backend surface it will call is verified and documented in api-doc/admin/dashboard/BACKEND-INTEGRATION-MATRIX.md.`
                         : 'This route has no screen behind it yet.'
                 }
                 action={

@@ -37,7 +37,7 @@ interface AccountPanelProps {
  * an agent.
  *
  * ── Why this is not part of the domain detail ─────────────────────────────────
- * [ADR-008](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md) excludes billing,
+ * [ADR-008](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md) excludes billing,
  * earnings and payouts from `/vendors` on purpose, and the delivery surfaces
  * follow it: putting them there would let `vendors.read` alone reach what
  * `billing.*` and `money.*` exist to gate. So this reads a different mount behind

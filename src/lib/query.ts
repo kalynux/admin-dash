@@ -16,7 +16,7 @@ export type QueryParams = Record<string, QueryValue>;
 /**
  * Serialise query parameters.
  *
- * Three rules from `docs/admin/api/README.md`, each of which bites if a client
+ * Three rules from `api-doc/admin/api/README.md`, each of which bites if a client
  * naively stringifies an object:
  *
  * - **An empty `?search=` is rejected, not treated as "no filter".** Sending

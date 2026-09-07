@@ -1,7 +1,7 @@
 /**
  * `/notifications` — the administrator inbox.
  *
- * Field for field what `docs/admin/api/notifications.md` documents.
+ * Field for field what `api-doc/admin/api/notifications.md` documents.
  *
  * Two properties of this surface shape the types more than usual:
  *

@@ -384,7 +384,7 @@ export function OrderOverviewPanel({
  * rows. A picture is one request per *distinct product on a detail screen*; an
  * agency name would be one per *row*, and the same shape on a list would be a
  * page of lookups the client should not be making.
- * [BR-017](../../docs/dashboard/backend-requests/BR-017-order-and-shipment-item-media.md)
+ * [BR-017](../../api-doc/admin/dashboard/backend-requests/BR-017-order-and-shipment-item-media.md)
  * asks for the media to be folded into the order payload so this stops being
  * needed at all.
  */

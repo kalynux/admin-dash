@@ -8,7 +8,7 @@ import type { VendorStatus } from '@/types/vendors.types';
  * One of four independent axes, and the one an administrator writes. It is not
  * the sign-in account's status (`VendorSignInAccountPanel`), not the vendor's own
  * vacation switch (`store.isOpen`), and not the verification verdict
- * (`VendorKycBadge`). `docs/admin/api/vendors.md:29` calls confusing them the
+ * (`VendorKycBadge`). `api-doc/admin/api/vendors.md:29` calls confusing them the
  * commonest mistake on this screen, so the four render as four visibly different
  * things and no helper merges them.
  *

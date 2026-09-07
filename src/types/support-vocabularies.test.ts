@@ -12,7 +12,7 @@
  *
  * A route on wi-admin publishing them would be wi-admin taking ownership of a
  * list it does not own, and a second place for that list to live. So they are
- * mirrored from `docs/jovi-mall/ticket-vocabularies.ts` — byte-identical to
+ * mirrored from `api-doc/jovi-mall/ticket-vocabularies.ts` — byte-identical to
  * `modules/tickets/types/ticket.types.ts` — and this suite is what makes the
  * copy safe, exactly as `permissions.types.test.ts` does for the permission
  * vocabulary.
@@ -40,7 +40,7 @@ import {
 
 const MIRROR = resolve(
     dirname(fileURLToPath(import.meta.url)),
-    '../../docs/jovi-mall/ticket-vocabularies.ts',
+    '../../api-doc/jovi-mall/ticket-vocabularies.ts',
 );
 
 const mirror = readFileSync(MIRROR, 'utf8');

@@ -2,7 +2,7 @@
  * `/api/v1/shipments` — the wire shapes, the query types and the write bodies.
  *
  * ── Sources ───────────────────────────────────────────────────────────────────
- * `docs/admin/api/shipments.md` and `ADR-010-ORDERS-AND-SHIPMENTS.md` for the
+ * `api-doc/admin/api/shipments.md` and `ADR-010-ORDERS-AND-SHIPMENTS.md` for the
  * contract; `backend/admin/src/modules/shipments/read-models/shipment.dto.ts` and
  * `.../repositories/shipment*.read.repository.ts` for the shapes. Four detail
  * blocks have no published shape at all and are read from the DTO.

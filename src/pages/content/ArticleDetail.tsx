@@ -61,7 +61,7 @@ import {
  * closed on every save: every unknown block type *and* every unknown key on a
  * known block is a `400`.
  *
- * That is closed. `docs/admin/article-blocks.ts` mirrors the backend's own
+ * That is closed. `api-doc/admin/article-blocks.ts` mirrors the backend's own
  * validator byte for byte, `content-blocks.test.ts` diffs the nine names against
  * it, and `ArticleTranslationDialog` carries the editor.
  *

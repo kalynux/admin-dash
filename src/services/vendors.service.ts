@@ -1,7 +1,7 @@
 /**
  * `/vendors` — the eleven endpoints of the vendor surface.
  *
- * Sources: `docs/admin/api/vendors.md`, `docs/admin/ADR-008-VENDOR-MANAGEMENT.md`,
+ * Sources: `api-doc/admin/api/vendors.md`, `api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md`,
  * and `backend/admin/src/modules/vendors/` where the first two disagree with the
  * running service. See `types/vendors.types.ts` for the four shapes the published
  * docs get wrong.
@@ -17,7 +17,7 @@
  * `error.code`.
  *
  * The gap is wider here than it was for users
- * ([ADR-008 D-1](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md)): suspending a
+ * ([ADR-008 D-1](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)): suspending a
  * vendor **takes their entire catalogue off sale inside the same transaction**,
  * and reinstating them **re-runs the activation gate on every listing** rather
  * than republishing blindly. A second writer would move the status, miss the
@@ -73,7 +73,7 @@ export interface VendorListMeta {
      * Present, and only ever `true`, when a `search` term matched more business
      * names than the store pre-match could return (its cap is 500).
      *
-     * [ADR-005 D-13 forbids a silent cap](../../docs/admin/ADR-005-API-CONTRACT.md):
+     * [ADR-005 D-13 forbids a silent cap](../../api-doc/admin/ADR-005-API-CONTRACT.md):
      * a truncated result set that looked complete would be read as "this vendor
      * does not exist". The directory renders a hint when it is set.
      */
@@ -418,7 +418,7 @@ export function restoreVendor(
  * **Approving gates nothing.** Verification is visible to agencies and is now
  * settable and explicable, but no vendor behaviour depends on it: gating selling
  * on it would lock out the entire existing roster until each vendor is reviewed
- * ([ADR-008 D-5](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md)). Say so on the
+ * ([ADR-008 D-5](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)). Say so on the
  * screen rather than letting an operator infer a consequence that does not exist.
  *
  * `409 VENDOR_KYC_STATUS_CONFLICT` when the verdict already is `verified`.
@@ -480,7 +480,7 @@ export function rejectVendorKyc(
  * The audit row targets the **vendor**, with the product in its payload, so this
  * appears in the vendor's activity feed — which is where somebody asking *this
  * vendor's listings went dark, why* will look
- * ([ADR-008 D-7](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md)).
+ * ([ADR-008 D-7](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)).
  */
 export function suspendVendorProduct(
     vendorId: string,
@@ -528,7 +528,7 @@ export function restoreVendorProduct(
  * commission must never come back `200` having changed nothing.
  *
  * The rule that picked these three
- * ([ADR-008 D-8](../../docs/admin/ADR-008-VENDOR-MANAGEMENT.md)): a setting is the
+ * ([ADR-008 D-8](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)): a setting is the
  * administrator's when its effect lands on somebody other than the vendor.
  * `notifyDaysBeforeExpiry` notifies the vendor about the vendor, so it is theirs
  * and the schema rejects it by name. **Commission is not here at all** — it lives

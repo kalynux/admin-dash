@@ -8,7 +8,7 @@
  * Only `VITE_`-prefixed variables reach the browser bundle.
  */
 
-/** wi-admin's documented default listen address (docs/admin/api/README.md). */
+/** wi-admin's documented default listen address (api-doc/admin/api/README.md). */
 const DEFAULT_API_BASE_URL = 'http://localhost:8033/api/v1';
 
 const DEFAULT_APP_NAME = 'WiMall Admin';
@@ -17,7 +17,7 @@ const DEFAULT_APP_NAME = 'WiMall Admin';
  * How often the inbox badge re-reads `GET /notifications/unread-count`.
  *
  * **The contract names no interval** — it is gap D12 in
- * `docs/dashboard/BACKEND-INTEGRATION-MATRIX.md`, left to the client. One minute:
+ * `api-doc/admin/dashboard/BACKEND-INTEGRATION-MATRIX.md`, left to the client. One minute:
  * long enough that a parked tab is not making hundreds of requests an hour, short
  * enough that a badge is not stale news. There is no realtime transport on this
  * platform (no WebSocket, no SSE), so polling is the only mechanism available.

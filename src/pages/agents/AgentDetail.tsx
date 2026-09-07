@@ -73,7 +73,7 @@ const OBJECT_ID = /^[0-9a-f]{24}$/i;
  * what does arrive, the home-base label, the licence plate and the device
  * fingerprint are **detail-only and never on a list row**, the device block is
  * collapsed by default, and the last-known position sits behind an explicit
- * reveal. See `docs/dashboard/DATA-EXPOSURE-REGISTER.md`.
+ * reveal. See `api-doc/admin/dashboard/DATA-EXPOSURE-REGISTER.md`.
  */
 export function AgentDetail() {
     const { agentId = '' } = useParams();

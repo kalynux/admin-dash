@@ -14,22 +14,22 @@
  * local half survives the remote half.
  *
  * ── Where the shapes come from ────────────────────────────────────────────────
- * `docs/admin/api/system.md` publishes a response shape for six of the seventeen. Eight have
+ * `api-doc/admin/api/system.md` publishes a response shape for six of the seventeen. Eight have
  * none anywhere in the bundle and five more are prose-only. The types below were read from
  * `backend/admin/src/modules/system/gateways/system.gateway.ts` — whose interfaces were
  * themselves written by reading jovi-mall — cross-checked against
- * `docs/jovi-mall/admin/system.md`. That is the exception to CLAUDE.md's *"docs/jovi-mall is
+ * `api-doc/jovi-mall/admin/system.md`. That is the exception to CLAUDE.md's *"api-doc/jovi-mall is
  * background only"*: on a delegated passthrough wi-admin forwards the platform's payload
  * verbatim, so the platform's page **is** the shape. Recorded as a backend dependency; the
  * shapes belong in `system.md`.
  *
  * Several nested blocks are `Record<string, unknown>` at wi-admin's own seam. Where this file
- * types them, the field names come from `docs/jovi-mall/admin/system.md` and are marked
+ * types them, the field names come from `api-doc/jovi-mall/admin/system.md` and are marked
  * partial — render defensively and never `switch` on a value from one.
  *
- * Design records: [ADR-014](../../docs/admin/ADR-014-SYSTEM-OPERATIONS.md),
- * [ADR-015](../../docs/admin/ADR-015-DEVELOPER-TOOLS.md),
- * [ADR-016](../../docs/admin/ADR-016-ERROR-SYSTEM.md).
+ * Design records: [ADR-014](../../api-doc/admin/ADR-014-SYSTEM-OPERATIONS.md),
+ * [ADR-015](../../api-doc/admin/ADR-015-DEVELOPER-TOOLS.md),
+ * [ADR-016](../../api-doc/admin/ADR-016-ERROR-SYSTEM.md).
  */
 
 // ─── The operation taxonomy ───────────────────────────────────────────────────
@@ -166,7 +166,7 @@ export interface MaintenanceActor {
 }
 
 /**
- * The three modes, from [dev-tools.md](../../docs/admin/api/dev-tools.md) —
+ * The three modes, from [dev-tools.md](../../api-doc/admin/api/dev-tools.md) —
  * `PUT /dev-tools/maintenance` declares the vocabulary that
  * `GET /system/maintenance` reports back.
  *
@@ -270,7 +270,7 @@ export const CONFIG_SET_NOTE =
  * lock — which surfaces as `ran: false` on a trigger, not as an error.
  *
  * Partial: `system.gateway.ts` types the element `Record<string, unknown>`. Field names are from
- * `docs/jovi-mall/admin/system.md`.
+ * `api-doc/jovi-mall/admin/system.md`.
  */
 export interface WorkerReport {
     key: string;

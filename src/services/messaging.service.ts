@@ -1,7 +1,7 @@
 /**
  * `/messaging` — one route.
  *
- * Source: `docs/admin/api/messaging.md`. Delegated to jovi-mall, which owns the
+ * Source: `api-doc/admin/api/messaging.md`. Delegated to jovi-mall, which owns the
  * `TELEGRAM_BOT_TOKEN` and the `channel_connections` collection mapping a
  * platform user to their chat. There is nothing here to own.
  */

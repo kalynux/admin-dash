@@ -1,7 +1,7 @@
 /**
  * `/administrators` — the sixteen endpoints of the administrator directory.
  *
- * Source: `docs/admin/api/administrators.md`.
+ * Source: `api-doc/admin/api/administrators.md`.
  *
  * ── Everything here is direct; nothing is delegated ───────────────────────────
  * These are wi-admin's own accounts, not jovi-mall's. So unlike
