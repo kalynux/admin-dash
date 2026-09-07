@@ -6,8 +6,8 @@ Platform oversight of the cash chain: who is holding the platform's money, the t
 paths, the flags raised when the chain breaks, and the trust score that bounds how much one
 person may carry.
 
-Design records: [`../ADR-004-DOMAIN-OWNERSHIP.md`](../ADR-004-DOMAIN-OWNERSHIP.md),
-[`../ADR-011-ACCOUNTS-AND-FINANCE.md`](../ADR-011-ACCOUNTS-AND-FINANCE.md).
+Design records: [`../../docs/ADR-004-DOMAIN-OWNERSHIP.md`](../../docs/ADR-004-DOMAIN-OWNERSHIP.md),
+[`../../docs/ADR-011-ACCOUNTS-AND-FINANCE.md`](../../docs/ADR-011-ACCOUNTS-AND-FINANCE.md).
 
 | Method | Path | Permission | Transport | Audited |
 |---|---|---|---|---|

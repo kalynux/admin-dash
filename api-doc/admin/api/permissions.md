@@ -1,11 +1,13 @@
 # Permissions and administrator levels
 
+**Verified against source on 2026-09-08** — the 116 permissions, the 20 families and all three tier totals (116 / 99 / 30), against `admin/src/modules/authorization/domain/permission.catalog.ts` and `tier-grants.ts` at HEAD.
+
 This is the complete authorization policy. It is **static code**, not data: there are no
 per-administrator overrides, no policy collections, and nothing is editable at runtime.
 Changing what a level can do means shipping a release.
 
-Design records: [`../ADR-003-GRANULAR-PERMISSIONS.md`](../ADR-003-GRANULAR-PERMISSIONS.md),
-[`../ADR-001-DATA-ACCESS-MODEL.md`](../ADR-001-DATA-ACCESS-MODEL.md).
+Design records: [`../../docs/ADR-003-GRANULAR-PERMISSIONS.md`](../../docs/ADR-003-GRANULAR-PERMISSIONS.md),
+[`../../docs/ADR-001-DATA-ACCESS-MODEL.md`](../../docs/ADR-001-DATA-ACCESS-MODEL.md).
 
 ---
 
@@ -138,7 +140,7 @@ delivery right now"* is what a ticket asks, and refusing it to the tier that ans
 escalates every one of them. **The audit is the other half of that decision**: on every
 coordinate-emitting read the row commits **before** the disclosure and its failure is not caught,
 so with the audit store unreachable nothing is disclosed. Widening the audience and adding the
-record were one decision, not two. See [ADR-020](../ADR-020-ADMIN-DATA-DOOR.md) D-5.
+record were one decision, not two. See [ADR-020](../../docs/ADR-020-ADMIN-DATA-DOOR.md) D-5.
 
 ---
 
@@ -301,7 +303,7 @@ of a filename and a size — and because `files.orphans.read` already enumerates
 unaudited. Auditing a *browse* surface also dilutes the trail it is meant to protect: an operator
 paging a media picker would generate more rows in a minute than the four real disclosures do in a
 week. **Adding it later is purely additive** — a catalogued action and one line on the route. See
-[ADR-021](../ADR-021-ADMIN-MEDIA-LIBRARY.md) D-6.
+[ADR-021](../../docs/ADR-021-ADMIN-MEDIA-LIBRARY.md) D-6.
 
 **`files.upload` is the first write path for files on this service, and it IS audited** — because
 it is a write, and every write here is. No exception argument was needed. The row matters more
@@ -351,7 +353,7 @@ size cap still apply to it.
 | `vendors.products.manage` | write | ● | ● | · | — | Take a vendor’s product off sale, or put it back, as platform oversight |
 | `vendors.settings.manage` | write | ● | ● | · | — | Change a vendor’s platform-governed order settings — not their commission |
 
-> **The `customers` family is gone** (Phase 5 Part D, [ADR-017](../ADR-017-PHASE-17-CLOSEOUT.md)
+> **The `customers` family is gone** (Phase 5 Part D, [ADR-017](../../docs/ADR-017-PHASE-17-CLOSEOUT.md)
 > D-1). `customers.read` and `customers.suspend` were catalogued, **granted**, and backed no
 > route — the only pair on the unbuilt list in that state, which is why they were deleted rather
 > than left with a rationale: a granted permission with no endpoint appears in an

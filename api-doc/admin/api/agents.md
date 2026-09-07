@@ -6,7 +6,7 @@ Seventeen routes: the directory, the detail, contracts and their history, the ad
 activity feed, three delegated **verdict** reads, **two live-tracking reads** (Phase 6.I), and
 six writes.
 
-Design record: [`../ADR-009-DELIVERY-NETWORK.md`](../ADR-009-DELIVERY-NETWORK.md).
+Design record: [`../../docs/ADR-009-DELIVERY-NETWORK.md`](../../docs/ADR-009-DELIVERY-NETWORK.md).
 
 | Method | Path | Permission | Transport | Audited |
 |---|---|---|---|---|
@@ -48,7 +48,7 @@ failed audit write means nothing is disclosed. See
 
 | Missing | Why |
 |---|---|
-| ~~**A live position**~~ | **No longer true — Phase 6.I built it** ([ADR-020](../ADR-020-ADMIN-DATA-DOOR.md)). `GET /agents/:agentId/live-position`, its own permission, audited on every call. Struck through rather than deleted because "wi-admin has no geo-tracker data door" was the standing answer for three phases and is still what most of this repository says |
+| ~~**A live position**~~ | **No longer true — Phase 6.I built it** ([ADR-020](../../docs/ADR-020-ADMIN-DATA-DOOR.md)). `GET /agents/:agentId/live-position`, its own permission, audited on every call. Struck through rather than deleted because "wi-admin has no geo-tracker data door" was the standing answer for three phases and is still what most of this repository says |
 | **Editing contract terms** | A live contract's terms change by proposal between the two parties, never by edit — an administrator imposing a fee split neither party proposed would bind an agent to a number nobody agreed. `transfer` moves a relationship rather than rewriting one |
 | **Approving a pending contract** | Same reasoning, sharper: a contract with `terms.proposedBy: null` exists precisely because nobody has stated terms, so approving it binds an agent to a default that pays **zero** |
 | **Adjusting a contract's `cod.threshold`** | A third reason, not the same one. It is that contract's slice of a pool bounded across every allocating contract, `0` **blocks all COD** rather than meaning "no limit", and the arithmetic is jovi-mall's. `PUT /agents/:agentId/cod-threshold` sets the agent's whole pool and is the lever that exists |
@@ -279,7 +279,7 @@ and serving it as a live position is a bug.
 > **⚠️ This paragraph used to end "and this service has no door to it". That is no longer
 > true, and the distinction still matters.**
 >
-> A door was opened at Phase 6.I ([ADR-020](../ADR-020-ADMIN-DATA-DOOR.md)): geo-tracker gained
+> A door was opened at Phase 6.I ([ADR-020](../../docs/ADR-020-ADMIN-DATA-DOOR.md)): geo-tracker gained
 > a **service-caller** authorization path, so administrators reach live tracking data without
 > gaining platform user rows. See
 > [`GET /agents/:agentId/live-position`](#get-agentsagentidlive-position).
@@ -666,7 +666,7 @@ Three things a screen built on this must get right:
 
 # Live tracking — the geo-tracker data door
 
-**New at Phase 6.I.** Design record: [ADR-020](../ADR-020-ADMIN-DATA-DOOR.md); the wire contract
+**New at Phase 6.I.** Design record: [ADR-020](../../docs/ADR-020-ADMIN-DATA-DOOR.md); the wire contract
 on the other side is `geo-tracker/api-doc/service-data-door.md`.
 
 For three phases this service had **no** geo-tracker data door, because every geo-tracker read

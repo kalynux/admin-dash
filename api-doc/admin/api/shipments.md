@@ -6,7 +6,7 @@ Entirely net-new: there was no admin shipment surface anywhere before this servi
 administrator investigating a stalled delivery could see the order and the agency and nothing in
 between.
 
-Design record: [`../ADR-010-ORDERS-AND-SHIPMENTS.md`](../ADR-010-ORDERS-AND-SHIPMENTS.md).
+Design record: [`../../docs/ADR-010-ORDERS-AND-SHIPMENTS.md`](../../docs/ADR-010-ORDERS-AND-SHIPMENTS.md).
 
 | Method | Path | Permission | Transport | Audited |
 |---|---|---|---|---|
@@ -337,7 +337,7 @@ What **administrators** did to this shipment.
 
 # Live tracking — the geo-tracker data door
 
-**New at Phase 6.I.** Design record: [ADR-020](../ADR-020-ADMIN-DATA-DOOR.md); the wire contract
+**New at Phase 6.I.** Design record: [ADR-020](../../docs/ADR-020-ADMIN-DATA-DOOR.md); the wire contract
 on the other side is `geo-tracker/api-doc/service-data-door.md`. The agent-scoped half of the
 same door lives in [agents.md](agents.md#live-tracking--the-geo-tracker-data-door).
 

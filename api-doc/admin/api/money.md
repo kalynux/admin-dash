@@ -4,7 +4,7 @@ Base path: `/api/v1/money`
 
 Fourteen routes; eight had no legacy equivalent at all.
 
-Design record: [`../ADR-011-ACCOUNTS-AND-FINANCE.md`](../ADR-011-ACCOUNTS-AND-FINANCE.md).
+Design record: [`../../docs/ADR-011-ACCOUNTS-AND-FINANCE.md`](../../docs/ADR-011-ACCOUNTS-AND-FINANCE.md).
 
 | Method | Path | Permission | Transport | Audited |
 |---|---|---|---|---|

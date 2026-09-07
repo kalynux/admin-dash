@@ -9,6 +9,11 @@
 
 # Live Tracking WebSocket
 
+**Verified against source on 2026-09-08** (backend counterpart: `geo-tracker/api-doc/`) — endpoint,
+all three token sources and their precedence, every frame shape, the three `permission_revoked`
+reasons and all nine error-frame codes, against `geo-tracker/internal/modules/tracking/` and
+`internal/platform/apperror/codes.go`. One defect fixed: the token precedence was listed in reverse.
+
 The real-time channel: agents publish their position here, and authorized
 viewers (admin / agency / customer) receive it.
 
@@ -67,23 +72,28 @@ GET /ws/track
 ## Authentication
 
 Present your **jovi-mall access token** — the same one you use against the
-jovi-mall API. There are three ways it can arrive, tried in this order:
+jovi-mall API. There are three ways it can arrive. **The server tries them in
+this order and the first one present wins**, so if you send more than one, the
+lower-numbered one is used even when it is the stale one:
 
-1. **httpOnly cookie (browser dashboards — the recommended path).** jovi-mall
-   sets the access token in an httpOnly `access_token` cookie the frontend JS
-   cannot read. The browser attaches it to the handshake **automatically** when
-   geo-tracker is *same-site* with jovi-mall (see below), so a browser simply
-   connects with `new WebSocket("wss://geo.example.com/ws/track")` — no token
-   handling in JS at all.
-2. **Subprotocol header** — for clients that *hold* the raw token and are not
-   bound by httpOnly (browsers cannot set `Authorization` on a WebSocket):
+1. **Subprotocol header** — for clients that *hold* the raw token (browsers
+   cannot set `Authorization` on a WebSocket):
    ```
    Sec-WebSocket-Protocol: bearer, <access_token>
    ```
-3. **Authorization header** — non-browser clients (e.g. a native agent app):
+   Exactly two comma-separated parts are accepted: the literal `bearer`, then
+   the token. Any other shape is ignored and the server falls through to 2.
+2. **Authorization header** — non-browser clients (e.g. a native agent app):
    ```
    Authorization: Bearer <access_token>
    ```
+3. **httpOnly cookie (browser dashboards — the recommended path for them).**
+   jovi-mall sets the access token in an httpOnly `access_token` cookie the
+   frontend JS cannot read. The browser attaches it to the handshake
+   **automatically** when geo-tracker is *same-site* with jovi-mall (see below),
+   so a browser simply connects with
+   `new WebSocket("wss://geo.example.com/ws/track")` — no token handling in JS
+   at all.
 
 > **Same-site is what makes the cookie ride.** The browser sends the `access_token`
 > cookie on the handshake only when (a) the cookie's scope covers geo-tracker's

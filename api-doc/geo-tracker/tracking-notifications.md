@@ -9,6 +9,11 @@
 
 # Tracking-State Notifications (outbound → jovi-mall)
 
+**Verified against source on 2026-09-08** — the trigger rule and the request body field-for-field
+against `geo-tracker/internal/modules/session/provider/node_notifier.go` and
+`domain/lifecycle.go`. **One defect fixed**: `disconnected` is a notified transition and was
+missing from the table — it is the most frequent one there is.
+
 This is the **geo-tracker → jovi-mall** direction of the tracking contract.
 geo-tracker owns the live tracking lifecycle (see
 [tracking-sessions.md](./tracking-sessions.md)); when an agent's tracking state
@@ -25,10 +30,21 @@ jovi-mall can rely on this agent's live tracking:
 
 | Transition | Sent? |
 |---|---|
-| → `offline`, `network_lost`, `location_disabled`, `tracking_disabled` | ✅ tracking became unavailable |
-| → `online` (from any of the above, or from `offline`) | ✅ tracking restored |
+| → `offline`, **`disconnected`**, `network_lost`, `location_disabled`, `tracking_disabled` | ✅ tracking became unavailable |
+| → `online` from any of those five | ✅ tracking restored |
 | → `degraded`, `app_background`, `app_foreground` | ❌ transient/informational (history only) |
-| `online` → `online` and other no-op self-transitions | ❌ no change |
+| → `online` from `degraded` / `app_foreground` | ❌ tracking was never unavailable |
+| any self-transition (`from == to`) | ❌ no change |
+
+> ⚠ **`disconnected` is in that first row, and this table omitted it until
+> 2026-09-08.** `isProblemState` counts it (`session/domain/lifecycle.go:256`) —
+> the session is alive but no GPS is arriving, which is exactly what jovi-mall
+> needs to know. It is also the **most frequent** notification by a wide margin,
+> because every socket drop produces one.
+
+The rule in one line: a transition is sent when its **destination** is one of the
+five unavailable states, or when it **returns to `online` from** one of them.
+Everything else is history-only.
 
 Every transition — important or not — is still recorded in the durable
 [history](./tracking-sessions.md) (`GET /tracking/sessions/:agentID/history`).

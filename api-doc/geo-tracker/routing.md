@@ -9,6 +9,11 @@
 
 # Routing, Geocoding & ETA
 
+**Verified against source on 2026-09-08** — all five routes, the capability matrix, the chain rules
+and every response shape against `geo-tracker/internal/modules/routing/`. **One defect fixed**: an
+empty matrix request returns `{"cells": null}`, not `{"cells": []}`. One claim ruled out:
+`ROUTING_PROVIDER` defaults to `chain`, not `osrm`.
+
 On-demand access to the active routing provider. Every endpoint is
 **provider-agnostic**: the response shape is identical no matter which backend
 `ROUTING_PROVIDER` selects (`chain` | `osrm` | `locationiq` | `geoapify` |
@@ -99,7 +104,13 @@ Pairwise distances/durations between every source and every target.
                { "DistanceMeters": 20, "DurationSeconds": 2 } ] ] }
 ```
 
-An empty `sources` or `targets` returns `{"cells":[]}` without calling the provider.
+An empty `sources` or `targets` short-circuits without calling the provider — but
+what comes back is **`{"cells": null}`**, not `{"cells": []}`. The short-circuit
+returns a zero-valued matrix whose `Cells` is a nil slice, and Go marshals a nil
+slice as `null` (`routing/provider/chain.go:273`; there is no normalising layer).
+
+> ⚠ **Guard the field before you index it.** `cells.length` throws on this
+> response. Treat `cells` as `Cell[][] | null` everywhere, not just here.
 
 ---
 
@@ -133,6 +144,18 @@ An empty `sources` or `targets` returns `{"cells":[]}` without calling the provi
 intended production setting: both live providers sit on free tiers measured in a
 few thousand calls a day, so the chain adds their allowances together rather than
 leaving the service down when one runs out.
+
+> **`chain` is also the DEFAULT value of `ROUTING_PROVIDER`** —
+> `internal/platform/config/config.go:335`, `getEnv("ROUTING_PROVIDER", "chain")`.
+> Several documents elsewhere in the platform state that the default is `osrm` and
+> that geocoding therefore `501`s out of the box; that is **not what the code
+> does**, and it was ruled out against source on 2026-09-08.
+>
+> What is true, and is probably where that belief came from: **a chain member with
+> no credential is skipped** (with a warning), and only `osrm` needs none. So on a
+> host with neither `GEOAPIFY_API_KEY` nor `LOCATIONIQ_API_KEY` set the chain
+> collapses to OSRM alone and geocoding does return `501` — because of the missing
+> keys, not because of the default provider.
 
 **Nothing about the request or response shape changes.** A client cannot tell
 which member answered, and there is no field naming one — that attribution lives

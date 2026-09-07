@@ -9,6 +9,9 @@
 
 # Agent Action Audit (inbound, from jovi-mall)
 
+**Verified against source on 2026-09-08** — the route, the HMAC scheme, the four `action` and six
+`outcome` values and the `event_id` dedup against `geo-tracker/internal/modules/actionaudit/`.
+
 The **spatial** half of agent shipment actions. jovi-mall owns the *business*
 event — an agent (or an agency, on the agent's shipment) performing a pickup,
 delivery, return, or cancel, and whether it succeeded. geo-tracker owns the

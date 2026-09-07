@@ -7,9 +7,9 @@ reference lookups behind the creation form. **Nineteen routes**, and this is the
 administrative door onto tickets — jovi-mall's own `/api/admin/tickets` mount was deleted when
 this one was built.
 
-Design records: [`../PHASE-17-LEGACY-PORT-PLAN.md`](../PHASE-17-LEGACY-PORT-PLAN.md) (the port),
-[`../ADR-004-DOMAIN-OWNERSHIP.md`](../ADR-004-DOMAIN-OWNERSHIP.md) (why the reads are direct
-and the writes are not), [`../ADR-005-API-CONTRACT.md`](../ADR-005-API-CONTRACT.md) D-4, D-14,
+Design records: [`../../docs/PHASE-17-LEGACY-PORT-PLAN.md`](../../docs/PHASE-17-LEGACY-PORT-PLAN.md) (the port),
+[`../../docs/ADR-004-DOMAIN-OWNERSHIP.md`](../../docs/ADR-004-DOMAIN-OWNERSHIP.md) (why the reads are direct
+and the writes are not), [`../../docs/ADR-005-API-CONTRACT.md`](../../docs/ADR-005-API-CONTRACT.md) D-4, D-14,
 D-17.
 
 | Method | Path | Permission | Transport | Audited |

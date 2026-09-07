@@ -4,7 +4,7 @@ Base path: `/api/v1/orders`
 
 The directory, the detail, both histories, a refund ceiling, and the four interventions.
 
-Design record: [`../ADR-010-ORDERS-AND-SHIPMENTS.md`](../ADR-010-ORDERS-AND-SHIPMENTS.md).
+Design record: [`../../docs/ADR-010-ORDERS-AND-SHIPMENTS.md`](../../docs/ADR-010-ORDERS-AND-SHIPMENTS.md).
 
 | Method | Path | Permission | Transport | Audited |
 |---|---|---|---|---|

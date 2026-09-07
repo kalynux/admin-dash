@@ -9,6 +9,11 @@
 
 # Error Responses
 
+**Verified against source on 2026-09-08** — the envelope, the nine categories, every HTTP status the
+service can emit and all nine WebSocket frame codes, against
+`geo-tracker/internal/platform/apperror/` and `internal/platform/httpx/`. **One defect fixed**: the
+status table listed a `422` that exists nowhere in the repository.
+
 **Changed in Phase 16.** This service used to answer in **plain text** via Go's `http.Error`,
 except the routing module which answered `{"error":"…"}`, and this document told you to
 branch on the status code because there was nothing else to branch on. That gap is closed.
@@ -61,8 +66,7 @@ never sent.
 | `403` | Authenticated but forbidden — e.g. a vendor opening a tracking socket | `/ws/track` |
 | `404` | Not found **or** not authorized to see it — deliberately identical | `/locations/{agentID}` |
 | `413` | Body over the 1 MiB cap, refused before the signature is checked | `/webhooks/*` |
-| `422` | Well-formed and refused by a rule — e.g. an implausible position jump | location |
-| `429` | Rate limited | any (see [rate-limits.md](../rate-limits.md)) |
+| `429` | Rate limited | any except `/healthz`, `/readyz`, `/metrics` and `/webhooks/*` (see [rate-limits.md](../rate-limits.md)) |
 | `500` | Recovered panic, or an unclassified failure | any |
 | `501` | The active routing provider lacks this capability | `/routing/*` |
 | `502` | An upstream failed: a routing provider, or jovi-mall while verifying authorization | `/routing/*`, `/locations/*`, `/ws/track` |
@@ -76,6 +80,13 @@ never sent.
 > only**, raised at `tracking/delivery/ws/handler.go:312` via `sendError`, exactly as it was
 > before Phase 16. Do not write a `409` branch for this service, and do not infer from that row
 > that device state can be changed over HTTP: there is no such endpoint.
+
+> ⚠ **There is no `422`, and this table listed one until 2026-09-08** — the same defect as the
+> `409` above, one row down. `http.StatusUnprocessableEntity` appears **nowhere in the
+> geo-tracker repository at all**, tests included. The removed row cited "an implausible position
+> jump", which is `LOCATION_JUMP_IMPLAUSIBLE` — a **WebSocket frame**, like the Tracking-Allow
+> refusal, and like it never an HTTP status. A failure that happens over the socket does not
+> acquire an HTTP status by being written into an HTTP table.
 
 > **The 404-not-403 on `/locations/{agentID}` is deliberate and is preserved.** An unauthorized
 > viewer and a non-existent agent get byte-identical answers, so the endpoint never confirms

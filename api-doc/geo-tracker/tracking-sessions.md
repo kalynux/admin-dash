@@ -9,6 +9,10 @@
 
 # Tracking Sessions & Lifecycle (read)
 
+**Verified against source on 2026-09-08** — all six routes, every response field, the nine lifecycle
+states, the fifteen triggers and both `limit` default/ceiling pairs, against
+`geo-tracker/internal/modules/session/`. No factual errors; the cookie-vs-bearer trap was added.
+
 A **tracking session is the complete tracking lifecycle of ONE shipment**. It
 opens when jovi-mall reports the shipment active for an agent and closes only
 when jovi-mall reports it terminal. Everything else — sockets dropping, networks
@@ -93,6 +97,24 @@ count as trackable or terminal is jovi-mall's policy, pushed here as a verdict
 "is this agent's device configured to allow tracking?".
 
 ## Authentication & authorization
+
+> ### ⚠ Browser dashboards: the header is required here, unlike on the socket
+>
+> geo-tracker's HTTP middleware will authenticate you from the httpOnly
+> `access_token` cookie. **But these endpoints then forward a token to jovi-mall
+> to resolve what you may see, and they read that token only from the
+> `Authorization` header** (`session/delivery/http/handler.go` → `bearerToken`).
+>
+> Cookie-only, the forwarded token is empty, jovi-mall answers `401`, and you get
+> **`502`** — not `401`, not `404`. And because the resolved permission set is
+> cached in Redis **keyed by user id, not by token** (`PERMISSION_CACHE_TTL`,
+> default 5 minutes), a cookie-only call *succeeds* while that user has a warm
+> entry from a WebSocket connect or an earlier header-bearing request, then starts
+> failing when it expires. **The same call works and later stops, with nothing
+> changed.**
+>
+> Always send `Authorization: Bearer <token>` on these routes, even from a browser
+> that also carries the cookie.
 
 `Authorization: Bearer <jovi-mall access token>`. Authentication alone is not
 sufficient: every endpoint enforces the same per-agent visibility rules as the

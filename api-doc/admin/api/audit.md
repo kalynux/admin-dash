@@ -6,8 +6,8 @@ Every administrator action, who did it, to what, and how it ended. Rows are **im
 written in the same transaction as the change they describe wherever the change lands in this
 service's own database.
 
-Design records: [`../ADR-006-AUDIT.md`](../ADR-006-AUDIT.md),
-[`../ADR-012-AUDIT-COMPLETION.md`](../ADR-012-AUDIT-COMPLETION.md).
+Design records: [`../../docs/ADR-006-AUDIT.md`](../../docs/ADR-006-AUDIT.md),
+[`../../docs/ADR-012-AUDIT-COMPLETION.md`](../../docs/ADR-012-AUDIT-COMPLETION.md).
 
 | Method | Path | Permission | Audited |
 |---|---|---|---|
@@ -470,6 +470,6 @@ identity, the same correlation id and a catalogued action — so the feed would 
 events twice in two vocabularies, one of them worse. If the historical rows are ever needed,
 they are reachable through the developer tools.
 
-Design records: [ADR-017](../ADR-017-PHASE-17-CLOSEOUT.md) D-8 (the deletion) and
+Design records: [ADR-017](../../docs/ADR-017-PHASE-17-CLOSEOUT.md) D-8 (the deletion) and
 [Phase 5 § C-10](../../../PRODUCTION-READINESS/PHASE-5-LEGACY-CLOSEOUT-PLAN.md) (why the
 collection itself must not be deleted with it).

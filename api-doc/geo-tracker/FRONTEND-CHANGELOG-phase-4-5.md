@@ -9,6 +9,10 @@
 
 # geo-tracker — what Phase 4 and Phase 5 changed for a client
 
+**Verified against source on 2026-09-08** — the behavioural claims re-checked against
+`geo-tracker/internal/` and, for the 90-day session cap, `jovi-mall/src/core/auth/token.issuer.ts:47-49`.
+No corrections were needed.
+
 Your slice of Phases **4** (Per-service hardening) and **5** (Legacy close-out) of
 `PRODUCTION-READINESS/10-IMPLEMENTATION-PLAN.md` (not mirrored here — `backend/PRODUCTION-READINESS/10-IMPLEMENTATION-PLAN.md`).
 

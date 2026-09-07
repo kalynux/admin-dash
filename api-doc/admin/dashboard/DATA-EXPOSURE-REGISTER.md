@@ -45,7 +45,7 @@ residue.
 > ### ✅ ANSWERED 2026-08-17 — and the premise was not true
 >
 > **Backend note, added with BR-003's implementation.** See
-> [ADR-018](../ADR-018-DASHBOARD-BACKEND-REQUESTS.md) F-1 and D-2.
+> [ADR-018](../../docs/ADR-018-DASHBOARD-BACKEND-REQUESTS.md) F-1 and D-2.
 >
 > **This block was empty on every agent in the database, so the disclosure described below was
 > not occurring.** geo-tracker POSTs its tracking-state notifications to
@@ -116,7 +116,7 @@ they were last seen. If your reading of the policy differs, say so and we will g
 
 > ### 📌 Both asks were GRANTED — for a different field, at Phase 6.I (2026-08-22)
 >
-> **Backend note.** See [ADR-020](../ADR-020-ADMIN-DATA-DOOR.md) D-4 … D-6.
+> **Backend note.** See [ADR-020](../../docs/ADR-020-ADMIN-DATA-DOOR.md) D-4 … D-6.
 >
 > `tracking.lastKnown` itself is **unchanged**: still `agents.read`, still unaudited, still
 > shipped with `isStale`. The 2026-08-17 answer above stands, and the product reasoning behind

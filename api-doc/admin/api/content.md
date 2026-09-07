@@ -8,9 +8,9 @@ and the editorial bylines articles are credited to. **Fourteen routes**, and thi
 `/api/admin/article-authors` mounts were deleted when this one was built.
 
 Design records: [`PHASE-5-LEGACY-CLOSEOUT-PLAN.md`](../../../PRODUCTION-READINESS/PHASE-5-LEGACY-CLOSEOUT-PLAN.md)
-(Part A — the port), [`../ADR-004-DOMAIN-OWNERSHIP.md`](../ADR-004-DOMAIN-OWNERSHIP.md) D-4
+(Part A — the port), [`../../docs/ADR-004-DOMAIN-OWNERSHIP.md`](../../docs/ADR-004-DOMAIN-OWNERSHIP.md) D-4
 (why this family MOVED rather than delegating),
-[`../ADR-005-API-CONTRACT.md`](../ADR-005-API-CONTRACT.md).
+[`../../docs/ADR-005-API-CONTRACT.md`](../../docs/ADR-005-API-CONTRACT.md).
 
 | Method | Path | Permission | Transport | Audited |
 |---|---|---|---|---|

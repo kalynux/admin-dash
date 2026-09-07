@@ -5,7 +5,7 @@ Base path: `/api/v1/agencies`
 The delivery network's businesses: the directory, the detail, the agent roster, the contract
 history, and the three lifecycle verbs.
 
-Design record: [`../ADR-009-DELIVERY-NETWORK.md`](../ADR-009-DELIVERY-NETWORK.md).
+Design record: [`../../docs/ADR-009-DELIVERY-NETWORK.md`](../../docs/ADR-009-DELIVERY-NETWORK.md).
 
 | Method | Path | Permission | Transport | Audited |
 |---|---|---|---|---|

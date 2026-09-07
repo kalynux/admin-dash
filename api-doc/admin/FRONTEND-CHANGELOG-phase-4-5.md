@@ -4,8 +4,8 @@ Your slice of Phases **4** (Per-service hardening) and **5** (Legacy close-out) 
 [`PRODUCTION-READINESS/10-IMPLEMENTATION-PLAN.md`](../../PRODUCTION-READINESS/10-IMPLEMENTATION-PLAN.md).
 
 - **Written:** 2026-08-21 · **Phase 4:** 2026-08-19 → 08-20 · **Phase 5:** 2026-08-20
-- **Design records:** [`ADR-017-PHASE-17-CLOSEOUT.md`](./ADR-017-PHASE-17-CLOSEOUT.md) ·
-  [`ADR-018-DASHBOARD-BACKEND-REQUESTS.md`](./ADR-018-DASHBOARD-BACKEND-REQUESTS.md)
+- **Design records:** [`ADR-017-PHASE-17-CLOSEOUT.md`](../docs/ADR-017-PHASE-17-CLOSEOUT.md) ·
+  [`ADR-018-DASHBOARD-BACKEND-REQUESTS.md`](../docs/ADR-018-DASHBOARD-BACKEND-REQUESTS.md)
 - **Previous instalment:** [FRONTEND-CHANGELOG-phase-2-3.md](./FRONTEND-CHANGELOG-phase-2-3.md)
 - **Context, not required:** [`jovi-mall/api-doc/FRONTEND-CHANGELOG-phase-4-5.md`](../../jovi-mall/api-doc/FRONTEND-CHANGELOG-phase-4-5.md)
 
@@ -586,5 +586,5 @@ regression and your dashboard**. Test your own integration.
 | The audit trail, and the deleted feed | [`docs/api/audit.md`](./api/audit.md) |
 | Permissions, tiers, and the four unbuilt | [`docs/api/permissions.md`](./api/permissions.md) |
 | Approvals and dual control | [`docs/api/authorization.md`](./api/authorization.md) |
-| Phase 5 decisions | [`ADR-017-PHASE-17-CLOSEOUT.md`](./ADR-017-PHASE-17-CLOSEOUT.md) |
-| The dashboard-request round | [`ADR-018-DASHBOARD-BACKEND-REQUESTS.md`](./ADR-018-DASHBOARD-BACKEND-REQUESTS.md) |
+| Phase 5 decisions | [`ADR-017-PHASE-17-CLOSEOUT.md`](../docs/ADR-017-PHASE-17-CLOSEOUT.md) |
+| The dashboard-request round | [`ADR-018-DASHBOARD-BACKEND-REQUESTS.md`](../docs/ADR-018-DASHBOARD-BACKEND-REQUESTS.md) |

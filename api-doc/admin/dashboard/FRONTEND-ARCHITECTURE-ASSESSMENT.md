@@ -1,6 +1,12 @@
 # Frontend Architecture Assessment
 
 **Phase 0 — discovery only. No code was written.**
+
+> ⚠ **This is a dated snapshot, not a live reference.** Figures below were measured on
+> 2026-08-13 and several have moved since — the permission count reads **110 across 21
+> families** here and is **116 across 20** today. Deliberately not rewritten: it records what
+> was known at Phase 0. For current numbers use [`../api/permissions.md`](../api/permissions.md)
+> and [`../api/authorization.md`](../api/authorization.md).
 Date: 2026-08-13 · Reference dashboard: `frontend/vendor-dash` · Cross-checked against `frontend/agency-dash`
 
 Everything below was read out of the two sibling repositories and `docs/admin/`. Where a thing does

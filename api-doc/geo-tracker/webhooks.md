@@ -9,6 +9,12 @@
 
 # Inbound Webhooks (from jovi-mall)
 
+**Verified against source on 2026-09-08** — the `X-Node-Signature` scheme, the 1 MiB pre-signature
+cap, every field, all six `type` values and the four `shipmentTerminal` values against
+`geo-tracker/internal/modules/webhook/` and `internal/platform/middleware/hmac.go`. **One defect
+fixed**: the admin route that writes `tracking.allowed` was cited at `/api/admin/...`, deleted at
+Phase 5 Part E; it is `/api/internal/admin/...`.
+
 The only entry point jovi-mall uses to push lifecycle events into geo-tracker.
 It carries two distinct responsibilities:
 
@@ -79,7 +85,7 @@ This is the one field on this endpoint that is **not** about a shipment, and it 
 not be read as a fourth rung of the ladder below.
 
 An administrator owns whether an agent may be located **at all** (jovi-mall's
-`tracking.allowed`, `PUT /api/admin/agents/:agentId/tracking-allow`). That decision
+`tracking.allowed`, `PUT /api/internal/admin/agents/:agentId/tracking-allow`). That
 gates the **live position** — the first of the two GPS gates, the one with nothing
 to do with having a delivery, because reading an idle opted-in agent's position is
 exactly how the platform finds who is nearest a pickup.

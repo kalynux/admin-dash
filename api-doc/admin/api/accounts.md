@@ -5,7 +5,7 @@ Base path: `/api/v1/accounts`
 What one vendor, agency or agent **holds, is owed, and owes**. Five routes, all net-new —
 nothing on the legacy surface could answer that question for a single party.
 
-Design record: [`../ADR-011-ACCOUNTS-AND-FINANCE.md`](../ADR-011-ACCOUNTS-AND-FINANCE.md).
+Design record: [`../../docs/ADR-011-ACCOUNTS-AND-FINANCE.md`](../../docs/ADR-011-ACCOUNTS-AND-FINANCE.md).
 
 | Method | Path | Permission | Audited |
 |---|---|---|---|

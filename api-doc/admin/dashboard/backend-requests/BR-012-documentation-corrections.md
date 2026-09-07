@@ -118,7 +118,7 @@ contradiction.
 
 ## Why we are not fixing these ourselves
 
-[`docs/README.md`](../../README.md) is explicit, and we agree with it:
+[`docs/README.md`](../../../docs/README.md) is explicit, and we agree with it:
 
 > ### `admin/` — treat as read-only
 > A **byte-for-byte** copy of `backend/admin/docs/`. If a page here is wrong, it is wrong upstream:

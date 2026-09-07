@@ -9,6 +9,10 @@
 
 # GPS Persistence (the hybrid strategy)
 
+**Verified against source on 2026-09-08** — the three tiers, both checkpoint rules and all five
+configuration defaults against `geo-tracker/internal/modules/session/` and
+`internal/platform/config/config.go`. No corrections were needed.
+
 geo-tracker receives an agent's GPS every few seconds. It does **not** store
 every fix. This document describes what is kept, where, for how long, and how it
 is cleaned up.

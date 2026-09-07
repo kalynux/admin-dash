@@ -9,6 +9,11 @@
 
 # Health & Metrics
 
+**Verified against source on 2026-09-08** — both probes and all 23 metric names against
+`geo-tracker/internal/modules/health/` and `internal/platform/metrics/metrics.go`. **Two defects
+fixed**: the `503` example showed a raw checker error that Phase 16 replaced with the constant
+`"unavailable"`, and the metrics table listed 7 of 23 series.
+
 ## Authentication
 
 None — orchestrators and scrapers don't carry a bearer token.
@@ -35,14 +40,23 @@ that's what `/readyz` is for.
 { "redis": "ok", "postgres": "ok", "node_api": "ok" }
 ```
 
-**Response** (`503`) — a failing checker reports its error in place of `"ok"`:
+**Response** (`503`) — a failing checker reports the literal string `"unavailable"`
+in place of `"ok"`:
 ```json
 {
   "redis": "ok",
   "postgres": "ok",
-  "node_api": "nodeclient: request to /api/health failed: dial tcp ...: connection refused"
+  "node_api": "unavailable"
 }
 ```
+
+> ⚠ **`"unavailable"` is the only failure value, and that is deliberate.** Until
+> Phase 16 this endpoint returned the checker's raw error — which named the
+> Postgres host and database, and could embed up to 4 KB of jovi-mall's own
+> response body — on an endpoint that is **unauthenticated**. The key already
+> says which dependency failed; *why* is an operator's question and is answered
+> in the log line, not on the wire. Do not parse this value for a cause, and do
+> not build a UI that expects one.
 
 | Checker | Verifies |
 |---|---|
@@ -65,3 +79,22 @@ Prometheus exposition format. Disable with `METRICS_ENABLED=false`.
 | `geotracker_webhook_events_total` | counter | `outcome` (`processed`/`deduped`) |
 | `geotracker_revocations_total` | counter | — |
 | `geotracker_routing_provider_seconds` | histogram | `provider` |
+
+> ⚠ **This table listed 7 of the 23 series the service registers, until 2026-09-08.** The
+> sixteen it omitted, verified against `internal/platform/metrics/metrics.go`:
+> `geotracker_location_suppressed_total`, `geotracker_ws_frames_rejected_total{code}`,
+> `geotracker_tracking_sessions_opened_total`,
+> `geotracker_tracking_sessions_closed_total{trigger}`,
+> `geotracker_tracking_allow_locked_total`, `geotracker_checkpoints_written_total{kind}`,
+> `geotracker_checkpoints_suppressed_total{kind}`, `geotracker_checkpoints_pruned_total`,
+> `geotracker_checkpoint_partitions`, `geotracker_service_reads_total{scope,outcome}`,
+> `geotracker_agent_actions_audited_total`, `geotracker_agent_actions_deduped_total`,
+> `geotracker_routing_provider_calls_total{provider,capability,outcome}`,
+> `geotracker_errors_total{category,status_class}`,
+> `geotracker_rate_limited_total{transport}` and `geotracker_panics_total{source}`.
+>
+> Two worth knowing: **`location_suppressed_total`** counts fixes accepted from the socket and
+> not persisted because the agent has not granted Tracking Allow — read it against
+> `location_updates_total`, or a low update rate cannot distinguish "nobody is driving" from
+> "everybody has tracking switched off". And **`tracking_sessions_opened/closed`** count
+> *shipments tracked, not sockets*, so a reconnect moves neither.

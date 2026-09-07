@@ -7,9 +7,9 @@ What an operator needs to answer *"is this thing working"*.
 **Every route is a `GET`, and none is audited.** Nothing here changes anything, and nothing here
 discloses something a Developer could not read out of a config file.
 
-Design records: [`../ADR-014-SYSTEM-OPERATIONS.md`](../ADR-014-SYSTEM-OPERATIONS.md),
-[`../ADR-015-DEVELOPER-TOOLS.md`](../ADR-015-DEVELOPER-TOOLS.md),
-[`../ADR-016-ERROR-SYSTEM.md`](../ADR-016-ERROR-SYSTEM.md).
+Design records: [`../../docs/ADR-014-SYSTEM-OPERATIONS.md`](../../docs/ADR-014-SYSTEM-OPERATIONS.md),
+[`../../docs/ADR-015-DEVELOPER-TOOLS.md`](../../docs/ADR-015-DEVELOPER-TOOLS.md),
+[`../../docs/ADR-016-ERROR-SYSTEM.md`](../../docs/ADR-016-ERROR-SYSTEM.md).
 
 | Method | Path | Permission | Subject | Transport |
 |---|---|---|---|---|

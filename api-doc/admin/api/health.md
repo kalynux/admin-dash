@@ -147,5 +147,5 @@ session for a fault in a different, healthy service.
 wi-admin's `/health/ready` is deliberately **not** a dependency of any other service, and
 wi-admin's own geo-tracker client can never throw — making geo-tracker a readiness dependency
 of wi-admin would recreate the same coupled-failure amplifier in the opposite direction.
-See [`../ADR-014-SYSTEM-OPERATIONS.md`](../ADR-014-SYSTEM-OPERATIONS.md) D-1 and
-[`../ADR-015-DEVELOPER-TOOLS.md`](../ADR-015-DEVELOPER-TOOLS.md) D-5.
+See [`../../docs/ADR-014-SYSTEM-OPERATIONS.md`](../../docs/ADR-014-SYSTEM-OPERATIONS.md) D-1 and
+[`../../docs/ADR-015-DEVELOPER-TOOLS.md`](../../docs/ADR-015-DEVELOPER-TOOLS.md) D-5.

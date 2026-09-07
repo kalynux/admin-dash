@@ -5,7 +5,7 @@ Base path: `/api/v1/users`
 The account behind every role. A `users` row is the sign-in identity; a vendor, agency, agent
 or customer *profile* hangs off it.
 
-Design record: [`../ADR-007-USER-MANAGEMENT.md`](../ADR-007-USER-MANAGEMENT.md).
+Design record: [`../../docs/ADR-007-USER-MANAGEMENT.md`](../../docs/ADR-007-USER-MANAGEMENT.md).
 
 | Method | Path | Permission | Transport | Audited |
 |---|---|---|---|---|

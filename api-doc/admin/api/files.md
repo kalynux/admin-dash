@@ -1,5 +1,7 @@
 # `/files` — resolving a file id, opening one, browsing them all, and the housekeeping pair
 
+**Verified against source on 2026-09-08** — the `FileDetail` shape, the `access` enum (three values, not two) and `url` nullability, against `admin/src/infra/storage/file-detail.ts:69,122` and `jovi-mall/src/modules/catalog/read-models/file-detail.resolver.ts:73`.
+
 Seven routes, five jobs.
 
 **Resolution** — turning a `*FileId` this service already handed you into something you
@@ -43,7 +45,7 @@ only two admin-only routes.
 > The library is a **direct read** because its answer is a *record*, not a verdict
 > (ADR-009 D-1), and because two of the three things it returns are things jovi-mall
 > cannot produce: the usage join, and an owner name that for `ownerType: 'admin'` lives in
-> **wi-admin's own database**. See [ADR-021](../ADR-021-ADMIN-MEDIA-LIBRARY.md) D-1.
+> **wi-admin's own database**. See [ADR-021](../../docs/ADR-021-ADMIN-MEDIA-LIBRARY.md) D-1.
 
 ---
 
@@ -68,7 +70,7 @@ is delegated to jovi-mall, where the provider is configured.
 > **`GET /files/library` builds its own URLs**, in this service, from a copy of jovi-mall's
 > storage-tree classification and the same `STORAGE_PROVIDER` / `STORAGE_LOCAL_URL`
 > variable names. That reverses D-6 for exactly one route, knowingly
-> ([ADR-021](../ADR-021-ADMIN-MEDIA-LIBRARY.md) D-3), because the alternative was a
+> ([ADR-021](../../docs/ADR-021-ADMIN-MEDIA-LIBRARY.md) D-3), because the alternative was a
 > `POST /files/resolve` hop per page of a browse screen.
 >
 > **Every other route on this mount still delegates**, and the D-6 reasoning above is still
@@ -117,8 +119,8 @@ answer for those files, not a fault:**
 |---|---|
 | `id` | The id you asked with. Key your own map on this — see the ordering note below |
 | `key` | The storage path. Diagnostic; do not build a URL from it |
-| `url` | **`string \| null`.** The publicly fetchable URL when `access` is `public`, built from the active `STORAGE_PROVIDER` — by jovi-mall on every route here except `GET /files/library`, which builds it itself (BR-015 · ADR-021 D-3) and is proved byte-identical by `verify:files`. **`null` whenever `access` is `authorized`** — see below |
-| `access` | **`"public" \| "authorized"`.** A closed set of two. `authorized` means the file lives in a private storage tree, there is no URL to hand you, and `id` is the only handle |
+| `url` | **`string \| null`.** The publicly fetchable URL when `access` is `public`, built from the active `STORAGE_PROVIDER` — by jovi-mall on every route here except `GET /files/library`, which builds it itself (BR-015 · ADR-021 D-3) and is proved byte-identical by `verify:files`. **`null` whenever `access` is `authorized` OR `quota_blocked`** — see below |
+| `access` | **`"public" \| "authorized" \| "quota_blocked"`.** A closed set of **three**. `authorized` means the file lives in a private storage tree, there is no URL to hand you, and `id` is the only handle. `quota_blocked` means the file owner is over their plan storage cap — see the section below. ⚠ This was documented as a closed set of *two* until 2026-09-08; treat an unrecognised value as not-displayable |
 | `mimeType` | **Check it before rendering an `<img>`.** A public tree legitimately holds videos and spec sheets, and product media does |
 | `size` | Bytes |
 | `originalName` | What the uploader called it. **May be absent** — the one optional field |
@@ -144,6 +146,31 @@ show nothing.
 
 A client that treats this as a failure shows a broken-image icon on **every delivery proof in
 the system**. Render the metadata and say the file cannot be displayed.
+
+### `quota_blocked` — a billing state, not a missing file
+
+The third value, and the one most likely to be mis-rendered, because it looks like every other
+kind of absent file and means something completely different.
+
+`quota_blocked` means **the file owner is over their plan storage cap and this file falls
+outside it.** The file has not been deleted and nothing is broken: it comes back the moment the
+owner upgrades their plan or frees space. `url` is `null`, and the content route will not help
+you either.
+
+| | `authorized` | `quota_blocked` |
+|---|---|---|
+| Why there is no URL | the file is in a private tree | the owner is over their storage cap |
+| Will it ever get one | no — private is permanent | **yes**, when the plan is upgraded |
+| What to render | "cannot be displayed" + metadata | a placeholder **and an upgrade prompt** |
+| Is it a fault | no | no — it is a *billing* state |
+
+**Never render this as a broken image, and never as "file missing".** Both are wrong in a way
+the user can act on incorrectly: one reads as a platform bug, the other as data loss, and the
+real answer is that someone needs to pay for more storage.
+
+⚠ **`quota_blocked` outranks `authorized`.** A blocked file that also lives in a private tree
+reports `quota_blocked`, not `authorized` — it is stored per file (`files.quotaBlockedAt`)
+rather than derived from the tree. Branch on `quota_blocked` **first**.
 
 ### Both conditions before an `<img>`, not either
 
@@ -540,7 +567,7 @@ correct as far as it goes, and it was **declined** on two grounds:
 
 **If you still want it, say so — it is purely additive.** A catalogued action and one line
 on the route; no shape changes and nothing to undo first. The decision is recorded at
-[ADR-021](../ADR-021-ADMIN-MEDIA-LIBRARY.md) D-6 so it can be revisited rather than
+[ADR-021](../../docs/ADR-021-ADMIN-MEDIA-LIBRARY.md) D-6 so it can be revisited rather than
 rediscovered.
 
 ---
@@ -699,7 +726,7 @@ this request. That is *why* this route declares and enforces its own byte ceilin
 it there would be no limit on this path at all.
 
 **Your preferred shape (option 1, the upload ticket) was not taken**, and the reasons are
-recorded in [ADR-021](../ADR-021-ADMIN-MEDIA-LIBRARY.md) D-2: a ticket is a second
+recorded in [ADR-021](../../docs/ADR-021-ADMIN-MEDIA-LIBRARY.md) D-2: a ticket is a second
 authentication scheme for one endpoint, it needs a new unauthenticated route on jovi-mall
 that accepts bytes on production of a bearer string, it puts your browser on a second
 origin, and its audit row would record *"a ticket was minted"* rather than *"a file was
@@ -902,7 +929,7 @@ list somebody typed. Corrected at Phase 5 Part B and pinned by `test:files` § 5
   unread. The 1 MB limit that used to be cited alongside it belongs to `express.json`, which
   is content-type gated and never sees a multipart request — which is precisely why the
   upload route declares and enforces a byte ceiling of its own
-  ([ADR-021](../ADR-021-ADMIN-MEDIA-LIBRARY.md) D-2).
+  ([ADR-021](../../docs/ADR-021-ADMIN-MEDIA-LIBRARY.md) D-2).
 - **Not a storage layer**, and this one holds — but it is now the *narrow* claim. ⚠ It used
   to read *"Not a proxy — this service does not stream bytes"*, and the content route made
   that false; **BR-015 makes the "no `STORAGE_PROVIDER`" half false too.** The library

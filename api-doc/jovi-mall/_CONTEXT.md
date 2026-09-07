@@ -1,5 +1,7 @@
 # Context only — this dashboard does not call jovi-mall
 
+**Verified against source on 2026-09-08** — the error-registry size (640), the jovi-mall api-doc page counts (183 / 28 / 155 / 108) and the `error-codes.ts` copy beside it, against `jovi-mall/src/core/error-codes.ts` and `jovi-mall/api-doc/`.
+
 **Read this before opening any other page in this folder.**
 
 Every page here documents **jovi-mall**, the commerce platform on port **8022**. This dashboard
@@ -18,7 +20,7 @@ Four reasons, all of them real:
 1. **Decoding a delegated failure.** wi-admin writes to jovi-mall over an internal API. When
    jovi-mall refuses, you get `PLATFORM_OPERATION_REJECTED` at jovi-mall's *original* status with
    jovi-mall's own code in **`details.platformCode`** — and that code is only explained here.
-   [`error-codes.ts`](error-codes.ts) is the full **603**-code registry.
+   [`error-codes.ts`](error-codes.ts) is the full **640**-code registry.
 2. **Domain vocabulary.** Shipment statuses, order states, COD terms and contract terms are
    jovi-mall's model. wi-admin renames nothing.
 3. **Understanding what an administrator is changing.** A suspension here cascades there.
@@ -53,9 +55,10 @@ refused **403**.
 
 ## What is here, and what is not
 
-This folder mirrors **28 of jovi-mall's 166 api-doc pages** — the admin-facing subset plus the
-cross-cutting ones. The other 138 document the vendor, agency, agent, customer and public role
-surfaces, which no administrator calls and which would be noise here.
+This folder mirrors **28 of jovi-mall's 183 api-doc pages** — the admin-facing subset plus the
+cross-cutting ones. The other **155** are surfaces no administrator calls; **108** of those are
+the vendor, agency, agent, customer and public role documents, and the rest are internal and
+integration notes. All of it would be noise here.
 
 | | |
 |---|---|
@@ -68,7 +71,7 @@ surfaces, which no administrator calls and which would be noise here.
 ### Two deliberate differences from the backend's copies
 
 1. **A context banner** at the top of every page, fenced in `<!-- CONTEXT-BANNER -->` comments.
-2. **Links were repaired.** A link to one of the 138 pages this folder does not carry would
+2. **Links were repaired.** A link to one of the 155 pages this folder does not carry would
    otherwise dangle, so it is rendered as **plain text naming the backend path**, never as a
    clickable link that goes nowhere. 239 were degraded this way and 8 were retargeted to a page
    this repository *does* hold.

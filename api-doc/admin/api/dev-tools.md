@@ -6,8 +6,8 @@ Feature flags, worker triggers, outbox replay and prune, cache flush, and mainte
 
 **Almost everything here is Developer (tier 1) only**, and every write is audited.
 
-Design records: [`../ADR-014-SYSTEM-OPERATIONS.md`](../ADR-014-SYSTEM-OPERATIONS.md),
-[`../ADR-015-DEVELOPER-TOOLS.md`](../ADR-015-DEVELOPER-TOOLS.md).
+Design records: [`../../docs/ADR-014-SYSTEM-OPERATIONS.md`](../../docs/ADR-014-SYSTEM-OPERATIONS.md),
+[`../../docs/ADR-015-DEVELOPER-TOOLS.md`](../../docs/ADR-015-DEVELOPER-TOOLS.md).
 
 | Method | Path | Permission | Behind `dev_tools.enabled` | Audited |
 |---|---|---|---|---|

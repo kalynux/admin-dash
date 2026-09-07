@@ -6,7 +6,7 @@ The directory, the detail, the catalogue as oversight sees it, the delivery-agen
 business verification, suspension, per-product takedown, and the platform-governed order
 settings.
 
-Design record: [`../ADR-008-VENDOR-MANAGEMENT.md`](../ADR-008-VENDOR-MANAGEMENT.md).
+Design record: [`../../docs/ADR-008-VENDOR-MANAGEMENT.md`](../../docs/ADR-008-VENDOR-MANAGEMENT.md).
 
 | Method | Path | Permission | Transport | Audited |
 |---|---|---|---|---|

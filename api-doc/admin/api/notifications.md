@@ -5,7 +5,7 @@ Base path: `/api/v1/notifications`
 The fifth notification stack. The platform has carried four — vendor, agency, agent, customer —
 since long before this service existed; the administrator, alone among the five roles, had none.
 
-Design record: [`../ADR-013-NOTIFICATIONS.md`](../ADR-013-NOTIFICATIONS.md).
+Design record: [`../../docs/ADR-013-NOTIFICATIONS.md`](../../docs/ADR-013-NOTIFICATIONS.md).
 
 | Method | Path | Access | Audited |
 |---|---|---|---|

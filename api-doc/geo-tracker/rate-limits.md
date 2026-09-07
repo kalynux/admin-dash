@@ -9,6 +9,10 @@
 
 # Rate limits
 
+**Verified against source on 2026-09-08** — every number and the whole exempt-path list against
+`geo-tracker/internal/platform/middleware/ratelimit.go` and `internal/platform/config/config.go`.
+No corrections were needed.
+
 **New in Phase 16.** There was no limiting of any kind before — including, notably, no cap on
 inbound WebSocket frames.
 

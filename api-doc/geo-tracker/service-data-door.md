@@ -9,6 +9,10 @@
 
 # The service-caller data door (`/internal/*`)
 
+**Verified against source on 2026-09-08** — the four routes, four scopes, presence-only default,
+reason bounds and both `limit` pairs against `geo-tracker/internal/modules/serviceaccess/`. The
+claim that `tracking_audit` is written by nothing was re-checked by source scan and still holds.
+
 **geo-tracker's second authorization path.** Everything else in this service
 answers one question — *may this **viewer** see this **agent**?* — resolved by
 asking jovi-mall as the viewer. These four reads answer a different one — *does

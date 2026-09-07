@@ -3,7 +3,7 @@
 The error contract is shared across all three backend services (wi-admin, jovi-mall,
 geo-tracker). One envelope, one nine-value taxonomy, one exposure rule.
 
-Design record: [`../ADR-016-ERROR-SYSTEM.md`](../ADR-016-ERROR-SYSTEM.md).
+Design record: [`../../docs/ADR-016-ERROR-SYSTEM.md`](../../docs/ADR-016-ERROR-SYSTEM.md).
 
 ---
 

@@ -1,5 +1,10 @@
 # BR-010 · `FileDetail` declares `url: string` and omits `access` entirely
 
+> ⚠ **A later note, 2026-09-08.** Question 3 below asks whether `'public' | 'authorized'` is a
+> closed set. It was answered *"yes, closed at two"* on 2026-08-24 and that answer has since
+> been overtaken: `quota_blocked` is a third value, live in both services. The current contract
+> is [`../../api/files.md`](../../api/files.md). This page is left as the record of the request.
+
 **Priority: high, effort: minutes.** This is a two-line correction to a type and a paragraph in a
 doc page. Nothing on the wire changes — the *data* is already right, and only the service's own
 description of it is wrong.

@@ -42,7 +42,7 @@ was the pager, which is now always on screen.
 
 Stated once here so no document repeats them. All from
 [`docs/admin/api/README.md`](../../api/README.md) and
-[ADR-005](../../ADR-005-API-CONTRACT.md).
+[ADR-005](../../../docs/ADR-005-API-CONTRACT.md).
 
 - **Wire fields are `camelCase`.** Both databases are `snake_case`; the translation happens in
   wi-admin and must not leak. Two places it already does — agency `policies` and contract
@@ -70,7 +70,7 @@ Stated once here so no document repeats them. All from
 - **`202` is not an error.** A queued dual-control action answers `202` with an approval id.
 - **`404` is the denial for out-of-scope records**, not `403`.
 - ⚠ **~~No multipart bodies anywhere.~~ NARROWED 2026-08-25 to "wi-admin never *parses* one"**
-  ([ADR-021](../../ADR-021-ADMIN-MEDIA-LIBRARY.md) D-2). `POST /files/upload` pipes the raw
+  ([ADR-021](../../../docs/ADR-021-ADMIN-MEDIA-LIBRARY.md) D-2). `POST /files/upload` pipes the raw
   body through to jovi-mall **unread** — no multer, no busboy, no new dependency. The **1 MB limit
   does not apply there**: it belongs to `express.json`, which is content-type gated and never sees
   the request, so the route declares `ADMIN_UPLOAD_MAX_BYTES` (**32 MiB**) instead. **Every other

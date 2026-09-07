@@ -9,6 +9,10 @@
 
 # geo-tracker API Documentation
 
+**Verified against source on 2026-09-08** — the `PORT` default, the five per-role visibility rules
+and the five `TRACKABLE_SHIPMENT_STATUSES` against `geo-tracker/internal/platform/config/config.go`
+and `jovi-mall/src/.../visible-agents.service.ts:25-31,101-109`.
+
 This is the contract for **geo-tracker** ("Project B") — the live GPS tracking
 / WebSocket service for jovi-mall delivery agents. It is the only source of
 truth for this service's external interface; if you're integrating a client

@@ -2,6 +2,13 @@
 
 **Read this before opening any other page in this folder.**
 
+**Verified against source on 2026-09-08** — the two authorization paths and the structural
+no-enumeration bound against `geo-tracker/internal/modules/serviceaccess/delivery/http/routes.go`,
+and `PUT /api/v1/agents/:agentId/tracking` against
+`admin/src/modules/agents/routes/agent.routes.ts:264-272`. One slip fixed: `tracking` was listed
+among the tracking-session *states*; it is a boolean field on the session response, and the state
+in that position is `online`.
+
 Every page here documents **geo-tracker**, the Go tracking service on port **8090**. This dashboard
 **never calls it directly** — no base URL, no token, and above all **no WebSocket**.
 
@@ -51,7 +58,7 @@ The one page that *is* your contract's other half is
 ## Two vocabularies that are *not* the same
 
 **Tracking-session states are not shipment statuses.** A tracking session models tracking *health*
-— `tracking`, `degraded`, `network_lost`, `tracking_disabled` — inside the span of one shipment. It
+— `online`, `degraded`, `network_lost`, `tracking_disabled` — inside the span of one shipment. It
 is opened and closed only by jovi-mall reporting the shipment active or terminal. A disconnect,
 network loss or GPS loss moves it between health states and can **never** end it.
 
