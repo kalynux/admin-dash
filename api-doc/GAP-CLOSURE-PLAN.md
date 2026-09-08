@@ -1,5 +1,7 @@
 # Gap-closure plan
 
+**Verified against source on 2026-09-08** — a dated 2026-08-24/25 record, left as history. Every route it names checked against wi-admin`s live route manifest — the one that does not resolve (`GET /api/admin/articles/:id`) is a deleted legacy path the page names in order to correct a claim about it.
+
 **Written 2026-08-24 after the documentation resynchronisation; closed out 2026-08-25** against
 [`RESPONSE-2026-08-24.md`](admin/dashboard/backend-requests/RESPONSE-2026-08-24.md) (BR-010/011/012) and
 [`RESPONSE-2026-08-25.md`](admin/dashboard/backend-requests/RESPONSE-2026-08-25.md) (BR-013/014).

@@ -1,5 +1,7 @@
 # What changed since these docs were last copied
 
+**Verified against source on 2026-09-08** — a dated 2026-08-24 delta, left as history. Its routes checked against the live route manifest; the two unresolved ones are `GET /audit/legacy`, which the page names to say it was deleted. ⚠ Its registry figures (82 wi-admin codes, 603 jovi-mall) are the 2026-08-24 measurement — today they are **88** and **643**. Derive them, do not quote them.
+
 **Written 2026-08-24.** Every claim below was verified against **backend source**, not against a
 backend document. Where a document and the source disagreed, the source won and the disagreement was
 filed in `backend/FRONTEND-SYNC/03-FINDINGS-REGISTER.md`.

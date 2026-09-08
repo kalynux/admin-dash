@@ -1,5 +1,7 @@
 # Verification record — 2026-08-24
 
+**Verified against source on 2026-09-08** — a dated 2026-08-24 record, left as history. Every route it names checked against the live route manifest, all resolving. ⚠ Its subject is "all 232 wi-admin routes"; the surface is **237 versioned + 1 internal + 2 health** today, so five versioned routes have never been through this exercise.
+
 **What this is.** The `FRONTEND-SYNC` audit stated plainly that it had **not** diffed response
 shapes field by field, and assigned that work to each plan. This is that work, done for
 **all 232 wi-admin routes**, with the method written down so the next person can re-run it rather
