@@ -1,12 +1,33 @@
 # `admin-dash` documentation
 
-**One service. 233 routes. Eight source mirrors and five authored pages.**
+**One service. 239 routes. Nine source mirrors and six authored pages.**
+
+**Verified against source on 2026-09-08** — the route total, the permission totals, the folder
+counts and all nine source mirrors, each re-derived from `backend/admin/src/` rather than from a
+document. What that pass changed is listed at the end of this section.
 
 This dashboard talks to **wi-admin** (`http://localhost:8033/api/v1`) and **nothing else**. There is
 no second base URL and no second token. Where an operation belongs to another service, wi-admin
 performs it on your behalf and answers in its own envelope.
 
-**Last resynchronised: 2026-08-24**, against backend source rather than backend documentation.
+**Last resynchronised: 2026-09-08**, against backend source rather than backend documentation.
+
+> ⚠ **What the 2026-09-08 pass found, in case you built on the old numbers:**
+>
+> - The route total was **233** here and **236** in `ROUTE-MAP.md`; both were wrong and both are
+>   now **239** (237 versioned + 2 unversioned health probes), re-counted from `routeManifest()`.
+> - `ROUTE-MAP.md` gated `GET /agents/:agentId/cod-allocation` on `agents.read` alone. It needs
+>   **`agents.read` + `agencies.read`** — a nav item gated on the documented value renders a link
+>   that 403s.
+> - `GET /agents/:agentId/assignability` and the two `/automation` routes were missing from
+>   `ROUTE-MAP.md` entirely.
+> - The permission totals were **116 / 99 / 30** and are **118 / 101 / 31**; `/automation` added
+>   `system.automation.read` and `support.automation.lookup` on 2026-09-07.
+> - `admin/error-codes.ts` was three codes behind its source. Re-copied — **88**.
+> - **Three reads were documented as audited; there are four.** `GET /files/:fileId/content` is
+>   the fourth.
+> - The backend's own `api/README.md` said *"no multipart bodies anywhere"*. **`POST /files/upload`
+>   accepts one** and has since 2026-08-26. Corrected upstream, not here.
 
 ---
 
@@ -14,13 +35,13 @@ performs it on your behalf and answers in its own envelope.
 
 | If you want to… | Read |
 |---|---|
-| **find the endpoint for a screen** | [`ROUTE-MAP.md`](ROUTE-MAP.md) — all 233, with permission and audit flag |
+| **find the endpoint for a screen** | [`ROUTE-MAP.md`](ROUTE-MAP.md) — all 239, with permission and audit flag |
 | **know what changed and what broke** | [`MIGRATION-2026-08.md`](MIGRATION-2026-08.md) 🔴 **read this before writing code** |
 | **build a tracking screen** | [`TRACKING-DOORS.md`](TRACKING-DOORS.md) |
 | **know how much to trust this folder** | [`VERIFICATION-2026-08-24.md`](VERIFICATION-2026-08-24.md) |
 | **know what is left to build, and what is waiting on whom** | [`GAP-CLOSURE-PLAN.md`](GAP-CLOSURE-PLAN.md) |
 | **the contract for one route group** | [`admin/api/`](admin/api/) — start at [`README.md`](admin/api/README.md) |
-| **know why a rule is the way it is** | [`admin/`](admin/) ADR-001 … ADR-020 |
+| **know why a rule is the way it is** | [`docs/`](docs/) — ADR-001 … ADR-021. ⚠ **They moved on 2026-09-08**: the backend split `admin/docs/` into `api-doc/` (the contract) and `docs/` (the reasoning), and this folder followed. A note that says `admin/ADR-0xx` means `docs/ADR-0xx` |
 | **see your own questions and their answers** | [`admin/dashboard/`](admin/dashboard/) |
 
 **If you read only one thing: [`MIGRATION-2026-08.md`](MIGRATION-2026-08.md) § 1.** The permission
@@ -35,13 +56,17 @@ suites are currently red and why the support, content and tracking screens canno
 api-doc/
 ├── README.md                     ← you are here
 ├── MIGRATION-2026-08.md          🔴 the delta: what moved, what broke, what to change in src/
-├── ROUTE-MAP.md                     all 233 routes → permission, audit, home document
+├── ROUTE-MAP.md                     all 239 routes → permission, audit, home document
 ├── TRACKING-DOORS.md             🔴 the two geo-tracker doors, verified on both sides
 ├── VERIFICATION-2026-08-24.md       how the above was checked, and what it did not cover
 │
-├── admin/        ← THE CONTRACT.  Verbatim mirror of backend/admin/docs/ (52 files)
+├── GAP-CLOSURE-PLAN.md              what is left to build, and who each item waits on
+│
+├── admin/        ← THE CONTRACT.  Verbatim mirror of backend/admin/api-doc/ (29 files
+│   │              + 6 source mirrors)
 │   └── dashboard/  ← your own backend-requests and the answers (29 files)
-├── jovi-mall/    ← CONTEXT ONLY — not a call target (29 files)
+├── docs/         ← THE REASONING. Verbatim mirror of backend/admin/docs/ (30 files)
+├── jovi-mall/    ← CONTEXT ONLY — not a call target (28 files + 3 source mirrors)
 └── geo-tracker/  ← CONTEXT ONLY — reached through wi-admin (16 files)
 ```
 
@@ -51,7 +76,10 @@ buried inside a file that a refresh will overwrite.
 
 ### `admin/` — treat as read-only
 
-A **byte-for-byte** copy of `backend/admin/docs/`. If a page here is wrong, it is wrong upstream:
+A **byte-for-byte** copy of `backend/admin/api-doc/` — and `docs/` beside it is the same of
+`backend/admin/docs/`. ⚠ **Until 2026-09-08 there was one folder upstream and one here.** The
+backend split `docs/` into `api-doc/` (what a client may call) and `docs/` (why it is that way),
+and this repository mirrors both. If a page here is wrong, it is wrong upstream:
 fix it in `backend/admin` and re-copy. Do not annotate it — corrections belong in the authored pages
 above, which is what keeps the one-command drift check below honest.
 
@@ -67,12 +95,16 @@ Three deliberate deviations:
 - **`article-blocks.ts`** does the same, and for the same reason as `error-codes.ts`: it is the
   only complete statement of a contract this dashboard has to write against. See below.
 
-### The source mirrors, and why there are now eight
+### The source mirrors, and why there are now nine
 
-⚠ **This heading said "six" while the table below listed seven**, and the regeneration block
-further down covered four of them. Corrected 2026-08-25 in the same edit that added the eighth —
-`order-timeline-events.ts`. A count nobody re-counts is the failure mode this whole folder exists
-to prevent.
+⚠ **This heading has now been wrong three times.** It said "six" while the table below listed
+seven; it was corrected to "eight" on 2026-08-25 when `order-timeline-events.ts` landed; and on
+2026-09-08 a `diff` of every mirror against its source found a **ninth** already sitting in the
+folder and missing from the table — `public-article-dto.ts`. A count nobody re-counts is the
+failure mode this whole folder exists to prevent, and this row is the folder failing at it.
+
+**All nine were diffed against their sources on 2026-09-08. Eight were byte-identical; one
+(`admin/error-codes.ts`) was three codes behind and has been re-copied.**
 
 A source mirror exists wherever a contract is **fully specified in backend code and not in a doc
 page**. Copying the file is better than transcribing it: a copy can be `diff`ed, and a
@@ -80,13 +112,14 @@ transcription cannot.
 
 | File | Mirrors | Why it is not a doc page |
 |---|---|---|
-| [`admin/error-codes.ts`](admin/error-codes.ts) | `backend/admin/src/core/errors/error-codes.ts` | Was **82 codes** against `errors.md`'s **73**. ✅ Reconciled at BR-012 — **83 declared, 83 documented** — and the mirror stays, because the pair is now kept in step by a test rather than by hope |
-| [`jovi-mall/error-codes.ts`](jovi-mall/error-codes.ts) | `backend/jovi-mall/src/core/error-codes.ts` | 603 codes, for decoding `details.platformCode` |
+| [`admin/error-codes.ts`](admin/error-codes.ts) | `backend/admin/src/core/errors/error-codes.ts` | Was **82 codes** against `errors.md`'s **73**. Reconciled at BR-012 to 83/83; **re-measured 2026-09-08 at 88 declared, 88 documented** — the mirror had drifted three behind and `errors.md` was missing the same three (`AUTOMATION_*`, ADR-022). Both corrected. The pair being kept in step by a test rather than by hope is the plan; **this drift is what it looks like when the test does not cover a new family** |
+| [`jovi-mall/error-codes.ts`](jovi-mall/error-codes.ts) | `backend/jovi-mall/src/core/error-codes.ts` | **640** codes, for decoding `details.platformCode`. Byte-identical to source on 2026-09-08 (this row said 603) |
 | [`admin/article-blocks.ts`](admin/article-blocks.ts) | `backend/admin/src/modules/content/validators/article-body.validator.ts` | [`api/content.md`](admin/api/content.md) says `body` is "a discriminated union of nine block types" and **names none of them** |
 | [`jovi-mall/ticket-vocabularies.ts`](jovi-mall/ticket-vocabularies.ts) | `backend/jovi-mall/src/modules/tickets/types/ticket.types.ts` | [`api/support.md`](admin/api/support.md) validates `type`/`status`/`priority`/`importance` by *shape* and never enumerates them. **No endpoint serves them, and none should** — they are jovi-mall's, and a route would be wi-admin publishing a vocabulary it does not own |
 | [`admin/content-domain.ts`](admin/content-domain.ts) | `backend/admin/src/modules/content/domain/content.types.ts` | The five locales, five category keys, two author types and three reserved slugs. **Named nowhere in `content.md`**, and the locale list is load-bearing for the `href` rule the body editor enforces |
 | [`admin/content-dto.ts`](admin/content-dto.ts) | `backend/admin/src/modules/content/read-models/article.dto.ts` | 🔴 **Every `/content` response shape.** [`api/content.md`](admin/api/content.md) carries thirty-six field tables about *behaviour* and **zero JSON examples** — see below |
 | [`admin/content-validators.ts`](admin/content-validators.ts) | `backend/admin/src/modules/content/validators/article.validator.ts` | 🔴 Every `/content` request shape, query and limit. Same reason |
+| [`admin/public-article-dto.ts`](admin/public-article-dto.ts) | `backend/admin/src/modules/content/read-models/public-article.dto.ts` | The **published** projection — what the marketing site is served, as against `content-dto.ts`'s administrative one. Present in this folder since the BR-014 round and missing from this table until 2026-09-08 |
 | [`jovi-mall/order-timeline-events.ts`](jovi-mall/order-timeline-events.ts) | `backend/jovi-mall/src/modules/orders/order-timeline.model.ts` | [`api/orders.md`](admin/api/orders.md) calls `eventType` *"format-validated, **not pinned**"* — true of wi-admin's validator, misleading about the data, which is a **closed nine-value Mongoose enum** on an append-only collection. The timeline filter is a select because of this file. ⚠ **Tell the backend before a tenth value** — the mirror cannot know ([BR-019 § 2](admin/dashboard/backend-requests/BR-019-contract-clarifications.md)) |
 
 #### 🔴 Why the last two exist, and what it cost not to have them
@@ -142,15 +175,16 @@ reader finds the redirect rather than re-deriving it.
 The whole point of keeping the mirrors verbatim is that staleness is one command away.
 
 ```bash
-# the contract mirror — expect ONLY "dashboard" plus the five admin-side source mirrors:
-#   error-codes.ts, article-blocks.ts, content-domain.ts, content-dto.ts, content-validators.ts
-diff -r backend/admin/docs frontend/admin-dash/api-doc/admin
+# the contract mirror — expect ONLY the six admin-side source mirrors, plus the two pages
+#   authored here (dashboard/UX-REMEDIATION-2026-08-25.md, dashboard/backend-requests/REPLY-2026-08-26.md)
+#   and, until it is copied, api/automation.md
+diff -r backend/admin/api-doc frontend/admin-dash/api-doc/admin
 
-# your backend-requests — expect silence
-diff -r backend/admin/docs/dashboard frontend/admin-dash/api-doc/dashboard
+# the reasoning mirror — expect ONLY ADR-022, which is not copied here
+diff -r backend/admin/docs frontend/admin-dash/api-doc/docs
 
-# the live surface — expect TOTAL 233, and 114 / 20 / 3
-#   (232 + `GET /files/:fileId/content`; 113 + `files.content.read`, both from BR-011)
+# the live surface — expect TOTAL 239, and 118 / 20 / 3
+#   (237 versioned + 2 unversioned /health probes)
 cd backend/admin
 node -r ts-node/register/transpile-only -r dotenv/config \
     ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1

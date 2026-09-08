@@ -68,9 +68,9 @@ the data does not have. What ships instead:
 > helper, no link and no `window.open` anywhere in `src/`. Nothing caught it, because a
 > backend-request document is prose and the tests were written against what the panel actually did.
 >
-> What now exists is [`src/lib/geo.ts`](../../../src/lib/geo.ts) — `googleMapsUrl(lat, lng)` and
+> What now exists is [`src/lib/geo.ts`](../../../../src/lib/geo.ts) — `googleMapsUrl(lat, lng)` and
 > `googleMapsUrlFromGeoJson([lng, lat])`, the inversion in one place, 14 tests — and
-> [`OpenInGoogleMaps`](../../../src/components/tracking/OpenInGoogleMaps.tsx), applied at **all
+> [`OpenInGoogleMaps`](../../../../src/components/tracking/OpenInGoogleMaps.tsx), applied at **all
 > three** sites that render coordinates: this one, the audited live position
 > (`AgentLiveTrackingPanel`) and every row of the audited GPS trail
 > (`ShipmentTrackingPanel`). It opens a small popup window by the operator's preference, and a

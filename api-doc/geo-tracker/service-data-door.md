@@ -23,7 +23,7 @@ by configuration.
 > surface. It exists because a wi-admin administrator deliberately holds no
 > jovi-mall `users` row, so the viewer path cannot resolve them at all: it does a
 > `findById` on `users` and finds nothing. See
-> [`admin/docs/ADR-020`](../admin/ADR-020-ADMIN-DATA-DOOR.md) for the
+> [`admin/docs/ADR-020`](../docs/ADR-020-ADMIN-DATA-DOOR.md) for the
 > decision, the alternative that was rejected, and the four constraints this
 > design is bounded by.
 

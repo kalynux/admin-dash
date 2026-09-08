@@ -6,8 +6,8 @@ D-3 … D-7 are the design, written and built by Phase 6.I step 15 on 2026-08-22
 **Scope:** wi-admin, geo-tracker
 **Amends:** ADR-009 D-2 and ADR-015 D-5 — both of which recorded "no geo-tracker data door" as
 the standing answer. It is no longer the standing answer.
-**Answers:** [Q-1](../../PRODUCTION-READINESS/11-DECISIONS-REGISTER.md#q-1--does-an-administrator-get-to-see-a-live-position)
-of the Phase D register · closes [06 · X-4](../../PRODUCTION-READINESS/06-CROSS-SERVICE.md)'s
+**Answers:** Q-1 (`backend/PRODUCTION-READINESS/11-DECISIONS-REGISTER.md #q-1--does-an-administrator-get-to-see-a-live-position` — not mirrored in this repository)
+of the Phase D register · closes 06 · X-4 (`backend/PRODUCTION-READINESS/06-CROSS-SERVICE.md` — not mirrored in this repository)'s
 blocking half
 
 ---

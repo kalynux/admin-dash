@@ -264,7 +264,7 @@ Body:
 
 ### PATCH /api/internal/admin/tickets/:id
 
-**Description**: Update ticket subject and/or description. Requires exclusive admin lock.
+**Description**: Update ticket subject and/or description. ⚠ **It does NOT require an exclusive admin lock** — that mechanism was removed in Phase 17 and this line described it as live until 2026-09-08. The caller must be an administrator or a follower; no administrator holds the ticket against another.
 
 **Authorization**: Admin access required.
 
@@ -312,7 +312,7 @@ Body:
 
 ### PATCH /api/internal/admin/tickets/:id/status
 
-**Description**: Update ticket status. First admin action locks the ticket exclusively to that admin.
+**Description**: Update ticket status. ⚠ **No admin action locks the ticket to anybody** — the exclusivity lock was removed in Phase 17 and this line described it as live until 2026-09-08. Any administrator may drive the status; who *should* is wi-admin's tier decision, not a field on this row.
 
 **Authorization**: Admin access required.
 
@@ -455,7 +455,7 @@ new holder.
 
 ### PATCH /api/internal/admin/tickets/:id/priority
 
-**Description**: Update ticket priority. When admin updates priority, it becomes **locked permanently**. Active admin can re-update locked priority.
+**Description**: Update ticket priority. When an **administrator** sets it, `priority_locked` becomes `true` permanently. ⚠ **"Active admin can re-update" is wrong and was live on this page until 2026-09-08** — there is no active admin. A locked priority is re-settable by **any** administrator: the guard is `role !== 'admin'` (`ticket.service.ts:437-441`), never an identity comparison. A non-admin follower is refused `403 TICKET_PRIORITY_LOCKED`.
 
 **Authorization**: Admin access required.
 
@@ -611,22 +611,31 @@ Body:
 ```json
 {
   "success": true,
-  "data": {
-    "_id": "string",
-    "ticket_id": "string",
-    "user_id": "string",
-    "role": "vendor",
-    "is_admin": false,
-    "added_at": "2026-02-11T19:30:00.000Z"
-  },
   "message": "Follower added successfully"
 }
 ```
 
+> [!IMPORTANT]
+> **There is no `data` on this response.** `TicketController.addFollower` awaits
+> `followerService.addFollower(…)`, which returns `void`, and sends `{ success, message }` only.
+> Re-read the follower list with `GET /api/internal/admin/tickets/:id` (the detail read is the
+> only one that includes `followers`).
+
 **Error Responses**:
-- `404` – `NOT_FOUND` – Ticket not found
-- `409` – `ALREADY_FOLLOWING` – User is already following this ticket
-- `400` – `FOLLOWER_LIMIT_EXCEEDED` – Maximum 5 non-admin users reached
+- `422` – `TICKET_FOLLOWER_LIMIT_EXCEEDED` – A sixth **distinct non-admin** user was added. Admins are exempt and do not count toward the five.
+
+> [!NOTE]
+> ⚠ **Three codes were documented here until 2026-09-08 and none of them exists.**
+> `404 NOT_FOUND`, `409 ALREADY_FOLLOWING` and `400 FOLLOWER_LIMIT_EXCEEDED` are not in
+> jovi-mall's registry, and a client branching on any of them branches on a string the server
+> never sends. What the source actually does (`ticket-follower.service.ts:46-72`):
+>
+> - **Adding a user who already follows the ticket is idempotent and answers `200`** —
+>   `addFollower` returns early on `isFollower`. There is no conflict error.
+> - **A non-existent ticket id is not rejected either.** Neither the route nor the service checks
+>   that the ticket exists before inserting the follower row, so this endpoint answers `200` for
+>   an id that matches nothing.
+> - The limit refusal is `422 TICKET_FOLLOWER_LIMIT_EXCEEDED`, not a `400`.
 
 ---
 
@@ -931,7 +940,7 @@ is not on the wire at all, and `FORBIDDEN` is not a code in the registry.
 **Permanent Locking**:
 - When admin updates priority → `priority_locked = true` **permanently**
 - Locked priorities **cannot** be changed by non-admin users
-- **Exception**: Active admin can re-update a locked priority
+- **Exception**: **any administrator** can re-update a locked priority — there is no "active admin", and the guard is a role test rather than an identity comparison (`ticket.service.ts:437-441`)
 
 ### Follower Management
 

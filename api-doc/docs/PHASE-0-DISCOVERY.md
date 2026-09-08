@@ -54,7 +54,7 @@ admin surface is an emergent property of the monolith, not a designed subsystem.
 ### 1.3 The `/admin` router-stacking defect
 
 Five of these routers are mounted on the **bare `/admin` prefix** in
-[`src/api/index.ts`](../../jovi-mall/src/api/index.ts) — billing, earnings, payout-requests,
+`backend/jovi-mall/src/api/index.ts` (— not mirrored in this repository) — billing, earnings, payout-requests,
 delivery-agencies, and admins — in that order, with `/admin/orders`, `/admin/tickets`,
 `/admin/agents`, `/admin/cod`, `/admin/articles` interleaved between them.
 
@@ -84,13 +84,13 @@ no boot-time check.
 These are genuinely good and should survive into the new service:
 
 - **Uniform response envelope** — `sendSuccess` / `sendCreated` / `sendPaginated` / `sendMessage` in
-  [`src/core/responses.ts`](../../jovi-mall/src/core/responses.ts). Success is
+  `backend/jovi-mall/src/core/responses.ts` (— not mirrored in this repository). Success is
   `{ success, data, meta?, message? }`; error is
   `{ success: false, requestId, error: { code, message, statusCode, details? } }`.
-- **Centralised error-code registry** — [`src/core/error-codes.ts`](../../jovi-mall/src/core/error-codes.ts),
+- **Centralised error-code registry** — `backend/jovi-mall/src/core/error-codes.ts` (— not mirrored in this repository),
   **506 codes** across ~41 domains, with `createAppError(code, status, message?, details?)` in
   `src/core/errors.ts`. ESLint hard-bans `throw new Error()` and `res.status().json({ error })`.
-- **Central DB naming registry** — [`src/core/database/collections.ts`](../../jovi-mall/src/core/database/collections.ts)
+- **Central DB naming registry** — `backend/jovi-mall/src/core/database/collections.ts` (— not mirrored in this repository)
   maps every Mongoose model name and physical collection name in one frozen object (~90 models).
 - **Zod validation** at the controller boundary, snake_case in Mongo, camelCase in DTOs.
 - **Request correlation ID** middleware, applied first.
@@ -193,7 +193,7 @@ Two independent paths let an attacker become a platform administrator.
 **Path 1 — public self-registration as admin.**
 
 `POST /api/auth/register` is mounted with **no auth middleware**
-([`auth.routes.ts:8`](../../jovi-mall/src/modules/auth/auth.routes.ts)). Its Zod schema is:
+(`backend/jovi-mall/src/modules/auth/auth.routes.ts:8` (— not mirrored in this repository)). Its Zod schema is:
 
 ```ts
 // auth.schemas.ts:43

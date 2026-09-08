@@ -3,7 +3,7 @@
 > # ✅ PHASE 17 IS CLOSED — 2026-08-20
 >
 > Parts B, C, D and E all landed, executed as Parts A, B, C and D of
-> [`PHASE-5-LEGACY-CLOSEOUT-PLAN.md`](../../PRODUCTION-READINESS/PHASE-5-LEGACY-CLOSEOUT-PLAN.md).
+> `backend/PRODUCTION-READINESS/PHASE-5-LEGACY-CLOSEOUT-PLAN.md` (— not mirrored in this repository).
 > **`LEGACY_ENDPOINT_COUNT` is 0, and both the constant and the map it counted are deleted**,
 > along with `src/modules/legacy-audit/`, the `audit.legacy_feed` flag and the
 > `AUDIT_LEGACY_FEED_DISABLED` error code.
@@ -35,7 +35,7 @@ first written. The constant no longer exists: Part D deleted it with the map.
 | Group | Count | Meaning |
 |---|---:|---|
 | Portable, not started | **0** | Content (14), files (2) and messaging (1) were all ported at Phase 5 |
-| Deliberately unbuilt | **4** | Nothing exists anywhere to port; each has a written reason, published in [`api/permissions.md`](../api-doc/api/permissions.md) |
+| Deliberately unbuilt | **4** | Nothing exists anywhere to port; each has a written reason, published in [`api/permissions.md`](../admin/api/permissions.md) |
 
 The other twelve left the list three different ways, and the differences are the interesting
 part: **ten were built** (Phase 5 Parts A–C), and **two were deleted** — `customers.read` and
@@ -163,7 +163,7 @@ fell to **4**, not the 6 this page forecast and not the 7 the plan forecast.
 ## 4 · Deliberately unbuilt — **4** permissions
 
 Not a backlog; there is nothing built anywhere to port. Published, with these reasons, in
-[`api/permissions.md`](../api-doc/api/permissions.md) § *The four `†` permissions* — so the phase's
+[`api/permissions.md`](../admin/api/permissions.md) § *The four `†` permissions* — so the phase's
 "live or unbuilt with a written rationale" criterion is checkable from the contract rather than
 from a status page.
 

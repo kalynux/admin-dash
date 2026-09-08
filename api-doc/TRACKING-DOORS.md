@@ -1,10 +1,12 @@
 # Tracking — the two doors into geo-tracker
 
+**Verified against source on 2026-09-08** — the four data-door routes, their permissions and audit declarations against wi-admin's live route manifest, and the `reason`/`limit` bounds (required 3–200; trail ≤ 5000, events ≤ 1000; presence takes no query at all) against `admin/src/modules/{agents,shipments}/validators/`.
+
 **Status:** verified against source on 2026-08-24 — wi-admin TypeScript *and* geo-tracker Go, both
 sides of every claim below.
-**Design records:** [`admin/ADR-020-ADMIN-DATA-DOOR.md`](admin/ADR-020-ADMIN-DATA-DOOR.md) (the
+**Design records:** [`admin/docs/ADR-020-ADMIN-DATA-DOOR.md`](docs/ADR-020-ADMIN-DATA-DOOR.md) (the
 decision) · [`geo-tracker/service-data-door.md`](geo-tracker/service-data-door.md) (the other half
-of the wire contract) · [`admin/ADR-015-DEVELOPER-TOOLS.md`](admin/ADR-015-DEVELOPER-TOOLS.md) D-5
+of the wire contract) · [`admin/docs/ADR-015-DEVELOPER-TOOLS.md`](docs/ADR-015-DEVELOPER-TOOLS.md) D-5
 (the operations door).
 
 > **You still only ever call wi-admin.** Both doors below are `/api/v1/*` routes on
@@ -415,10 +417,10 @@ Stated so nobody builds toward it:
 
 | | |
 |---|---|
-| The decision, alternatives and four constraints | [`admin/ADR-020-ADMIN-DATA-DOOR.md`](admin/ADR-020-ADMIN-DATA-DOOR.md) |
+| The decision, alternatives and four constraints | [`admin/docs/ADR-020-ADMIN-DATA-DOOR.md`](docs/ADR-020-ADMIN-DATA-DOOR.md) |
 | geo-tracker's half of the wire contract | [`geo-tracker/service-data-door.md`](geo-tracker/service-data-door.md) |
 | What may be shown to whom | [`dashboard/DATA-EXPOSURE-REGISTER.md`](admin/dashboard/DATA-EXPOSURE-REGISTER.md) |
 | The two agent routes in their own page | [`admin/api/agents.md`](admin/api/agents.md) |
 | The two shipment routes in their own page | [`admin/api/shipments.md`](admin/api/shipments.md) |
-| The operations door's design | [`admin/ADR-015-DEVELOPER-TOOLS.md`](admin/ADR-015-DEVELOPER-TOOLS.md) D-5 |
+| The operations door's design | [`admin/docs/ADR-015-DEVELOPER-TOOLS.md`](docs/ADR-015-DEVELOPER-TOOLS.md) D-5 |
 | Every route, permission and audit flag | [`ROUTE-MAP.md`](ROUTE-MAP.md) |

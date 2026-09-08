@@ -1,14 +1,14 @@
 # Admin dashboard — what Phase 2 and Phase 3 changed
 
 Your slice of Phases **2** (Deployability) and **3** (Cross-service correctness) of
-[`PRODUCTION-READINESS/10-IMPLEMENTATION-PLAN.md`](../../PRODUCTION-READINESS/10-IMPLEMENTATION-PLAN.md).
+`backend/PRODUCTION-READINESS/10-IMPLEMENTATION-PLAN.md` (— not mirrored in this repository).
 
 - **Written:** 2026-08-21 · **Phase 2:** 2026-08-18 → 08-19 · **Phase 3:** 2026-08-19
 - **Design records:**
-  [`PHASE-2-DEPLOYABILITY-PLAN.md`](../../PRODUCTION-READINESS/PHASE-2-DEPLOYABILITY-PLAN.md) ·
-  [`PHASE-3-CROSS-SERVICE-PLAN.md`](../../PRODUCTION-READINESS/PHASE-3-CROSS-SERVICE-PLAN.md)
+  `backend/PRODUCTION-READINESS/PHASE-2-DEPLOYABILITY-PLAN.md` (— not mirrored in this repository) ·
+  `backend/PRODUCTION-READINESS/PHASE-3-CROSS-SERVICE-PLAN.md` (— not mirrored in this repository)
 - **The platform-wide half:**
-  [`jovi-mall/api-doc/FRONTEND-CHANGELOG-phase-2-3.md`](../../jovi-mall/api-doc/FRONTEND-CHANGELOG-phase-2-3.md)
+  `backend/jovi-mall/api-doc/FRONTEND-CHANGELOG-phase-2-3.md` (— not mirrored in this repository)
 - **API reference, unchanged by these phases:** [api/](./api/)
 
 ---

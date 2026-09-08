@@ -1,31 +1,32 @@
-# Route map — all 236 wi-admin routes
+# Route map — all 239 wi-admin routes
 
 **Generated from the live router**, not transcribed. Every row's permission and audit
 declaration comes from `routeManifest()` — the same structure the service asserts against at boot —
 and the "documented in" column was reconciled mechanically against the pages in
 [`admin/api/`](admin/api/).
 
-> **Every route below appears in exactly one document.** That was checked, not assumed on the
-> 2026-08-24 generation: 230 of 230 versioned routes matched exactly one page, zero matched two,
-> and zero documented permission disagreed with the declared one. The two `/health/*` probes are
-> unversioned and live in [`health.md`](admin/api/health.md).
+> **Regenerated 2026-09-08 by diffing this table against `routeManifest()` row by row.** The
+> live surface is **237 versioned routes** plus the two unversioned `/health/*` probes, which
+> live in [`health.md`](admin/api/health.md) — **239** in all. `authz:matrix` reports
+> **118 / 20 / 3** on the same date.
 >
-> ⚠ **Three rows are newer than that reconciliation and were added on 2026-08-26** —
-> `GET /files/library`, `POST /files/upload` (BR-015 · [ADR-021](admin/ADR-021-ADMIN-MEDIA-LIBRARY.md))
-> and `GET /vendors/:vendorId/agencies` (BR-018). **The count is regenerated and the three rows are
-> read from source, not transcribed**: `dump-routes.js` reports `TOTAL 236` and `authz:matrix`
-> reports 116 / 20 / 3, both re-run on that date, and each row's permission and audit cell comes
-> from its own `defineRoute` in `backend/admin/src/modules/{files,vendors}/routes/` — the upload
-> declares `audit: records('files.upload')` and the other two declare no `audit` at all.
+> ⚠ **That diff found four things wrong with this file, and one of them was a real gate defect:**
 >
-> **What was NOT re-run for them is the reconciliation itself.** Each of the three is documented
-> in the page named beside it — that was read — but nothing checked that it appears in *only* that
-> page, which is the property the blockquote above asserts for the other 231.
+> | Was | Is |
+> |---|---|
+> | `GET /agents/:agentId/cod-allocation` gated on `agents.read` | `agents.read` **+** `agencies.read`. A nav item gated on `agents.read` alone renders a link that **403s** — the composite is declared at `agent.routes.ts` and [`agents.md`](admin/api/agents.md) had it right all along |
+> | `GET /agents/:agentId/assignability` absent | Served, and documented in [`agents.md`](admin/api/agents.md). It had simply never been added here |
+> | `/automation` absent | Two routes, added 2026-09-07 (ADR-022) — see below |
+> | Ten `/content` rows written `:articleId` / `:authorId` | `:articleId` / `:authorId`. **Cosmetic — the URL is byte-identical**, since a path-parameter *name* is not on the wire and the value is still a slug-style key rather than an ObjectId. Corrected because this table claims to be a dump of the router |
 >
-> ⚠ [`admin/api/README.md`](admin/api/README.md) still says **230 versioned endpoints**. It is a
-> verbatim mirror, so it is not corrected here: the real figure is **234** (236 less the two health
-> probes), and it was already one short of this file's 231 before these three routes landed.
-> Reported to the backend rather than patched locally.
+> **What is NOT re-checked here is the one-page-per-route reconciliation.** The 2026-08-24
+> generation established that 230 of 230 versioned routes appeared in exactly one page and that
+> no documented permission disagreed with the declared one. This pass re-checked **every
+> permission cell** against `routeManifest()` — one disagreed, above — but did **not** re-check
+> the appears-in-exactly-one-page property for the seven routes added since.
+>
+> ✅ [`admin/api/README.md`](admin/api/README.md) said **230 versioned endpoints** and now says
+> **237**; it was corrected on the backend side on 2026-09-08 rather than reported again.
 
 ---
 
@@ -55,16 +56,19 @@ write means the row committed; there is no "succeeded but unrecorded". The decla
 table is enforced at runtime: a route that succeeds and records none of the actions it declares
 logs at `fatal`.
 
-Three **reads** are audited, and they are the interesting ones — the output *is* the disclosure:
+**Four** reads are audited, and they are the interesting ones — the output *is* the disclosure:
 
 | Read | Why |
 |---|---|
 | `GET /money/payouts/:payoutId/destination` | reveals a bank account or mobile-money number |
 | `GET /agents/:agentId/live-position` | reveals where a person is **right now** |
 | `GET /shipments/:shipmentId/tracking-trail` | reveals where a person **has been** |
+| `GET /files/:fileId/content` | reveals the bytes of a private file — a delivery-proof photograph, a vendor's saleable digital product |
 
-All three are **fail-closed**: the row commits *before* the read and its failure is not caught, so
-with the audit store down nothing is disclosed. See [`TRACKING-DOORS.md`](TRACKING-DOORS.md).
+⚠ **This list read "three" until 2026-09-08**; `files.content.read` has been audited since the
+media-library work landed. All four are **fail-closed**: the row commits *before* the read and its
+failure is not caught, so with the audit store down nothing is disclosed. See
+[`TRACKING-DOORS.md`](TRACKING-DOORS.md).
 
 ---
 
@@ -73,15 +77,15 @@ with the audit store down nothing is disclosed. See [`TRACKING-DOORS.md`](TRACKI
 ```bash
 cd backend/admin
 node -r ts-node/register/transpile-only -r dotenv/config \
-    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 236
-npm run authz:matrix                                                      # 116 / 20 / 3
+    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 239
+npm run authz:matrix                                                      # 118 / 20 / 3
 ```
 
 If either number moves, this file is stale and so is everything built from it.
 
 ---
 
-## The 236 routes, by namespace
+## The 239 routes, by namespace
 
 ### `/support` — 19 routes
 
@@ -129,7 +133,7 @@ If either number moves, this file is stale and so is everything built from it.
 | PATCH | `/administrators/me` | *self* | ✅ administrators.profile.update_self | [`administrators.md`](admin/api/administrators.md) |
 | GET | `/administrators/me/activity` | *self* | — | [`administrators.md`](admin/api/administrators.md) |
 
-### `/agents` — 17 routes
+### `/agents` — 18 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -137,9 +141,10 @@ If either number moves, this file is stale and so is everything built from it.
 | GET | `/agents/:agentId` | `agents.read` | — | [`agents.md`](admin/api/agents.md) |
 | GET | `/agents/:agentId/activity` | `agents.read` + `audit.read` | — | [`agents.md`](admin/api/agents.md) |
 | POST | `/agents/:agentId/ban` | `agents.ban` | ✅ agents.ban | [`agents.md`](admin/api/agents.md) |
-| GET | `/agents/:agentId/cod-allocation` | `agents.read` | — | [`agents.md`](admin/api/agents.md) |
+| GET | `/agents/:agentId/cod-allocation` | `agents.read` + `agencies.read` | — | [`agents.md`](admin/api/agents.md) |
 | PUT | `/agents/:agentId/cod-threshold` | `agents.cod_threshold.set` | ✅ agents.cod_threshold.set | [`agents.md`](admin/api/agents.md) |
 | GET | `/agents/:agentId/contract-history` | `agents.read` | — | [`agents.md`](admin/api/agents.md) |
+| GET | `/agents/:agentId/assignability` | `agents.read` + `agencies.read` | — | [`agents.md`](admin/api/agents.md) |
 | GET | `/agents/:agentId/contracts` | `agents.read` + `agencies.read` | — | [`agents.md`](admin/api/agents.md) |
 | GET | `/agents/:agentId/eligibility` | `agents.read` | — | [`agents.md`](admin/api/agents.md) |
 | PUT | `/agents/:agentId/kyc` | `agents.kyc.review` | ✅ agents.kyc.review | [`agents.md`](admin/api/agents.md) |
@@ -200,18 +205,18 @@ If either number moves, this file is stale and so is everything built from it.
 |---|---|---|---|---|
 | GET | `/content/articles` | `content.articles.read` | — | [`content.md`](admin/api/content.md) |
 | POST | `/content/articles` | `content.articles.write` | ✅ content.articles.create | [`content.md`](admin/api/content.md) |
-| DELETE | `/content/articles/:articleKey` | `content.articles.delete` | ✅ content.articles.delete | [`content.md`](admin/api/content.md) |
-| GET | `/content/articles/:articleKey` | `content.articles.read` | — | [`content.md`](admin/api/content.md) |
-| PATCH | `/content/articles/:articleKey` | `content.articles.write` | ✅ content.articles.update | [`content.md`](admin/api/content.md) |
-| POST | `/content/articles/:articleKey/archive` | `content.articles.publish` | ✅ content.articles.archive | [`content.md`](admin/api/content.md) |
-| GET | `/content/articles/:articleKey/preview` | `content.articles.read` | — | [`content.md`](admin/api/content.md) |
-| POST | `/content/articles/:articleKey/publish` | `content.articles.publish` | ✅ content.articles.publish | [`content.md`](admin/api/content.md) |
-| POST | `/content/articles/:articleKey/unpublish` | `content.articles.publish` | ✅ content.articles.unpublish | [`content.md`](admin/api/content.md) |
+| DELETE | `/content/articles/:articleId` | `content.articles.delete` | ✅ content.articles.delete | [`content.md`](admin/api/content.md) |
+| GET | `/content/articles/:articleId` | `content.articles.read` | — | [`content.md`](admin/api/content.md) |
+| PATCH | `/content/articles/:articleId` | `content.articles.write` | ✅ content.articles.update | [`content.md`](admin/api/content.md) |
+| POST | `/content/articles/:articleId/archive` | `content.articles.publish` | ✅ content.articles.archive | [`content.md`](admin/api/content.md) |
+| GET | `/content/articles/:articleId/preview` | `content.articles.read` | — | [`content.md`](admin/api/content.md) |
+| POST | `/content/articles/:articleId/publish` | `content.articles.publish` | ✅ content.articles.publish | [`content.md`](admin/api/content.md) |
+| POST | `/content/articles/:articleId/unpublish` | `content.articles.publish` | ✅ content.articles.unpublish | [`content.md`](admin/api/content.md) |
 | GET | `/content/authors` | `content.authors.read` | — | [`content.md`](admin/api/content.md) |
 | POST | `/content/authors` | `content.authors.write` | ✅ content.authors.create | [`content.md`](admin/api/content.md) |
-| DELETE | `/content/authors/:authorKey` | `content.authors.delete` | ✅ content.authors.delete | [`content.md`](admin/api/content.md) |
-| GET | `/content/authors/:authorKey` | `content.authors.read` | — | [`content.md`](admin/api/content.md) |
-| PATCH | `/content/authors/:authorKey` | `content.authors.write` | ✅ content.authors.update | [`content.md`](admin/api/content.md) |
+| DELETE | `/content/authors/:authorId` | `content.authors.delete` | ✅ content.authors.delete | [`content.md`](admin/api/content.md) |
+| GET | `/content/authors/:authorId` | `content.authors.read` | — | [`content.md`](admin/api/content.md) |
+| PATCH | `/content/authors/:authorId` | `content.authors.write` | ✅ content.authors.update | [`content.md`](admin/api/content.md) |
 
 ### `/money` — 14 routes
 
@@ -432,6 +437,21 @@ If either number moves, this file is stale and so is everything built from it.
 |---|---|---|---|---|
 | GET | `/health/live` | *unversioned* | — | [`health.md`](admin/api/health.md) |
 | GET | `/health/ready` | *unversioned* | — | [`health.md`](admin/api/health.md) |
+
+### `/automation` — 2 routes
+
+Added 2026-09-07 (ADR-022). Both are `any`-mode guards returning a **different projection per
+tier**, so the permission decides how much of the answer you see rather than whether you get one.
+
+| Method | Path | Permission | Audited | Documented in |
+|---|---|---|---|---|
+| GET | `/automation/failures` | `developer_tools.logs.read` **or** `system.automation.read` **or** `support.automation.lookup` | — | [`automation.md`](admin/api/automation.md) |
+| GET | `/automation/summary` | `developer_tools.logs.read` **or** `system.automation.read` **or** `support.automation.lookup` | — | [`automation.md`](admin/api/automation.md) |
+
+> ⚠ **There is a 240th route, and it is deliberately not in this table.**
+> `POST /api/internal/automation/failures` is outside `/api/v1`, answers to a shared secret
+> rather than to an administrator, and is the n8n automation layer's own reporting door. **The
+> dashboard must never call it.**
 
 ### `/messaging` — 1 route
 

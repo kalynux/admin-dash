@@ -58,7 +58,7 @@ The second exists because a wi-admin administrator holds no jovi-mall `users`
 row, so the first cannot resolve them at all. It is a separate module, separate
 middleware and a separate path namespace on purpose — see
 [service-data-door.md](./service-data-door.md), and
-[`admin/docs/ADR-020`](../admin/ADR-020-ADMIN-DATA-DOOR.md) for the
+[`admin/docs/ADR-020`](../docs/ADR-020-ADMIN-DATA-DOOR.md) for the
 decision. Nothing below applies to it: it has no viewer, no role, and no
 per-agent visibility resolution.
 

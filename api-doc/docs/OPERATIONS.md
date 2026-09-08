@@ -4,7 +4,7 @@ Read from source 2026-09-06: `src/lifecycle.ts`, `src/config/env.ts`, `src/infra
 `src/modules/notifications/domain/notification.scheduler.ts`, `src/api/routes/health.routes.ts`.
 
 Deployment, rollback and secret rotation are **not** here — they span all three services and live in
-[`../../docs/RUNBOOK.md`](../../docs/RUNBOOK.md).
+`backend/docs/RUNBOOK.md` (— not mirrored in this repository).
 
 ---
 

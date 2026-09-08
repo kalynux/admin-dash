@@ -471,5 +471,5 @@ events twice in two vocabularies, one of them worse. If the historical rows are 
 they are reachable through the developer tools.
 
 Design records: [ADR-017](../../docs/ADR-017-PHASE-17-CLOSEOUT.md) D-8 (the deletion) and
-[Phase 5 § C-10](../../../PRODUCTION-READINESS/PHASE-5-LEGACY-CLOSEOUT-PLAN.md) (why the
+Phase 5 § C-10 (`backend/PRODUCTION-READINESS/PHASE-5-LEGACY-CLOSEOUT-PLAN.md` — not mirrored in this repository) (why the
 collection itself must not be deleted with it).

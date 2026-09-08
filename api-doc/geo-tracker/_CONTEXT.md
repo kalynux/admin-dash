@@ -104,5 +104,5 @@ Because of those two changes this folder is **not** byte-comparable to
 |---|---|
 | To build a tracking screen | [`../TRACKING-DOORS.md`](../TRACKING-DOORS.md) |
 | The six routes you can actually call | [`../ROUTE-MAP.md`](../ROUTE-MAP.md) |
-| Why the door exists and what bounds it | [`../admin/ADR-020-ADMIN-DATA-DOOR.md`](../admin/ADR-020-ADMIN-DATA-DOOR.md) |
+| Why the door exists and what bounds it | [`../docs/ADR-020-ADMIN-DATA-DOOR.md`](../docs/ADR-020-ADMIN-DATA-DOOR.md) |
 | What may be shown to whom | [`../admin/dashboard/DATA-EXPOSURE-REGISTER.md`](../admin/dashboard/DATA-EXPOSURE-REGISTER.md) |

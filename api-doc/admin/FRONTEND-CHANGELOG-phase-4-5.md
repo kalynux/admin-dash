@@ -1,13 +1,13 @@
 # Admin dashboard — what Phase 4 and Phase 5 changed
 
 Your slice of Phases **4** (Per-service hardening) and **5** (Legacy close-out) of
-[`PRODUCTION-READINESS/10-IMPLEMENTATION-PLAN.md`](../../PRODUCTION-READINESS/10-IMPLEMENTATION-PLAN.md).
+`backend/PRODUCTION-READINESS/10-IMPLEMENTATION-PLAN.md` (— not mirrored in this repository).
 
 - **Written:** 2026-08-21 · **Phase 4:** 2026-08-19 → 08-20 · **Phase 5:** 2026-08-20
 - **Design records:** [`ADR-017-PHASE-17-CLOSEOUT.md`](../docs/ADR-017-PHASE-17-CLOSEOUT.md) ·
   [`ADR-018-DASHBOARD-BACKEND-REQUESTS.md`](../docs/ADR-018-DASHBOARD-BACKEND-REQUESTS.md)
 - **Previous instalment:** [FRONTEND-CHANGELOG-phase-2-3.md](./FRONTEND-CHANGELOG-phase-2-3.md)
-- **Context, not required:** [`jovi-mall/api-doc/FRONTEND-CHANGELOG-phase-4-5.md`](../../jovi-mall/api-doc/FRONTEND-CHANGELOG-phase-4-5.md)
+- **Context, not required:** `backend/jovi-mall/api-doc/FRONTEND-CHANGELOG-phase-4-5.md` (— not mirrored in this repository)
 
 > **This is the biggest instalment for you by a wide margin.** Phase 4 fixed two live defects
 > that were silently producing wrong outcomes on screens you already ship, and Phase 5 added
@@ -532,7 +532,7 @@ changed by it — but two things reach you:
 - If any tooling here presents a jovi-mall user token (scripts, a dev-tools probe), it can now be
   refused for that reason and **must not be retried or refreshed** — both fail identically.
 
-Detail: [`jovi-mall/api-doc/FRONTEND-CHANGELOG-phase-4-5.md` § 2](../../jovi-mall/api-doc/FRONTEND-CHANGELOG-phase-4-5.md).
+Detail: `backend/jovi-mall/api-doc/FRONTEND-CHANGELOG-phase-4-5.md` § 2 (— not mirrored in this repository).
 
 ---
 

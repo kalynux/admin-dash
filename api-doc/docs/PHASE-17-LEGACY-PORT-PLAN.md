@@ -4,7 +4,7 @@
 >
 > All 21 permissions are routed and all 35 legacy rows are gone. Part A (support) landed at
 > Phase 17 itself; Parts B, C and D landed as Parts A, B and C of
-> [`PHASE-5-LEGACY-CLOSEOUT-PLAN.md`](../../PRODUCTION-READINESS/PHASE-5-LEGACY-CLOSEOUT-PLAN.md),
+> `backend/PRODUCTION-READINESS/PHASE-5-LEGACY-CLOSEOUT-PLAN.md` (— not mirrored in this repository),
 > and Part E as its Part D. **`LEGACY_ENDPOINT_COUNT` is 0, and the constant and the map it
 > counted are both deleted** — so the file reference in § 1 below now points at nothing, and is
 > left in place because the count it names is what this plan was measured against.
@@ -28,7 +28,7 @@ Anything not verified is marked **⟨decide⟩** and must not be guessed at impl
 
 ## 1 · What is being ported, and the numbers
 
-Of the **110** permissions in [permission.catalog.ts](../src/modules/authorization/domain/permission.catalog.ts),
+Of the **110** permissions in `backend/admin/src/modules/authorization/domain/permission.catalog.ts` (— not mirrored in this repository),
 **28** have no route in wi-admin. They split two ways, and only one half is this plan's subject:
 
 | | Count | State |
@@ -63,7 +63,7 @@ is now the record, and there is nothing upstream to point at.
 `LEGACY_ENDPOINT_COUNT` is now **35** — the two `/api/admin/profile` rows were stale and were
 deleted at Phase 17 (§4, X-1).
 
-> **Porting is not transcription.** [agency.routes.ts:110](../src/modules/agencies/routes/agency.routes.ts#L110)
+> **Porting is not transcription.** `backend/admin/src/modules/agencies/routes/agency.routes.ts:110` (— not mirrored in this repository)
 > says so: jovi-mall spells two of its writes `PATCH`, wi-admin serves them as `POST`
 > sub-resources because the permission and the audit row attach to the *action*. Every ported
 > family so far also gained endpoints with no legacy row. The 35 rows are a **coverage
@@ -174,7 +174,7 @@ payout, re-sending a notification that failed, and verifying a user's Telegram l
 "Message every vendor" is **not** portable from this — it is new work.
 
 `PermissionFamily` is a hand-written union plus a parallel array
-([permission.types.ts:33-63](../src/modules/authorization/domain/permission.types.ts#L33-L63)),
+(`backend/admin/src/modules/authorization/domain/permission.types.ts:33-63` (— not mirrored in this repository)),
 and the family has exactly **one** member, so `broadcast` → `messaging` and `broadcast.send` →
 `messaging.telegram.send` is a ~5-file change.
 
@@ -192,14 +192,14 @@ Verified, and each refuses to boot or refuses to pass if broken:
 
 | Rule | Where | If you miss it |
 |---|---|---|
-| A route is registered **only** through `defineRoute` | [route-manifest.ts:332](../src/api/route-manifest.ts#L332) | `assertRouteManifestComplete()` fails startup; `test:authz` refuses a raw `router.get(` in a routes file |
-| `access:` required; `audit:` required on every mutating method | [route-manifest.ts:226](../src/api/route-manifest.ts#L226) | Compile error |
-| Every catalogued audit action must have a **producer** | [audit-coverage.ts](../src/api/audit-coverage.ts) | Startup failure. **Audit-catalog entries and the routes that emit them must land in one change** |
+| A route is registered **only** through `defineRoute` | `backend/admin/src/api/route-manifest.ts:332` (— not mirrored in this repository) | `assertRouteManifestComplete()` fails startup; `test:authz` refuses a raw `router.get(` in a routes file |
+| `access:` required; `audit:` required on every mutating method | `backend/admin/src/api/route-manifest.ts:226` (— not mirrored in this repository) | Compile error |
+| Every catalogued audit action must have a **producer** | `backend/admin/src/api/audit-coverage.ts` (— not mirrored in this repository) | Startup failure. **Audit-catalog entries and the routes that emit them must land in one change** |
 | Deleting a legacy row means decrementing `LEGACY_ENDPOINT_COUNT` | `legacy-endpoint-map.ts` | `test-authz.ts:679` and `test-agents.ts:569` both fail |
-| A direct read of `jovi_mall` needs a `platform-collections.ts` entry, and goes only through `PlatformReadRepository` | [platform-collections.ts](../src/infra/platform/platform-collections.ts) | Compile error |
+| A direct read of `jovi_mall` needs a `platform-collections.ts` entry, and goes only through `PlatformReadRepository` | `backend/admin/src/infra/platform/platform-collections.ts` (— not mirrored in this repository) | Compile error |
 | Writes go over the internal API — **blog excepted** | ADR-004 D-2 / D-4 | Silent loss of post-commit events |
 | Shared vocabulary: `listQuery`, `objectId`, `reasonText`, `toPageMeta`, `sendPaginated` | `core/validation/common.schemas`, `core/http/list-query` | `test:contract` pins them |
-| Tier 3 may hold **no** `financial` or `destructive` permission | [tier-grants.ts:275-280](../src/modules/authorization/domain/tier-grants.ts#L275-L280) | Boot failure — this is what D-2 works around |
+| Tier 3 may hold **no** `financial` or `destructive` permission | `backend/admin/src/modules/authorization/domain/tier-grants.ts:275-280` (— not mirrored in this repository) | Boot failure — this is what D-2 works around |
 
 **No permission-catalog additions are needed** — all 21 names exist. **Two grant edits are**:
 D-2's four `content.*` names into `SUPPORT`, and D-4's family rename.
@@ -447,5 +447,5 @@ Three names left this list, three different ways:
   withdrawn it. The `customers` **family** went with them.
 
 The published version of this table, with the reasons, is
-[`api/permissions.md`](../api-doc/api/permissions.md) § *The four `†` permissions* — which is where a
+[`api/permissions.md`](../admin/api/permissions.md) § *The four `†` permissions* — which is where a
 reader looking for "is this permission real" will actually go.

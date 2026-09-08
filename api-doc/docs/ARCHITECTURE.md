@@ -1,7 +1,7 @@
 # wi-admin — architecture
 
 Read from source 2026-09-06. Route census:
-[`../../DOC-PROGRAM/evidence/admin-routes.txt`](../../DOC-PROGRAM/evidence/admin-routes.txt).
+`backend/DOC-PROGRAM/evidence/admin-routes.txt` (— not mirrored in this repository).
 Permission matrix: `npm run authz:matrix`.
 
 ---

@@ -7,7 +7,7 @@ and the editorial bylines articles are credited to. **Fourteen routes**, and thi
 **only** editorial door onto them — jovi-mall's `/api/admin/articles` and
 `/api/admin/article-authors` mounts were deleted when this one was built.
 
-Design records: [`PHASE-5-LEGACY-CLOSEOUT-PLAN.md`](../../../PRODUCTION-READINESS/PHASE-5-LEGACY-CLOSEOUT-PLAN.md)
+Design records: `backend/PRODUCTION-READINESS/PHASE-5-LEGACY-CLOSEOUT-PLAN.md` (— not mirrored in this repository)
 (Part A — the port), [`../../docs/ADR-004-DOMAIN-OWNERSHIP.md`](../../docs/ADR-004-DOMAIN-OWNERSHIP.md) D-4
 (why this family MOVED rather than delegating),
 [`../../docs/ADR-005-API-CONTRACT.md`](../../docs/ADR-005-API-CONTRACT.md).
@@ -405,7 +405,7 @@ translation in that language answers `404 BLOG_ARTICLE_NOT_FOUND` with `details:
 
 ### The public shape
 
-Source: [`read-models/public-article.dto.ts`](../../src/modules/content/read-models/public-article.dto.ts).
+Source: `backend/admin/src/modules/content/read-models/public-article.dto.ts` (— not mirrored in this repository).
 **This is wi-admin's own file**, not a jovi-mall shape reached over HTTP — the projection is
 reproduced here so that a preview needs no call to the other service. It is a
 `PublicArticleDetailDto`, wrapped in this service's usual `{ success: true, data }` envelope.
