@@ -5,9 +5,21 @@
 >
 > Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
 > [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+>
+> **Reconciled with the backend page on 2026-09-08 (DOC-PROGRAM R5).** The stamp below is
+> that page’s, and the only deliberate differences here are this banner and the outbound
+> references flattened to plain text because their targets are not mirrored into this folder.
 <!-- /CONTEXT-BANNER -->
 
 # Payments — gateway checkout (role-neutral)
+
+**Verified against source on 2026-09-08** — the six-route census and their auth, the `initiate` /
+`verify` / `authorize` request shapes, the pay-link mint and session projection, the OTP attempt
+ceiling and the per-gateway refund verdict, against
+`jovi-mall/src/modules/payments/routes/payment.routes.ts`,
+`src/modules/payments/validators/payment.validators.ts`,
+`src/modules/payments/domain/pay-link.ts`, `src/modules/payments/services/pay-link.service.ts`,
+`src/modules/payments/gateways/registry.ts` and `src/modules/payments/config/payments.config.ts`.
 
 One payment surface, shared by every flow that takes money from a **customer**: a single-order
 payment, a whole multi-vendor cart in one charge, or a service booking.
@@ -45,6 +57,8 @@ payment, a whole multi-vendor cart in one charge, or a service booking.
 | `POST` | `/payments/initiate` | **none** | Start a payment for a `cartId`, `orderId` or booking |
 | `POST` | `/payments/verify` | **none** | Re-check a transaction against the gateway (idempotent) |
 | `POST` | `/payments/:transactionId/authorize` | **none** | Submit the one-time code when `initiate` returned `requiresOtp` |
+| `GET` | `/payments/session/:token` | **none** | What a hosted **card** page needs to confirm a payment. Takes a link handle, never a transaction id |
+| `POST` | `/payments/:transactionId/pay-link` | **required, owner-scoped** | Mint (or replace) that link handle |
 | `GET` | `/payments/:transactionId` | **required, owner-scoped** | Read a transaction |
 
 Related surfaces that do **not** live here:
@@ -140,7 +154,7 @@ attempt that poisoned the order would make every retry impossible.
 |---|---|---|
 | `ussdCode` | Mobile money, ordinary flow | Show the code; the customer approves on the handset |
 | `requiresOtp: true` | **My-CoolPay Orange Money** | Collect the SMS code and POST it to `/payments/:transactionId/authorize`. There is **no** `ussdCode` on this branch. |
-| `clientSecret` | Stripe | Confirm with Stripe.js / Payment Element |
+| `clientSecret` | Stripe | Confirm with Stripe.js / Payment Element. **A browser is required** — see [The hosted card page](#the-hosted-card-page-gap-008) if you are not in one |
 | `chargedAmount` / `chargedCurrency` | Stripe | The amount actually charged, in the presentment currency (the order stays priced in XAF) |
 | `message` | Always | Human-readable copy, already localised for the customer |
 | `expiresAt` | Sometimes | When the payment session lapses |
@@ -324,6 +338,127 @@ confirms it on the handset, and the webhook settles it.
 
 Unauthenticated, like `initiate` and `verify`. What bounds it is the IP rate limit plus the
 per-transaction attempt counter, not a session.
+
+---
+
+## The hosted card page (GAP-008)
+
+**Mobile money completes where the customer is** — a USSD prompt or an OTP typed back into the
+chat — and needs nothing here. **A card cannot.** `initiate` with `gateway: "STRIPE"` answers a
+`clientSecret`, and only Stripe.js running in a browser can confirm one. These two endpoints are
+the door a standalone payment page reads through.
+
+⚠ **The page itself is frontend work and is not in this repository.** The backend mints the
+handle, serves the session, and does not care which page renders it.
+
+### `POST /payments/:transactionId/pay-link` — mint the handle
+
+**Authenticated and owner-scoped**, unlike its neighbours, and the asymmetry is the design:
+*reading* a link requires already holding one, while *creating* one turns a transaction id into a
+live payment page and must be attributable. The bot surface reaches the same operation as
+`payment_create_pay_link`, scoped to the resolved messaging identity instead.
+
+```jsonc
+// 200
+{ "success": true, "data": {
+    "token": "pl_9f3c…",                              // 64 hex characters
+    "url": "https://shop.example.com/pay/pl_9f3c…",   // null when STOREFRONT_URL is unset
+    "expiresAt": "2026-08-26T21:42:00.000Z" } }
+```
+
+| Code | Status | When |
+|---|---|---|
+| `PAYMENT_TRANSACTION_NOT_FOUND` | 404 | Unknown, malformed, or not the caller's — indistinguishable on purpose |
+| `PAYMENT_LINK_NOT_APPLICABLE` | 422 | A mobile-money transaction. It completes on the handset and needs no page |
+| `PAYMENT_LINK_NOT_PAYABLE` | 422 | Already settled, failed or cancelled |
+
+⚠ **A second mint REVOKES the first**, and that is the only revocation there is. At most one link
+per transaction is live, which is what makes "the customer lost the message, send it again" safe —
+and what stops a forwarded link outliving its purpose. Do not mint one per page load.
+
+⚠ **`url: null` is a real deployment state, not an error.** It means `STOREFRONT_URL` is unset, so
+this deployment has no payment page. Offer mobile money; do not send a message with a missing link
+in it.
+
+### `GET /payments/session/:token` — what the page reads
+
+**Unauthenticated**, by the same design that makes `initiate`, `verify` and `authorize`
+unauthenticated: a payment link is shareable and the person paying is often not the person who
+ordered.
+
+⚠ **This is deliberately not `GET /payments/:transactionId` opened up.** Transaction ids are the
+only thing between one customer and another's payment record, so an unauthenticated read on them
+is a record any caller can walk by incrementing. This route takes a 256-bit handle that exists
+only where somebody deliberately minted one, expires, and is superseded by the next mint.
+
+```jsonc
+// 200
+{ "success": true, "data": {
+    "transactionId": "68af…",       // poll POST /payments/verify with this
+    "state": "payable",             // payable | settled | closed | expired
+    "gateway": "STRIPE",
+    "amount": 24000, "currency": "XAF",          // what the customer agreed to
+    "chargedAmount": 40, "chargedCurrency": "usd", // what Stripe actually charges
+    "clientSecret": "pi_…_secret_…",  // ⚠ only while state is `payable`
+    "publishableKey": "pk_live_…",    // ⚠ only while state is `payable`; null if unconfigured
+    "expiresAt": "2026-08-26T21:42:00.000Z",
+    "paidFor": {                      // what the money is for — never null
+      "kind": "order",                // order | booking
+      "reference": "ORD-2026-000046", // the handle the payer can match; null on a legacy row
+      "orderCount": 1,                // >1 when one payment settles a multi-vendor basket
+      "itemCount": 3,                 // null for a booking
+      "sellers": ["Boutique Ndogbong"] // always [] for a booking — see below
+    } } }
+```
+
+**Both amounts are sent, and a page must show both.** The Stripe account settles in USD while the
+catalogue is priced in XAF, so the number the Payment Element renders is not `amount`. Showing XAF
+alone contradicts the card statement; showing USD alone contradicts the order.
+
+#### `paidFor` — and why it is fields rather than a sentence
+
+Added 2026-09-07, at the storefront's request. The page read, in full, *"Amount due —
+24 000 FCFA."* The payer is **by design** often not the person who ordered, which makes this the
+one payment screen where they have no other way to know what they are paying for — and the one
+screen where they are about to type card details, so a page naming no merchant is shaped exactly
+like a phishing page.
+
+⚠ **The storefront asked for a rendered `description: "3 items from Boutique Ndogbong"` and it
+was declined.** This is the one reader this API cannot localise for: every other page is served
+to somebody with an account and a `preferred_language`, while the holder of a pay link has
+neither and may not exist in the database at all. A sentence composed server-side would be
+English on a page otherwise translated into five languages — English in the very line that says
+what the money is for. **The page composes; this endpoint sends facts.**
+
+⚠ **`sellers` is always empty for a booking, and that asymmetry is deliberate.** A shop's name is
+already a public storefront page, so naming it tells a stranger only that somebody bought
+something. A *service provider's* name is frequently the sensitive fact itself — a clinic, a
+lawyer — and the platform cannot tell which vendors are which. A booking travels as its reference
+and its amount.
+
+**Never in this object, and none of it an oversight:** the buyer (no name, email, phone or
+delivery address), the line items (no titles, SKUs or per-item prices — a count is a fact about
+the basket, a title is a fact about the person who filled it), and the service on a booking.
+`test:payments` asserts each by source scan, because the failure mode is a field *appearing*.
+
+| `state` | What the page does |
+|---|---|
+| `payable` | Mount the Payment Element with `publishableKey` + `clientSecret` and confirm |
+| `settled` | Show a receipt. **Never offer a second payment** |
+| `closed` | Failed, cancelled or refunded. Nothing to confirm |
+| `expired` | The link lapsed. Tell the customer to ask for a new one |
+
+⚠ **Status is decided BEFORE expiry.** A customer who paid and comes back an hour later reads
+`settled`, never `expired` — the second reading invites them to pay twice.
+
+⚠ **`state: "expired"` is a 200, not a 404.** The page's whole job at that point is to say the link
+lapsed and offer a fresh one. Everything else — a malformed token, an unknown one, one superseded
+by a re-mint — is the **same** `404 PAYMENT_LINK_NOT_FOUND`, indistinguishable on purpose: any
+difference is an oracle telling an anonymous caller whether their guess had the right shape.
+
+`publishableKey` comes from `STRIPE_PUBLISHABLE_KEY`. A value starting `sk_` or `rk_` is **refused
+and logged**, never published — cards then report as unconfigured until it is corrected.
+`PAYMENT_LINK_TTL_MINUTES` (default 30) sets the window, matched to the checkout stock hold.
 
 ---
 

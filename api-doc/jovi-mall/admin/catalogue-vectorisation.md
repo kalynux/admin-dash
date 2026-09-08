@@ -38,6 +38,8 @@
 
 # Admin — Catalogue & Vectorisation API
 
+**Verified against source on 2026-09-08** — the obsolescence claim and both redirects — `POST /api/v1/dev-tools/catalogue/vectorise` (wi-admin) and `POST /api/internal/admin/dev-tools/catalogue/vectorise` (jovi-mall) are both served; the permission `developer_tools.catalogue.vectorise` exists and the boot assertion refuses the whole `developer_tools` family to any tier but 1 (`admin/src/modules/authorization/domain/permission.catalog.ts:1112-1155`).
+
 Admin-only endpoints for catalogue management and the vectorisation pipeline.
 
 > [!IMPORTANT]

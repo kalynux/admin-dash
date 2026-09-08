@@ -5,9 +5,15 @@
 >
 > Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
 > [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+>
+> **Reconciled with the backend page on 2026-09-08 (DOC-PROGRAM R5).** The stamp below is
+> that page’s, and the only deliberate differences here are this banner and the outbound
+> references flattened to plain text because their targets are not mirrored into this folder.
 <!-- /CONTEXT-BANNER -->
 
 # Admin Tickets
+
+**Verified against source on 2026-09-08** — the follower add/remove contract, the priority-lock rule and the three per-endpoint "exclusive admin lock" descriptions, against `jovi-mall/src/modules/tickets/{controllers/ticket.controller.ts,services/ticket-follower.service.ts,services/ticket.service.ts}`. The lock was removed at Phase 17 and three endpoint descriptions still asserted it in the present tense. Re-verified 2026-09-08 (R5): the administrator snapshot on every JSON example, against `jovi-mall/src/modules/tickets/services/ticket-enrichment.service.ts:169,189`, `jovi-mall/src/core/types/admin-snapshot.types.ts:49-67,113-122` and `jovi-mall/src/modules/tickets/models/ticket.model.ts:26-31` — the three enriched reads carry `assigned_admin` and no `admin_assignment` at all, and every example showed a two-field snapshot that does not exist.
 
 > ## ⚠️ This surface moved at the Phase 5 cutover — read this before the routes below
 >
@@ -24,7 +30,7 @@
 > **If you are building a dashboard, this is not your document.** Call wi-admin's `/api/v1/support/tickets` instead — it resolves the
 > administrator's tier and permissions, writes the audit row, and calls this surface on your
 > behalf. See [internal-service-api.md](./internal-service-api.md) for the door itself, and
-> `admin/docs/api/` in the wi-admin repository for the dashboard contract.
+> `admin/api-doc/api/` in the wi-admin repository for the dashboard contract.
 
 ---
 
@@ -50,30 +56,12 @@ Authorization: Bearer <access_token>
 
 Admins have special privileges in the ticketing system:
 
-- ~~**Exclusive Locking**: First admin to act on a ticket becomes the "active admin" and locks the ticket exclusively~~ — **REMOVED at Phase 17.** See the note below.
+- ~~**Exclusive Locking**: First admin to act on a ticket becomes the "active admin" and locks the ticket exclusively~~ — ⚠ **REMOVED in Phase 17.** See [Exclusive Admin Locking](#exclusive-admin-locking--deleted-and-this-section-described-it-as-live-until-2026-09-06) below. Who holds a ticket is now `admin_assignment`; who may act is wi-admin's tier decision, not a lock on the row.
 - **Priority Locking**: When admin updates priority, it becomes locked permanently
 - **Reopen Tickets**: Only admins can reopen closed tickets
 - **Remove Followers**: Only admins can remove followers from tickets
 - **Delete Attachments**: Only admins can delete attachments
 - **Full Visibility**: Admins see all notes and attachments (including private ones)
-
-> ⚠ **Exclusive Admin Locking no longer exists, and this page described it in fourteen places**
-> (corrected 2026-09-06, DOC-PROGRAM Phase 4 · § 20.1 C5-1). The column was `assigned_admin_id`
-> and it was never an assignment: `setActiveAdminIfNotSet` stamped it on an administrator's
-> **first action** and `validateActiveAdminPermission` then answered `403` to every other
-> administrator — Developers included. So a Support administrator merely opening a ticket locked a
-> Developer out of it, the exact opposite of the tier model wi-admin enforces. **The column, the
-> lock and the `/api/admin/tickets` mount that depended on it are all gone**
-> (`jovi-mall/src/modules/tickets/models/ticket.model.ts:99-110`).
->
-> **What replaced it:** `admin_assignment` — `{ admin, assigned_by, assigned_at }`, written only
-> by wi-admin over the internal API. `null` means unassigned, which is a real state: the system
-> tickets the payout, dispute and booking-refund paths raise land in the admin **pool**, and any
-> tier may claim from it. Who may see or act on a ticket is wi-admin's decision
-> (`resolveScope('tickets')` plus the tier matrix), **never a lock on the row**.
->
-> ⚠ **`assigned_admin_id` is not on the wire anywhere.** A client reading it reads `undefined`.
-> The JSON examples below still showed it; they now show `admin_assignment`.
 
 ## Reference Lookups
 
@@ -86,6 +74,36 @@ unscoped — all orders / all products):
 
 When `trackingNumber` is supplied on creation it is persisted and returned as `tracking_number`
 on ticket responses (`null` when omitted).
+
+> [!IMPORTANT]
+> **A ticket and a ticket note are identified by `id`, not `_id`** — on every endpoint on this
+> page. `Ticket` is built on `BaseSchemaOptions` (`src/core/base.schema.ts`), whose `toJSON`
+> deletes `_id` and exposes the `id` virtual, so the write endpoints (status, priority, assign,
+> close, reopen, and the `PATCH` on the ticket itself) return the document with **`id` alone**.
+>
+> The three enriched reads — create, list and detail — additionally carry a duplicate **`_id`**,
+> because `TicketEnrichmentService` builds its payload with `toObject({ virtuals: true })`, which
+> applies no transform. **Key on `id`**: it is the only identifier present on all of them. A
+> client that keys on `_id` reads `undefined` the first time it patches a ticket.
+
+> [!IMPORTANT]
+> **The administrator holding a ticket comes back under TWO DIFFERENT KEYS, and neither page
+> said so until 2026-09-08.** Which one you get depends on whether the endpoint enriches:
+>
+> | Endpoints | Key | Shape |
+> |---|---|---|
+> | **create · list · detail** (the three enriched reads) | **`assigned_admin`** | `{ name, job_title, department, avatar_url }` — `null` when unassigned |
+> | every other endpoint (status, priority, assign, admin-snapshot, close, reopen, `PATCH`) | **`admin_assignment`** | `{ admin, assigned_by, assigned_at }`, each snapshot `{ id, source, name, tier, job_title, department, avatar_url }` — `null` when unassigned |
+>
+> **`admin_assignment` is NOT on the three enriched reads.** `TicketEnrichmentService` narrows
+> the snapshot through `publicAdminSnapshot()` onto `assigned_admin` and then
+> `delete obj.admin_assignment` (`ticket-enrichment.service.ts:169,189`), because those three
+> reads also serve customers, vendors, agencies and agents, and `tier` decides who may see a
+> ticket. A screen that renders the holder from `admin_assignment` on a list or detail read
+> shows nothing.
+>
+> The same narrowing applies to the ticket's **creator**: `created_by_admin` is a
+> `PublicAdminSnapshot` on the enriched reads, beside the role-agnostic `created_by`.
 
 ## Endpoints
 
@@ -106,14 +124,44 @@ on ticket responses (`null` when omitted).
 **Request Body**:
 ```json
 {
-  "subject": "string (required, min 3, max 200 chars) - Ticket subject/title",
-  "description": "string (required, min 10, max 5000 chars) - Detailed description",
-  "type": "string (required) - Ticket type. Enum: technical, billing, feature_request, bug_report, other",
-  "importance": "string (required) - Importance level. Enum: low, medium, high, urgent",
-  "entityType": "string (required) - Related entity type. Enum: order, product, booking, account, other",
-  "entityId": "string (required) - ID of the related entity"
+  "subject": "string (required, min 1, max 200 chars) - Ticket subject/title",
+  "description": "string (required, min 1, max 700 chars) - Detailed description",
+  "type": "string (required) - Ticket type. One of the 39 UPPERCASE TicketType values — see ../ticket_types.txt",
+  "importance": "string (required) - Importance level. Enum: low, medium, high, critical",
+  "entityType": "string (required) - Related entity type. UPPERCASE. Enum: ORDER, PRODUCT, BOOKING, SHIPMENT, DELIVERY, USER, VENDOR, CUSTOMER, AGENT, AGENCY, OTHER",
+  "entityId": "string (optional for `OTHER`, required otherwise) - ID of the related entity. For `OTHER` it defaults to the caller's own role-entity id.",
+  "trackingNumber": "string (optional, max 120)",
+  "attachments": "string[] (optional, max 5) - File ids previously uploaded via POST /api/files/upload",
+  "admin": "object (optional) - The administrator's profile snapshot. Sent ONLY on this internal mount; see below."
 }
 ```
+
+> [!WARNING]
+> **This block was wrong on six counts until 2026-09-06 and every one of them was a 400.** It
+> claimed `subject` min 3 (really **1**), `description` min 10 / max 5000 (really **1 / 700**),
+> a five-value lowercase `type` enum — `technical, billing, feature_request, bug_report, other`
+> — none of which exists (`CreateTicketSchema.type` is `z.enum(TICKET_TYPE_VALUES)`, the **39
+> UPPERCASE** values), `importance: urgent` (that is a **priority** value; importance ends in
+> **`critical`**), a five-value lowercase `entityType` including a non-existent `account`, and
+> `entityId` as unconditionally required. It also omitted `trackingNumber`, `attachments` and
+> `admin` entirely.
+>
+> **vendor/tickets.md (not mirrored here — `backend/jovi-mall/api-doc/vendor/tickets.md`) is the shared payload reference and was correct
+> throughout** — one shared `CreateTicketSchema` serves every role's mount, so where the two
+> pages disagree about the *body*, that one is right. Only `admin` is genuinely admin-only.
+>
+> ⚠ **The same applies to the RESPONSE, and this page still under-documents it.** Every read here
+> goes through `TicketEnrichmentService`, which adds **`created_by`**, **`assigned_to`** and
+> **`entity`** — resolved summary objects beside the raw `*_id` fields — plus `followers` on the
+> detail read. The examples below omit all four; `vendor/tickets.md` § "Populated / Enriched
+> References" documents them and applies verbatim, because it is the same enrichment.
+
+> [!IMPORTANT]
+> **The request is camelCase and the response is snake_case, and that is real.** You send
+> `entityType` / `entityId`; the ticket comes back with **`entity_type`** / **`entity_id`**,
+> because the Zod schema names the input and `TicketSchema` names the stored document
+> (`ticket.model.ts:68-69`). `TicketController.createTicket` maps between them. The same holds
+> for `trackingNumber` → `tracking_number`.
 
 **Success Response**:
 
@@ -124,19 +172,19 @@ Body:
 {
   "success": true,
   "data": {
-    "_id": "string",
+    "id": "string",
     "subject": "System performance issue",
     "description": "Database queries are slow...",
-    "type": "technical",
-    "importance": "urgent",
-    "priority": "critical",
+    "type": "TECHNICAL_ISSUE",
+    "importance": "critical",
+    "priority": "urgent",
     "status": "open",
-    "entityType": "other",
-    "entityId": "string",
+    "entity_type": "OTHER",
+    "entity_id": "string",
     "created_by_user_id": "string",
     "created_by_role": "admin",
     "assigned_to_role": "admin",
-    "admin_assignment": { "admin": { "id": "string", "source": "admin", "name": "string", "tier": 3, "job_title": null, "department": null, "avatar_url": null }, "assigned_by": null, "assigned_at": "2026-02-11T19:20:00.000Z" },
+    "assigned_admin": { "name": "string", "job_title": null, "department": null, "avatar_url": null },
     "priority_locked": false,
     "createdAt": "2026-02-11T19:00:00.000Z",
     "updatedAt": "2026-02-11T19:00:00.000Z"
@@ -186,13 +234,13 @@ Body:
   "success": true,
   "data": [
     {
-      "_id": "string",
+      "id": "string",
       "subject": "Payment integration issue",
       "status": "in_progress",
       "priority": "high",
-      "type": "technical",
+      "type": "PAYMENT_ISSUE",
       "created_by_role": "vendor",
-      "admin_assignment": { "admin": { "id": "string", "source": "admin", "name": "string", "tier": 3, "job_title": null, "department": null, "avatar_url": null }, "assigned_by": null, "assigned_at": "2026-02-11T19:20:00.000Z" },
+      "assigned_admin": { "name": "string", "job_title": null, "department": null, "avatar_url": null },
       "priority_locked": true,
       "createdAt": "2026-02-11T19:00:00.000Z",
       "updatedAt": "2026-02-11T19:00:00.000Z"
@@ -237,19 +285,19 @@ Body:
 {
   "success": true,
   "data": {
-    "_id": "string",
+    "id": "string",
     "subject": "Payment integration issue",
     "description": "Customers are unable to complete checkout...",
-    "type": "technical",
-    "importance": "urgent",
+    "type": "PAYMENT_ISSUE",
+    "importance": "critical",
     "priority": "high",
     "status": "in_progress",
-    "entityType": "order",
-    "entityId": "string",
+    "entity_type": "ORDER",
+    "entity_id": "string",
     "created_by_user_id": "string",
     "created_by_role": "vendor",
     "assigned_to_role": "admin",
-    "admin_assignment": { "admin": { "id": "string", "source": "admin", "name": "string", "tier": 3, "job_title": null, "department": null, "avatar_url": null }, "assigned_by": null, "assigned_at": "2026-02-11T19:20:00.000Z" },
+    "assigned_admin": { "name": "string", "job_title": null, "department": null, "avatar_url": null },
     "priority_locked": true,
     "createdAt": "2026-02-11T19:00:00.000Z",
     "updatedAt": "2026-02-11T19:00:00.000Z"
@@ -294,7 +342,7 @@ Body:
 {
   "success": true,
   "data": {
-    "_id": "string",
+    "id": "string",
     "subject": "Updated subject",
     "description": "Updated description...",
     "updatedAt": "2026-02-11T19:30:00.000Z"
@@ -305,7 +353,7 @@ Body:
 
 **Error Responses**:
 - `404` – `NOT_FOUND` – Ticket not found
-- ~~`403` – `FORBIDDEN` – Ticket is locked to another admin~~ — **UNREACHABLE.** The exclusivity lock was removed at Phase 17 and `FORBIDDEN` is not a code in the registry. This surface answers `403 TICKET_ACCESS_DENIED` for a non-follower, and nothing at all for "another admin holds it".
+- `403` – `TICKET_ACCESS_DENIED` – Only ticket **followers** can update a ticket (`ticket.service.ts:524`). ⚠ **Not `FORBIDDEN`, and not a per-admin lock** — see the note at the end of this section.
 - `400` – `VALIDATION_ERROR` – Invalid request body
 
 ---
@@ -341,9 +389,9 @@ Body:
 {
   "success": true,
   "data": {
-    "_id": "string",
+    "id": "string",
     "status": "in_progress",
-    "admin_assignment": { "admin": { "id": "string", "source": "admin", "name": "string", "tier": 3, "job_title": null, "department": null, "avatar_url": null }, "assigned_by": null, "assigned_at": "2026-02-11T19:20:00.000Z" },
+    "admin_assignment": { "admin": { "id": "string", "source": "admin", "name": "string", "tier": 3, "job_title": null, "department": null, "avatar_url": null }, "assigned_by": { "id": "string", "source": "admin", "name": "string", "tier": 3, "job_title": null, "department": null, "avatar_url": null }, "assigned_at": "2026-02-09T23:54:00.000Z" },
     "updatedAt": "2026-02-11T19:30:00.000Z"
   },
   "message": "Status updated successfully"
@@ -352,7 +400,7 @@ Body:
 
 **Error Responses**:
 - `404` – `NOT_FOUND` – Ticket not found
-- ~~`403` – `FORBIDDEN` – Ticket is locked to another admin~~ — **UNREACHABLE.** The exclusivity lock was removed at Phase 17 and `FORBIDDEN` is not a code in the registry. This surface answers `403 TICKET_ACCESS_DENIED` for a non-follower, and nothing at all for "another admin holds it".
+- `403` – `TICKET_ACCESS_DENIED` – Only ticket **followers** can update status (`ticket.service.ts:170`). ⚠ **Not `FORBIDDEN`, and not a per-admin lock.**
 - `400` – `VALIDATION_ERROR` – Invalid status value
 - `400` – `TICKET_WAITING_TARGET_NOT_PARTICIPANT` – A `waiting_on_<role>` status was requested but no participant with that role is on the ticket (does not apply to `waiting_on_admin`)
 
@@ -362,20 +410,28 @@ Body:
 
 **Description**: Assign the ticket to an **administrator**, or claim it.
 
-> 🔴 **This section's request body was WRONG until 2026-09-06** (DOC-PROGRAM P-4), here and in the
-> backend's own copy. It documented `{ targetRole, targetUserId }`, which **this** endpoint does
-> not accept — `AssignToAdministratorSchema` is `.strict()`, so that body is a `400` on the
-> *entire* request, every field unknown.
+> 🔴 **This section's request body was WRONG until 2026-09-06** (DOC-PROGRAM P-4). It documented
+> `{ targetRole, targetUserId }`, which the endpoint does not accept. `AssignToAdministratorSchema`
+> is **`.strict()`**, so that body is a **`400` on the entire request** — every field unknown.
+> wi-admin's gateway (`support/gateways/ticket.gateway.ts:250`) has always sent the correct shape,
+> so nothing was broken in practice; but this page is the only contract a reader has, and it
+> described a call that cannot work. Same failure mode as BR-014.
 >
-> **The cause is worth knowing, because it is a trap you can fall into again.** jovi-mall has
-> **four** `/:id/assign` routes — vendor, agency, agent and admin. The first three genuinely take
-> `{ targetRole, targetUserId }` (`AssignTicketSchema` → `TicketController.assignTicket`). The
-> **admin** one is a different handler with a different body
-> (`AssignToAdministratorSchema` → `assignToAdministrator`). They share a path suffix and nothing
-> else, and this page had the role-scoped body pasted under the admin route.
+> **The cause is worth knowing, because it is a trap that can be fallen into again.** jovi-mall
+> has **four** `/:id/assign` routes — vendor, agency, agent and admin. The first three genuinely
+> take `{ targetRole, targetUserId }` (`AssignTicketSchema` → `TicketController.assignTicket`,
+> `{vendor,agency,agent}-ticket.routes.ts:30`). The **admin** one is a different handler with a
+> different body (`AssignToAdministratorSchema` → `assignToAdministrator`,
+> `admin-ticket.routes.ts:68`). They share a path suffix and nothing else, and this page had the
+> role-scoped body pasted under the admin route.
 
 **Authorization**: wi-admin service token (`requireAdminCaller`). Reached from this dashboard
-through wi-admin's `/api/v1/support/tickets/:id/assign` — **not called directly**, see the banner.
+through wi-admin’s `PATCH /api/v1/support/tickets/:ticketId/assign` — **not called directly**, see
+the banner.
+
+**Request Headers**:
+- `Authorization: Bearer <INTERNAL_ADMIN_SERVICE_TOKEN>`
+- `Content-Type: application/json`
 
 **Path Parameters**:
 - `id` (string, required) - Ticket ID
@@ -394,58 +450,68 @@ through wi-admin's `/api/v1/support/tickets/:id/assign` — **not called directl
     "department": "Customer Care",
     "avatar_url": "https://…"
   },
-  "assignedBy": { "…same shape…" }
+  "assignedBy": "…same shape as admin above…"
 }
 ```
 
 | Field | Required | Rule |
 |---|---|---|
-| `admin` | ✅ | The **assignee**'s snapshot. `id` non-empty · `source` literal `"admin"` · `tier` exactly `1`, `2` or `3` · `name` 1–200 · `job_title`/`department` ≤120 nullable · `avatar_url` ≤2048 nullable |
+| `admin` | ✅ | The **assignee**'s snapshot. `id` non-empty · `source` literal `"admin"` (defaulted) · `name` 1–200 · `tier` exactly `1`, `2` or `3` · `job_title`/`department` ≤120 nullable · `avatar_url` ≤2048 nullable |
 | `assignedBy` | optional | The **assigner**'s snapshot. **Its absence IS a claim** |
 
 **Why a snapshot and not a user id:** an administrator holds **no `users` row in jovi-mall**, so
-there is nothing there to join against. The profile travels with the write so a ticket follower can
+there is nothing here to join against. The profile travels with the write so a ticket follower can
 be shown who holds their ticket.
 
 ⚠ **The server decides claim-vs-assign by comparing ids, not by trusting `assignedBy`.** If the
 calling actor's id equals `admin.id`, `assigned_by` is stored as `null` however the body was
-filled — the two cannot disagree.
+filled — so the two cannot disagree.
 
 **Success Response**:
 
 Status: `200 OK` — the updated ticket. **There is no `message` field** on this response.
 
 ```json
-{ "success": true, "data": { "_id": "string", "admin_assignment": { "admin": { "…" }, "assigned_by": null }, "updatedAt": "2026-02-11T19:30:00.000Z" } }
+{ "success": true, "data": { "id": "string", "admin_assignment": { "admin": { "id": "string", "source": "admin", "name": "string", "tier": 3, "job_title": null, "department": null, "avatar_url": null }, "assigned_by": null, "assigned_at": "2026-02-11T19:30:00.000Z" }, "updatedAt": "2026-02-11T19:30:00.000Z" } }
 ```
 
 **Error Responses**:
 - `404` – `NOT_FOUND` – Ticket not found
-- ~~`403` – `FORBIDDEN` – Ticket is locked to another admin~~ — **UNREACHABLE.** The exclusivity lock was removed at Phase 17 and `FORBIDDEN` is not a code in the registry. This surface answers `403 TICKET_ACCESS_DENIED` for a non-follower, and nothing at all for "another admin holds it".
+- ⚠ **This endpoint raises no `403` at all.** Its only refusals are `404 TICKET_NOT_FOUND` and `400 TICKET_ASSIGN_FAILED` (`ticket.service.ts:228-248`). The `403 FORBIDDEN` documented here until 2026-09-06 was unreachable and its code is in no registry.
 - `400` – `VALIDATION_ERROR` – Body failed `.strict()` parse (unknown key, bad `tier`, missing `admin`)
 
 ---
 
 ### PATCH /api/internal/admin/tickets/:id/admin-snapshot
 
-> **Added 2026-09-06** (DOC-PROGRAM P-5). This route existed and appeared in **no** API document
-> on either side; found by a route-coverage sweep, not by reading.
+> **Added to this document 2026-09-06** (DOC-PROGRAM). The route existed and appeared in **no**
+> API document; found by the route-coverage sweep.
 
 **Description**: **Re-stamp the assignee's profile without changing the assignee.** wi-admin calls
 this on every mutation, so the snapshot a customer reads never goes stale behind a rename.
 
-⚠ **Deliberately a different route and schema from `/assign`, even though the payload is a subset
-— do not merge them.** Sending `{ admin }` to `/assign` means *"this administrator now holds the
-ticket, claimed"*: it would **reassign on every edit and clear `assigned_by`**. A refresh must be
-structurally unable to express that.
+⚠ **Deliberately a different route and a different schema from `/assign`, even though the payload
+is a subset — do not merge them.** Sending `{ admin }` to `/assign` means *"this administrator now
+holds the ticket, claimed"*: it would **reassign on every edit and clear `assigned_by`**. A refresh
+must be structurally unable to express that.
 
-**Request Body** — `.strict()`: `{ "admin": { …same AdminSnapshot shape… } }`.
-`assignedBy` is **not accepted here** — sending it is a `400`.
+**Authorization**: wi-admin service token (`requireAdminCaller`).
+
+**Request Body** — `.strict()`:
+```json
+{ "admin": { "id": "…", "source": "admin", "name": "Awa N.", "tier": 2, "job_title": null, "department": null, "avatar_url": null } }
+```
+
+Same `AdminSnapshot` shape and rules as `/assign` above. `assignedBy` is **not accepted here** —
+sending it is a `400`.
 
 **Success Response**: `204 No Content`. **No body at all**, so do not attempt to parse one.
 
-The refresh is **guarded on the assignee id**, so one racing a reassignment cannot overwrite the
-new holder.
+**Notes**
+- The refresh is **guarded on the assignee id** in `TicketService.refreshAdminSnapshot`, so a
+  refresh racing a reassignment cannot overwrite the new holder.
+- The stored snapshot is *"the best current answer, not a historical record"* (ADR D-10) — which is
+  why it is refreshed rather than frozen at assignment.
 
 **Error Responses**:
 - `404` – `NOT_FOUND` – Ticket not found
@@ -484,8 +550,8 @@ Body:
 {
   "success": true,
   "data": {
-    "_id": "string",
-    "priority": "critical",
+    "id": "string",
+    "priority": "urgent",
     "priority_locked": true,
     "updatedAt": "2026-02-11T19:30:00.000Z"
   },
@@ -495,14 +561,14 @@ Body:
 
 **Error Responses**:
 - `404` – `NOT_FOUND` – Ticket not found
-- ~~`403` – `FORBIDDEN` – Ticket is locked to another admin (only active admin can re-update locked priority)~~ — **UNREACHABLE.** There is no active admin. A locked priority is re-updatable by **any** administrator: the check is `role !== 'admin'` (`ticket.service.ts:400-404`), not an identity comparison. The real code for a non-admin is `403 TICKET_PRIORITY_LOCKED`.
+- `403` – `TICKET_PRIORITY_LOCKED` – Priority was locked by an administrator. ⚠ **This locks out NON-ADMINS, not other admins** (`ticket.service.ts:399-403`) — an admin may always change a locked priority. Not `FORBIDDEN`.
 - `400` – `VALIDATION_ERROR` – Invalid priority value
 
 ---
 
 ### POST /api/internal/admin/tickets/:id/close
 
-**Description**: Close a ticket. ⚠ **There is no "auto-unlock"** — the exclusivity lock it referred to was removed at Phase 17, and closing a ticket does not clear `admin_assignment`.
+**Description**: Close a ticket. ⚠ **It does NOT "auto-unlock" anything** — the `assigned_admin_id` lock this line described was removed in Phase 17 (see [Exclusive Admin Locking](#exclusive-admin-locking--deleted-and-this-section-described-it-as-live-until-2026-09-06)). `admin_assignment` is left as it is; closing changes the status, not who holds the ticket.
 
 **Authorization**: Admin access required.
 
@@ -525,24 +591,28 @@ Body:
 {
   "success": true,
   "data": {
-    "_id": "string",
+    "id": "string",
     "status": "closed",
-    "admin_assignment": null,
+    "admin_assignment": { "admin": { "id": "string", "source": "admin", "name": "string", "tier": 3, "job_title": null, "department": null, "avatar_url": null }, "assigned_by": null, "assigned_at": "2026-02-11T19:20:00.000Z" },
     "updatedAt": "2026-02-11T19:30:00.000Z"
   },
   "message": "Ticket closed successfully"
 }
 ```
 
+> The assignment above is **unchanged by the close** — it is shown populated for exactly that
+> reason. This example carried `"admin_assignment": null` until 2026-09-08, which read as though
+> closing released the ticket. It does not; that was the deleted auto-unlock.
+
 **Error Responses**:
 - `404` – `NOT_FOUND` – Ticket not found
-- ~~`403` – `FORBIDDEN` – Ticket is locked to another admin~~ — **UNREACHABLE.** The exclusivity lock was removed at Phase 17 and `FORBIDDEN` is not a code in the registry. This surface answers `403 TICKET_ACCESS_DENIED` for a non-follower, and nothing at all for "another admin holds it".
+- `403` – `TICKET_ACCESS_DENIED` – Only the ticket creator or an admin can close a ticket (`ticket.service.ts:459`). ⚠ **Not `FORBIDDEN`, and not a per-admin lock** — see the note at the end of this section.
 
 ---
 
 ### POST /api/internal/admin/tickets/:id/reopen
 
-**Description**: Reopen a closed ticket. **Admin only**. Admin who reopens becomes the new active admin.
+**Description**: Reopen a closed ticket. **Admin only** (`TICKET_ACCESS_DENIED` at 403 otherwise, `ticket.service.ts:481`). ⚠ **The reopening admin does NOT become an "active admin"** — that mechanism was removed in Phase 17 and `admin_assignment` is unchanged by a reopen.
 
 **Authorization**: Admin access required.
 
@@ -565,9 +635,9 @@ Body:
 {
   "success": true,
   "data": {
-    "_id": "string",
+    "id": "string",
     "status": "open",
-    "admin_assignment": { "admin": { "id": "string", "source": "admin", "name": "string", "tier": 3, "job_title": null, "department": null, "avatar_url": null }, "assigned_by": null, "assigned_at": "2026-02-11T19:20:00.000Z" },
+    "admin_assignment": { "admin": { "id": "string", "source": "admin", "name": "string", "tier": 3, "job_title": null, "department": null, "avatar_url": null }, "assigned_by": { "id": "string", "source": "admin", "name": "string", "tier": 3, "job_title": null, "department": null, "avatar_url": null }, "assigned_at": "2026-02-09T23:54:00.000Z" },
     "updatedAt": "2026-02-11T19:30:00.000Z"
   },
   "message": "Ticket reopened successfully"
@@ -625,17 +695,12 @@ Body:
 - `422` – `TICKET_FOLLOWER_LIMIT_EXCEEDED` – A sixth **distinct non-admin** user was added. Admins are exempt and do not count toward the five.
 
 > [!NOTE]
-> ⚠ **Three codes were documented here until 2026-09-08 and none of them exists.**
-> `404 NOT_FOUND`, `409 ALREADY_FOLLOWING` and `400 FOLLOWER_LIMIT_EXCEEDED` are not in
-> jovi-mall's registry, and a client branching on any of them branches on a string the server
-> never sends. What the source actually does (`ticket-follower.service.ts:46-72`):
+> **Adding a user who already follows the ticket is idempotent and answers `200`** —
+> `TicketFollowerService.addFollower` returns early on `isFollower`. There is no conflict error.
 >
-> - **Adding a user who already follows the ticket is idempotent and answers `200`** —
->   `addFollower` returns early on `isFollower`. There is no conflict error.
-> - **A non-existent ticket id is not rejected either.** Neither the route nor the service checks
->   that the ticket exists before inserting the follower row, so this endpoint answers `200` for
->   an id that matches nothing.
-> - The limit refusal is `422 TICKET_FOLLOWER_LIMIT_EXCEEDED`, not a `400`.
+> **A non-existent ticket id is not rejected either.** Neither the route nor the service checks
+> that the ticket exists before inserting the follower row, so this endpoint answers `200` for an
+> id that matches nothing. Do not depend on it as an existence check.
 
 ---
 
@@ -669,8 +734,8 @@ Body:
 ```
 
 **Error Responses**:
-- `404` – `NOT_FOUND` – Ticket or follower not found
-- `403` – `TICKET_ACCESS_DENIED` – Cannot remove ticket creator from followers (`ticket-follower.service.ts:122`). ⚠ **Not `FORBIDDEN`** — that code is not in the registry
+- `404` – `TICKET_NOT_FOUND` – Ticket not found, or that user does not follow it
+- `403` – `TICKET_ACCESS_DENIED` – The caller is not an admin, or the target is the ticket creator, the current assignee, or another admin — all four raise this one code
 
 ---
 
@@ -707,7 +772,7 @@ Body:
 {
   "success": true,
   "data": {
-    "_id": "string",
+    "id": "string",
     "ticket_id": "string",
     "message": "Escalating to development team",
     "visibility": "PRIVATE",
@@ -752,7 +817,7 @@ Body:
   "success": true,
   "data": [
     {
-      "_id": "string",
+      "id": "string",
       "ticket_id": "string",
       "message": "Working on this issue",
       "visibility": "PUBLIC",
@@ -761,7 +826,7 @@ Body:
       "createdAt": "2026-02-11T19:30:00.000Z"
     },
     {
-      "_id": "string",
+      "id": "string",
       "ticket_id": "string",
       "message": "Internal admin note",
       "visibility": "PRIVATE",
@@ -911,29 +976,43 @@ Body:
 
 **Error Responses**:
 - `404` – `NOT_FOUND` – Attachment not found
-- `403` – `TICKET_ACCESS_DENIED` – Only admins can delete attachments (`ticket-attachment.service.ts:188`). ⚠ **Not `FORBIDDEN`**
+- `403` – `TICKET_ACCESS_DENIED` – Only admins can delete attachments (`ticket-attachment.service.ts:188`). ⚠ **Not `FORBIDDEN`** — that string is in no registry.
 
 ---
 
 ## Notes & Constraints
 
-### ~~Exclusive Admin Locking~~ — REMOVED at Phase 17
+### ~~Exclusive Admin Locking~~ — **DELETED, and this section described it as live until 2026-09-06**
 
-**This mechanism does not exist.** The block below is kept, struck through, because a client built
-against it may still be branching on the shape it described. See § "Admin Privileges" above for
-what replaced it.
+> [!CAUTION]
+> **The mechanism below no longer exists.** The `assigned_admin_id` column, the
+> `setActiveAdminIfNotSet` / `validateActiveAdminPermission` pair that enforced it, and the
+> entire `/api/admin/tickets` mount that depended on it were **removed in Phase 17**. The
+> record is the block comment on `ticket.model.ts:96-107`, which states it plainly: *"The
+> column, the lock and the whole `/api/admin/tickets` mount that depended on it are gone."*
+>
+> **Why it was removed, because the reason matters for what replaced it:** it was never an
+> assignment — it was an exclusivity lock stamped on an administrator's **first action on any
+> ticket**, after which every *other* administrator got a `403`, **Developers included**. A
+> Support administrator merely opening a ticket locked a Developer out of it — the exact
+> opposite of the tier model wi-admin enforces, where tier 1 sees everything. That mount could
+> not have enforced the tier rules in any case: a legacy admin is a platform `users` row and
+> carries no tier.
+>
+> **What is true now:** who holds a ticket is `admin_assignment`
+> (`{ admin, assigned_by, assigned_at }`), it is set by an explicit assignment rather than by
+> touching the ticket, and **who may act is wi-admin's decision** — `resolveScope('tickets')`
+> plus the tier matrix — **not a lock on the row**. The only 403s these endpoints raise are
+> `TICKET_ACCESS_DENIED` (followership) and `TICKET_PRIORITY_LOCKED` (which locks out
+> **non-admins**, never another admin).
 
-- ~~First admin action sets `assigned_admin_id`~~
-- ~~Other admins can **view** ticket metadata but **cannot perform actions**~~
-- ~~Only the active admin can update status, priority, assign, close, etc.~~
-- ~~Attempting action as non-active admin returns `403 FORBIDDEN`~~
-- ~~**Auto-unlock**: ticket closed or resolved → `assigned_admin_id` cleared~~
-- ~~**Reopening**: the admin who reopens becomes the new active admin~~
+~~**Critical Concept**: When an admin performs the **first action** on a ticket, they become the **active admin** and the ticket is locked exclusively to them.~~
 
-**What is true instead.** `admin_assignment` records who holds a ticket and who gave it to them; it
-is written only by wi-admin, over the internal API, and it is **not** a lock — any administrator
-whose tier permits it may act, and closing or resolving a ticket clears nothing. `assigned_admin_id`
-is not on the wire at all, and `FORBIDDEN` is not a code in the registry.
+~~**Locking Behavior**: first admin action sets `assigned_admin_id`; other admins can view but not act; only the active admin can update status, priority, assign or close; a non-active admin gets `403 FORBIDDEN`.~~
+
+~~**Auto-Unlock Triggers**: ticket closed or resolved → `assigned_admin_id` cleared.~~
+
+~~**Reopening**: any admin can reopen a closed ticket and becomes the new active admin.~~
 
 ### Priority Locking
 

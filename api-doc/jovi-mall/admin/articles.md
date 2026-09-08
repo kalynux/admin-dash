@@ -69,6 +69,8 @@
 
 # Admin API — the blog editor
 
+**Verified against source on 2026-09-08** — the obsolescence claim and the redirect — no `/api/admin/*` route is served by jovi-mall (0 hits in the live route census), and wi-admin serves exactly **14** routes under `/api/v1/content/articles*` + `/api/v1/content/authors*`, against `backend/DOC-PROGRAM/evidence/{jovi,admin}-routes.txt`.
+
 The write side of public/articles.md (not mirrored here — `backend/jovi-mall/api-doc/public/articles.md`). Everything here is behind
 `requireAuth` + `requireRole(['admin'])`.
 

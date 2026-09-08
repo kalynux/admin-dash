@@ -5,9 +5,15 @@
 >
 > Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
 > [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+>
+> **Reconciled with the backend page on 2026-09-08 (DOC-PROGRAM R5).** The stamp below is
+> that page’s, and the only deliberate differences here are this banner and the outbound
+> references flattened to plain text because their targets are not mirrored into this folder.
 <!-- /CONTEXT-BANNER -->
 
 # Review moderation — `/api/internal/admin/reviews`
+
+**Verified against source on 2026-09-08** — the four routes, the `ModerationQueueQuerySchema` filters and limits, the `.strict()` reject body (`reason` 3-500 required), the `REVIEW_NOT_PENDING` compare-and-set with `details.status`, and the `meta.totalPages` naming, against `jovi-mall/src/modules/reviews/{routes/admin-review.routes.ts,controllers/admin-review.controller.ts,validators/review.validator.ts,services/review.service.ts}`.
 
 > **wi-admin only.** Service token (`INTERNAL_ADMIN_SERVICE_TOKEN`) + `X-Actor-Id`, exactly
 > like every other router on this prefix. There is **no public twin** and there must not be
@@ -90,6 +96,12 @@ listing in this module is newest-first; this one is the exception on purpose.
   "meta": { "total": 7, "page": 1, "limit": 20, "totalPages": 1 }
 }
 ```
+
+> ⚠ **`meta` here says `totalPages`, not `pages`.** The shared envelope in
+> [`../README.md`](../README.md#the-response-envelope-read-this-first) names the field `pages`,
+> and every other paginated list on this surface uses that name. This controller renames it on
+> the way out (`admin-review.controller.ts:43-47`), so a client keying on `pages` reads
+> `undefined` on this endpoint alone.
 
 **`evidence` is what eligibility resolved**, snapshotted at write time. It is there so a
 moderator can check the claim — this review is about *that* shipment on *that* order — rather

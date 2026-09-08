@@ -5,9 +5,22 @@
 >
 > Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
 > [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+>
+> **Reconciled with the backend page on 2026-09-08 (DOC-PROGRAM R5).** The stamp below is
+> that page’s, and the only deliberate differences here are this banner and the outbound
+> references flattened to plain text because their targets are not mirrored into this folder.
 <!-- /CONTEXT-BANNER -->
 
 # Live Tracking
+
+**Verified against source on 2026-09-08** — both routes under `/api/tracking`, the five per-role
+visibility rules, the five trackable statuses, the response shape, the three `permission_revoked`
+reasons and the outbox→dispatcher mechanism (2 s drain, batch 50, 10 attempts), against
+`jovi-mall/src/modules/tracking-integration/` (`routes/tracking.routes.ts`,
+`controllers/tracking.controller.ts`, `services/visible-agents.service.ts`,
+`config/tracking-integration.config.ts`, `workers/tracking-dispatch.worker.ts`) and, for the
+frame contract, `geo-tracker/internal/modules/tracking/domain/entity.go`. No factual errors were
+found; one gap filled — `POST /api/tracking/agent-state` shares this mount and was unlisted.
 
 Live agent tracking is served by a **separate service** — `geo-tracker`
 ("Project B", Go) — not by this backend. This backend remains the source of
@@ -113,6 +126,22 @@ the result. Frontends have no reason to call it directly.
 
 ---
 
+## POST /api/tracking/agent-state
+
+The other half of this seam, and the **inbound** direction: geo-tracker POSTs an
+agent's tracking-state change here. **Not for frontends** — it is guarded by
+`requireServiceToken` (`INTERNAL_SERVICE_TOKEN`), not by a user session, and it is
+declared *before* this router's `requireAuth` for exactly that reason.
+
+It always answers `200`, reporting the outcome in the body as `applied`,
+`ignored_stale` or `unknown_agent`. Full contract:
+`geo-tracker/api-doc/tracking-notifications.md` (not mirrored here — `backend/jovi-mall/api-doc/../../geo-tracker/api-doc/tracking-notifications.md`).
+
+Named here because these are the **only two routes** under `/api/tracking`, and a
+reader who found just one would reasonably conclude the mount had only one.
+
+---
+
 ## Configuration
 
 | Env var | Purpose |
@@ -124,10 +153,18 @@ the result. Frontends have no reason to call it directly.
 ## How the event push works
 
 1. A shipment status changes (`ShipmentService`) or COD cash is recorded
-   (`CashCollectionService`) → a domain event is published.
-2. `tracking-integration`'s subscriber writes a row to the **`tracking_outbox`**
-   collection (durable: a crash never loses a pending revocation — the
-   in-process event bus alone would).
+   (`CashCollectionService`), **inside a Mongo transaction**.
+2. **Inside that same transaction**, `TrackingOutboxEmitter` writes a row to the
+   **`tracking_outbox`** collection, passing the transaction's `ClientSession`. The row commits
+   with the state change or not at all, so a crash cannot lose a pending revocation.
+
+   > ⚠ **Corrected 2026-09-06** (DOC-PROGRAM F-42). This step used to say *"`tracking-integration`'s
+   > subscriber writes a row"* — that subscriber (`TrackingEventSubscriber`) was **deleted** at plan
+   > step 3.A.1 and the event bus is no longer on this path at all. The durability claim was true of
+   > a mechanism the sentence did not name: the bus cannot carry a Mongo session, and
+   > `EventBus.publish` swallows handler errors, so a failed enqueue through it was silent. A domain
+   > event *is* still published for in-process consumers (customer notifications, assignment) — it
+   > simply no longer reaches the outbox.
 3. `TrackingDispatchWorker` drains the outbox every ~2s and POSTs each event to
    geo-tracker's `/webhooks/node`, HMAC-SHA256 signed, retrying with a bounded
    attempt count before parking the row as `failed`.

@@ -45,6 +45,8 @@
 
 # Admin — Self Profile
 
+**Verified against source on 2026-09-08** — the obsolescence claim and the redirect — `GET|PATCH /api/v1/administrators/me` and `GET /api/v1/administrators/me/activity` are all served by wi-admin, and jovi-mall serves no `/api/admin/*` route at all, against `backend/DOC-PROGRAM/evidence/{jovi,admin}-routes.txt`.
+
 Read and update the authenticated admin's own profile.
 
 - **Base URL**: `http://localhost:8022/api`

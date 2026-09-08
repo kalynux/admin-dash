@@ -5,9 +5,17 @@
 >
 > Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
 > [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+>
+> **Reconciled with the backend page on 2026-09-08 (DOC-PROGRAM R5).** The stamp below is
+> that page’s, and the only deliberate differences here are this banner and the outbound
+> references flattened to plain text because their targets are not mirrored into this folder.
 <!-- /CONTEXT-BANNER -->
 
 # API Error Handling Guide
+
+**Verified against source on 2026-09-08** — the envelope, the nine categories, the exposure
+rule and the registry size, against `jovi-mall/src/api/middlewares/error-handler.middleware.ts`,
+`src/core/error-category.ts`, `src/core/error-detail-policy.ts` and `src/core/error-codes.ts`.
 
 This guide explains how frontend applications should handle and parse error responses from the Jovi Mall API. By standardizing our error formats, the frontend can reliably display appropriate feedback to users and trigger specific client-side UI flows based on explicit error codes.
 
@@ -37,17 +45,8 @@ Whenever an API request fails (e.g., due to validation, business logic violation
 (jovi-mall, wi-admin and geo-tracker emit the same nine strings).
 
 It exists so a client can behave sensibly about an error it has **no specific handling
-for** — which is most of them, since the registry has 623 codes. Branch on `code` when you
+for** — which is most of them, since the registry has 640 codes. Branch on `code` when you
 have something particular to do; fall back to `category` for everything else.
-
-> ⚠ **`../error-codes.ts` is a COPY of the backend registry, and it has silently drifted
-> before.** It sat **20 codes behind** until 2026-09-06 — 603 against the backend's 623,
-> missing the 16 `BOT_*` plus `PAYMENT_LINK_NOT_APPLICABLE`, `PAYMENT_LINK_NOT_FOUND`,
-> `PAYMENT_LINK_NOT_PAYABLE` and `STORAGE_DOWNLOAD_NOT_SUPPORTED`. It has been re-synced and
-> verified **key-for-key** against `jovi-mall/src/core/error-codes.ts`. **Nothing re-checks
-> it automatically**, and the backend registry grows — so measure both sides rather than
-> trusting this note:
-> `grep -cE "^\s+[A-Z0-9_]+:\s*'" ../error-codes.ts`   → **623** on 2026-09-06
 
 | `category` | Means | What a client should generally do |
 |---|---|---|
@@ -76,20 +75,74 @@ against the `requestId`, and support staff and administrators can look it up.
 `code` is still real on a 5xx (`PAYMENT_INITIATION_FAILED`, not a generic stand-in), so
 specific handling remains possible.
 
+> ⚠ **"A fixed, generic sentence" is sometimes not a sentence.** The replacement is the code's
+> **registry default**, and five of the codes actually raised at 5xx have a machine-generated
+> lowercase default: `STORAGE_UPLOAD_FAILED` → *"storage upload failed"*,
+> `STORAGE_DELETE_FAILED`, `DATABASE_CONNECTION_ERROR`, `CATALOG_BULK_UPDATE_FAILED` and
+> `COMMAND_ALREADY_REGISTERED`. They leak nothing, but they are not written for a person.
+> **Do not render `message` verbatim on a 5xx** — map `code` to your own copy and fall back to
+> your generic "something went wrong", with the `requestId`.
+
 > **This is what makes `requestId` matter.** On a 5xx it is the only handle anyone has.
 > Show it. A user who can quote `req_abc123` turns an unactionable "something went wrong"
 > into a support conversation that resolves.
+
+### Two MORE categories are allowlisted
+
+**New to this page 2026-09-08 — it was undocumented, and pages across the platform promised
+`details` keys that never arrive.** Two further categories do not send `details` through
+unchanged either. They are not masked like the two above; they are **filtered to a fixed set of
+keys**, and anything else is dropped (`core/error-detail-policy.ts:29-40`).
+
+| Category | Keys that survive | Everything else |
+|---|---|---|
+| `authorization` | `required` · `requiredAny` · `resource` · `hint` | dropped |
+| `rate_limit` | `retryAfterSeconds` · `limit` · `windowSeconds` | dropped |
+
+Two consequences a client must plan for:
+
+- **If nothing survives, `details` is omitted from the response entirely** — not `{}`, not
+  `null`. `403 AUTH_ROLE_NOT_FOUND` is raised internally with `{ role }` and reaches you with no
+  `details` at all.
+- **Key names are matched loosely but exactly enough to catch you out.** Comparison lower-cases
+  and strips separators, so `retry_after_seconds` and `retryAfterSeconds` both survive — but
+  `retryInSeconds` is a *different word* and is dropped. That is why
+  `COD_CODE_RESEND_TOO_SOON` sends no `details`, despite raising one.
+
+**Every other category** — `authentication`, `validation`, `not_found`, `conflict`,
+`business_rule` — passes `details` through in full, minus a small denylist of internal-narrative
+keys (`cause`, `stack`, `originalError`, `query`, `hostname`, … ) that is applied everywhere.
+
+> A 403 in this documentation showing `{ transition, party, proposer, hint }` therefore means
+> *"the server raises these"*, and you will receive `{ hint }`. Where that is true the tables
+> below now say so; if you find one that does not, the allowlist above is the authority.
 
 ### Field Descriptions
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
 | `success` | `boolean` | Always `false` for error responses. Use this to quickly verify if the request failed from the body payload (if your HTTP client resolves based on standard parsing). |
-| `requestId` | `string` | A unique identifier for the request. **Highly recommended** to display this ID to the user in a generic "Something went wrong" toast, so they can provide it to customer support for tracing. |
+| `requestId` | `string` | A unique identifier for the request. **Highly recommended** to display this ID to the user in a generic "Something went wrong" toast, so they can provide it to customer support for tracing. See the note below for its real shape and for the header that carries it. |
 | `error.code` | `string` | **The most important field.** A domain-centric identifier (e.g., `AUTH_TOKEN_EXPIRED`, `CATALOG_INSUFFICIENT_STOCK`). Frontend logic (like showing dedicated UI modals, redirecting, or mapping i18n translation keys) **must** be driven by this field. |
 | `error.message` | `string` | A generic human-readable message provided by the backend. Useful as a fallback to display to the user if the frontend lacks a specific translation for the `error.code`. |
 | `error.statusCode` | `number` | Repeats the HTTP response status code for programmatic convenience. |
 | `error.details` | `object` | Optional supplemental data related to the specific error. See the section below for details. |
+
+> ### Two things about `requestId` a client needs — added 2026-09-08
+>
+> **It is a UUIDv4**, not a `req_`-prefixed string. The `req_abc123` in the examples on this
+> page is a placeholder; a real one looks like `3f8a1c74-9b2e-4d10-8c55-6a0f2b7e19dd`
+> (`api/middlewares/request-id.middleware.ts:50`). **Never pattern-match on a prefix.**
+>
+> **It also arrives as the `X-Request-Id` response header, on every response — success or
+> failure — and that header is CORS-exposed**, so a browser can read it (`app.ts:43` lists
+> `X-Request-Id` and nothing else in `exposedHeaders`). That is the only way to get a
+> correlation id off a response with no JSON body, and it is what makes "log the request id for
+> every call" possible rather than error-only.
+>
+> If you send your own `X-Request-Id`, it is **echoed back and used** as long as it matches
+> `/^[A-Za-z0-9._:-]{1,128}$/`. A malformed one is silently replaced with a fresh UUID rather
+> than rejected — so do not assume the id you sent is the id that was logged; read the header.
 
 ---
 
@@ -160,7 +213,7 @@ Occurs when attempting to create a record that conflicts with an existing unique
 ```
 
 ### 3. Catalog Bulk Update Validation
-**Code:** `CATALOG_BULK_VALIDATION_FAILED` (Status `400`)
+**Code:** ~~`CATALOG_BULK_VALIDATION_FAILED`~~ — **UNREACHABLE; raised by nothing.** The bulk paths answer `400 CATALOG_INVALID_CSV` (bad columns or unparseable CSV) and `422 CATALOG_BULK_LIMIT_EXCEEDED` (over 1 000 rows), and per-row failures come back **inside a `200`** rather than as an error — see `vendor/inventory.md` (not mirrored here — `backend/jovi-mall/api-doc/vendor/inventory.md`). The `details.rowErrors` shape below is illustrative only.
 Occurs when uploading bulk inventory/catalog data (like CSVs) and specific rows fail validation.
 
 ```json
@@ -274,7 +327,7 @@ Returned by the Agency Connections (not mirrored here — `backend/jovi-mall/api
 Other codes in this family — see Agency Connections (not mirrored here — `backend/jovi-mall/api-doc/vendor/agency-connections.md`) and
 Vendor Connections (not mirrored here — `backend/jovi-mall/api-doc/agency/vendor-connections.md`) for full context, no `details` payload:
 `CONNECTION_NOT_FOUND` (404), `CONNECTION_VENDOR_NOT_FOUND` (404), `CONNECTION_ALREADY_EXISTS`
-(409), `CONNECTION_NOT_PENDING` / `CONNECTION_NOT_PAUSED` / `CONNECTION_NOT_ACTIVE` (422),
+(409), `CONNECTION_NOT_PENDING` / `CONNECTION_NOT_ACTIVE` (422) — ⚠ **the third member of that trio, ~~`CONNECTION_NOT_PAUSED`~~, is registered and raised by nothing**; do not branch on it,
 `CONNECTION_NOT_REQUESTER` / `CONNECTION_NOT_APPROVER` / `CONNECTION_WRONG_REAPPROVAL_PARTY` (403).
 
 ### 10. Cash on Delivery (COD) Errors
@@ -294,18 +347,18 @@ agency/cod-cash-management.md (not mirrored here — `backend/jovi-mall/api-doc/
 | `COD_COLLECTION_NOT_COLLECTIBLE` | 422 | Shipment/collection state doesn't allow collection | `{ shipmentStatus }` or `{ collectionStatus }` |
 | `COD_INVALID_CODE` | 422 | Wrong delivery code | `{ attemptsRemaining }` |
 | `COD_CODE_ATTEMPTS_EXCEEDED` | 423 | Code locked after too many wrong attempts — resend required | — |
-| `COD_CODE_RESEND_TOO_SOON` | 429 | Code (re)send rate limit | `{ retryInSeconds }` |
+| `COD_CODE_RESEND_TOO_SOON` | 429 | Code (re)send rate limit | ⚠ **none** — raised with `{ retryInSeconds }`, dropped by the `rate_limit` allowlist (which spells it `retryAfterSeconds`). Use the `Retry-After` header |
 | `COD_AGENT_NOT_ASSIGNED` | 422 | COD shipment pickup attempted without an assigned agent | — |
 | `COD_AGENT_EXPOSURE_EXCEEDED` | 422 | Assignment would exceed the agent's cash exposure limit | `{ currentExposure, additionalAmount, effectiveLimit }` |
 | `COD_AGENT_TRUST_TOO_LOW` | 422 | Trust below COD threshold, or open cash-shortfall flag | `{ trustScore, minimum }` or `{ reason }` |
-| `COD_AGENT_HAS_OUTSTANDING_CASH` | 422 | Agent unlink blocked by undeposited cash | `{ outstanding }` |
+| ~~`COD_AGENT_HAS_OUTSTANDING_CASH`~~ | ~~422~~ | **UNREACHABLE** — raised by nothing. Ending a contract while the agent still holds cash is `422 CONTRACT_HAS_OUTSTANDING_COD` (`agent-contract.service.ts:738-741`) | `{ outstandingCod }` |
 | `COD_DEPOSIT_INVALID_AMOUNT` | 422 | Deposit amount not a positive integer | `{ amount }` |
 | `COD_DEPOSIT_EXCEEDS_BALANCE` | 422 | Deposit larger than the agent's held cash | `{ amount, outstanding }` |
 | `COD_DEPOSIT_NOT_FOUND` | 404 | Unknown deposit, or not this agency's | — |
 | `COD_DEPOSIT_ALREADY_RESOLVED` | 409 | Deposit already confirmed or rejected | `{ status }` |
 | `COD_DEPOSIT_REFERENCE_REQUIRED` | 422 | Direct-to-platform deposit with no transfer reference | — |
 | `COD_DEPOSIT_AGENCY_ALREADY_SETTLED` | 422 | Direct payment for cash the agency already remitted — pay the agency instead | `{ amount, agencyOwesPlatform, hint }` |
-| `COD_DEPOSIT_WRONG_RECIPIENT` | 403 | Only the party the cash was handed to may confirm/reject it | `{ recipient, hint }` |
+| `COD_DEPOSIT_WRONG_RECIPIENT` | 403 | Only the party the cash was handed to may confirm/reject it | `{ hint }` — `recipient` is dropped by the `authorization` allowlist |
 | `DELIVERY_AGENT_NOTIFICATION_NOT_FOUND` | 404 | Notification not found, or not this agent's | — |
 | `DELIVERY_AGENT_NOTIFICATION_CHANNEL_NOT_VERIFIED` | 400 | Tried to enable an unverified secondary channel | `{ channel }` |
 | `DELIVERY_AGENT_NOTIFICATION_DELIVERY_FAILED` | 502 | A secondary-channel delivery failed (in-app still recorded) | — |
@@ -328,7 +381,7 @@ agent/agency-membership.md (not mirrored here — `backend/jovi-mall/api-doc/age
 |------|------|-------------|---------|
 | `AGENT_MEMBERSHIP_ALREADY_EXISTS` | 409 | A live contract between this agent and agency already exists | `{ status, contractId }` |
 | `CONTRACT_NOT_FOUND` | 404 | Unknown, **or** belongs to another party — never 403, so neither side can probe the other's roster | — |
-| `CONTRACT_TRANSITION_NOT_PERMITTED` | 403 | Wrong party for this verb. **Keyed on whose TERMS are standing, not on who opened the contract**: the proposer may only `withdraw`, the counterparty may only `approve`/`reject`/`counter`. Also `suspend` raised by an agent | `{ transition, party, proposer, hint }` |
+| `CONTRACT_TRANSITION_NOT_PERMITTED` | 403 | Wrong party for this verb. **Keyed on whose TERMS are standing, not on who opened the contract**: the proposer may only `withdraw`, the counterparty may only `approve`/`reject`/`counter`. Also `suspend` raised by an agent | `{ hint }` — `transition`, `party` and `proposer` are dropped by the `authorization` allowlist |
 | `CONTRACT_INVALID_TRANSITION` | 409 | The contract is not in a status this transition can leave | `{ transition, from, allowedFrom }` |
 | `AGENT_MEMBERSHIP_LIMIT_REACHED` | 422 | The agent is at their agency cap. Checked at **approval**, not at request | `{ current, max }` |
 | `AGENT_KYC_NOT_VERIFIED` | 422 | Re-checked at approval, not trusted from request time | `{ kycStatus, hint }` |
@@ -342,7 +395,7 @@ agent/agency-membership.md (not mirrored here — `backend/jovi-mall/api-doc/age
 | `CONTRACT_STATUS_REQUEST_NOT_FOUND` | 404 | Unknown, or not addressed to you | — |
 | `CONTRACT_STATUS_REQUEST_NOT_PENDING` | 409 | Already resolved | `{ state }` |
 | `CONTRACT_STATUS_REQUEST_ALREADY_PENDING` | 409 | One open request per contract per transition | `{ requestId }` |
-| `CONTRACT_STATUS_REQUEST_NOT_YOURS` | 403 | You raised it; the counterparty resolves it | `{ requestedByRole, hint }` |
+| `CONTRACT_STATUS_REQUEST_NOT_YOURS` | 403 | You raised it; the counterparty resolves it | `{ hint }` — `requestedByRole` is dropped by the `authorization` allowlist |
 | `CONTRACT_HAS_OUTSTANDING_COD` | 422 | Termination blocked — the agent still holds that agency's cash. Scoped to the one contract | `{ outstandingCod, hint }` |
 | `CONTRACT_HAS_UNPAID_EARNINGS` | 422 | Termination blocked — the agency still owes the agent | `{ outstandingPayment, hint }` |
 
@@ -352,13 +405,13 @@ agent/agency-membership.md (not mirrored here — `backend/jovi-mall/api-doc/age
 |------|------|-------------|---------|
 | `CONTRACT_TERMS_REQUIRED` | 422 | An agent's join request stated terms but omitted `fee_split`. Coverage alone would leave their own proposal paying zero — omit `terms` entirely instead | `{ hint }` |
 | `CONTRACT_TERMS_NOT_PROPOSED` | 422 | **Approving terms nobody proposed.** `termsProposedBy` is `null` — a bare agent join request, or a legacy contract whose split was never configured. The agency must propose first | `{ contractId, hint }` |
-| `CONTRACT_TERMS_NOT_NEGOTIABLE` | 403 | A party wrote a term group that is not theirs. Agents may write `fee_split` and `coverage` only; `employment` and the COD threshold are nobody's to negotiate | `{ party, offending, negotiable, hint }` |
+| `CONTRACT_TERMS_NOT_NEGOTIABLE` | 403 | A party wrote a term group that is not theirs. Agents may write `fee_split` and `coverage` only; `employment` and the COD threshold are nobody's to negotiate | `{ hint }` — `party`, `offending` and `negotiable` are dropped by the `authorization` allowlist |
 | `CONTRACT_TERMS_LIVE_EDIT_NOT_ALLOWED` | 409 | `PATCH …/terms` on a live contract. Its agreed split is pricing deliveries right now — raise a proposal instead | `{ status, hint }` |
 | `CONTRACT_FEE_SPLIT_INVALID` | 422 | A `percentage` split with no share, or a `flat` one with no fee. Checked on the patch **merged over the stored split**, so a partial update is not rejected for a field it does not touch | `{ model, hint }` |
 | `CONTRACT_COD_THRESHOLD_OUT_OF_BOUNDS` | 422 | Outside the absolute per-contract bounds | `{ requested, min, max }` |
 | `CONTRACT_COD_THRESHOLD_EXCEEDS_HEADROOM` | 422 | The agent's shared pool has no room — another agency's slice may be the cause | `{ requested, headroom, shortfall, hint }` |
 | `CONTRACT_COD_THRESHOLD_BELOW_OUTSTANDING` | 422 | Cannot set a threshold beneath cash already held under the contract | `{ requested, outstandingBalance, hint }` |
-| `CONTRACT_COVERAGE_OUTSIDE_AGENT_RADIUS` | 422 | An agency cannot grant coverage the agent never agreed to work | — |
+| ~~`CONTRACT_COVERAGE_OUTSIDE_AGENT_RADIUS`~~ | ~~422~~ | 🔴 **NEVER SENT — the rule is not enforced.** See the note below | — |
 | `CONTRACT_COVERAGE_REGION_NOT_COVERED` | 422 | **Assignment gate.** The delivery region is outside the regions this contract covers | `{ deliveryRegion, coveredRegions, hint }` |
 | `CONTRACT_COVERAGE_REGION_INVALID` | 400 | **Terms-write gate.** A proposed `coverage.regions` entry is not a region of the agency's country — a city, or a typo. Region keys come from `locations.json`, the same catalogue the agency's own coverage areas use; a localized name (`"Extrême-Nord"`) is accepted and canonicalised. `allowedRegions` is the full catalogue, so a picker can be repaired from the error | `{ invalid, requiredCountry, allowedRegions }` |
 | `CONTRACT_SHIPMENT_VALUE_EXCEEDED` | 422 | **Assignment gate.** The shipment is worth more than this contract's per-shipment ceiling | `{ shipmentValue, ceiling, hint }` |
@@ -371,17 +424,55 @@ agent/agency-membership.md (not mirrored here — `backend/jovi-mall/api-doc/age
 | `CONTRACT_TERMS_PROPOSAL_NOT_FOUND` | 404 | Unknown, **or** on a contract that is not yours — never 403, same rule as `CONTRACT_NOT_FOUND` | — |
 | `CONTRACT_TERMS_PROPOSAL_NOT_PENDING` | 409 | Already accepted, rejected, withdrawn or superseded — possibly by a concurrent call | `{ state }` |
 | `CONTRACT_TERMS_PROPOSAL_ALREADY_PENDING` | 409 | One open proposal per contract. Counter or cancel the open one | `{ proposalId, proposedByRole }` |
-| `CONTRACT_TERMS_PROPOSAL_NOT_YOURS` | 403 | Answering your own proposal, or cancelling someone else's. `/resolve` and `/counter` are the counterparty's; `/cancel` is the author's | `{ proposedByRole, hint }` |
+| `CONTRACT_TERMS_PROPOSAL_NOT_YOURS` | 403 | Answering your own proposal, or cancelling someone else's. `/resolve` and `/counter` are the counterparty's; `/cancel` is the author's | `{ hint }` — `proposedByRole` is dropped by the `authorization` allowlist |
 
 > **Reading a failed `approve`.** Guard order is terms → platform gates → COD pool, so
 > `CONTRACT_TERMS_NOT_PROPOSED` means exactly what it says — nobody has made an offer — and not that
 > something is wrong with the agent's account. Render it as "waiting on terms", not as an error.
 
-Legacy roster codes, still live: `DELIVERY_AGENT_ALREADY_IN_AGENCY` (409),
-`DELIVERY_AGENT_NOT_IN_AGENCY` (404), `DELIVERY_AGENT_HAS_ACTIVE_SHIPMENTS` (422),
-`AGENT_MEMBERSHIP_NOT_FOUND` (404), `AGENT_MEMBERSHIP_NOT_APPROVED` (409 — despite the name, it
-means "not **active**"; the code predates the status rename), `AGENT_MEMBERSHIP_NOT_PENDING` (409),
-`AGENT_MEMBERSHIP_NOT_SUSPENDED` (409).
+> 🔴 **~~`CONTRACT_COVERAGE_OUTSIDE_AGENT_RADIUS`~~ is never sent, and the rule behind it is enforced
+> by nothing** (DOC-PROGRAM F-17 class 7, 2026-09-06). The row above promised that *"an agency
+> cannot grant coverage the agent never agreed to work"*. That sentence is real — it is the
+> docstring of `IAgentHomeBase` (`agents/models/agent.model.ts:371-374`), which carries
+> `service_radius_km` for exactly this purpose. But **the field is read by one thing in the whole
+> service, `agent-directory.dto.ts:108`, which only projects it into a response**; no write path
+> consults it, `contract-coverage.service.ts` does not mention `home_base` at all, and the code is
+> raised at zero sites.
+>
+> **What IS enforced on a coverage write is `CONTRACT_COVERAGE_REGION_INVALID`** (400, the row
+> above): a proposed region must be a region of the **agency's country**. That is a catalogue
+> check, not an agent-consent check — an agency may still grant an agent a region on the far side
+> of a country they never agreed to serve, and the platform will accept it.
+>
+> Documented rather than fixed, per this program's scope (a missing guard is application
+> behaviour). Two consequences for a client: do not write a branch for this code, and do not
+> present the agent's `serviceRadiusKm` as though it constrains what an agency may propose — it
+> is advisory information for a human reading the directory.
+
+Legacy roster codes. **Only two of these are live**, and both are raised by the contract service:
+`AGENT_MEMBERSHIP_NOT_FOUND` (404 — `agent-deposit.service.ts:385`) and
+`AGENT_MEMBERSHIP_NOT_APPROVED` (409/422 — `agent-contract.service.ts:1026,1043,1051`; despite the
+name it means "not **active**", the code predates the status rename).
+
+> 🔴 **Corrected 2026-09-06** (DOC-PROGRAM F-17 class 7). This paragraph said *"Legacy roster
+> codes, **still live**"* and listed **seven**. Five of them are in the registry and raised
+> **nowhere in `src/`** — a client branching on any of them branches on a string this platform
+> has never sent, so the branch is dead and the user gets the fallback message. What the roster
+> actually answers today:
+>
+> | Was documented as | Situation | What is really raised |
+> |---|---|---|
+> | ~~`DELIVERY_AGENT_ALREADY_IN_AGENCY`~~ (409) | a contract with this agency already exists | [`AGENT_MEMBERSHIP_ALREADY_EXISTS`](#agent--agency-contracts) (409) |
+> | ~~`DELIVERY_AGENT_NOT_IN_AGENCY`~~ (404) | no contract between the two | `CONTRACT_NOT_FOUND` / `AGENT_MEMBERSHIP_NOT_FOUND` (404) |
+> | ~~`DELIVERY_AGENT_HAS_ACTIVE_SHIPMENTS`~~ (422) | the relationship cannot be ended yet | `CONTRACT_HAS_OUTSTANDING_COD` / `CONTRACT_HAS_UNPAID_EARNINGS` (422) |
+> | ~~`AGENT_MEMBERSHIP_NOT_PENDING`~~ (409) | answering a contract that is not pending | `CONTRACT_STATUS_REQUEST_NOT_PENDING` / `CONTRACT_INVALID_TRANSITION` (409) |
+> | ~~`AGENT_MEMBERSHIP_NOT_SUSPENDED`~~ (409) | reinstating a contract that is not suspended | `CONTRACT_INVALID_TRANSITION` (409) |
+>
+> Every replacement is documented above and was already correct — the defect was this one
+> sentence asserting five dead codes were live, in the page a client generates its error registry
+> from. They are **kept struck through rather than deleted**: a dashboard shipped against this
+> page may still hold a branch for each, and a reader who finds one in their own code needs to be
+> able to look it up here and learn it is dead.
 
 > `DELIVERY_INVITE_NOT_FOUND` and `DELIVERY_INVITE_ALREADY_PENDING` were **removed** with the
 > email-invite endpoints. An agency now reaches an agent through the directory
@@ -413,7 +504,7 @@ The agency-facing product actions
 | `STOCK_REQUEST_NOT_FOUND` | 404 | Unknown, **or** not a request the caller is party to — never 403 | — |
 | `STOCK_REQUEST_ALREADY_PENDING` | 409 | One open request per SKU. Withdraw yours, or answer theirs | `{ requestId, requestedByRole, hint }` |
 | `STOCK_REQUEST_NOT_PENDING` | 409 | Already approved, rejected or withdrawn — possibly by the other party a moment ago | `{ status }` |
-| `STOCK_REQUEST_NOT_YOURS` | 403 | Wrong verb for your side: `approve`/`reject` belong to the counterparty, `withdraw` to the author | `{ availableActions }` |
+| `STOCK_REQUEST_NOT_YOURS` | 403 | Wrong verb for your side: `approve`/`reject` belong to the counterparty, `withdraw` to the author | ⚠ **none** — `availableActions` is dropped by the `authorization` allowlist |
 | `STOCK_REQUEST_STALE` | 409 | The product stopped being warehoused by that agency while the request stood | — |
 | `STOCK_REQUEST_NO_CHANGE` | 422 | The requested quantity is already the recorded one | `{ quantity }` |
 | `CATALOG_PRODUCT_AGENCY_STORAGE_INFINITE_STOCK` | 422 | A warehoused product cannot have unlimited stock. Fires as an activation blocker, on a `PATCH /products/:id` moving pickup to `agency_storage`, and on a request asking to go unlimited | `{ variant }` or `{ variant, variants }` |
@@ -431,7 +522,7 @@ The agency-facing product actions
 ## Blog / editorial
 
 The public reader (public/articles.md (not mirrored here — `backend/jovi-mall/api-doc/public/articles.md`)). The editor moved to wi-admin at
-Phase 5 Part A (`admin/docs/api/content.md`), and it raises these **same codes** from its own
+Phase 5 Part A (`admin/api-doc/api/content.md`), and it raises these **same codes** from its own
 registry — deliberately, so a client sees one vocabulary across the cutover. The three below that
 a logged-out visitor can reach are still raised here, by the public reader.
 
@@ -472,7 +563,7 @@ The first three are reachable by a **logged-out visitor**, so their `message` is
 1. **Always default to parsing `error.code`.** Do not write business logic dependent on `statusCode` limits (e.g., `if (statusCode === 400)`) unless parsing a generic networking failure. Use `if (error.code === 'AUTH_TOKEN_EXPIRED') { triggerLogout(); }`.
 2. **Use `error.message` as a fallback.** If your application supports full i18n, map the backend `error.code` directly to a translation key. If the key is missing in your dictionary, display the backend's `error.message` directly to the user.
 3. **Use `error.category` as your default branch.** You will never have specific handling for
-   all 623 codes. The category tells you the four things that actually change client
+   all 640 codes. The category tells you the four things that actually change client
    behaviour: is it worth retrying, should the user re-authenticate, is it their input, or is
    it ours.
 4. **Log the `requestId`.** If the error is an unexpected `INTERNAL_SERVER_ERROR`, present the `requestId` in the UI to help the user report it: *"An unexpected error occurred. If you contact support, please provide this ID: req-1234abc"*.

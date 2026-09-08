@@ -5,9 +5,15 @@
 >
 > Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
 > [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+>
+> **Reconciled with the backend page on 2026-09-08 (DOC-PROGRAM R5).** The stamp below is
+> that page’s, and the only deliberate differences here are this banner and the outbound
+> references flattened to plain text because their targets are not mirrored into this folder.
 <!-- /CONTEXT-BANNER -->
 
 # Admin Billing API
+
+**Verified against source on 2026-09-08** — the eight `/api/internal/admin/billing` routes, `CreatePlanSchema` field by field (every bound and nullability), `UpdatePlanSchema` omitting `role`/`code`, the entitlements read and the two-plan assignment rule, against `jovi-mall/src/modules/billing/{routes/admin-billing.routes.ts,validators/billing.validators.ts:15-40}`. The Authentication section described the deleted `requireRole([\x27admin\x27])` cookie session.
 
 > ## ⚠️ This surface moved at the Phase 5 cutover — read this before the routes below
 >
@@ -24,7 +30,7 @@
 > **If you are building a dashboard, this is not your document.** Call wi-admin's `/api/v1/billing` instead — it resolves the
 > administrator's tier and permissions, writes the audit row, and calls this surface on your
 > behalf. See [internal-service-api.md](./internal-service-api.md) for the door itself, and
-> `admin/docs/api/` in the wi-admin repository for the dashboard contract.
+> `admin/api-doc/api/` in the wi-admin repository for the dashboard contract.
 
 ---
 
@@ -40,10 +46,27 @@ billing-plans-across-roles.md (not mirrored here — `backend/jovi-mall/api-doc/
 ```
 
 ## Authentication
-All requests require a valid Bearer token with the **admin** role:
-```
-Authorization: Bearer <access_token>
-```
+
+`requireAdminCaller` (`src/api/middlewares/admin-caller.middleware.ts`) — a **service** call from
+wi-admin, not a browser session:
+
+| Header | Required | Meaning |
+|---|---|---|
+| `X-Service-Token` | yes | `INTERNAL_ADMIN_SERVICE_TOKEN`, compared in constant time. `Authorization: Bearer <token>` is accepted as an alternative |
+| `X-Actor-Id` | yes | The acting administrator’s `admin_accounts._id` from the **wi-admin** database. Must be a valid ObjectId |
+| `X-Actor-Name` | no | Snapshotted onto the actor stamps this surface writes. Defaults to `Administrator` |
+| `X-Request-Id` | no | Correlation id, echoed into logs |
+
+Unset secret ⇒ `503`; bad token ⇒ `401`; missing or malformed actor ⇒ `400`.
+
+⚠ **The per-endpoint "Request Headers" lines below abbreviate to `Authorization: Bearer <token>`.**
+That header alone is a **`400`** — `X-Actor-Id` is required on every call. Read the table above as
+the contract.
+
+> ⚠ **This section said *"a valid Bearer token with the admin role"* until 2026-09-08** — the
+> deleted public mount’s `requireRole(['admin'])` guard, on a platform `users` row. There is no
+> such mount: every `/api/admin/*` route went at the Phase 5 Part E cutover, and this router is
+> instantiated once, with `[requireAdminCaller]` (`api/routes/internal-admin.routes.ts`).
 
 ---
 
@@ -206,7 +229,11 @@ Field rules:
 - `is_active` (boolean, optional, default `true`) — set `false` to define a tier that is not yet purchasable.
 - `sort_order` (integer, optional).
 
-> The seed (`npm run seed:plans`) already creates 3 tiers per role (free active, two paid inactive). Use this endpoint for ad-hoc tiers/tweaks; prefer editing the seed for the canonical catalog.
+> The seed (`npm run seed:plans`) creates **3 tiers per role**, and they are **not all seeded the same way**: **vendor** — `starter`, `growth` and `business` — is **all three active and purchasable**, while **agency** (`agency_free` + `agency_growth`, `agency_scale`) and **agent** (`agent_free` + `agent_plus`, `agent_pro`) seed the free tier active and both paid tiers `is_active: false`, i.e. defined but not yet purchasable (`scripts/seed/seed-pricing-plans.ts:45-77`). Use this endpoint for ad-hoc tiers and tweaks; prefer editing the seed for the canonical catalogue.
+>
+> ⚠ **This line read *"3 tiers per role (free active, two paid inactive)"* until 2026-09-08.**
+> That is true of agency and agent and false of vendor, whose two paid tiers are live — so a
+> catalogue screen built on it would have hidden the plans vendors can actually buy.
 
 **Success Response** — `201 Created`:
 ```json

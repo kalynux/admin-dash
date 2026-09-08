@@ -5,9 +5,17 @@
 >
 > Start at [`_CONTEXT.md`](./_CONTEXT.md) · what you *can* call is in
 > [`ROUTE-MAP.md`](../ROUTE-MAP.md).
+>
+> **Reconciled with the backend page on 2026-09-08 (DOC-PROGRAM R5).** The stamp below is
+> that page’s, and the only deliberate differences here are this banner and the outbound
+> references flattened to plain text because their targets are not mirrored into this folder.
 <!-- /CONTEXT-BANNER -->
 
 # Rate limits
+
+**Verified against source on 2026-09-08** — every ceiling, both `/auth` bucket lists and the
+six exempt prefixes, against `jovi-mall/src/api/rate-limit/` (`policy.ts`, `auth-paths.ts`,
+`exempt-paths.ts`, `rate-limit.middleware.ts`).
 
 **New in Phase 16.** This API had no rate limiting of any kind before it. If you have been
 building against it, nothing you were doing at a normal pace will start failing — the
@@ -88,8 +96,14 @@ per request, so `RateLimit: remaining=…` always describes the counter that is 
 
 | Bucket | Paths |
 |---|---|
-| **credential**, 20/min/IP | `login` · `register` · `forgot-password` · `reset-password` · `add-role` · `send-email-verification` · `request-wa-verification` · `verify-email` · `logout` · `browser/login` · `browser/logout` · `mobile/login` · `mobile/register` · `mobile/add-role` |
-| **session**, 300/min/IP | `me` · `auth-me/:role` · `mobile/auth-me/:role` · `browser/refresh` · `mobile/refresh` |
+| **credential**, 20/min/IP | `login` · `register` · `forgot-password` · `reset-password` · `add-role` · `send-email-verification` · `verify-email` (both verbs) · `email-change/confirm` · `logout` · `browser/login` · `browser/logout` · `mobile/login` · `mobile/register` · `mobile/add-role` · **and all four magic-login routes** — `magic/link` · `magic/code` · `mobile/magic/link` · `mobile/magic/code` |
+| **session**, 300/min/IP | `me` · `auth-me/:role` · `mobile/auth-me/:role` · `browser/refresh` · `mobile/refresh` — the complete list (`auth-paths.ts:38-77`) |
+
+> ⚠ **Corrected 2026-09-08.** The credential row listed `request-wa-verification`, which **no
+> longer exists** (it was replaced by `POST /api/me/connections`, which has its own bucket —
+> see Layer C above), and it omitted `email-change/confirm` and all four magic-login routes.
+> The magic routes *are* passwordless sign-in, which is exactly the surface the 20 exists to
+> bound: **a magic-link client gets 20/min/IP**, so budget for it.
 
 > ⚠ **The credential bucket is the DEFAULT.** Anything added under `/api/auth` later lands in
 > it unless it is named on the session list — the safe direction, since the mistake it prevents
@@ -118,9 +132,15 @@ position, and is the client most likely to be on a bad connection retrying.
 
 ## Never limited
 
-Three path prefixes, matched on a segment boundary (`/api/healthcheck-bypass` does **not**
+**Six** path prefixes, matched on a segment boundary (`/api/healthcheck-bypass` does **not**
 inherit `/api/health`'s exemption) and on `req.path` only — a query string can never talk its
 way in. The list is closed; see `src/api/rate-limit/exempt-paths.ts`.
+
+> ⚠ **This said "three" and listed three until 2026-09-06.** `EXEMPT_PATHS`
+> (`exempt-paths.ts:21-76`) holds **six**, and the three that were missing are the entire
+> cross-service half — the reads and the push that carry the geo-tracker pipe. A reader
+> checking whether their new internal route needs an exemption would have concluded the
+> platform did not grant them to service callers, which is the opposite of the policy.
 
 - `/api/health` — and everything under it (`/live`, `/ready`), every method. geo-tracker
   registers `GET /api/health` as a **readiness** checker and treats any status ≥ 300 as an
@@ -131,6 +151,21 @@ way in. The list is closed; see `src/api/rate-limit/exempt-paths.ts`.
 - `/api/webhooks` — and everything under it (Stripe, NotchPay, MyCoolPay, WhatsApp, Telegram),
   every method, including the authenticated WhatsApp/Telegram link-management routes that share
   the prefix. A 429 to Stripe does not inconvenience a caller; it loses a payment notification.
+- `/api/internal/agents` — geo-tracker asking for a verdict, **as a service**. Every route under
+  it is behind `requireServiceToken`, so the caller is one authenticated peer, not a population.
+  A 429 breaks the tracking pipe **in both directions**: an unanswered eligibility or
+  tracking-policy read fails geo-tracker's authorization, and a refused tracking-state report is
+  dropped silently because that channel is best-effort. Same reasoning as the maintenance
+  exemption on this prefix — blocking it turns a jovi-mall load spike into a geo-tracker outage.
+- `/api/internal/shipments` — the same caller on the same token, pulling a shipment's geocoded
+  drop-off to route to it. Read-only, pulled **once per tracking session** and never on the
+  broadcast path. A 429 here is quieter than the prefix above — nobody is dropped, the session
+  simply opens with no ETA — which is exactly why it would be the one left un-exempt by mistake.
+- `/api/tracking/agent-state` — the reverse channel, also `requireServiceToken`: geo-tracker
+  pushing an agent's tracking state and last fix. ⚠ **Named precisely rather than exempting
+  `/api/tracking`**, because the other route under that mount — `GET /visible-agents` — runs
+  behind `requireAuth` and carries a real **user** identity forwarded by geo-tracker. Exempting
+  the whole mount would hand any authenticated caller an unlimited DB-touching endpoint.
 
 ## Behaviour worth relying on
 

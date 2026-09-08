@@ -9,6 +9,8 @@
 
 # jovi-mall API — Frontend Integration Guide
 
+**Verified against source on 2026-09-08** — the response-envelope rules and the internal-admin route count, against `jovi-mall/src/modules/payments/routes/payment.routes.ts:59,87,123,155,178,206` and the live route census (120 `/api/internal/admin/*` routes in sixteen groups). Two defects: this page claimed `data` is **always** present on success — four `/api/payments/*` routes return flat bodies — and it carried the pre-`/reviews` count of 111 in fifteen.
+
 > **Start here.** This is the index and the shared contract for every jovi-mall HTTP endpoint.
 > Read this page once, then jump to the per-feature docs linked below. Live GPS tracking lives in a
 > **separate service** (geo-tracker) — see [Live Tracking](#live-tracking-geo-tracker).
@@ -43,9 +45,34 @@ Every jovi-mall endpoint returns one of exactly two shapes.
 }
 ```
 
-- `data` is **always present** on success (object, array, or `null`).
+- `data` is present on success (object, array, or `null`) — **with four documented exceptions, all
+  on `/api/payments/*`.** See the ⚠ below.
 - `meta` appears **only** on paginated/list responses (and may carry extra summary fields).
 - `message` is optional.
+
+> ⚠ **Four payment routes predate this envelope and return FLAT bodies with no `data` key.**
+> This line read *"`data` is **always present** on success"* here until 2026-09-08 (it was
+> corrected on the backend page on 2026-09-06, DOC-PROGRAM F-34, and this copy did not follow).
+> A client helper written from it — `return body.data` — reads `undefined` for every one of
+> them, **on the checkout path**.
+>
+> | Route | Shape | Source |
+> |---|---|---|
+> | `POST /api/payments/initiate` | `{ success, ...result }` — `transactionId`, `status`, `instructions` are **top-level** | `payment.routes.ts:59` |
+> | `POST /api/payments/verify` | `{ success, ...result }` | `payment.routes.ts:87` |
+> | `POST /api/payments/authorize` | `{ success, ...result }` | `payment.routes.ts:123` |
+> | `GET /api/payments/:transactionId` | `{ success, transaction }` — payload under **`transaction`**, not `data` | `payment.routes.ts:206` |
+>
+> Note `success` on the first two is **derived from the payment status**, not from "the request
+> worked": `initiate` sends `success: result.status !== 'FAILED'` and `verify` sends
+> `success: result.status === 'SUCCEEDED'`. A 200 with `success: false` is a normal, expected
+> answer there and is **not** an error envelope — it carries no `error` object.
+>
+> The two newest routes on that prefix — `GET /api/payments/session/:token` and
+> `POST /api/payments/:transactionId/pay-link` (`:155`, `:178`) — **do** use `data` normally.
+> The exception is historical, not a property of the prefix.
+>
+> **Unwrap defensively:** `success === true && 'data' in body ? body.data : body`.
 
 > **Three list endpoints call the pagination block `pagination`, not `meta`** — `GET
 > /api/{role}/tickets` and the two `…/tickets/reference/{orders,products}` lookups. The block's
@@ -259,7 +286,7 @@ Same JWT signs both services — forward the viewer's access token to geo-tracke
 - Change password (`/me/password`, all roles) (not mirrored here — `backend/jovi-mall/api-doc/me/password.md`) · **Change email or phone (`/me/{email,phone}`, all roles)** (not mirrored here — `backend/jovi-mall/api-doc/me/contact-change.md`) — pending until proved; the identifier never moves early · **Close account (`/me/close`, customers)** (not mirrored here — `backend/jovi-mall/api-doc/me/account-closure.md`) — anonymise-and-retain, *not* a deletion (ADR-A02)
 - **Public API (no auth)** (not mirrored here — `backend/jovi-mall/api-doc/public/README.md`) — the published price list: plan catalog + credit packs, for the marketing site
 - **Public catalog (no auth)** (not mirrored here — `backend/jovi-mall/api-doc/public/catalog.md`) — the storefront's read side: products, categories, stores. **Product URLs are nested under their store**
-- **Public blog (no auth)** (not mirrored here — `backend/jovi-mall/api-doc/public/articles.md`) — articles, typed blocks, hreflang & slug redirects. The editor is **wi-admin's** (`admin/docs/api/content.md`), not this service's
+- **Public blog (no auth)** (not mirrored here — `backend/jovi-mall/api-doc/public/articles.md`) — articles, typed blocks, hreflang & slug redirects. The editor is **wi-admin's** (`admin/api-doc/api/content.md`), not this service's
 - **Reviews & ratings — cross-role** (not mirrored here — `backend/jovi-mall/api-doc/reviews.md`) — one module, **two subjects**: a product review (public, verified purchase) and a **delivery** review (internal, written by the customer *and* the vendor *and* the agency, each feeding a different factor of the agent's trust score). Also the rule for `aggregateRating`: emit it **iff** `rating` is non-null
 - **Billing, plans & credit — cross-dashboard guide** (not mirrored here — `backend/jovi-mall/api-doc/billing-plans-across-roles.md`) (vendor · agency · agent · admin)
 - [Error catalog](./errors/README.md)
@@ -318,11 +345,13 @@ Same JWT signs both services — forward the viewer's access token to geo-tracke
 cutover, together with the second authorization model it carried — `requireRole(['admin'])` on a
 platform `users` row that holds no tier, no permission set and no audit identity. **If you are
 building an admin dashboard, you want the wi-admin backend** (`/api/v1/*`, documented in
-`admin/docs/api/`), which resolves the administrator's permissions, writes the audit row, and
+`admin/api-doc/api/`), which resolves the administrator's permissions, writes the audit row, and
 calls the surface below on their behalf.
 
-The pages here document `/api/internal/admin/*` — 111 routes in fifteen groups, behind
-`requireAdminCaller`. They are kept because one factory always served both mounts, so they remain
+The pages here document `/api/internal/admin/*` — **120 routes in sixteen groups**, behind
+`requireAdminCaller` (re-measured 2026-09-08 against the live route census; this line read *111
+routes in fifteen groups*, the count from before `/reviews` and `/messaging` were added). They are
+kept because one factory always served both mounts, so they remain
 exact for request and response shapes; each was **rewritten to the internal prefix**, not deleted.
 
 - [**The internal admin API**](./admin/internal-service-api.md) — start here: the door, its

@@ -5,9 +5,15 @@
 >
 > Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
 > [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+>
+> **Reconciled with the backend page on 2026-09-08 (DOC-PROGRAM R5).** The stamp below is
+> that page’s, and the only deliberate differences here are this banner and the outbound
+> references flattened to plain text because their targets are not mirrored into this folder.
 <!-- /CONTEXT-BANNER -->
 
 # Saved Payment Methods API
+
+**Verified against source on 2026-09-08** — the five `/api/me/payment-methods` routes, the `AddPaymentMethodSchema` field bounds, the DTO shape (no gateway token ids on the wire) and all five behaviour rules — the 10-method cap, first-method-auto-defaults, no auto-promotion on delete, single-default and owner scoping — against `jovi-mall/src/modules/payment-methods/{routes.ts,validators/payment-method.validators.ts,services/payment-method.service.ts,repositories/}`.
 
 Reference for managing a user's **saved payment methods** — the tokenized cards / mobile-money / bank instruments used to **pre-fill the checkout page** on the frontend.
 
