@@ -1,5 +1,15 @@
 # Route map — all 239 wi-admin routes
 
+**Verified against source on 2026-09-08** — all 239 rows diffed row by row against the live
+`routeManifest()`: method, path, permission (including all 17 `all`-mode and 3 `any`-mode
+composites) and audit declaration. **Zero disagreements.** The two `/health/*` probes are outside
+the manifest by construction (they do not go through `defineRoute`), and the 240th route is the
+excluded internal one below. `118 / 20 / 3` re-derived by executing `npm run authz:matrix`.
+
+> ⚠ **What this stamp does NOT cover.** The *"documented in"* column was reconciled mechanically at
+> the 2026-08-24 generation and re-checked for the routes added since **only** where a page was
+> read this round. The appears-in-exactly-one-page property is still unverified for those seven.
+
 **Generated from the live router**, not transcribed. Every row's permission and audit
 declaration comes from `routeManifest()` — the same structure the service asserts against at boot —
 and the "documented in" column was reconciled mechanically against the pages in
@@ -77,9 +87,14 @@ failure is not caught, so with the audit store down nothing is disclosed. See
 ```bash
 cd backend/admin
 node -r ts-node/register/transpile-only -r dotenv/config \
-    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 239
+    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 240
 npm run authz:matrix                                                      # 118 / 20 / 3
 ```
+
+⚠ **The tool prints 240, and this table holds 239.** That is not a discrepancy — the 240th is
+`POST /api/internal/automation/failures`, deliberately excluded below. Expect `TOTAL 240`;
+`TOTAL 241` or `238` means this file is stale. (This block said `# TOTAL 239` until 2026-09-08,
+which made a correct run of the recipe look like a failure.)
 
 If either number moves, this file is stale and so is everything built from it.
 

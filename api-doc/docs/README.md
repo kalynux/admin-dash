@@ -1,5 +1,10 @@
 # wi-admin — internal documentation
 
+**Verified against source on 2026-09-08** — the 21 `ADR-*.md` in this folder (`ls docs/ADR-*.md`),
+the permission total (**118**, `npm run authz:matrix`) and every anchor in the topic table against
+the headings it points at. ADR-022 was missing from the decision table and the count read *twenty*;
+five anchors were repointed after this round's heading corrections.
+
 **Written 2026-09-06 from source** (DOC-PROGRAM Phase 2 · decision E-4). Every number and claim on
 these pages was read out of `src/` or `scripts/`, or produced by a runnable check named where it is
 used. Where a figure disagreed with an existing document, the measurement won and the disagreement
@@ -9,19 +14,19 @@ is filed in `backend/DOC-PROGRAM/03-FINDINGS.md` (— not mirrored in this repos
 It used to hold the ADRs *and* the API contract in one directory, which meant a developer opening it
 could not tell which pages described a promise to a client and which recorded an internal decision.
 The contract half — `api/`, `dashboard/` and the two `FRONTEND-CHANGELOG-*` pages — now lives in
-[`../admin/`](../admin/), so all three backends follow one rule: **`api-doc/` is the contract,
+[`../api-doc/`](../admin/), so all three backends follow one rule: **`api-doc/` is the contract,
 `docs/` is the reasoning.** A note that names `admin/docs/api/…` is describing the old layout.
 
 **What stays here is everything a client of this service does not need**: the design records, the
 technical set, and the phase plans. If you are building a screen, you want
-[`../admin/`](../admin/) instead.
+[`../api-doc/`](../admin/) instead.
 
 | Layer | Where | Answers |
 |---|---|---|
-| **Wire contract** | [`../admin/api/`](../admin/api/) | *How do I call it?* |
+| **Wire contract** | [`../api-doc/api/`](../admin/api/) | *How do I call it?* |
 | **Technical record** — how it is built, what must not break | **the six pages below** | *How does it work?* |
-| **Decision records** | the 20 `ADR-*.md` beside this file | *Why is it like this?* |
-| **Dashboard-facing** — requests, integration matrix | [`../admin/dashboard/`](../admin/dashboard/) | *What does the admin-dash need?* |
+| **Decision records** | the 21 `ADR-*.md` beside this file | *Why is it like this?* |
+| **Dashboard-facing** — requests, integration matrix | [`../api-doc/dashboard/`](../admin/dashboard/) | *What does the admin-dash need?* |
 | **Orientation** | [`../README.md`](../README.md), [`./IMPLEMENTATION-BLUEPRINT.md`](./IMPLEMENTATION-BLUEPRINT.md) | *Where do I start?* |
 
 ⚠ **The ADRs are cited from everywhere, never absorbed, and they must not be moved.**
@@ -38,19 +43,19 @@ reason.**
 | Topic | Here | Deeper |
 |---|---|---|
 | Architecture | [ARCHITECTURE.md § 1](./ARCHITECTURE.md#1--three-layers-two-databases-one-composition-root) | [ADR-002](./ADR-002-TARGET-ARCHITECTURE.md) |
-| Module layout | [ARCHITECTURE.md § 2](./ARCHITECTURE.md#2--twenty-two-modules) | — |
-| APIs · endpoints · request/response schemas | [ARCHITECTURE.md § 3](./ARCHITECTURE.md#3--the-route-surface--237-routes-and-none-of-them-is-registered-by-hand) | [`./api/`](../admin/api/), [ADR-005](./ADR-005-API-CONTRACT.md) |
-| Authentication and authorization | [CONTRACTS.md § 1](./CONTRACTS.md#1--authentication--a-revocable-server-side-session) · [§ 2](./CONTRACTS.md#2--authorization--116-permissions-granted-by-tier) | [ADR-003](./ADR-003-GRANULAR-PERMISSIONS.md) |
+| Module layout | [ARCHITECTURE.md § 2](./ARCHITECTURE.md#2--twenty-three-modules) | — |
+| APIs · endpoints · request/response schemas | [ARCHITECTURE.md § 3](./ARCHITECTURE.md#3--the-route-surface--240-routes-and-none-of-them-is-registered-by-hand) | [`./api/`](../admin/api/), [ADR-005](./ADR-005-API-CONTRACT.md) |
+| Authentication and authorization | [CONTRACTS.md § 1](./CONTRACTS.md#1--authentication--a-revocable-server-side-session) · [§ 2](./CONTRACTS.md#2--authorization--118-permissions-granted-by-tier) | [ADR-003](./ADR-003-GRANULAR-PERMISSIONS.md) |
 | Business rules | [CONSTRAINTS.md](./CONSTRAINTS.md) | the ADRs, per domain |
 | Database interactions | [DATA.md § 1](./DATA.md#1--two-connections-and-only-one-of-them-can-be-written) | [ADR-001](./ADR-001-DATA-ACCESS-MODEL.md), [ADR-004](./ADR-004-DOMAIN-OWNERSHIP.md) |
 | Redis usage | [DATA.md § 3](./DATA.md#3--redis--three-reserved-indices-one-of-them-deliberately-unused) | — |
 | Events | [CONTRACTS.md § 5](./CONTRACTS.md#5--events-and-notifications) | [ADR-013](./ADR-013-NOTIFICATIONS.md) |
 | Webhooks | [CONTRACTS.md § 6](./CONTRACTS.md#6--webhooks) | [ADR-015](./ADR-015-DEVELOPER-TOOLS.md) |
-| Error handling | [CONTRACTS.md § 7](./CONTRACTS.md#7--errors--85-codes-nine-categories-and-the-tier-ladder) | [ADR-016](./ADR-016-ERROR-SYSTEM.md) |
+| Error handling | [CONTRACTS.md § 7](./CONTRACTS.md#7--errors--88-codes-nine-categories-and-the-tier-ladder) | [ADR-016](./ADR-016-ERROR-SYSTEM.md) |
 | Validation rules | [CONTRACTS.md § 8](./CONTRACTS.md#8--validation) | [ADR-005](./ADR-005-API-CONTRACT.md) |
 | External services | [OPERATIONS.md § 2](./OPERATIONS.md#2--external-services--three-clients-none-of-which-may-ever-throw) | [ADR-020](./ADR-020-ADMIN-DATA-DOOR.md), [ADR-021](./ADR-021-ADMIN-MEDIA-LIBRARY.md) |
-| Background jobs | [OPERATIONS.md § 1](./OPERATIONS.md#1--background-work--one-projector-and-two-sweeps) | [ADR-013](./ADR-013-NOTIFICATIONS.md) |
-| Configuration / environment | [OPERATIONS.md § 3](./OPERATIONS.md#3--configuration--47-variables-supplied-not-read) | `backend/admin/.env.example` (— not mirrored in this repository) |
+| Background jobs | [OPERATIONS.md § 1](./OPERATIONS.md#1--background-work--exactly-one-scheduled-job) | [ADR-013](./ADR-013-NOTIFICATIONS.md) |
+| Configuration / environment | [OPERATIONS.md § 3](./OPERATIONS.md#3--configuration--53-variables-49-supplied-and-4-read) | `backend/admin/.env.example` (— not mirrored in this repository) |
 | Service-to-service communication | [CONTRACTS.md § 9](./CONTRACTS.md#9--service-to-service) | `backend/CLAUDE.md` (— not mirrored in this repository) |
 | Implementation constraints | [CONSTRAINTS.md](./CONSTRAINTS.md) | — |
 | **Audit** (a sixteenth, and this service's centre of gravity) | [DATA.md § 2](./DATA.md#2--the-audit-store) | [ADR-006](./ADR-006-AUDIT.md), [ADR-012](./ADR-012-AUDIT-COMPLETION.md) |
@@ -61,7 +66,7 @@ ADR-019 (`backend/docs/ADR-019-RELEASE-SHAPE.md` — not mirrored in this reposi
 would be three copies of one procedure. (Note ADR-019 is the one ADR in this numbering that lives at
 the workspace root rather than in this folder, because it is not wi-admin's decision.)
 
-## The twenty decision records
+## The twenty-one decision records
 
 | ADR | Decides |
 |---|---|
@@ -80,6 +85,11 @@ the workspace root rather than in this folder, because it is not wi-admin's deci
 | [018](./ADR-018-DASHBOARD-BACKEND-REQUESTS.md) | the dashboard's backend requests |
 | [020](./ADR-020-ADMIN-DATA-DOOR.md) | the **data** door into geo-tracker — a second, separate door |
 | [021](./ADR-021-ADMIN-MEDIA-LIBRARY.md) | the media library, and who builds a file URL |
+| [022](./ADR-022-AUTOMATION-FAILURE-AUDIT.md) | the n8n automation failure board — **and why a `success` execution is not evidence the bot worked** |
+
+⚠ **ADR-022 was absent from this table until 2026-09-08**, and the count read *twenty*. It landed
+on 2026-09-07, the day after this page was written from source. There are **21** `ADR-*.md` files in
+this folder (019 is the workspace-root exception noted above, and 019 is not among them).
 
 ---
 
@@ -91,9 +101,9 @@ exists in jovi-mall**, so wi-admin *delegates over HTTP* rather than reimplement
 shared `jovi_mall` database directly** and **writes only through jovi-mall's internal API**
 (ADR-001), a rule made structural by a base repository that **has no write method to call**. What it
 owns outright, in its **own private Mongo database**, is the things administrators must not share
-with the platform: **identity** (administrators hold no `users` row anywhere), **116 granular
-permissions granted by tier**, **114 catalogued audit actions**, four-eyes approvals, feature flags
-and notifications. Its centre of gravity is the audit trail, and that is why it **refuses to start
+with the platform: **identity** (administrators hold no `users` row anywhere), **118 granular
+permissions granted by tier** (2026-09-08 — `npm run authz:matrix`, and the figure moves every
+phase), **114 catalogued audit actions**, four-eyes approvals, feature flags and notifications. Its centre of gravity is the audit trail, and that is why it **refuses to start
 against a standalone `mongod`**: an audited write is a state change and its audit row committing
 together, and without transactions the service would degrade to *"audited, probably"* while looking
 perfectly healthy.

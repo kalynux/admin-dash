@@ -1,5 +1,25 @@
 # Operator remediation round — 2026-08-25
 
+**Verified against source on 2026-09-08** — every wi-admin route and field this plan names, against
+the live route manifest and the validators: `GET /files/:fileId/content`,
+`GET /vendors/:vendorId/products/:productId`, `GET /files/library` (whose **absent `maxDays` cap** §
+F reports is confirmed at `admin/src/modules/files/validators/file.validator.ts` —
+`FileLibraryQuerySchema` carries no `dateRangeRule`), the **415** `FILE_UPLOAD_NOT_MULTIPART` refusal
+at `files/controllers/file.controller.ts:328-339`, and the **nine** closed `eventType` values at
+`jovi-mall/src/modules/orders/order-timeline.model.ts:22-31`.
+
+> ### ⚠ Read the close-out inside each phase before you read the phase
+>
+> **All six phases are closed** — A · B · C on 2026-08-26, D · E on 2026-08-26, F on 2026-08-27 —
+> and **nothing in this round is blocked any more.** The *"blocked"* wording in the phase bodies is
+> deliberately left as it was written (the reason is stated at the end of this file: a plan
+> rewritten to match its outcome teaches nothing about the constraint it was working against), so
+> **every "⛔ blocked" line here is contradicted by a ✅ close-out further down its own section.**
+>
+> The two that mislead most if read alone: § F's *"wi-admin's `/files` mount is five routes"* — it
+> is **seven** — and *"no administrator has ever been able to upload anything"*, which BR-015 ended
+> on 2026-08-26. The top-of-page *"blocked outright: one of thirty-one"* is now **zero**.
+
 Thirty-one asks across eight detail screens plus one new module, from an operator pass over the
 built dashboard. This is the plan: what each ask resolves to, what ships now, and what is waiting
 on [a backend request](backend-requests/README.md#round-three--opened-2026-08-25-from-an-operator-pass-over-eight-detail-screens).
