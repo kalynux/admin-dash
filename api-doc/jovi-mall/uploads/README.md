@@ -67,7 +67,9 @@ An unrecognised role falls back to the **customer** limit (100 MB).
       "originalName": "product-front.jpg",
       "mimeType": "image/jpeg",
       "size": 254013,
+      "key": "images/2026/07/664file....jpg",
       "url": "http://localhost:8022/api/files/images/2026/07/664file....jpg",
+      "access": "public",
       "provider": "local",
       "ownerType": "vendor",
       "createdAt": "2026-07-17T10:20:30.000Z"
@@ -77,6 +79,21 @@ An unrecognised role falls back to the **customer** limit (100 MB).
 ```
 
 > Exact metadata fields are owned by the file model — see ../vendor/file-management.md (not mirrored here — `backend/jovi-mall/api-doc/vendor/file-management.md`).
+
+> ### ✅ 2026-09-08 — `url` and `access` are real now, on all four `/api/files/*` responses
+>
+> ⚠ **This page has shown a `url` on the upload `201` for its whole life, and until 2026-09-08 the
+> backend did not send one.** It does now, so the example above became true rather than being
+> corrected. `access` was the field genuinely missing and is added here.
+>
+> `access` is `public` · `authorized` · `quota_blocked`, and **`url` is `null` for the last two** —
+> a private tree, and a file held back because its owner is over their plan's storage allowance.
+> Branch on `access`; never assume `url` is a string.
+>
+> ⚠ **This does not change how wi-admin's own media library works.** That surface is
+> `GET /api/v1/files/library`, which builds `FileDetail.url` itself from `STORAGE_*`
+> (BR-015 / ADR-021 D-3) and is what this dashboard actually calls. The page above documents
+> jovi-mall's role-neutral `/api/files` surface, which admin-dash does not use.
 
 ### Where a file is stored
 
