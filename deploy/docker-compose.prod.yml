@@ -58,6 +58,27 @@ networks:
 services:
   admin-dash:
     image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/wimall-admin-dash:${ADMIN_DASH_TAG:-production}
+    # ⚠ WITHOUT THIS, A DEPLOY CAN SILENTLY SERVE THE PREVIOUS BUILD.
+    #
+    #   The tag above is FLOATING — `production` moves to a new digest on every
+    #   release. Docker will happily satisfy `image: …:production` from whatever it
+    #   already has in its local cache, so `up -d` sees "the image is present,
+    #   nothing to do" and the container is never recreated. The deploy reports
+    #   success and the old bundle keeps being served.
+    #
+    #   ⚠ MEASURED, NOT THEORISED — 2026-09-13. The agency dashboard was deployed
+    #     after a green release build and still served the previous bundle: its live
+    #     LiveTracking chunk contained the OpenStreetMap default and no LocationIQ
+    #     tiles at all. The deploy had been reported `done`.
+    #
+    #   `always` makes compose check the registry for the tag every time, which is
+    #   what the backend stack does on all five of its services.
+    #
+    #   ⚠ IT IS NOT A SUBSTITUTE FOR PINNING. This guarantees you get whatever
+    #     `production` points at NOW; it gives you nothing to go BACK to. Every
+    #     release also publishes an immutable `sha-xxxxxxx` tag — put that in the
+    #     Environment tab to roll back, or to hold a deployment still.
+    pull_policy: always
 
     # ⚠ BOTH CEILINGS, ON PURPOSE. `mem_limit` is the key plain `docker compose`
     #   reads; `deploy.resources.limits` is the one Swarm reads. Dokploy can

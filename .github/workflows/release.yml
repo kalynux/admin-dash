@@ -81,16 +81,38 @@ jobs:
           cache-from: type=gha,scope=admin-dash
           cache-to: type=gha,mode=max,scope=admin-dash
 
+      # ⚠ THE TAG IS READ FROM THE METADATA ACTION, NOT RECOMPUTED — AND THAT WAS A
+      #   REAL BUG. This step used to print `sha-$(git rev-parse --short HEAD)`.
+      #   git's `--short` is VARIABLE length: it lengthens the abbreviation until it
+      #   is unambiguous in the repository. docker/metadata-action's
+      #   `type=sha,format=short` is fixed at 7 characters. On agency-dash the two
+      #   already disagreed — git said `a400bc08`, the tag actually pushed was
+      #   `sha-a400bc0` — so the line somebody copied to roll back named a tag that
+      #   does not exist, and the deploy would fail with "manifest unknown" at the
+      #   worst possible moment: while rolling back.
+      #
+      #   `steps.meta.outputs.tags` is the list the push actually used, so taking the
+      #   sha entry out of it cannot be wrong.
       - name: Deployable tag
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
         run: |
+          SHA_TAG=$(printf '%s\n' "$TAGS" | grep -oE 'sha-[0-9a-f]+' | head -1)
+          if [ -z "$SHA_TAG" ]; then
+            echo "::warning::No sha- tag in the metadata output; rollback pin unavailable."
+            exit 0
+          fi
           {
             echo "### Built from \`$GITHUB_REF_NAME\`"
             echo
-            echo "Pin this as \`ADMIN_DASH_TAG\` in the Dokploy Environment tab to deploy it immutably:"
+            echo "**To pin this exact build** (and this is what you roll back TO) paste into the Dokploy Environment tab:"
             echo '```'
-            echo "ADMIN_DASH_TAG=sha-$(git rev-parse --short HEAD)"
+            echo "ADMIN_DASH_TAG=$SHA_TAG"
             echo '```'
-            echo "Or leave \`ADMIN_DASH_TAG\` unset to follow the moving \`production\` tag."
+            echo
+            echo "Leave \`ADMIN_DASH_TAG=production\` to follow the moving tag instead. The compose"
+            echo "sets \`pull_policy: always\`, so a floating tag is re-checked against the"
+            echo "registry on every deploy rather than served from the host's image cache."
           } >> "$GITHUB_STEP_SUMMARY"
 
   # ─── Optional: turn this into continuous deployment ─────────────────────────
