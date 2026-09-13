@@ -1,0 +1,134 @@
+# Builds the admin dashboard image and pushes it to GHCR.
+#
+# Sibling of the three backend `release.yml` files; the tag conventions below are
+# deliberately identical to `backend/admin/.github/workflows/release.yml` so that
+# one rollback procedure covers every service on the host.
+#
+# ⚠ THIS DOES NOT GATE ON THE TESTS. `ci.yml` runs on the same push, in parallel.
+#   Broken TypeScript cannot produce an image — `npm run build` starts with
+#   `tsc -b`, inside the Dockerfile — but a failing test still can. Check that CI
+#   is green before you move the deployment onto a new tag.
+#
+# ⚠ NOTHING IS DEPLOYED BY THIS FILE. It builds and publishes; putting an image
+#   live is a deliberate press of Deploy in Dokploy. That is the chosen
+#   arrangement, not an omission — see the `deploy` job at the bottom for the
+#   one step that turns this into continuous deployment if that changes.
+
+name: Release image
+
+on:
+  push:
+    # ─── ONE BRANCH PUBLISHES ─────────────────────────────────────────────────
+    #   production   the LIVE line. Builds `production` + `latest` + `sha-xxxxxxx`.
+    #
+    # ⚠ `main` IS ABSENT ON PURPOSE. There is no test environment: the test
+    #   backend is waiting on a server upgrade, so a test image would have no API
+    #   to talk to and would only invite somebody to deploy it. `main` is still
+    #   fully checked by `ci.yml`; it just produces no artefact. Adding a test
+    #   line later is two lines here — `main` in the branch list, and a
+    #   `type=raw,value=test` tag enabled on it.
+    branches: [production]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    name: Build and push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          # Supplied by Actions itself. No personal token is involved in PUSHING;
+          # the `read:packages` token in Dokploy is a separate credential used
+          # only for PULLING onto the host.
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # ⚠ Lowercase. GHCR rejects an uppercase character anywhere in an image
+          #   path, and `github.repository_owner` preserves the case you typed
+          #   when you created the account.
+          images: ghcr.io/${{ github.repository_owner }}/wimall-admin-dash
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/production' }}
+            type=raw,value=production,enable=${{ github.ref == 'refs/heads/production' }}
+            # Always. This is the immutable tag you pin in the Dokploy
+            # Environment tab and the one you roll back TO — `production` moves
+            # under you, so it gives you nothing to return to.
+            type=sha,format=short
+            type=ref,event=tag
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          # ⚠ The VPS is x86_64. Building arm64 as well would double the build
+          #   time to produce a layer nothing on this host can run.
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=admin-dash
+          cache-to: type=gha,mode=max,scope=admin-dash
+
+      - name: Deployable tag
+        run: |
+          {
+            echo "### Built from \`$GITHUB_REF_NAME\`"
+            echo
+            echo "Pin this as \`ADMIN_DASH_TAG\` in the Dokploy Environment tab to deploy it immutably:"
+            echo '```'
+            echo "ADMIN_DASH_TAG=sha-$(git rev-parse --short HEAD)"
+            echo '```'
+            echo "Or leave \`ADMIN_DASH_TAG\` unset to follow the moving \`production\` tag."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ─── Optional: turn this into continuous deployment ─────────────────────────
+  #
+  # INERT AS SHIPPED. This job is skipped unless the repository has a
+  # `DOKPLOY_DEPLOY_URL` secret, and it has none — by choice: putting a build
+  # live is currently a deliberate click in Dokploy.
+  #
+  # To switch continuous deployment on later, two things have to be true, and the
+  # second one is the real work:
+  #
+  #   1. Add the secret. Dokploy shows a per-service deploy webhook URL on the
+  #      Compose service's Deployments tab. Copy it into this repository's
+  #      Settings -> Secrets and variables -> Actions as `DOKPLOY_DEPLOY_URL`.
+  #
+  #   2. Make Dokploy reachable from GitHub. ⚠ THIS IS THE CATCH, and it is why
+  #      the job is off rather than merely unconfigured. `dok.wi-mall.com`
+  #      resolves to 100.89.182.51, a Tailscale address that GitHub's runners
+  #      cannot reach — so this step would fail with a connection timeout that
+  #      looks like Dokploy being down. Either point a hostname at the public IP,
+  #      or join the tailnet in this job with `tailscale/github-action` first.
+  #      Dokploy itself already answers on the public IP; only DNS is private.
+  deploy:
+    name: Trigger Dokploy deploy
+    needs: image
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/production'
+    steps:
+      - name: Call the deploy webhook
+        env:
+          DEPLOY_URL: ${{ secrets.DOKPLOY_DEPLOY_URL }}
+        run: |
+          if [ -z "$DEPLOY_URL" ]; then
+            echo "No DOKPLOY_DEPLOY_URL secret set - skipping."
+            echo "The image is published; press Deploy in Dokploy to put it live."
+            exit 0
+          fi
+          # --fail so an HTTP error is a failed job rather than a green tick over
+          # a deploy that never happened.
+          curl --fail --silent --show-error --max-time 60 -X POST "$DEPLOY_URL"
+          echo "Deploy triggered."

@@ -1,0 +1,53 @@
+# Checks every push and pull request. Produces no artefact — `release.yml` does
+# that, and only from `production`.
+#
+# This is the gate that makes a `main` with no test environment still meaningful:
+# nothing is deployed from `main`, but nothing broken should be merged into it
+# either, and `production` is branched from it.
+
+name: CI
+
+on:
+  push:
+    branches: [main, production]
+  pull_request:
+
+jobs:
+  check:
+    name: Typecheck, lint and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # `tsc -b` — the same command the Dockerfile's build runs first, so a type
+      # error surfaces here in seconds rather than part-way through an image
+      # build.
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # ⚠ RUN THE SUITE ALONE, AND DO NOT ADD PARALLEL JOBS TO THIS RUNNER.
+      #   This suite is large (~2385 tests across ~157 files, each rendering
+      #   through the real providers in jsdom) and its failures under contention
+      #   are documented in CLAUDE.md: files pass alone and a DIFFERENT one fails
+      #   each full run when the machine is shared. `testTimeout` is already 20 s
+      #   rather than vitest's 5 for that reason. A dedicated runner is the
+      #   condition that makes this result trustworthy — so if this job ever goes
+      #   red, re-run it before believing it, exactly as on a workstation.
+      - name: Test
+        run: npm test
+
+      # The production image is built by this exact command. Building
+      # it here too is the cheapest way to catch a Vite-only failure — a bad
+      # import, a missing asset — on a branch that publishes nothing.
+      - name: Production build
+        run: npm run build

@@ -16,6 +16,10 @@ dist-ssr
 .env
 .env.*
 !.env.example
+# `.env.production` is committed on purpose: every VITE_ value is inlined into the
+# public bundle, so none of it is secret, and CI has no other way to learn the
+# production API host. Nothing secret may ever be added to it.
+!.env.production
 
 # Editor directories and files
 .vscode/*

@@ -1,0 +1,116 @@
+# The admin dashboard, in production. One nginx container serving a prebuilt
+# bundle, routed by the Traefik that Dokploy already runs.
+#
+# This is pasted into a Dokploy Compose service as source type **Raw**, matching
+# how `n8n-with-its-dbs` and `wi-mall-backend` are both set up on this host. The
+# three values it interpolates go in that service's **Environment** tab; see
+# `deploy/README.md`.
+#
+# ─── WHY THIS IS ITS OWN STACK, NOT A SERVICE IN A SHARED ONE ────────────────
+# Four frontends live in four separate GitHub repositories and release on four
+# independent schedules. One stack would mean one Deploy button: publishing a
+# dashboard fix would pull and recreate the customer storefront at the same time,
+# and a rollback could not be aimed at one app. Four small stacks in one Dokploy
+# project cost four Environment tabs and buy per-app deploy, per-app rollback and
+# per-app logs.
+#
+# ─── NOTHING IS BUILT HERE ───────────────────────────────────────────────────
+# `image:`, never `build:`. The VPS is 2 vCPU / 8 GB and already runs Mongo, three
+# Redis, two Postgres clusters, n8n and three backend services. Images are built
+# by GitHub Actions and pulled from GHCR.
+# ⚠ In the Dokploy UI, deploy this WITHOUT `--build`.
+#
+# ─── CERTIFICATES ARE DNS-01, WHICH CHANGES WHAT YOU HAVE TO CARE ABOUT ──────
+# This host's Traefik resolves `letsencrypt` through Cloudflare's DNS API, not
+# over HTTP — verified in its static configuration:
+#
+#     certificatesResolvers.letsencrypt.acme.dnsChallenge.provider: cloudflare
+#
+# Two consequences worth knowing, because both contradict the usual advice.
+# Port 80 is never used to prove ownership, so the redirect router below can send
+# every plain-HTTP request to HTTPS with no carve-out for an ACME path. And
+# whether the hostname is proxied by Cloudflare (orange cloud) or not (grey) has
+# no bearing on issuance at all — that choice is purely about caching and DDoS.
+#
+# ⚠ The `websecure` entrypoint already carries `http.tls.certResolver:
+#   letsencrypt` as a default, so the per-router `tls.certresolver` label below
+#   is redundant. It is kept because both existing stacks on this host state it,
+#   and a label that documents intent is worth more than one fewer line.
+
+name: wi-admin-dash
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+networks:
+  # Created by Dokploy at install and shared by every routed container on this
+  # host. Declared external so this file never tries to own it.
+  # ⚠ Traefik's docker provider is configured with `network: dokploy-network`,
+  #   so a container that does not join this network is invisible to Traefik no
+  #   matter how correct its labels are.
+  dokploy-network:
+    external: true
+    name: dokploy-network
+
+services:
+  admin-dash:
+    image: ghcr.io/${GHCR_OWNER:?set GHCR_OWNER}/wimall-admin-dash:${ADMIN_DASH_TAG:-production}
+
+    # ⚠ BOTH CEILINGS, ON PURPOSE. `mem_limit` is the key plain `docker compose`
+    #   reads; `deploy.resources.limits` is the one Swarm reads. Dokploy can
+    #   deploy a compose stack either way, and a limit the orchestrator ignores is
+    #   the same as no limit. nginx serving static files sits near 10-15 MB
+    #   resident, so 64 MB is a generous cap whose only job is to make ONE
+    #   misbehaving container die instead of the host.
+    deploy:
+      replicas: 1
+      resources:
+        limits:
+          memory: 64M
+    mem_limit: 64m
+
+    networks: [dokploy-network]
+    logging: *logging
+    restart: unless-stopped
+
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: dokploy-network
+
+      # ─── HTTPS ───────────────────────────────────────────────────────────
+      traefik.http.routers.wi-admin-dash.rule: Host(`${ADMIN_DASH_HOST:?set ADMIN_DASH_HOST}`)
+      traefik.http.routers.wi-admin-dash.entrypoints: websecure
+      traefik.http.routers.wi-admin-dash.tls.certresolver: letsencrypt
+      # Stated explicitly because this stack defines one service and Traefik's
+      # implicit pairing is by name — the n8n stack states it too. An implicit
+      # match is a thing that works until a second service appears.
+      traefik.http.routers.wi-admin-dash.service: wi-admin-dash
+      traefik.http.services.wi-admin-dash.loadbalancer.server.port: "80"
+
+      # ─── Plain HTTP redirects to HTTPS ───────────────────────────────────
+      # ⚠ THERE IS NO GLOBAL REDIRECT ON THIS HOST. Measured, not assumed:
+      #   `http://api.wi-mall.com/` and `http://the8n.wi-mall.com/` both answer
+      #   404, because every existing router is bound to `websecure` only. Without
+      #   the three labels below, anyone who types the hostname without a scheme
+      #   — or follows an `http://` link out of an old email — gets Traefik's 404
+      #   and concludes the dashboard is down.
+      #
+      #   ⚠ Safe here only because the certificate resolver is DNS-01. On an
+      #     HTTP-01 setup, redirecting all of port 80 breaks renewal 90 days
+      #     later, which is the kind of outage that arrives with no deploy to
+      #     blame.
+      #
+      #   ⚠ If this hostname is ever put behind Cloudflare's proxy, Cloudflare's
+      #     SSL/TLS mode MUST be Full or Full (strict). On Flexible, Cloudflare
+      #     fetches the origin over plain HTTP, this redirect sends it back to
+      #     HTTPS, and the two loop until the browser gives up — the classic
+      #     redirect loop, and it would look like a Traefik fault rather than a
+      #     dashboard setting.
+      traefik.http.routers.wi-admin-dash-http.rule: Host(`${ADMIN_DASH_HOST}`)
+      traefik.http.routers.wi-admin-dash-http.entrypoints: web
+      traefik.http.routers.wi-admin-dash-http.middlewares: wi-admin-dash-https
+      traefik.http.middlewares.wi-admin-dash-https.redirectscheme.scheme: https
+      traefik.http.middlewares.wi-admin-dash-https.redirectscheme.permanent: "true"

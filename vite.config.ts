@@ -5,7 +5,20 @@ import { defineConfig } from "vite"
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: './',
+  // Absolute, because this dashboard is only ever served from the root of
+  // https://admin.wi-mall.com by nginx.
+  //
+  // It read './' until 2026-09-13, copied from the sibling dashboards — where a
+  // RELATIVE base is correct because Capacitor serves their bundles off a device
+  // filesystem with no origin. This app has no Capacitor and no native target at
+  // all, so that value was inherited rather than chosen, and on the web it breaks
+  // every deep link: index.html would reference './assets/index-abc.js', and a
+  // browser hard-refreshing /dashboard/vendors/ID resolves that against the
+  // current directory — requesting /dashboard/vendors/assets/index-abc.js, which
+  // does not exist. nginx's SPA fallback then answers it with index.html, the
+  // browser refuses to execute HTML as a module, and the page renders blank with
+  // nothing in the server log to explain it.
+  base: '/',
   plugins: [react()],
   resolve: {
     alias: {

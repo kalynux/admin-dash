@@ -1,0 +1,46 @@
+# What does NOT go into the build context.
+#
+# Two reasons this matters beyond upload speed. A stray `.env.local` in the
+# context would be copied by `COPY . .` and would then OVERRIDE
+# `.env.production`, so the image would quietly be built against whatever a
+# developer last pointed their laptop at — a localhost API in a production
+# image, with nothing failing. And `node_modules` from a Windows machine holds
+# native binaries for the wrong platform, which `npm ci` in the build stage must
+# be allowed to replace rather than inherit.
+
+# Installed fresh inside the image, for linux/amd64.
+node_modules
+**/node_modules
+
+# Build output — produced by the build stage, never copied in.
+dist
+dist-ssr
+*.tsbuildinfo
+
+# ⚠ Developer env overrides. `.env.production` is deliberately NOT listed here:
+#   it is the configuration this image is built from.
+.env
+.env.local
+.env.*.local
+.env.development
+.env.test
+
+# History and tooling that the build never reads.
+.git
+.github
+.vscode
+.idea
+*.log
+npm-debug.log*
+coverage
+.nyc_output
+
+# Documentation and the API contract mirror. ~1 MB of markdown that no build
+# step opens; excluded so the context stays small and cache keys stay stable.
+api-doc
+*.md
+!README.md
+
+# OS noise.
+.DS_Store
+Thumbs.db
