@@ -152,6 +152,73 @@ describe('the suspension block', () => {
     });
 });
 
+/**
+ * The third `status`, and the one that was **entirely unmodelled** until
+ * 2026-09-09: `closedAt` had zero hits anywhere in `src/`.
+ *
+ * ⚠ A closure is not a suspension with a different word. The **owner** did it,
+ * there is no actor, no reason and no reinstatement — and jovi-mall has already
+ * erased `email`, `phone` and the name irrecoverably (`users.md:100`). So the
+ * screen has to say so: without the panel, a closed row renders as a record with
+ * missing identifiers, which reads as a broken payload and sends somebody
+ * looking for a bug in the projection.
+ */
+describe('the closure block', () => {
+    it('is absent on an active account', async () => {
+        stubDetail();
+        detail();
+
+        await screen.findByRole('heading', { level: 1 });
+        expect(screen.queryByText(/closed by its owner/i)).not.toBeInTheDocument();
+    });
+
+    it('names the moment and explains the erased identifiers when closed', async () => {
+        stubDetail(
+            userDetailFixture({
+                status: 'closed',
+                email: null,
+                phone: null,
+                closedAt: '2026-08-29T16:44:10.006Z',
+            }),
+        );
+        detail();
+
+        expect(await screen.findByText(/closed by its owner/i)).toBeInTheDocument();
+        expect(screen.getByText(/not recoverable/i)).toBeInTheDocument();
+    });
+
+    /**
+     * ⚠ Keyed on `status` **alone**, not on the instant. The contract types
+     * `closedAt` as `ISO-8601 | null`, so a closure whose date was never recorded
+     * is still a closure — and it is the case where the explanation matters most,
+     * because there is nothing else on the row to explain the missing fields.
+     */
+    it('still renders when the closed account carries no instant', async () => {
+        stubDetail(
+            userDetailFixture({ status: 'closed', email: null, phone: null, closedAt: null }),
+        );
+        detail();
+
+        expect(await screen.findByText(/closed by its owner/i)).toBeInTheDocument();
+        expect(screen.getByText(/date not recorded/i)).toBeInTheDocument();
+    });
+
+    /**
+     * The mirror of the suspension block's stale-reason guard, and the same
+     * failure: `closedAt` pairs with `status`, so a screen reading the stamp
+     * alone would report an active account as closed.
+     */
+    it('never renders a stale instant left on an active account', async () => {
+        stubDetail(
+            userDetailFixture({ status: 'active', closedAt: '2026-08-29T16:44:10.006Z' }),
+        );
+        detail();
+
+        await screen.findByRole('heading', { level: 1 });
+        expect(screen.queryByText(/closed by its owner/i)).not.toBeInTheDocument();
+    });
+});
+
 describe('role profiles', () => {
     it('renders one entry per role held', async () => {
         stubDetail();

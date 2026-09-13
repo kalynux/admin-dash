@@ -1,7 +1,7 @@
 /**
  * `/shipments` — the six endpoints of the shipment-administration surface.
  *
- * Sources: `api-doc/admin/api/shipments.md`, `ADR-010-ORDERS-AND-SHIPMENTS.md`,
+ * Sources: `api-doc/admin/api/shipments.md`, `api-doc/docs/ADR-010-ORDERS-AND-SHIPMENTS.md`,
  * `backend/admin/src/modules/shipments/`, and `backend/jovi-mall/src/core/
  * error-codes.ts` for the delegated failures no doc publishes.
  * See `types/shipments.types.ts` for the five places the published docs are wrong.

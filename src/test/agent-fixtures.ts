@@ -209,6 +209,18 @@ export function codAllocationFixture(overrides: Partial<CodAllocation> = {}): Co
             {
                 contractId: '6671aabbccddeeff00112240',
                 agencyId: '6650bb22cc33dd44ee55ff66',
+                /*
+                  ⚠ `agency.status` is the AGENCY's account status; `status` below
+                  is the CONTRACT's. Both are `'active'` here because this is the
+                  healthy default — which means **this fixture cannot tell the two
+                  apart**. A test that cares which one a screen renders has to
+                  override one of them; the values agreeing here is why.
+                */
+                agency: {
+                    id: '6650bb22cc33dd44ee55ff66',
+                    businessName: 'Littoral Express Delivery',
+                    status: 'active',
+                },
                 status: 'active',
                 threshold: 90000,
                 outstandingBalance: 12500,

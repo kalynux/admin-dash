@@ -1,4 +1,4 @@
-import { AlertTriangle, Eye, FileQuestion, ImageOff } from 'lucide-react';
+import { AlertTriangle, Eye, FileQuestion, HardDrive, ImageOff } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
 import { InlineLoader } from '@/components/common/Loading';
@@ -11,6 +11,8 @@ import { getFile } from '@/services/files.service';
 import { ApiError } from '@/types/api.types';
 import {
     CODE_FILE_CONTENT_NOT_SUPPORTED,
+    QUOTA_BLOCKED_COPY,
+    isQuotaBlocked,
     isViewableImage,
     type FileDetail,
 } from '@/types/files.types';
@@ -51,6 +53,11 @@ import {
  * The route answers for any tree, so this never branches on `access` to decide
  * which call to make. A public file could be rendered straight from `url`, and
  * deliberately is not: that URL is unauthenticated and this is not.
+ *
+ * ✅ **And it branches on `access` for nothing at all** — not even to decide
+ * whether to offer the call. `quota_blocked` was believed to be an exception the
+ * route does not cover; it covers it (BR-023). `access` now only ever changes what
+ * is *said*, never what is *called*.
  */
 export function FileViewer({ file }: { file: FileDetail }) {
     // The fetch, the object URL, the double-click guard and the revoke.
@@ -63,6 +70,25 @@ export function FileViewer({ file }: { file: FileDetail }) {
     // under the new file's name, which on a delivery-proof dispute is the one
     // wrong thing this screen could do.
     const { content, error, isLoading, open } = useFileContent(file.id);
+
+    // ── 🔴 The billing answer is a NOTE beside the button, not a wall ─────────
+    // This returned a `Notice` and offered no button until 2026-09-09, on the
+    // grounds that *"the content route cannot serve it either — `files.md` is
+    // explicit"*. The page was explicit and it was wrong: the route answers `200`
+    // with the bytes for a blocked file in every tree — BR-023, measured.
+    // `quota_blocked` withholds the address, never the bytes. ✅ The clause was
+    // deleted upstream on 2026-09-12, so `files.md` now agrees with this branch.
+    //
+    // So the button stays and the billing fact is said next to it. Drawn even once
+    // the bytes are on screen, because "why did this need a click" is still a
+    // question an operator wants answered — and because it is the only place the
+    // owner's plan gets mentioned at all.
+    const quotaNote = isQuotaBlocked(file) ? (
+        <Notice icon={HardDrive} tone="muted">
+            <p className="font-medium">{QUOTA_BLOCKED_COPY.title}</p>
+            <p>{QUOTA_BLOCKED_COPY.body}</p>
+        </Notice>
+    ) : null;
 
     // ── The capability answer, which is not a failure ─────────────────────────
     // On a deployment whose storage provider cannot read bytes this is the
@@ -95,6 +121,7 @@ export function FileViewer({ file }: { file: FileDetail }) {
     if (content) {
         return (
             <div className="space-y-2">
+                {quotaNote}
                 {/* ⚠ A truncated body is the ONLY signal a mid-stream failure
                     gives. The route is a proxied stream, so once the first byte
                     is sent the status line is committed and a later failure
@@ -155,6 +182,7 @@ export function FileViewer({ file }: { file: FileDetail }) {
             }
         >
             <div className="space-y-2">
+                {quotaNote}
                 <Button variant="outline" size="sm" onClick={open} disabled={isLoading}>
                     {isLoading ? <InlineLoader /> : <Eye className="size-4" />}
                     {isLoading ? 'Opening…' : 'Open the file'}
@@ -212,9 +240,17 @@ export function ResolvedFileViewer({ fileId }: { fileId: string }) {
                 <p className="text-foreground text-sm font-medium">
                     {file.originalName ?? 'Unnamed file'}
                 </p>
+                {/*
+                  ⚠ Three answers, not two. This line read
+                  `access === 'public' ? 'public storage' : 'private storage'`
+                  until 2026-09-09, which called a file blocked on its owner's
+                  storage cap "private" — the wrong noun for a billing state, and
+                  the one that stops an operator asking the question that would
+                  resolve it. Anything unrecognised keeps the safe wording rather
+                  than claiming a tree it may not be in.
+                */}
                 <p>
-                    {file.mimeType} · {formatBytes(file.size)} ·{' '}
-                    {file.access === 'public' ? 'public storage' : 'private storage'}
+                    {file.mimeType} · {formatBytes(file.size)} · {storageLabel(file)}
                 </p>
                 <p className="font-mono">{file.id}</p>
             </div>
@@ -222,6 +258,19 @@ export function ResolvedFileViewer({ fileId }: { fileId: string }) {
             <FileViewer key={file.id} file={file} />
         </div>
     );
+}
+
+/**
+ * The one-line "where this file lives" phrase, in three cases.
+ *
+ * ⚠ **`quota_blocked` is tested first**, because the wire ranks it above
+ * `authorized`: a blocked file that *also* sits in a private tree reports
+ * `quota_blocked`, so an `authorized`-first test would describe a billing state
+ * as a storage one and never reach this branch at all.
+ */
+function storageLabel(file: FileDetail): string {
+    if (isQuotaBlocked(file)) return QUOTA_BLOCKED_COPY.label;
+    return file.access === 'public' ? 'public storage' : 'private storage';
 }
 
 function Notice({

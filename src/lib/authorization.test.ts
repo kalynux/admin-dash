@@ -98,8 +98,9 @@ describe('the composite guards behave as the contract describes', () => {
         expect(satisfies(heldFixture(3), requirement, 'all')).toBe(false);
     });
 
-    // GET /system/errors is the one any-mode guard, and all three levels reach it.
-    it('handles the one any-mode guard', () => {
+    // GET /system/errors is one of three any-mode guards — `GET /automation/failures`
+    // and `/summary` are the others, added 2026-09-07 — and all three levels reach it.
+    it('handles an any-mode guard', () => {
         const requirement = [
             'developer_tools.logs.read',
             'system.errors.read',
@@ -115,9 +116,9 @@ describe('the tier fixtures match the documented levels', () => {
     it('holds the counts permissions.md states', () => {
         // Matrix and prose agree again since BR-013; `permissions.types.test.ts`
         // is what keeps them that way.
-        expect(TIER_1_PERMISSIONS.length).toBe(116);
-        expect(TIER_2_PERMISSIONS.length).toBe(99);
-        expect(TIER_3_PERMISSIONS.length).toBe(30);
+        expect(TIER_1_PERMISSIONS.length).toBe(118);
+        expect(TIER_2_PERMISSIONS.length).toBe(101);
+        expect(TIER_3_PERMISSIONS.length).toBe(31);
     });
 
     it('withholds from Admin exactly what the doc says it withholds', () => {
@@ -151,14 +152,15 @@ describe('the tier fixtures match the documented levels', () => {
         expect(heldFixture(3).has('money.payments.read')).toBe(true);
     });
 
-    it('leaves Support holding 30 permissions, every one of them usable', () => {
+    it('leaves Support holding 31 permissions, every one of them usable', () => {
         // 24 held / 12 usable before Phase 5 built the `support` and `content`
         // surfaces; 29 until `files.content.read` was granted to all three tiers
-        // at BR-011. Support holds none of the four `†` names, so there is
-        // nothing in their set they cannot reach.
+        // at BR-011; 30 until `support.automation.lookup` arrived with
+        // `/automation` (ADR-022 D-7). Support holds none of the four `†` names,
+        // so there is nothing in their set they cannot reach.
         const unrouted = new Set<string>(UNROUTED_PERMISSION_NAMES);
         const usable = TIER_3_PERMISSIONS.filter((name) => !unrouted.has(name));
-        expect(usable.length).toBe(30);
+        expect(usable.length).toBe(31);
     });
 
     it('gives Support file resolution, but not the orphan listing', () => {

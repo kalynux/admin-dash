@@ -356,16 +356,61 @@ describe('the tracking verdict', () => {
     });
 });
 
+describe('the cash pool gate', () => {
+    /**
+     * `GET /agents/:agentId/cod-allocation` is a composite guard —
+     * `agents.read` **+** `agencies.read`, `all` mode
+     * (`agents.md:505`, `ROUTE-MAP.md:159`). It was fired on mount regardless
+     * until 2026-09-09, from a screen an `agents.read`-only caller can open.
+     *
+     * ⚠ **Latent, not live.** Every tier holding `agents.read` holds
+     * `agencies.read` today, so no operator can currently collect that 403.
+     * The tier matrix is the backend's to change, and a client that waits for
+     * an outage to gate a route has already shipped the bug.
+     */
+    it('does not fire the allocation read without agencies.read', async () => {
+        const calls = stubDetail();
+        detail(new Set(['agents.read']));
+
+        await screen.findByRole('tab', { name: /overview/i });
+        expect(calls.some((call) => call.url.includes('/cod-allocation'))).toBe(false);
+    });
+
+    /**
+     * And the tab goes with it: its whole content is that one read, so a tab
+     * that could only show a denial is not offered — the same rule the roster,
+     * Account and Activity tabs follow.
+     */
+    it('offers no Cash tab without agencies.read', async () => {
+        stubDetail();
+        detail(new Set(['agents.read']));
+
+        await screen.findByRole('tab', { name: /overview/i });
+        expect(screen.queryByRole('tab', { name: /^cash$/i })).not.toBeInTheDocument();
+    });
+
+    it('fires it, and offers the tab, once agencies.read is held too', async () => {
+        const calls = stubDetail();
+        detail(new Set(['agents.read', 'agencies.read']));
+
+        expect(await screen.findByRole('tab', { name: /^cash$/i })).toBeInTheDocument();
+        await waitFor(() => {
+            expect(calls.some((call) => call.url.includes('/cod-allocation'))).toBe(true);
+        });
+    });
+});
+
 describe('permissions', () => {
     /**
      * A tab whose only content is a denial teaches people the screen is broken, so
      * a caller missing the second permission does not get the tab at all.
      */
-    it('omits the roster, Account and Activity for a caller holding only agents.read', async () => {
+    it('omits Cash, the roster, Account and Activity for a caller holding only agents.read', async () => {
         stubDetail();
         detail(new Set(['agents.read']));
 
         await screen.findByRole('tab', { name: /overview/i });
+        expect(screen.queryByRole('tab', { name: /^cash$/i })).not.toBeInTheDocument();
         expect(screen.queryByRole('tab', { name: /roster/i })).not.toBeInTheDocument();
         expect(screen.queryByRole('tab', { name: /account/i })).not.toBeInTheDocument();
         expect(screen.queryByRole('tab', { name: /activity/i })).not.toBeInTheDocument();
@@ -449,8 +494,13 @@ describe('the cash pool', () => {
 
     it('does not request the trust history without the pair of permissions', async () => {
         // Everything the Cash tab itself needs, and neither COD read.
+        //
+        // ⚠ `agencies.read` is in the set because the tab is behind it — the
+        // cash pool is `agents.read` **+** `agencies.read` since the 2026-09-08
+        // re-derivation. It is not what this case is about; without it there is
+        // no tab to click.
         const calls = stubDetail();
-        detail(new Set(['agents.read', 'cod.trust.adjust']));
+        detail(new Set(['agents.read', 'agencies.read', 'cod.trust.adjust']));
 
         await userEvent.click(await screen.findByRole('tab', { name: /cash/i }));
         await screen.findByText('Cash pool');

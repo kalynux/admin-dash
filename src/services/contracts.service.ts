@@ -138,7 +138,11 @@ export function reinstateContract(
  * without either side noticing.
  *
  * Legal from `pending`, `active`, `paused` and `suspended`. A second attempt
- * while a request is open is `CONTRACT_REQUEST_ALREADY_PENDING`.
+ * while a request is open is `CONTRACT_STATUS_REQUEST_ALREADY_PENDING` at 409 —
+ * ⚠ `CONTRACT_STATUS_REQUEST_…`, not the shorter `CONTRACT_REQUEST_…` this
+ * comment named until 2026-09-09. No code of that name exists in jovi-mall's
+ * registry, so the dialog's branch on it never fired
+ * (`api-doc/jovi-mall/error-codes.ts:1011`, `contracts.md:201`).
  */
 export function terminateContract(
     contractId: string,

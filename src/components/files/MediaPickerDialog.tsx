@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ImageOff, Lock, RotateCw } from 'lucide-react';
+import { HardDrive, ImageOff, Lock, RotateCw } from 'lucide-react';
 
 import { EmptyState, ErrorState } from '@/components/common/DataState';
 import { Pager } from '@/components/common/Pager';
@@ -22,7 +22,12 @@ import { withQuery } from '@/lib/query';
 import { cn } from '@/lib/utils';
 import { listFileLibrary } from '@/services/files.service';
 import { useCan } from '@/store';
-import { isDisplayableImage, type FileDetail, type LibraryFile } from '@/types/files.types';
+import {
+    isDisplayableImage,
+    isQuotaBlocked,
+    type FileDetail,
+    type LibraryFile,
+} from '@/types/files.types';
 
 /** How many tiles a page of the picker shows. Small enough to stay a grid. */
 const PICKER_PAGE_SIZE = 12;
@@ -69,6 +74,14 @@ interface PickerScope {
  * will be. The ticket attachment takes a **`fileId`** instead and does not care.
  * Rather than hide the unusable rows — which reads as "there are no files" — they
  * render disabled with the reason on them.
+ *
+ * ⚠ **"Always will be" has one exception, and it is why the reason is written
+ * out rather than inferred from `url === null`.** A file with
+ * `access: "quota_blocked"` is in a *public* tree and has had its address
+ * withheld because its owner is over their plan's storage cap — so it is
+ * unusable on the blog's scope **until somebody upgrades a plan**, which is a
+ * different sentence and a different next action from "this file is private".
+ * On the `fileId` scopes it is not unusable at all; it is offered with a warning.
  */
 export function MediaPickerDialog({
     open,
@@ -303,6 +316,21 @@ function PickerTile({
      */
     const unusable = scope.requirePublicUrl && file.url === null;
 
+    /**
+     * ⚠ **The same `null`, for a reason the operator can do something about.**
+     * A quota-blocked file is in a public tree and has had its address withheld
+     * because its owner is over their plan's storage cap — so on the blog's
+     * scope it is unusable *for now* rather than unusable, and saying only "no
+     * public address" hides the one fact that would resolve it.
+     *
+     * ⚠ **It is not disabled where a `fileId` is what gets stored.** The two
+     * ticket forms keep the id, the id is valid, and the attachment is a legal
+     * thing to make — it simply will not render until the plan is upgraded. That
+     * is a warning, not a refusal, and refusing it would be this picker deciding
+     * something the contract does not.
+     */
+    const blocked = isQuotaBlocked(file);
+
     return (
         <button
             type="button"
@@ -323,6 +351,10 @@ function PickerTile({
                         alt={file.originalName ?? 'Uploaded file'}
                         className="h-full w-full object-contain"
                     />
+                ) : blocked ? (
+                    // Not a padlock: nothing here is private. The tile is
+                    // unrenderable because somebody is over a storage plan.
+                    <HardDrive className="text-muted-foreground size-6" aria-hidden />
                 ) : (
                     <Lock className="text-muted-foreground size-6" aria-hidden />
                 )}
@@ -335,7 +367,13 @@ function PickerTile({
                 <p className="text-muted-foreground truncate text-xs">
                     {file.mimeType} · {formatBytes(file.size)}
                 </p>
-                {unusable ? (
+                {blocked ? (
+                    <p className="text-muted-foreground text-xs">
+                        {unusable
+                            ? 'Blocked by a storage limit — no public address until the owner’s plan is upgraded.'
+                            : 'Blocked by a storage limit — it will not display until the owner’s plan is upgraded.'}
+                    </p>
+                ) : unusable ? (
                     <p className="text-muted-foreground text-xs">
                         No public address — cannot be used here.
                     </p>

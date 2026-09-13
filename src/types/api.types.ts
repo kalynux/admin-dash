@@ -339,18 +339,17 @@ export const CLIENT_CODE_PREFIX = 'CLIENT_';
  *
  * Read from **two** registries, because they have disagreed in both directions
  * and the guard is what keeps them honest: `api-doc/admin/api/errors.md` publishes
- * **92** distinct codes, and `api-doc/admin/error-codes.ts` — a copy of the
- * backend's own source — declares **83**. Seven of the nine in the doc alone are
+ * **95** distinct codes, and `api-doc/admin/error-codes.ts` — a copy of the
+ * backend's own source — declares **88**. The seven in the doc alone are
  * jovi-mall's verdicts, which wi-admin's registry correctly never declares.
  *
- * ⚠ **The other two are `FILE_UPLOAD_NOT_MULTIPART` and `FILE_UPLOAD_TOO_LARGE`,
- * and there the mirror is simply stale.** `backend/admin/src/core/errors/
- * error-codes.ts` declares 85 and names both; the copy under `api-doc/admin/` was
- * not re-taken when `errors.md` grew the rows at the 2026-08-26 resync. They are
- * included here on the doc's authority and on the backend source's, which agree.
- * Historically the gap ran the other way — `errors.md` once omitted sixteen
- * codes the service genuinely raised — which is why the test anchors to the
- * **union** rather than to either file.
+ * ⚠ **The mirror-staleness this note used to describe is fixed.** It read that
+ * `FILE_UPLOAD_NOT_MULTIPART` and `FILE_UPLOAD_TOO_LARGE` were in the backend's
+ * source but not in the copy under `api-doc/admin/`; the 2026-09-08 resync
+ * re-took the mirror and it now declares all 88, the three `AUTOMATION_*` codes
+ * (ADR-022) included. Historically the gap ran the other way — `errors.md` once
+ * omitted sixteen codes the service genuinely raised — which is why the test
+ * anchors to the **union** rather than to either file.
  *
  * Twenty-two of the documented rows are excluded, and the exclusions are the
  * interesting part:
@@ -361,15 +360,25 @@ export const CLIENT_CODE_PREFIX = 'CLIENT_';
  *   `SYSTEM_CONFIG_EXPOSURE_UNSAFE`, `SYSTEM_FEATURE_FLAG_CATALOG_INVALID`,
  *   `CONFIG_INVALID_ENV`, `CONFIG_MISSING_SECRET`,
  *   `CONFIG_NOTIFICATION_COVERAGE_INCOMPLETE`).
- * - **Twelve are never `error.code` at all.** They are jovi-mall's verdicts and
+ * - **Eleven are never `error.code` at all.** They are jovi-mall's verdicts and
  *   arrive as `details.platformCode` on a `PLATFORM_OPERATION_REJECTED`, so they
  *   belong to the platform catalog (`error-platform.ts`, in each locale), not
  *   this one: `DEV_TOOLS_WORKER_UNKNOWN`, `DEV_TOOLS_WORKER_BUSY`,
- *   `CONTRACT_INVALID_TRANSITION`, `CONTRACT_TRANSITION_NOT_PERMITTED`,
+ *   `CONTRACT_INVALID_TRANSITION`,
  *   `BILLING_PENDING_PLAN_EXISTS`, `BILLING_PLAN_INACTIVE`,
  *   `BILLING_PLAN_ROLE_MISMATCH`, `MESSAGING_DELIVERY_FAILED`,
  *   `AUTH_ACCOUNT_SUSPENDED`, `USER_CHANNEL_UNAVAILABLE`,
  *   `USER_CREDENTIAL_LINK_THROTTLED`, `USER_LOGIN_LINK_ROLE_UNSUPPORTED`.
+ * - **One reaches a client in no form whatsoever**, which is a third case and
+ *   not a variety of the second: `CONTRACT_TRANSITION_NOT_PERMITTED` is
+ *   forwarded at **403**, and `authorization` is one of the two categories whose
+ *   `details` allowlist drops `platformCode`. So it arrives as a bare
+ *   `403 PLATFORM_OPERATION_REJECTED` carrying jovi-mall's message and no code
+ *   at any level. ⚠ **A branch on it can never fire** — see
+ *   `components/contracts/ContractWriteDialogs.tsx`. The same is true of
+ *   `USER_CREDENTIAL_LINK_THROTTLED` at **429** (`rate_limit`, whose allowlist
+ *   is `retryAfterSeconds` · `limit` · `windowSeconds`), which is listed above
+ *   because its section also declares it platform-only; both are counted once.
  *   The last three are declared once in their section's prose rather than on
  *   every row, which is why the parser reads section preambles too.
  *
@@ -440,6 +449,19 @@ export const KNOWN_ERROR_CODES = [
     'TRACKING_DOOR_UNCONFIGURED',
     'TRACKING_DOOR_REFUSED',
     'TRACKING_DOOR_UNAVAILABLE',
+    // Automation — the n8n failure-reporting door (ADR-022).
+    //
+    // ⚠ **The dashboard can never receive one of these.** All three are raised
+    // on `POST /api/internal/automation/failures`, which sits outside `/api/v1`,
+    // answers to a shared secret rather than to an administrator, and which this
+    // client must never call. They are carried here because `errors.md` claims
+    // to publish every code the service can return, and `error-catalog.test.ts`
+    // requires copy for anything it does not exclude — the copy is written for
+    // an operator reading a reporter node's response body, which is who would
+    // actually see it.
+    'AUTOMATION_REPORT_TOKEN_INVALID',
+    'AUTOMATION_REPORT_MALFORMED',
+    'AUTOMATION_DOOR_UNCONFIGURED',
     // Support
     'TICKET_NOT_FOUND',
     'TICKET_ALREADY_ASSIGNED',
@@ -660,6 +682,21 @@ export class ApiError extends Error {
      * on it, not on `code`.** It survives the exposure scrub even on
      * `internal` / `external_service`, because without it a dashboard cannot
      * tell "jovi-mall is down" from "wi-admin is down" when both present as 502.
+     *
+     * ⚠ **On a forwarded 403 or 429 it is `undefined`, and that is the
+     * contract rather than a fault.** The boundary filters `details` by
+     * **category**, and `authorization` and `rate_limit` are the only two with a
+     * closed key allowlist — `required` · `requiredAny` · `mode` · `resource` ·
+     * `action` · `hint` for the first, `retryAfterSeconds` · `limit` ·
+     * `windowSeconds` for the second. `platformCode` is on neither, so it is
+     * dropped. Two real branches were written against it before this was
+     * documented (2026-09-08) and neither could ever fire:
+     * `CONTRACT_TRANSITION_NOT_PERMITTED` at 403 and
+     * `USER_CREDENTIAL_LINK_THROTTLED` at 429.
+     *
+     * **At those two statuses, branch on `status` and render `message`.** The
+     * distinction the code used to carry survives only in jovi-mall's own
+     * sentence.
      */
     get platformCode(): string | undefined {
         const value = this.details?.platformCode;
@@ -688,6 +725,31 @@ export class ApiError extends Error {
     get retryAfterSeconds(): number | undefined {
         const value = this.details?.retryAfterSeconds;
         return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+    }
+
+    // ── Reading the server's own sentence ─────────────────────────────────────
+
+    /**
+     * The sentence the **server** actually sent, or `undefined` when it sent
+     * none and {@link errorFromBody} synthesised one.
+     *
+     * ⚠ **`message` is never empty, and that is the trap this closes.** A
+     * failure that never reached the service — a proxy, a gateway timeout page —
+     * produces no envelope, so the constructor fills in
+     * `Request failed with status 429`. Any call site doing
+     * `error.message ? render(error.message) : fallback` therefore takes the
+     * first arm **always**, and shows an operator a status line where the
+     * fallback had the useful sentence.
+     *
+     * That matters at exactly two statuses. On a forwarded **403** and **429**
+     * the `details` allowlist drops `platformCode`, so the server's message is
+     * the only thing left carrying *why* — and a call site that renders it must
+     * be able to tell a real sentence from a placeholder. Everywhere else,
+     * prefer `resolveErrorMessage`, which is translated.
+     */
+    get serverMessage(): string | undefined {
+        const value = this.message;
+        return !value || value === synthesizedMessage(this.status) ? undefined : value;
     }
 }
 
@@ -722,6 +784,17 @@ export type DualControlResult<T, TApproval = unknown> =
 // ─── Envelope parsing ─────────────────────────────────────────────────────────
 
 /**
+ * What `message` becomes when the body carried none.
+ *
+ * Shared with {@link ApiError.serverMessage} rather than inlined, so the one
+ * place that writes the placeholder and the one place that recognises it cannot
+ * drift apart.
+ */
+function synthesizedMessage(status: number): string {
+    return `Request failed with status ${status}`;
+}
+
+/**
  * Build an `ApiError` from a parsed response body.
  *
  * Tolerant on purpose: a request can fail before it reaches the service (a
@@ -740,7 +813,7 @@ export function errorFromBody(
     const message =
         typeof error.message === 'string' && error.message.length > 0
             ? error.message
-            : `Request failed with status ${status}`;
+            : synthesizedMessage(status);
     const category = isErrorCategory(error.category) ? error.category : categoryFromStatus(status);
     const requestId =
         typeof envelope.requestId === 'string' ? envelope.requestId : fallbackRequestId;

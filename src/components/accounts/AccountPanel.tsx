@@ -37,7 +37,7 @@ interface AccountPanelProps {
  * an agent.
  *
  * ── Why this is not part of the domain detail ─────────────────────────────────
- * [ADR-008](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md) excludes billing,
+ * [ADR-008](../../api-doc/docs/ADR-008-VENDOR-MANAGEMENT.md) excludes billing,
  * earnings and payouts from `/vendors` on purpose, and the delivery surfaces
  * follow it: putting them there would let `vendors.read` alone reach what
  * `billing.*` and `money.*` exist to gate. So this reads a different mount behind
@@ -414,17 +414,46 @@ function PayoutsCard({ account, timeZone }: { account: OwnerAccount; timeZone: s
                             </InfoHint>
                         }
                     >
-                        {payouts.pendingCount > 0
-                            ? formatMoney(payouts.pendingAmount ?? 0, payouts.currency)
-                            : 'None open'}
+                        {/*
+                          ⚠ **A missing amount is not a zero amount.** This used to
+                          render `pendingAmount ?? 0`, which turns "we were not told"
+                          into "they are owed nothing" — a money figure is read as a
+                          claim, and that one is the reassuring direction. Every other
+                          null on this screen is named, so this one is too.
+
+                          The contract says `pendingAmount` is `null` *when nothing
+                          is pending* (`accounts.md:227`), so reaching this branch
+                          with a null should not happen — which is exactly why it must
+                          not be papered over. It would mean `pendingCount` and
+                          `pendingAmount` disagree, and the operator needs to see that
+                          rather than a confident 0.
+                        */}
+                        {payouts.pendingCount === 0 ? (
+                            'None open'
+                        ) : payouts.pendingAmount === null ? (
+                            <NotSet>Open, amount not reported</NotSet>
+                        ) : (
+                            formatMoney(payouts.pendingAmount, payouts.currency)
+                        )}
                     </Definition>
 
                     <Definition label="Last paid">
-                        {payouts.lastPaidAt
-                            ? `${formatMoney(payouts.lastPaidAmount ?? 0, payouts.currency)} · ${
-                                  formatInstantInZone(payouts.lastPaidAt, timeZone) ?? ''
-                              }`
-                            : 'Never paid'}
+                        {/* Same rule as the pending amount above: the two fields go
+                            `null` together (`accounts.md:229` — "`null` until the owner
+                            has been paid once"), so an instant without a figure is a
+                            disagreement, not a payment of zero. */}
+                        {!payouts.lastPaidAt ? (
+                            'Never paid'
+                        ) : payouts.lastPaidAmount === null ? (
+                            <NotSet>
+                                Paid {formatInstantInZone(payouts.lastPaidAt, timeZone) ?? ''} ·
+                                amount not reported
+                            </NotSet>
+                        ) : (
+                            `${formatMoney(payouts.lastPaidAmount, payouts.currency)} · ${
+                                formatInstantInZone(payouts.lastPaidAt, timeZone) ?? ''
+                            }`
+                        )}
                     </Definition>
 
                     <Definition

@@ -5,7 +5,7 @@
  * `backend/admin/src/modules/accounts/`.
  *
  * ── Why this is not on the `/vendors` surface ─────────────────────────────────
- * [ADR-008](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md) explicitly excludes
+ * [ADR-008](../../api-doc/docs/ADR-008-VENDOR-MANAGEMENT.md) explicitly excludes
  * billing, earnings and payouts from `/vendors`: assembling them there would let
  * `vendors.read` alone reach what `billing.*` and `money.*` exist to gate. So the
  * vendor screen reads *this* mount instead, behind *its* permissions — which is
@@ -66,6 +66,10 @@ import type { Payout } from '@/types/money.types';
  * `codExposure`, `flags.openDiscrepancies`, `flags.overCodThreshold` — because a
  * vendor cannot hold cash. `null` there means *does not apply*, which is a
  * different claim from `0`.
+ *
+ * ⚠ **`overCodThreshold` is null for more than a vendor.** `accounts.md:257` also
+ * gives it as `null` for an **agency** and for **an agent with no ceiling set** —
+ * so a `null` here says "no answer", and only `owner.type` says why.
  *
  * `404 ACCOUNT_OWNER_NOT_FOUND` is "no such vendor". **An owner with no balances
  * is not this** — that reports zeroes.

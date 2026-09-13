@@ -8,7 +8,7 @@ import type { VendorKycStatus } from '@/types/vendors.types';
  * Three-valued on purpose. The old boolean could not tell **never reviewed** from
  * **reviewed and rejected** — both were `false` — which makes a review queue
  * unbuildable and is why the directory's `kycStatus` filter needed three values
- * ([ADR-008 D-5](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)). `pending` is
+ * ([ADR-008 D-5](../../api-doc/docs/ADR-008-VENDOR-MANAGEMENT.md)). `pending` is
  * also what rows written before the verdict existed report, so it means "no
  * decision", not "awaiting one".
  *

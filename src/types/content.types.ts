@@ -34,12 +34,16 @@
  * `ArticleAuthor` had a scalar `bio` where the wire has per-locale
  * `translations` and a **required** `type`.
  *
- * ⚠ **The stripped filters generalise past this module.** `listQuery` is not
- * `.strict()`, so **every list endpoint on this service silently drops an
- * unrecognised query parameter** — `categoryKey` instead of `category` returns
- * the unfiltered list, `200`, no warning. A misspelt filter looks applied. That
- * is now written down on `content.md`; widening `listQuery` service-wide is a
- * separate change the backend has not made.
+ * ⚠ **The stripped filters generalise past this module — but NOT to the whole
+ * service, which is what this note used to claim.** `listQuery` is not
+ * `.strict()`, so an unrecognised parameter on `/content/articles` is dropped:
+ * `categoryKey` instead of `category` returns the unfiltered list, `200`, no
+ * warning, and a misspelt filter looks applied. What does **not** follow is
+ * *every list endpoint* — eleven schemas are strict, and one of them is
+ * `GET /content/authors`, two functions away in the same service (BR-022,
+ * answered 2026-09-12). The canonical statement is in
+ * [`lib/query.ts`](../lib/query.ts). Widening `listQuery` is still a change the
+ * backend has deliberately not made.
  *
  * ── ✅ Mirrors, so this cannot happen again ───────────────────────────────────
  * **They already earned themselves**: the mirrors are what caught `cover.alt`

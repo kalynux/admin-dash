@@ -69,7 +69,7 @@ describe('loading the set', () => {
 
         await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('ready'));
         expect(calls.filter((call) => call.url.includes('/permissions/me'))).toHaveLength(1);
-        expect(screen.getByTestId('count')).toHaveTextContent('99');
+        expect(screen.getByTestId('count')).toHaveTextContent('101');
         expect(screen.getByTestId('label')).toHaveTextContent('Admin');
     });
 
@@ -112,7 +112,7 @@ describe('loading the set', () => {
         await userEvent.click(screen.getByRole('button', { name: 'reload' }));
 
         await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('ready'));
-        expect(screen.getByTestId('count')).toHaveTextContent('30');
+        expect(screen.getByTestId('count')).toHaveTextContent('31');
     });
 });
 
@@ -135,11 +135,11 @@ describe('a level change', () => {
         });
 
         render(<MovableLevel initial={2} />);
-        await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('99'));
+        await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('101'));
 
         await userEvent.click(screen.getByRole('button', { name: 'demote' }));
 
-        await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('30'));
+        await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('31'));
         expect(calls.filter((call) => call.url.includes('/permissions/me'))).toHaveLength(2);
     });
 });
@@ -167,7 +167,7 @@ describe('a refusal', () => {
     /**
      * The filter is the whole point of subscribing at all.
      *
-     * Thirteen endpoints are composite `all`-mode guards sitting inside sections
+     * Seventeen endpoints are composite `all`-mode guards sitting inside sections
      * a caller reaches on any-of, so being refused one while holding the other is
      * the *normal* case. Re-reading /permissions/me there returns the identical
      * set, so paying a round trip for it on every composite miss across Phases

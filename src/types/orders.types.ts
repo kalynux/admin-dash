@@ -2,7 +2,7 @@
  * `/api/v1/orders` — the wire shapes, the query types and the write bodies.
  *
  * ── Sources ───────────────────────────────────────────────────────────────────
- * `api-doc/admin/api/orders.md` and `api-doc/admin/ADR-010-ORDERS-AND-SHIPMENTS.md` for
+ * `api-doc/admin/api/orders.md` and `api-doc/docs/ADR-010-ORDERS-AND-SHIPMENTS.md` for
  * the contract; `backend/admin/src/modules/orders/read-models/order.dto.ts` and
  * `.../repositories/order.read.repository.ts` for the shapes, because the docs are
  * wrong in four places on this surface. Where they disagree, **the code is the
@@ -123,8 +123,9 @@ export type OrderTimelineActorType = (typeof ORDER_TIMELINE_ACTOR_TYPES)[number]
  *
  * That is what makes the timeline's event-type filter a `<Select>` rather than
  * the free-text box the rest of this dashboard uses. The standing rule exists
- * because **`listQuery` is not `.strict()` service-wide**: a misspelt filter is
- * dropped silently and the unfiltered list comes back `200`, looking filtered,
+ * because **`listQuery` is not `.strict()`** — here and on most endpoints,
+ * though **not service-wide** (BR-022): a misspelt filter is dropped silently
+ * and the unfiltered list comes back `200`, looking filtered,
  * so a picker built from a stale vocabulary matches nothing while looking
  * correct. This list meets the same bar `ticket-vocabularies.ts` does.
  *
@@ -281,6 +282,14 @@ export interface OrderItem {
      * and `mimeType.startsWith('image/')`** — `isDisplayableImage`. The field is
      * a full `FileDetail` rather than a URL string precisely so a client is not
      * left guessing at the first two.
+     *
+     * ⚠ **A file that is present but has `access: "quota_blocked"` is neither of
+     * those two things**, and it is not `null` either — the vendor is over their
+     * plan's storage cap, the tree is still public, and the picture comes back
+     * when the plan is upgraded. `isDisplayableImage` refuses it correctly, but
+     * the audited content route cannot serve it either, so it must not fall
+     * through to a click-to-reveal box. `LineItemImage` branches on
+     * `isQuotaBlocked` above the displayability test for exactly this reason.
      *
      * `null` is ordinary: a digital line, media swept by the orphan cleanup, a
      * product deleted since the order. Render the title alone.

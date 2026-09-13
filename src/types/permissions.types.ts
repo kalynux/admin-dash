@@ -8,7 +8,7 @@
  * draw that line themselves: `GET /permissions/catalog` requires no permission
  * because "the vocabulary is what a dashboard is written against"
  * (`authorization.md`), while `permissions.md` says in as many words *"Do not
- * hard-code the matrix below into the dashboard"*. So the 116 **names** live
+ * hard-code the matrix below into the dashboard"*. So the 118 **names** live
  * here as literal types — a typo becomes a compile error rather than a module
  * that silently never renders — and **who holds what** comes only from
  * `GET /permissions/me`, never from this file.
@@ -22,7 +22,14 @@ import type { AdminTier } from '@/types/auth.types';
 // ─── The catalogue ────────────────────────────────────────────────────────────
 
 /**
- * All 116 permissions, `family.resource.action`, in the doc's own family order.
+ * All 118 permissions, `family.resource.action`, in the doc's own family order.
+ *
+ * The 117th and 118th are `support.automation.lookup` and `system.automation.read`,
+ * added 2026-09-07 with the `/automation` route group (ADR-022) and absorbed at
+ * the 2026-09-08 doc resync. They are **two** names rather than one because the
+ * Developer rung reuses `developer_tools.logs.read`, and
+ * `assertGrantTableValid()` refuses that family to any tier but 1 at boot — so a
+ * single name could not have expressed the three-rung ladder.
  *
  * The 115th and 116th are `files.library.read` and `files.upload`, added at
  * BR-015 (ADR-021) and absorbed at the 2026-08-26 doc resync; the 114th was
@@ -92,6 +99,7 @@ export const PERMISSION_NAMES = [
 
     // support — nineteen routes since Phase 5 Part B; the whole family is routed
     'support.errors.lookup',
+    'support.automation.lookup',
     'support.tickets.read',
     'support.tickets.create',
     'support.tickets.update',
@@ -226,6 +234,7 @@ export const PERMISSION_NAMES = [
     'system.metrics.read',
     'system.maintenance.read',
     'system.errors.read',
+    'system.automation.read',
 
     // developer_tools
     'developer_tools.workers.trigger',
@@ -299,7 +308,7 @@ export const PERMISSION_FAMILIES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Any of the 116. Use for what the *server* may send us. */
+/** Any of the 118. Use for what the *server* may send us. */
 export type PermissionName = (typeof PERMISSION_NAMES)[number];
 
 /** One of the four `†`. */
@@ -317,10 +326,10 @@ export type PermissionFamily = (typeof PERMISSION_FAMILIES)[number];
 /**
  * How to read a list of required permissions.
  *
- * `all` — holds every one. Fourteen endpoints are composite guards in this mode,
+ * `all` — holds every one. Seventeen endpoints are composite guards in this mode,
  * because they compose data from two or three domains.
- * `any` — holds at least one. Exactly one endpoint guards this way
- * (`GET /system/errors`), and it is also the right mode for *navigation*: a
+ * `any` — holds at least one. Three endpoints guard this way — `GET /system/errors`
+ * and both `/automation` reads — and it is also the right mode for *navigation*: a
  * section is reachable if anything in it is.
  */
 export type PermissionMode = 'all' | 'any';

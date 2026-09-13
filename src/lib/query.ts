@@ -1,6 +1,38 @@
 /**
  * Query-string construction, with the contract's filter conventions baked in so
  * no call site has to remember them.
+ *
+ * ── ⚠ Unknown parameters: two axes, and only one of them varies ───────────────
+ * This repository said, in six places, that **`listQuery` is not `.strict()`
+ * service-wide** and therefore that *every* list endpoint silently drops an
+ * unrecognised parameter. The first half is true; the second does not follow.
+ * [BR-022](../../api-doc/admin/dashboard/backend-requests/BR-022-list-query-strictness-is-not-uniform.md),
+ * answered 2026-09-12: **eleven query schemas are hand-rolled and strict**, on
+ * twelve routes. We found two of them by probing a running service; the backend
+ * found the other ten by loading every exported schema, because a grep both
+ * over-reports (schemas bound to no route) and under-reports (a `.strict()`
+ * several lines from the name it closes).
+ *
+ * | Axis | Behaviour |
+ * |---|---|
+ * | unrecognised **key** — `categoryKey` for `category` | usually dropped, `200`, unfiltered — **a `400` on the twelve strict routes** |
+ * | recognised key, out-of-range **value** — `?category=__nope__` | **always `400`, everywhere**, and the message names the permitted set |
+ *
+ * So the guidance is narrower than it was, and more useful: **check a filter's
+ * *name* against the endpoint's page; you do not need to check its *values*.**
+ * And **do not assume a list request cannot `400`** — that is the inference the
+ * old sentence licensed, and it was wrong on ten endpoints we had no way to know
+ * about.
+ *
+ * The strict set is the table in
+ * [`api/README.md` § Filtering](../../api-doc/admin/api/README.md), pinned on the
+ * backend by `test:list-strictness`. **Read it there rather than copying it
+ * here** — a list kept by hand in two repositories is how this recurs.
+ *
+ * ✅ Every call this dashboard makes to one of the twelve sends only that
+ * route's documented parameters — checked endpoint by endpoint on 2026-09-12,
+ * when the set arrived. `tracking-presence` is the one worth knowing: it refuses
+ * `reason` as well, unlike the other two audited tracking reads.
  */
 
 export type QueryValue =

@@ -26,7 +26,7 @@ import type { VendorDetail } from '@/types/vendors.types';
  *
  * The fourth is verification, which is on its own axis again: it is written by an
  * administrator like `status` is, but it **gates nothing**
- * ([ADR-008 D-5](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)) — so it sits here
+ * ([ADR-008 D-5](../../api-doc/docs/ADR-008-VENDOR-MANAGEMENT.md)) — so it sits here
  * with that stated, rather than beside the trading status where it would read as a
  * second thing stopping the shop.
  */

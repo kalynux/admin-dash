@@ -2,10 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
-import { FileViewer } from '@/components/files/FileViewer';
+import { FileViewer, ResolvedFileViewer } from '@/components/files/FileViewer';
 import { heldFixture } from '@/test/fixtures';
 import { __liveObjectUrls } from '@/test/setup';
-import { errorResponse, renderWithProviders, stubFetch } from '@/test/utils';
+import {
+    errorResponse,
+    renderWithProviders,
+    stubFetch,
+    successResponse,
+} from '@/test/utils';
 import type { FileDetail } from '@/types/files.types';
 
 const PROOF: FileDetail = {
@@ -151,6 +156,114 @@ describe('a file that is not an image', () => {
 
         expect(await screen.findByText(/not something this screen can display/i)).toBeInTheDocument();
         expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    });
+});
+
+describe('a file blocked on its owner’s storage quota', () => {
+    /**
+     * 🔴 **The third `access` value, and a billing state — but not a wall.**
+     *
+     * This block asserted that the viewer *"offers no open, and asks for nothing"*,
+     * because [`files.md`](../../../api-doc/admin/api/files.md) said *"the
+     * content route will not help you either"*. Measured on 2026-09-09, it helps:
+     * `200` and the real bytes, in every tree. `quota_blocked` withholds the
+     * address, not the bytes. See BR-023.
+     *
+     * So the button stays and the billing fact is drawn beside it — and it is drawn
+     * **after** the bytes arrive too, because "why did this need a click" is still
+     * a question, and it is the only place the owner's plan is mentioned.
+     */
+    const BLOCKED: FileDetail = {
+        ...PROOF,
+        key: 'images/2026/08/1f2e3d_logo.png',
+        access: 'quota_blocked',
+    };
+
+    it('offers the open, and still asks for nothing before the click', () => {
+        const calls = stubFetch((call) => {
+            throw new Error(`unexpected request: ${call.method} ${call.url}`);
+        });
+
+        renderWithProviders(<FileViewer file={BLOCKED} />, asSupport);
+
+        expect(screen.getByRole('button', { name: /open the file/i })).toBeInTheDocument();
+        expect(calls).toHaveLength(0);
+    });
+
+    it('names the storage cap and says the address is coming back', () => {
+        stubFetch((call) => {
+            throw new Error(`unexpected request: ${call.method} ${call.url}`);
+        });
+
+        renderWithProviders(<FileViewer file={BLOCKED} />, asSupport);
+
+        expect(screen.getByText(/blocked by a storage limit/i)).toBeInTheDocument();
+        expect(screen.getByText(/address comes back when their plan is upgraded/i)).toBeInTheDocument();
+        // Never the renderings `files.md` rules out by name — nor the claim it
+        // wrongly licensed, that the file cannot be shown at all.
+        expect(screen.queryByText(/missing|cleaned up/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/private/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/cannot be shown/i)).not.toBeInTheDocument();
+    });
+
+    it('shows the bytes on click, and keeps saying why there was no address', async () => {
+        stubFetch(() => bytes());
+
+        renderWithProviders(<FileViewer file={BLOCKED} />, asSupport);
+        await userEvent.click(screen.getByRole('button', { name: /open the file/i }));
+
+        expect(await screen.findByRole('img')).toBeInTheDocument();
+        expect(screen.getByText(/blocked by a storage limit/i)).toBeInTheDocument();
+    });
+});
+
+describe('the storage line under the file’s name', () => {
+    /**
+     * 🔴 **Three answers, not two.** This line read
+     * `access === 'public' ? 'public storage' : 'private storage'` until
+     * 2026-09-09 — so it called a file blocked on a billing limit "private", the
+     * one noun that stops an operator asking the question that would resolve it.
+     */
+    function stubResolve(file: FileDetail) {
+        return stubFetch((call) => {
+            if (call.url.includes(`/files/${file.id}`)) return successResponse(file);
+            throw new Error(`unexpected request: ${call.method} ${call.url}`);
+        });
+    }
+
+    it('says "blocked" for a quota-blocked file, never "private"', async () => {
+        const blocked: FileDetail = { ...PROOF, access: 'quota_blocked' };
+        stubResolve(blocked);
+
+        renderWithProviders(<ResolvedFileViewer fileId={blocked.id} />, asSupport);
+
+        expect(await screen.findByText(/over their storage limit/i)).toBeInTheDocument();
+        expect(screen.queryByText(/private storage/i)).not.toBeInTheDocument();
+    });
+
+    it('still says private for a file that really is in a private tree', async () => {
+        // The correction must not have swallowed the case it was drawn from: a
+        // delivery proof in `shipments/` is private, permanently, and that is
+        // what the line should say.
+        stubResolve(PROOF);
+
+        renderWithProviders(<ResolvedFileViewer fileId={PROOF.id} />, asSupport);
+
+        expect(await screen.findByText(/private storage/i)).toBeInTheDocument();
+    });
+
+    it('still says public for a public one', async () => {
+        const shopLogo: FileDetail = {
+            ...PROOF,
+            key: 'images/2026/08/1f2e3d_logo.png',
+            url: 'https://cdn.example.com/images/2026/08/1f2e3d_logo.png',
+            access: 'public',
+        };
+        stubResolve(shopLogo);
+
+        renderWithProviders(<ResolvedFileViewer fileId={shopLogo.id} />, asSupport);
+
+        expect(await screen.findByText(/public storage/i)).toBeInTheDocument();
     });
 });
 

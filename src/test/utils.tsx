@@ -15,7 +15,7 @@ interface Options extends Omit<RenderOptions, 'wrapper'> {
     route?: string;
     /**
      * What the rendered tree may do. Defaults to a **ready Developer set** — all
-     * 116 permissions — because the question most screen tests are asking is not
+     * 118 permissions — because the question most screen tests are asking is not
      * "is this gated correctly" but "does it render", and gating them by accident
      * would make a passing test mean nothing.
      *

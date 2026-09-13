@@ -11,7 +11,7 @@ import { InfoHint } from '@/components/ui/info-hint';
 import { ProductStatusBadge } from '@/components/vendors/ProductStatusBadge';
 import { formatBytes, formatCount, formatInstantInZone, formatMoney } from '@/lib/format';
 import { partyName } from '@/lib/party';
-import type { FileDetail } from '@/types/files.types';
+import { type FileDetail } from '@/types/files.types';
 import {
     productSuspensionOwner,
     productSuspensionReasonLabel,
@@ -256,11 +256,20 @@ export function ProductSuspensionPanel({ product, timeZone }: PanelProps) {
  * A file whose `url` is `null` falls back to `<ResolvedImageBox>`, which *does*
  * go through the audited content route and *does* wait for a click. That branch
  * should be unreachable on this endpoint — it exists because "should be" is not
- * a guarantee, and a blank tile would be the worst of the three outcomes.
+ * a guarantee, and a blank tile would be the worst of the outcomes.
  *
- * ⚠ The gallery is built from the displayable images only, so an arrow key
+ * ⚠ **One `url: null` case IS reachable here, and it must not take that
+ * fallback**: `access: "quota_blocked"`, the vendor over their plan's storage
+ * cap. The tree is still public — nothing about it is private — and the content
+ * route cannot serve a blocked file either, so an audited open would spend a
+ * disclosure to fail. It is a billing state, it is temporary, and it gets its
+ * own tile.
+ *
+ * ⚠ The gallery is built from the images that have a `url`, so an arrow key
  * cannot reach a file that has no `src` to show. `LightboxImage` requires one
- * for exactly that reason.
+ * for exactly that reason — **and a blocked image is therefore absent from the
+ * lightbox as well as from the grid position it still occupies**, which is the
+ * intended behaviour rather than an oversight: there is nothing to enlarge.
  */
 export function ProductMediaPanel({ product }: { product: VendorProductDetail }) {
     const images = product.media.images;
@@ -318,7 +327,16 @@ export function ProductMediaPanel({ product }: { product: VendorProductDetail })
                                 ) : (
                                     /* Not expected on a public tree — see the panel
                                        note. Resolving through the content route is
-                                       the honest fallback, and it asks first. */
+                                       the honest fallback, and it asks first.
+
+                                       🔴 A `quota_blocked` branch sat ahead of this
+                                       until 2026-09-09, calling it "the one `url:
+                                       null` the content route cannot rescue". The
+                                       route rescues it (BR-023): a vendor over their
+                                       storage cap still has their listing's picture
+                                       served by the audited read. It now falls here
+                                       like any other addressless file, and the box
+                                       says why there was no thumbnail. */
                                     <ResolvedImageBox
                                         fileId={image.id}
                                         alt={imageAlt(product, image)}

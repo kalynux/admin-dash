@@ -27,7 +27,6 @@ import { pickFieldErrors } from '@/lib/field-errors';
 import { notify } from '@/lib/notify';
 import {
     PLATFORM_CODE_CHANNEL_UNAVAILABLE,
-    PLATFORM_CODE_CREDENTIAL_LINK_THROTTLED,
     PLATFORM_CODE_LOGIN_LINK_ROLE_UNSUPPORTED,
     PLATFORM_CODE_MESSAGING_DELIVERY_FAILED,
     PLATFORM_CODE_PARTY_ACCOUNT_SUSPENDED,
@@ -104,11 +103,18 @@ const COPY: Record<
  * channel*, never *where* — and the response's `destinationMasked` is the first
  * time anybody sees where it actually went.
  *
- * ── The five platform refusals each get their own sentence ────────────────────
- * All of these arrive as `details.platformCode` on a `PLATFORM_OPERATION_REJECTED`,
- * so branching on `error.code` would collapse them into one unhelpful message.
- * The throttle is the one worth care: `details.scope` is `party` or
- * `administrator`, and "wait" versus "ask a colleague" are different remedies.
+ * ── Four platform refusals get their own sentence; the throttle cannot ────────
+ * Four of the five arrive as `details.platformCode` on a
+ * `PLATFORM_OPERATION_REJECTED` at 409 or 502, so branching on `error.code`
+ * would collapse them into one unhelpful message.
+ *
+ * ⚠ **The fifth — the throttle — arrives with no code and no `scope`, and is
+ * matched on its status instead.** `USER_CREDENTIAL_LINK_THROTTLED` is
+ * forwarded at 429, whose category `rate_limit` carries a closed `details`
+ * allowlist of `retryAfterSeconds` · `limit` · `windowSeconds`. Both
+ * `platformCode` and `scope` are dropped at the boundary
+ * (`users.md:481-492`), so the two remedies — *wait*, versus *ask a colleague*
+ * — survive **only inside jovi-mall's own message**. See the note at the branch.
  */
 export function SendCredentialLinkDialog({
     user,
@@ -156,6 +162,51 @@ export function SendCredentialLinkDialog({
             onSent();
         } catch (error) {
             if (error instanceof ApiError) {
+                /*
+                  ⚠ **The throttle is matched on its STATUS, and there is no
+                  `scope` to read.** jovi-mall raises
+                  `USER_CREDENTIAL_LINK_THROTTLED` with
+                  `{ retryAfterSeconds, scope }`, where `scope` is `party`
+                  ("this person has been sent too many") or `administrator`
+                  ("you have sent too many") — two different remedies, *wait*
+                  versus *ask a colleague*. **Neither `scope` nor
+                  `platformCode` survives the boundary**: `details` is filtered
+                  by category and `rate_limit`'s allowlist is closed at
+                  `retryAfterSeconds` · `limit` · `windowSeconds`
+                  (`users.md:481-492`).
+
+                  This read `details.scope` and keyed the remedy off it until
+                  2026-09-09. The value was never there, so every throttle was
+                  reported as the party's — including the half where the operator
+                  was the one being limited and a colleague could have sent it.
+
+                  What survives is the status, the wait, and **jovi-mall's own
+                  sentence**, which is the only place the two scopes are still
+                  distinguishable. So it is rendered verbatim rather than through
+                  `resolveErrorMessage`, whose `MESSAGE_BEARING` set excludes
+                  `rate_limit` and would answer with generic category copy. Do
+                  not reintroduce a scope this cannot see.
+                */
+                if (error.status === 429) {
+                    const wait = error.retryAfterSeconds;
+                    const minutes = typeof wait === 'number' ? Math.ceil(wait / 60) : null;
+                    const waitText =
+                        minutes === null
+                            ? ''
+                            : ` Try again in about ${minutes} minute${minutes === 1 ? '' : 's'}.`;
+                    // ⚠ `serverMessage`, never `message` — the latter is never
+                    // empty, so a truthiness check would render "Request failed
+                    // with status 429" in place of the sentence that is the
+                    // whole reason this branch reads the server at all.
+                    const sentence =
+                        error.serverMessage ??
+                        'The limit is either on this party or on your own account. Wait it out, or ask a colleague to send it.';
+                    notify.warning('Too many requests — nothing was sent', {
+                        description: `${sentence}${waitText}`,
+                    });
+                    return;
+                }
+
                 switch (error.platformCode) {
                     case PLATFORM_CODE_CHANNEL_UNAVAILABLE:
                         form.setError('channel', {
@@ -165,21 +216,6 @@ export function SendCredentialLinkDialog({
                                     : 'They have no address on file for this channel. Try another one.',
                         });
                         return;
-                    case PLATFORM_CODE_CREDENTIAL_LINK_THROTTLED: {
-                        const scope = error.details?.scope;
-                        const wait = error.details?.retryAfterSeconds;
-                        const waitText =
-                            typeof wait === 'number'
-                                ? ` Try again in about ${Math.ceil(wait / 60)} minute${Math.ceil(wait / 60) === 1 ? '' : 's'}.`
-                                : '';
-                        notify.warning('Too many links sent recently', {
-                            description:
-                                scope === 'administrator'
-                                    ? `The limit is on your account, not theirs — a colleague can send this now.${waitText}`
-                                    : `The limit is on this party, so a colleague would hit it too.${waitText}`,
-                        });
-                        return;
-                    }
                     case PLATFORM_CODE_LOGIN_LINK_ROLE_UNSUPPORTED:
                         notify.warning('Sign-in links are for customers only', {
                             description:

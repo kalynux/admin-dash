@@ -2,7 +2,7 @@
  * `/api/v1/shipments` — the wire shapes, the query types and the write bodies.
  *
  * ── Sources ───────────────────────────────────────────────────────────────────
- * `api-doc/admin/api/shipments.md` and `ADR-010-ORDERS-AND-SHIPMENTS.md` for the
+ * `api-doc/admin/api/shipments.md` and `api-doc/docs/ADR-010-ORDERS-AND-SHIPMENTS.md` for the
  * contract; `backend/admin/src/modules/shipments/read-models/shipment.dto.ts` and
  * `.../repositories/shipment*.read.repository.ts` for the shapes. Four detail
  * blocks have no published shape at all and are read from the DTO.
@@ -328,7 +328,11 @@ export interface ShipmentDetail extends Shipment {
          * `GET /orders/:orderId`'s `items[].image` — so the two screens cannot
          * show different pictures of one parcel. `null` is ordinary.
          *
-         * ⚠ Gate rendering on `isDisplayableImage`, all three conditions.
+         * ⚠ Gate rendering on `isDisplayableImage`, all three conditions — and
+         * check `isQuotaBlocked` **before** it. A blocked file is present, in a
+         * public tree, and unservable by the content route as well, so it is
+         * neither `null` nor a candidate for the click-to-reveal fallback; it is
+         * a billing state that says so. `LineItemImage` does both in order.
          */
         image: FileDetail | null;
     }[];

@@ -98,6 +98,13 @@ const codes = {
     TRACKING_DOOR_REFUSED: 'The tracking service refused this read',
     TRACKING_DOOR_UNAVAILABLE: 'The tracking service could not be reached',
 
+    // Automation reporting door. Addressed to an operator reading an n8n
+    // reporter node's response body — never to a dashboard user, who cannot
+    // reach the route that raises these.
+    AUTOMATION_REPORT_TOKEN_INVALID: 'The automation reporting token is missing or wrong',
+    AUTOMATION_REPORT_MALFORMED: 'This failure report is missing a workflow or a kind',
+    AUTOMATION_DOOR_UNCONFIGURED: 'This deployment accepts no automation failure reports',
+
     // ─── Support ─────────────────────────────────────────────────────────────
     TICKET_NOT_FOUND: 'No such ticket',
     TICKET_ALREADY_ASSIGNED: 'Somebody else has already taken this ticket',

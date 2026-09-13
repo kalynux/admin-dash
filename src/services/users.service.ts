@@ -1,7 +1,7 @@
 /**
  * `/users` — the six endpoints of the platform user directory.
  *
- * Source: `api-doc/admin/api/users.md` and `api-doc/admin/ADR-007-USER-MANAGEMENT.md`.
+ * Source: `api-doc/admin/api/users.md` and `api-doc/docs/ADR-007-USER-MANAGEMENT.md`.
  *
  * ── Read direct, write delegated, in one module ───────────────────────────────
  * The three reads are answered from jovi-mall's collection by wi-admin itself; the
@@ -305,18 +305,48 @@ export const PLATFORM_CODE_STATUS_CONFLICT = 'USER_STATUS_CONFLICT';
 
 // ─── Credential recovery, all four delegated ──────────────────────────────────
 
-/** 409 — no address on the requested channel. Telegram needs a `/connect` first. */
+/**
+ * 409 — no address on the requested channel. Telegram needs a `/connect` first.
+ *
+ * ✅ **Trying another channel after this costs the party nothing, since
+ * [BR-021](../../api-doc/admin/dashboard/backend-requests/BR-021-credential-link-throttle-ordering.md)
+ * (answered 2026-09-12).** The two throttles are now spent at different points:
+ * the **per-administrator** allowance (30/hr) is charged on the *attempt*, before
+ * the channel is resolved, and the **per-party** allowance (3/hr) only once a
+ * channel *does* resolve. So a `409` here burns one of the caller's thirty and
+ * none of the party's three — which is what makes "try another one" honest
+ * advice rather than a suggestion that can lock the party out of the channel
+ * that works.
+ *
+ * ⚠ **This dialog still must not probe.** It has no way to discover which
+ * channels exist except by trying, and that is deliberate; what changed is only
+ * that the discovery is bounded per operator instead of being free. We raised it
+ * because `users.md` claimed the probe was *impossible* — the ordering made the
+ * counter unreachable — not because we wanted the affordance.
+ */
 export const PLATFORM_CODE_CHANNEL_UNAVAILABLE = 'USER_CHANNEL_UNAVAILABLE';
 
 /**
  * 429 — too many links recently.
  *
- * `details.scope` is `party` or `administrator` and the two have **different
- * remedies** — wait, versus ask a colleague — so the distinction has to survive
- * to the screen rather than collapsing into one sentence. `details.
- * retryAfterSeconds` carries the wait; there is no `Retry-After` header on this
- * one, because the refusal originates in jovi-mall and reaches us as a forwarded
- * `PLATFORM_OPERATION_REJECTED`.
+ * ⚠ **Declared for the record. Nothing can branch on it, and nothing does.**
+ * The refusal originates in jovi-mall and reaches us as a forwarded
+ * `PLATFORM_OPERATION_REJECTED` at 429, whose category `rate_limit` is one of
+ * the two with a closed `details` allowlist — `retryAfterSeconds` · `limit` ·
+ * `windowSeconds`. **Both `platformCode` and `scope` are dropped**
+ * (`users.md:481-492`), so a branch on this constant cannot fire and a read of
+ * `details.scope` cannot succeed.
+ *
+ * jovi-mall raises it with `scope`: `party` ("this person has been sent too
+ * many") or `administrator` ("you have sent too many"), and the two have
+ * **different remedies** — wait, versus ask a colleague. ⚠ **Since BR-021 the
+ * `administrator` scope is the one a wrong-channel run reaches**, because that
+ * counter is now charged before the channel resolves; the message is still the
+ * only place the two are distinguishable. That distinction now
+ * survives only inside jovi-mall's own `message`, which
+ * `SendCredentialLinkDialog` renders verbatim off `status === 429`. There is
+ * no `Retry-After` header on this one either; the wait is
+ * `details.retryAfterSeconds`, which does survive.
  */
 export const PLATFORM_CODE_CREDENTIAL_LINK_THROTTLED = 'USER_CREDENTIAL_LINK_THROTTLED';
 

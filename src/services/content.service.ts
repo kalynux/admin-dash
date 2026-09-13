@@ -103,9 +103,11 @@ export function getArticle(key: ArticleKey, options?: RequestOptions): Promise<A
  * shape reached over HTTP — and `content-contract.test.ts` diffs
  * `PublicArticleDetail` against the mirror.
  *
- * ⚠ **`?locale=` is REQUIRED and the query schema is `.strict()`** — unlike the
- * list endpoints, an unrecognised parameter here is a `400` rather than a
- * silent drop. An article with no translation in that language answers
+ * ⚠ **`?locale=` is REQUIRED and the query schema is `.strict()`** — unlike
+ * `/content/articles` above, an unrecognised parameter here is a `400` rather
+ * than a silent drop. This is one of the twelve strict routes BR-022 enumerated;
+ * `/content/authors` below is another, so *"the list endpoints are lenient"* is
+ * not a rule that holds even inside this one module. An article with no translation in that language answers
  * `404 BLOG_ARTICLE_NOT_FOUND` with `details: { id, locale }`.
  *
  * ⚠ **It can only render a SAVED article**, which is why the editor also

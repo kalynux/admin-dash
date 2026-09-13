@@ -21,6 +21,8 @@ import { SignIn } from '@/pages/SignIn';
 import { NotificationSources } from '@/pages/notifications/NotificationSources';
 import { NotificationsModule } from '@/pages/notifications/NotificationsModule';
 import { AdministratorsModule } from '@/pages/administrators/AdministratorsModule';
+import { AutomationFailures } from '@/pages/automation/AutomationFailures';
+import { AutomationSummary } from '@/pages/automation/AutomationSummary';
 import { ApprovalsModule } from '@/pages/approvals/ApprovalsModule';
 import { AuditExportsModule } from '@/pages/audit/AuditExportsModule';
 import { AuditModule } from '@/pages/audit/AuditModule';
@@ -224,6 +226,18 @@ const SCREENS: Record<string, ReactNode> = {
      */
     'media-library': <MediaLibrary />,
     'media-orphans': <OrphanFiles />,
+
+    /**
+     * The Automation module, keyed by child id — neither child is an index and both stand on
+     * the same `any`-mode three-permission guard, so `ModuleIndexRedirect` lands everyone on
+     * the summary.
+     *
+     * ⚠ Both screens are graded by the **server** and say so on the page. Neither reads
+     * `usePermissions().tier` to decide what to render: the failures feed narrows on the row's
+     * own shape, and the summary is not graded at all.
+     */
+    'automation-summary': <AutomationSummary />,
+    'automation-failures': <AutomationFailures />,
     /**
      * Developer tools, keyed by child id like System.
      *

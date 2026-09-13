@@ -26,23 +26,40 @@ export function isSingleRepeatedCharacter(value: string): boolean {
     return value.length > 0 && /^(.)\1*$/.test(value);
 }
 
-const CANDIDATE_KEYS = ['problems', 'failures', 'rules', 'violations'] as const;
+/**
+ * `failedRules` is the contract; the rest are the guesses that preceded it.
+ *
+ * ⚠ **`failedRules` must stay first.** It is the key the service actually
+ * throws (`auth.md` § Password policy, pinned by the backend's `test:contract`
+ * § 11), and the loop returns the first key that yields anything — so a stale
+ * name ahead of it would win on a response that carries both.
+ *
+ * The others are kept as a cheap hedge, not as documentation: none of them has
+ * ever been observed, and none should be added to.
+ */
+const CANDIDATE_KEYS = ['failedRules', 'problems', 'failures', 'rules', 'violations'] as const;
 
 let warnedAboutMissingDetails = false;
 
 /**
  * What the server said was wrong with the new password.
  *
- * `auth.md` promises only that `details` "names the problems" and never states the
- * key — and this build sends nothing at all: the service throws
- * `details.problems`, and `problems` sits on the error boundary's always-drop list
- * (it is also the payload of the internal boot assertions), so the projection
- * empties and `details` is omitted entirely.
+ * ── The key is `details.failedRules`, and it arrives ─────────────────────────
+ * An array of phrases completing *"your password …"* — `"must be at least 12
+ * characters"`, `"is too common"` — one per rule that **failed**. So it is
+ * never empty on a `422` and never lists all four; render it as a list.
  *
- * Rather than inventing a field name and rendering `undefined`, this reads every
- * plausible one and returns `[]` when there is nothing — the caller then falls
- * back to `PASSWORD_POLICY_RULES`. In development it says so once, so the gap gets
- * noticed and fixed upstream instead of being quietly absorbed here.
+ * ⚠ **It did not always reach a client, and the difference is not cosmetic.**
+ * Until 2026-09-08 the throw site used `details.problems`, which is on the
+ * boundary's always-dropped internal-key list — it is the boot assertions'
+ * diagnostic payload — and is dropped in **every** category. The object emptied,
+ * `details` was omitted, and a client received the fixed message and nothing
+ * else. That is why this reads a list of candidate keys rather than one: the
+ * fallback path below is the behaviour every build before then had.
+ *
+ * When nothing renderable arrives this returns `[]` and the caller falls back to
+ * `PASSWORD_POLICY_RULES`. In development it says so once, naming the gap, so a
+ * regression upstream gets noticed instead of being quietly absorbed here.
  */
 export function readPasswordPolicyFailures(error: unknown): string[] {
     if (!(error instanceof ApiError)) return [];
@@ -65,8 +82,9 @@ export function readPasswordPolicyFailures(error: unknown): string[] {
         warnedAboutMissingDetails = true;
         console.warn(
             '[password] ADMIN_AUTH_PASSWORD_WEAK arrived with no renderable `details` — ' +
-                'the service throws `details.problems`, which the boundary scrub drops. ' +
-                'Falling back to the documented rules. Fix belongs in backend/admin.',
+                'expected `details.failedRules`, per auth.md § Password policy. ' +
+                'A build throwing the old `details.problems` sends nothing at all: that key ' +
+                'is on the boundary scrub\'s always-drop list. Falling back to the documented rules.',
         );
     }
 

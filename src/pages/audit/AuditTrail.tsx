@@ -326,7 +326,7 @@ export function AuditTrail() {
                   Families come from the pinned catalog, not from the actions the
                   server happened to send: `actionFamily` validates against
                   `PERMISSION_FAMILIES`, and the families *represented in the
-                  action catalog* are a strict subset of those 21. Deriving the
+                  action catalog* are a strict subset of those 20. Deriving the
                   options from the catalog would quietly drop the families whose
                   actions are all still unbuilt.
                 */}

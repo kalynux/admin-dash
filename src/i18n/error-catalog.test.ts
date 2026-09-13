@@ -1,7 +1,7 @@
 /**
  * The transcription guard for the error registry.
  *
- * `KNOWN_ERROR_CODES` copies 50 codes out of `api-doc/admin/api/errors.md` by
+ * `KNOWN_ERROR_CODES` copies 73 codes out of `api-doc/admin/api/errors.md` by
  * hand, and the English catalog writes copy for each. Both drift silently: a
  * mistyped code can never match, so its message never appears and the failure
  * quietly renders as its category instead — plausible, and wrong.
@@ -152,17 +152,53 @@ const isPlatformCodeOnly = (entry: DocEntry) =>
     ARRIVES_AS_PLATFORM_CODE.test(entry.meaning) ||
     ARRIVES_AS_PLATFORM_CODE.test(entry.sectionPreamble);
 
-const clientReachable = registry.filter((e) => !isBootTime(e) && !isPlatformCodeOnly(e));
+/**
+ * Reaches the client in **no** form — not as `error.code`, and not as
+ * `details.platformCode` either.
+ *
+ * ── Why a third bucket was needed ────────────────────────────────────────────
+ * The 2026-09-08 resync established that the boundary filters `details` by
+ * **category**, and that `authorization` (403) and `rate_limit` (429) are the
+ * two categories with a closed key allowlist that `platformCode` is not on. So
+ * a jovi-mall verdict forwarded at either status arrives with jovi-mall's
+ * message and **no code at all**.
+ *
+ * That broke the two-bucket model. `CONTRACT_TRANSITION_NOT_PERMITTED`'s row
+ * previously ended *"Arrives as `details.platformCode`"* and was excluded by
+ * {@link isPlatformCodeOnly}; the resync **replaced** that sentence with
+ * *"You cannot branch on this code"*, so the row stopped matching, fell into
+ * `clientReachable`, and demanded `codes` copy for a code that is not a
+ * wi-admin `error.code` and never arrives as one. It also went red against the
+ * source mirror, correctly — `api-doc/admin/error-codes.ts` does not declare it,
+ * because it is jovi-mall's.
+ *
+ * ⚠ **Excluding it is not a workaround for that red.** The mirror assertion was
+ * right that the code is absent from wi-admin's registry; what was wrong was
+ * this file calling it client-reachable. Both rows carrying the claim are
+ * jovi-mall codes in `error-platform.ts`'s key space, and both are unreachable
+ * for the same documented reason.
+ *
+ * Anchored to the **claim**, in both the phrasings the contract uses, on the
+ * same principle as {@link isPlatformCodeOnly}: a mention of 403 or 429 nearby
+ * is not a declaration about the row.
+ */
+const CANNOT_BRANCH = /(?:you cannot branch on this code|do not branch on a code here)/i;
+
+const isUnbranchable = (entry: DocEntry) => CANNOT_BRANCH.test(entry.meaning);
+
+const clientReachable = registry.filter(
+    (e) => !isBootTime(e) && !isPlatformCodeOnly(e) && !isUnbranchable(e),
+);
 
 describe('the registry parses', () => {
     it('finds the whole published registry', () => {
-        // 74 rows today. A wildly different number means the parser stopped
+        // 95 rows today. A wildly different number means the parser stopped
         // matching, not that the contract shrank — fail loudly rather than
         // silently asserting over three rows.
         expect(registry.length).toBeGreaterThanOrEqual(70);
     });
 
-    it('finds exactly ten boot-time codes and twelve platform-code-only ones', () => {
+    it('finds exactly ten boot-time codes and eleven platform-code-only ones', () => {
         expect(registry.filter(isBootTime).map((e) => e.code).sort()).toEqual([
             'AUDIT_CATALOG_INVALID',
             'AUDIT_COVERAGE_INCOMPLETE',
@@ -182,7 +218,6 @@ describe('the registry parses', () => {
             'BILLING_PLAN_INACTIVE',
             'BILLING_PLAN_ROLE_MISMATCH',
             'CONTRACT_INVALID_TRANSITION',
-            'CONTRACT_TRANSITION_NOT_PERMITTED',
             'DEV_TOOLS_WORKER_BUSY',
             'DEV_TOOLS_WORKER_UNKNOWN',
             'MESSAGING_DELIVERY_FAILED',
@@ -190,6 +225,29 @@ describe('the registry parses', () => {
             'USER_CREDENTIAL_LINK_THROTTLED',
             'USER_LOGIN_LINK_ROLE_UNSUPPORTED',
         ]);
+    });
+
+    it('finds the two codes that reach a client in no form at all', () => {
+        // Both are jovi-mall verdicts forwarded at a status whose category
+        // carries a closed `details` allowlist that `platformCode` is not on:
+        // `CONTRACT_TRANSITION_NOT_PERMITTED` at 403 (`authorization`) and
+        // `USER_CREDENTIAL_LINK_THROTTLED` at 429 (`rate_limit`).
+        //
+        // The second is caught by BOTH predicates — its section preamble still
+        // declares the family arrives as `details.platformCode`, and its own row
+        // then carves itself out. That overlap is the contract being precise,
+        // not a parser fault; what matters is that neither ends up in
+        // `clientReachable`.
+        expect(registry.filter(isUnbranchable).map((e) => e.code).sort()).toEqual([
+            'CONTRACT_TRANSITION_NOT_PERMITTED',
+            'USER_CREDENTIAL_LINK_THROTTLED',
+        ]);
+
+        // The one that is unreachable and NOT already platform-only. If this
+        // ever empties, the third bucket has stopped earning its keep.
+        expect(
+            registry.filter((e) => isUnbranchable(e) && !isPlatformCodeOnly(e)).map((e) => e.code),
+        ).toEqual(['CONTRACT_TRANSITION_NOT_PERMITTED']);
     });
 
     it('reads a denial as a denial, and "carries" as not "arrives as"', () => {
@@ -241,22 +299,27 @@ describe('the registry parses', () => {
  * document — including the backend's own — is a claim about it, and a claim is
  * not evidence."*
  *
- * ⚠ **The numbers here have moved twice and are worth restating.** The source
- * once declared 82 against `errors.md`'s 73; BR-012 documented the missing
- * sixteen, and BR-015 added `FILE_UPLOAD_NOT_MULTIPART` and
- * `FILE_UPLOAD_TOO_LARGE`. **85 are declared today.** Diffing against both still
- * matters: a code reaching an operator with no copy is a failing test whichever
- * document happens to be behind.
+ * ⚠ **The numbers here have moved three times and are worth restating.** The
+ * source once declared 82 against `errors.md`'s 73; BR-012 documented the
+ * missing sixteen; BR-015 added `FILE_UPLOAD_NOT_MULTIPART` and
+ * `FILE_UPLOAD_TOO_LARGE`, taking it to 85; and the 2026-09-08 resync added the
+ * three `AUTOMATION_*` codes (ADR-022). **88 are declared today.** Diffing
+ * against both still matters: a code reaching an operator with no copy is a
+ * failing test whichever document happens to be behind.
  *
- * ⚠ **The two are NOT the same set, and the remaining gap runs one way only.**
- * Five codes are declared in source with no row in `errors.md`'s registry
- * tables — `DEV_TOOLS_WORKER_UNKNOWN`, `DEV_TOOLS_WORKER_BUSY`,
- * `USER_CHANNEL_UNAVAILABLE`, `USER_CREDENTIAL_LINK_THROTTLED` and
- * `USER_LOGIN_LINK_ROLE_UNSUPPORTED`. Each is *mentioned* on its endpoint's own
- * page, so this is a registry-table omission rather than an undocumented code,
- * and all five carry copy. Reported to the backend rather than worked around.
- * The **other** direction is asserted below, and it is the one that has actually
- * bitten.
+ * ⚠ **The one-way gap this note used to describe has CLOSED.** Five codes were
+ * declared in source with no row in `errors.md`'s registry tables —
+ * `DEV_TOOLS_WORKER_UNKNOWN`, `DEV_TOOLS_WORKER_BUSY`, `USER_CHANNEL_UNAVAILABLE`,
+ * `USER_CREDENTIAL_LINK_THROTTLED` and `USER_LOGIN_LINK_ROLE_UNSUPPORTED` — each
+ * mentioned on its endpoint's page but absent from the registry, which made it a
+ * table omission rather than an undocumented code. All five now have rows.
+ *
+ * The reasoning is kept rather than deleted, because it is why the **converse is
+ * still deliberately not asserted**: a symmetry assertion would turn a backend
+ * table omission into this repository's failing build, and pressure somebody
+ * into "fixing" it by deleting a real code from a mirror. A mirror is re-copied
+ * or it is wrong; it is never edited to make a test pass. The **other**
+ * direction is asserted below, and it is the one that has actually bitten.
  */
 function sourceRegistryCodes(): string[] {
     const path = resolve(dirname(fileURLToPath(import.meta.url)), '../../api-doc/admin/error-codes.ts');
@@ -296,7 +359,7 @@ describe('the source mirror is in step with the contract', () => {
     it('declares every wi-admin code errors.md publishes', () => {
         const declared = new Set(sourceRegistryCodes());
         const undeclared = registry
-            .filter((entry) => !isPlatformCodeOnly(entry))
+            .filter((entry) => !isPlatformCodeOnly(entry) && !isUnbranchable(entry))
             .map((entry) => entry.code)
             .filter((code) => !declared.has(code));
 
@@ -338,7 +401,9 @@ describe('KNOWN_ERROR_CODES matches the contract', () => {
         // neither by construction — every boot-time and platform-only code is
         // documented — so it is required.
         const unreachable = new Set(
-            registry.filter((e) => isBootTime(e) || isPlatformCodeOnly(e)).map((e) => e.code),
+            registry
+                .filter((e) => isBootTime(e) || isPlatformCodeOnly(e) || isUnbranchable(e))
+                .map((e) => e.code),
         );
 
         const missing = sourceRegistryCodes().filter(
@@ -350,9 +415,9 @@ describe('KNOWN_ERROR_CODES matches the contract', () => {
         expect(missing, 'codes in error-codes.ts with no entry in KNOWN_ERROR_CODES').toEqual([]);
     });
 
-    it('excludes the boot-time and platform-code-only codes', () => {
+    it('excludes the boot-time, platform-code-only and unbranchable codes', () => {
         const excluded = registry
-            .filter((e) => isBootTime(e) || isPlatformCodeOnly(e))
+            .filter((e) => isBootTime(e) || isPlatformCodeOnly(e) || isUnbranchable(e))
             .map((e) => e.code)
             .filter((code) => (KNOWN_ERROR_CODES as readonly string[]).includes(code));
 

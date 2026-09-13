@@ -34,9 +34,17 @@
  * otherwise — `file.gateway.ts` declared `url: string` and `files.md` mentioned
  * `access` zero times — and the answer to all three questions was yes: `url` is
  * `string | null`, `access` is present unconditionally on every route, and the
- * union is closed at two. Both documents have been corrected and re-copied; the
+ * union was closed at two. Both documents have been corrected and re-copied; the
  * former F-57 workaround notes are gone because there is no longer anything to
  * work around.
+ *
+ * ⚠ **`access` gained a THIRD value on 2026-09-08 — `quota_blocked` — and
+ * nothing here broke.** BR-010 asked for the union to be kept open anyway, and
+ * this is what that bought: every `access === 'public'` test failed safe on the
+ * new value the day it appeared, with no compile error and no broken image.
+ * What did *not* come for free is the **labelling** — a `quota_blocked` file is
+ * not private, so every screen reading "not public" as "private tree" was
+ * describing a billing state as a storage one. See `isQuotaBlocked`.
  */
 export interface FileDetail {
     /** The id you asked with. **Key your own map on this** — see `resolveFiles`. */
@@ -47,10 +55,13 @@ export interface FileDetail {
      */
     key: string;
     /**
-     * **`null` whenever `access` is `authorized`** — a file in a private storage
-     * tree has no public URL to give, and that is an answer rather than a fault.
-     * The two private trees an administrator meets constantly are `shipments/`
-     * (delivery proofs) and `digital/` (product files).
+     * **`null` whenever `access` is `authorized` OR `quota_blocked`** — and the
+     * two are not the same absence. A file in a private storage tree has no
+     * public URL to give and never will; a quota-blocked one has had its URL
+     * withdrawn until somebody pays for more storage. Either way this field is
+     * an answer rather than a fault. The two private trees an administrator
+     * meets constantly are `shipments/` (delivery proofs) and `digital/`
+     * (product files).
      *
      * `null` rather than an authorized route's path is deliberate: a path is a
      * string indistinguishable from a working URL, so every client would keep
@@ -63,18 +74,57 @@ export interface FileDetail {
      * byte route at BR-011 (`GET /files/:fileId/content`); `url` stays `null`
      * for those files and always will, because the content route is a different
      * mechanism rather than a URL this field could have carried.
+     *
+     * 🔴 **That escape hatch DOES exist for `quota_blocked`, and this comment said
+     * it did not.** [`files.md`](../../api-doc/admin/api/files.md) used to state
+     * *"`url` is `null`, and the content route will not help you either"* — and
+     * the second half was **false**, measured 2026-09-09: the route answers `200`
+     * with the bytes for a blocked file in every tree. `quota_blocked` withholds
+     * the *address*, never the bytes. Filed as
+     * [BR-023](../../api-doc/admin/dashboard/backend-requests/BR-023-quota-blocked-content-route.md)
+     * and **corrected upstream on 2026-09-12** — the page now says the cap
+     * withholds the address, not the file.
+     *
+     * So `url: null` here means exactly what it means for `authorized` — no public
+     * address — and the audited open is the same escape hatch for both. Use
+     * `isQuotaBlocked` to *label* the state, not to skip the fetch.
      */
     url: string | null;
     /**
-     * Whether the storage tree is public. **A closed set of two** — derived from
-     * jovi-mall's `TreeVisibility`, which is a two-value union in one file, so a
-     * third value cannot appear by configuration or by data.
+     * Whether the file can be addressed publicly. **A closed set of three** —
+     * `public`, `authorized`, and, since 2026-09-08, `quota_blocked`.
      *
-     * ⚠ **Kept open anyway, on the backend's own advice.** Treating anything
+     * ⚠ **`quota_blocked` OUTRANKS `authorized`, so branch on it FIRST.** It is
+     * stored per file (`files.quotaBlockedAt`) rather than derived from the
+     * tree, so a blocked file that *also* lives in a private tree reports
+     * `quota_blocked` — the reverse never happens. A screen that asks
+     * "authorized?" first will label a billing state as a storage one and never
+     * reach the branch that says what is actually wrong.
+     *
+     * | | `authorized` | `quota_blocked` |
+     * |---|---|---|
+     * | Why there is no URL | the file is in a private tree | the owner is over their storage cap |
+     * | Will it ever get one | no — private is permanent | **yes**, when the plan is upgraded |
+     * | Can the content route show it | **yes** | **yes** — see BR-023 |
+     * | What to render | the audited open + metadata | the audited open and a *billing* explanation |
+     * | Is it a fault | no | no — and never a missing file |
+     *
+     * 🔴 **The `Can the content route show it` row is new, and it is the whole
+     * correction of 2026-09-09.** Both answers are yes. `files.md` said the
+     * second was no; the wire said otherwise, in every tree. ✅ **The page carries
+     * this row itself since 2026-09-12** — it was the second of BR-023's four
+     * asks, granted because the table is the only place a reader could have
+     * caught the contradiction.
+     *
+     * ⚠ **Kept open anyway, on the backend's own advice — and it paid.** The
+     * previous version of this comment argued a third value *could not appear*,
+     * because `TreeVisibility` is a two-value union in one file. It appeared
+     * regardless, from a different mechanism entirely. Treating anything
      * unrecognised as *not* displayable is the safe direction across a service
-     * boundary and costs nothing. `isPrivateStorageKey` also **fails closed** at
-     * the source, so a storage tree added and left unclassified resolves as
-     * `authorized` rather than leaking.
+     * boundary, it cost nothing, and it is why the third value arrived without
+     * breaking a render. **Do not close this union.** `isPrivateStorageKey`
+     * also **fails closed** at the source, so a storage tree added and left
+     * unclassified resolves as `authorized` rather than leaking.
      *
      * ✅ Support-ticket attachments are the exception, and not for a comforting
      * reason: they land in `documents/` or `images/` — public trees — so they
@@ -82,7 +132,7 @@ export interface FileDetail {
      * reachable by URL to anyone who has it, permanently.** See
      * `support.types.ts`.
      */
-    access: 'public' | 'authorized' | (string & {});
+    access: 'public' | 'authorized' | 'quota_blocked' | (string & {});
     /**
      * ⚠ **Check this before rendering an `<img>`**, independently of `access`. A
      * product's media may be a video or a spec sheet.
@@ -196,6 +246,93 @@ export function isDisplayableImage(file: FileDetail): boolean {
 }
 
 /**
+ * `access` on a file whose owner is over their plan's storage cap.
+ *
+ * ⚠ **Not a tree and not a state of the file** — it is stored per file
+ * (`files.quotaBlockedAt`) and is a *billing* fact about whoever owns it.
+ */
+export const FILE_ACCESS_QUOTA_BLOCKED = 'quota_blocked';
+
+/**
+ * Is this file blocked on the owner's storage quota?
+ *
+ * ⚠ **Ask this BEFORE asking whether the file is private**, on every screen.
+ * `quota_blocked` outranks `authorized` on the wire, so a blocked file in a
+ * private tree reports `quota_blocked` and a screen that tests `authorized`
+ * first will never reach the branch that says what is actually wrong.
+ *
+ * ⚠ **It is a LABEL, never a gate on the audited open** — and this comment said
+ * the opposite until it was measured on 2026-09-09. `GET /files/:fileId/content`
+ * **serves a quota-blocked file's bytes**: `200`, real bytes, verified on a
+ * public `images/` key and on private `shipments/` and `digital/` keys. The
+ * handler consults the provider and the file record and never reads
+ * `quotaBlockedAt` at all
+ * ([`admin-file.routes.ts:247-292`](../../../backend/jovi-mall/src/modules/catalog/routes/admin-file.routes.ts)).
+ *
+ * ⚠ **`quota_blocked` withholds the URL, not the bytes.** It is a *publishing*
+ * state — the API stops handing out a public address — and it revokes nothing.
+ * jovi-mall could not enforce it on the bytes even if it wanted to for a public
+ * tree: those are served by `express.static` straight off disk, which has no
+ * database access. So a blocked public file stays fetchable by anyone who kept
+ * its address, and refusing the *audited* path would hide it from the one caller
+ * who is authorised and recorded.
+ *
+ * So: draw the billing state, and **still offer the open.** See
+ * [VERIFICATION-2026-09-09-LIVE](../../api-doc/VERIFICATION-2026-09-09-LIVE.md)
+ * § 7.3 for the measurement, and `QUOTA_BLOCKED_COPY.note` for the wording that
+ * goes beside the affordance rather than in place of it.
+ *
+ * Everything this answers `true` for is a **billing** state: nothing is missing,
+ * nothing is broken, no platform fault has occurred, and the public address comes
+ * back the moment the owner upgrades their plan or frees space. That is the
+ * opposite of `authorized`, which is permanent. Say so; see `QUOTA_BLOCKED_COPY`.
+ */
+export function isQuotaBlocked(file: Pick<FileDetail, 'access'>): boolean {
+    return file.access === FILE_ACCESS_QUOTA_BLOCKED;
+}
+
+/**
+ * The one wording for the billing state, shared by every surface that draws it.
+ *
+ * ⚠ **Stated once because six screens say it**, and because the four things it
+ * has to avoid are easy to fall back into separately: it must never read as
+ * *missing* (data loss), never as *broken* (a platform fault), never as *private*
+ * (permanent), and — since 2026-09-09 — **never as unviewable**. The operator's
+ * next action is a conversation about a plan, and copy that points anywhere else
+ * sends them somewhere useless.
+ *
+ * 🔴 **`body` used to end "so this file cannot be shown", and that was false.**
+ * The audited content route serves these bytes; only the *public address* is
+ * withheld. Six surfaces drew that sentence and one test asserted it, so the
+ * wrong claim was stated seven times from one constant — which is the argument for
+ * the constant, not against it: correcting it here corrected all seven. See
+ * `isQuotaBlocked` for the measurement.
+ *
+ * Not in `src/i18n/` on purpose: that mount is code-keyed **error** copy, and
+ * this is a `200` describing a file. Everything that is not a failure message is
+ * still an English literal in this dashboard.
+ */
+export const QUOTA_BLOCKED_COPY = {
+    /** For a box drawn where the picture would have been. */
+    title: 'Blocked by a storage limit',
+    body:
+        "The owner is over their plan's storage cap, so this file has no public address. " +
+        'Nothing has been deleted — the address comes back when their plan is upgraded or space is freed.',
+    /**
+     * For the line beside an affordance that still works.
+     *
+     * ⚠ The audited open is **offered** on a blocked file, because it succeeds.
+     * This says why the picture did not simply appear, without implying the click
+     * is futile.
+     */
+    note: "No public address — the owner is over their plan's storage cap. Opening it still works.",
+    /** For a one-line "Storage" field beside the file's type and size. */
+    label: 'Blocked — the owner is over their storage limit',
+    /** For a tile too small for a sentence. */
+    short: 'Over limit',
+} as const;
+
+/**
  * Is this file something `FileViewer` can put on screen at all?
  *
  * The `access`-blind counterpart to `isDisplayableImage`: the content route
@@ -203,6 +340,13 @@ export function isDisplayableImage(file: FileDetail): boolean {
  * whether the bytes are an image. That was the backend's own suggestion and it
  * is why the dashboard needs one code path and never branches on `access` to
  * decide which call to make.
+ *
+ * ⚠ **And no branch on `access` survives that rule** — the paragraph here used to
+ * claim one did. `isQuotaBlocked` decides what to *say*, never whether to call:
+ * the content route serves every tree **and** a file blocked on its owner's
+ * storage cap, measured 2026-09-09. A blocked image is `isViewableImage`, there
+ * is something to fetch, and the fetch works. `mimeType` is the only question
+ * this asks and the only one it should.
  */
 export function isViewableImage(file: Pick<FileDetail, 'mimeType'>): boolean {
     return file.mimeType.startsWith('image/');
@@ -400,11 +544,25 @@ export interface FileLibraryMeta {
      * has no reproducible `STORAGE_PROVIDER` on the wi-admin side, or one whose
      * URL form wi-admin cannot reproduce (`cloudinary`).
      *
-     * That is a *third* cause of `url: null`, and the only one that is not about
-     * the file. Render "previews are not configured on this deployment" rather
-     * than a page of broken images — the same `configured: false` shape the two
-     * geo-tracker doors use, and for the same reason: *"not set up here"* and
-     * *"there is nothing to show"* are different answers.
+     * That is one of **four** causes of `url: null`, and the only one that is
+     * not about the file at all. Render "previews are not configured on this
+     * deployment" rather than a page of broken images — the same
+     * `configured: false` shape the two geo-tracker doors use, and for the same
+     * reason: *"not set up here"* and *"there is nothing to show"* are different
+     * answers.
+     *
+     * ⚠ **The four, and they need four different sentences:**
+     *
+     * | Cause | Told by | What it means |
+     * |---|---|---|
+     * | A private tree | `access: "authorized"` | permanent; the bytes are still reachable through the content route |
+     * | The owner's storage cap | `access: "quota_blocked"` | **a billing state** — temporary, and the bytes are still reachable through the content route (BR-023) |
+     * | This deployment builds no URLs | `publicUrlsConfigured: false` | nothing is wrong with any file; the whole page has no addresses |
+     * | The file has no public form yet | neither flag set | jovi-mall handed back no URL for this row |
+     *
+     * Only the first two are properties of the file, and only the second is
+     * about money. Reporting any of them as one of the others is the specific
+     * failure this table exists to prevent.
      */
     publicUrlsConfigured: boolean;
     /**

@@ -373,6 +373,10 @@ export function auditEntryFixture(overrides: Partial<AuditEntry> = {}): AuditEnt
  * the whole block on status, so a fixture pairing an active account with a
  * populated suspension would let a screen pass a test it could never pass live.
  * `suspendedUserFixture` is the other half of that pair.
+ *
+ * **`closedAt` is `null` for the same reason**, and it is a separate axis rather
+ * than a second suspension: `status` has three values and the two stamps pair
+ * with a different one each. `closedUserFixture` is that third state.
  */
 export function userFixture(overrides: Partial<User> = {}): User {
     return {
@@ -382,6 +386,7 @@ export function userFixture(overrides: Partial<User> = {}): User {
         roles: ['customer', 'agent'],
         status: 'active',
         suspension: null,
+        closedAt: null,
         createdAt: '2026-02-14T10:05:31.220Z',
         updatedAt: '2026-08-01T08:12:44.907Z',
         ...overrides,
@@ -403,6 +408,29 @@ export function suspendedUserFixture(overrides: Partial<User> = {}): User {
             reason: 'Fraudulent chargebacks on orders ORD-2026-8841 and ORD-2026-8902',
             by: { id: '665f1c2a9b3e4a91c7d2e5f0', source: 'admin', name: 'Ada Nkemelu' },
         },
+        ...overrides,
+    });
+}
+
+/**
+ * An account its **owner** closed — the third `status`, and not a suspension.
+ *
+ * ⚠ **The identifiers are gone on purpose.** `users.md:100` says a closure erases
+ * `email`, `phone` and the customer's name irrecoverably, keeping the row only so
+ * orders, tickets and bookings still resolve. A fixture that left `amina@example.cm`
+ * in place would let a screen pass while rendering an address that no longer
+ * exists — so both identifiers are `null` here, which is also the one shape where
+ * "either may be absent, never both" does not hold.
+ *
+ * No `suspension`: nobody imposed this, and there is no reinstatement.
+ */
+export function closedUserFixture(overrides: Partial<User> = {}): User {
+    return userFixture({
+        status: 'closed',
+        email: null,
+        phone: null,
+        suspension: null,
+        closedAt: '2026-08-29T16:44:10.006Z',
         ...overrides,
     });
 }
@@ -625,7 +653,7 @@ export function tierMatrixFixture(overrides: Partial<TierMatrix> = {}): TierMatr
 }
 
 /**
- * `GET /permissions/catalog` — a small, representative slice rather than all 116.
+ * `GET /permissions/catalog` — a small, representative slice rather than all 118.
  *
  * Deliberately mixes the cases the matrix screen has to tell apart: an ordinary read, a
  * `destructive` write that no family grant can confer, and **a `†` permission whose endpoint
@@ -1268,6 +1296,11 @@ export function platformVendorFixture(overrides: Partial<PlatformVendor> = {}): 
  * `codExposure`, `flags.openDiscrepancies` and `flags.overCodThreshold`. A vendor
  * cannot hold cash, so those questions do not apply — writing `0` into any of them
  * would let a screen that renders "does not apply" as "zero" pass.
+ *
+ * ⚠ `overCodThreshold` is `null` here **because this is a vendor**, but a `null`
+ * on the wire does not imply one: `accounts.md:257` gives the same `null` for an
+ * agency and for an agent with no ceiling set. Do not reuse this fixture's shape
+ * to justify vendor-only copy.
  */
 export function vendorAccountFixture(overrides: Partial<OwnerAccount> = {}): OwnerAccount {
     return {
@@ -1434,18 +1467,18 @@ export function platformEarningsFixture(
  * reach.
  *
  * Two of the three are *derived* rather than transcribed, so there is less to
- * get wrong: the counts (116 / 99 / 30) are asserted below, and
+ * get wrong: the counts (118 / 101 / 31) are asserted below, and
  * `permissions.types.test.ts` already proves every name here exists in the
  * catalogue — and that `permissions.md` states those same three numbers.
  */
 
-/** Developer. Holds all 116, and is the only level for which MFA is mandatory. */
+/** Developer. Holds all 118, and is the only level for which MFA is mandatory. */
 export const TIER_1_PERMISSIONS: readonly string[] = [...PERMISSION_NAMES];
 
 /**
  * The seventeen an Admin does **not** hold: the four named in
  * `permissions.md` § "What Admin (tier 2) deliberately does not hold", plus the
- * whole `developer_tools` family. 116 − 17 = 99.
+ * whole `developer_tools` family. 118 − 17 = 101.
  */
 const TIER_2_EXCLUSIONS: readonly string[] = [
     'administrators.tier.set',
@@ -1454,13 +1487,13 @@ const TIER_2_EXCLUSIONS: readonly string[] = [
     'users.roles.manage',
 ];
 
-/** Admin — the operational level, including the money. 99 of 116. */
+/** Admin — the operational level, including the money. 101 of 118. */
 export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
     (name) => !TIER_2_EXCLUSIONS.includes(name) && !name.startsWith('developer_tools.'),
 );
 
 /**
- * Support. **30 of 116**, and every one of them is routed — Support holds none
+ * Support. **31 of 118**, and every one of them is routed — Support holds none
  * of the four `†` permissions, so a Support administrator can use everything
  * they hold. That is new: the set was 24 with twelve unusable before Phase 5
  * built the `support` and `content` surfaces.
@@ -1477,6 +1510,12 @@ export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
  * reads: Support answers the delivery-proof disputes, and refusing them
  * escalates every ticket to a tier holding less context. It is audited for the
  * same reason too — the grant and the record were one decision.
+ *
+ * `support.automation.lookup` joined 2026-09-07 (ADR-022 D-7) on that argument
+ * once more: *"the bot did not reply to me"* is a ticket, and an agent who
+ * cannot see that the automation layer was degraded escalates it to somebody
+ * who knows less about it than they do. What Support is denied there is
+ * machine detail, which on a support call is a false lead rather than a secret.
  */
 export const TIER_3_PERMISSIONS: readonly string[] = [
     'agents.read',
@@ -1486,6 +1525,7 @@ export const TIER_3_PERMISSIONS: readonly string[] = [
     'orders.read',
     'orders.disputes.read',
     'support.errors.lookup',
+    'support.automation.lookup',
     'support.tickets.read',
     'support.tickets.create',
     'support.tickets.update',

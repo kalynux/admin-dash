@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { FileIcon, ImageOff, Lock, RotateCw, Trash2, Upload } from 'lucide-react';
+import { FileIcon, HardDrive, ImageOff, Lock, RotateCw, Trash2, Upload } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
 import { CopyableValue } from '@/components/common/CopyableValue';
@@ -43,6 +43,8 @@ import {
     FILE_OWNER_TYPES,
     FILE_PROVIDERS,
     FILE_USAGE_FILTERS,
+    QUOTA_BLOCKED_COPY,
+    isQuotaBlocked,
     isViewableImage,
     type FileLibraryQuery,
     type LibraryFile,
@@ -186,8 +188,21 @@ export function MediaLibrary() {
                     <div className="space-y-0.5">
                         <p>{file.mimeType}</p>
                         <p className="text-muted-foreground">{formatBytes(file.size)}</p>
+                        {/*
+                          ⚠ Three answers, not two. Until 2026-09-09 this read
+                          `access === 'public' ? 'Public tree' : 'Private tree'`,
+                          which labelled a file blocked on its owner's storage
+                          cap as private — the wrong noun, and one that hides the
+                          only thing an operator could act on. `quota_blocked` is
+                          tested first because the wire ranks it above
+                          `authorized`.
+                        */}
                         <p className="text-muted-foreground text-xs">
-                            {file.access === 'public' ? 'Public tree' : 'Private tree'}
+                            {isQuotaBlocked(file)
+                                ? QUOTA_BLOCKED_COPY.label
+                                : file.access === 'public'
+                                  ? 'Public tree'
+                                  : 'Private tree'}
                         </p>
                     </div>
                 ),
@@ -507,8 +522,14 @@ export function MediaLibrary() {
  * | Row | What it draws | Costs |
  * |---|---|---|
  * | A public image with a URL | The picture, straight away | Nothing — the listing already handed the address over, so nothing is disclosed that browsing did not |
+ * | An image blocked on its owner's storage cap | A tile saying so, and **no way in** | Nothing, ever — the content route cannot serve it either |
  * | An image in a private tree | A locked tile that opens a dialog holding the reveal box | Nothing until the operator clicks **twice** |
  * | Anything else | A type icon | Nothing |
+ *
+ * ⚠ **The quota row is checked before the private one**, because the wire ranks
+ * `quota_blocked` above `authorized` and because the private branch's dialog
+ * offers an open that a blocked file cannot answer — an audit row spent on a
+ * request that was never going to return bytes.
  *
  * ⚠ **The private branch is deliberately two clicks, not one.** `GET
  * /files/:fileId/content` writes an audit row on every open, and a browse table
@@ -541,17 +562,41 @@ function LibraryThumbnail({ file }: { file: LibraryFile }) {
         );
     }
 
+    /*
+      🔴 **The billing state was an INERT tile until 2026-09-09 and is now a tile
+      that opens.** It was inert *"because the dialog's reveal cannot succeed here
+      and would file an audit row before failing"*. The reveal succeeds (BR-023):
+      the audited route serves a quota-blocked file's bytes in every tree, so an
+      operator who wants to see what they are being charged to store can.
+
+      What changes is only the wording — a drive rather than a padlock, and a
+      billing sentence rather than a privacy one, because the two point at
+      different next actions. The Type column still carries the full sentence.
+    */
+    const blocked = isQuotaBlocked(file);
+
     return (
         <>
             <ImageBoxFrame ratio={4 / 3} className="w-24 shrink-0">
                 <button
                     type="button"
                     onClick={() => setOpen(true)}
-                    aria-label={`Open ${file.originalName ?? 'this file'}, which is stored privately`}
+                    aria-label={
+                        blocked
+                            ? `Open ${file.originalName ?? 'this file'}, whose owner is over their storage limit`
+                            : `Open ${file.originalName ?? 'this file'}, which is stored privately`
+                    }
+                    title={blocked ? QUOTA_BLOCKED_COPY.body : undefined}
                     className="text-muted-foreground hover:bg-muted/60 hover:text-foreground focus-visible:ring-ring flex h-full w-full flex-col items-center justify-center gap-1 focus-visible:ring-2 focus-visible:outline-none"
                 >
-                    <Lock className="size-4" aria-hidden />
-                    <span className="text-[0.65rem] leading-tight">Private</span>
+                    {blocked ? (
+                        <HardDrive className="size-4" aria-hidden />
+                    ) : (
+                        <Lock className="size-4" aria-hidden />
+                    )}
+                    <span className="text-[0.65rem] leading-tight">
+                        {blocked ? QUOTA_BLOCKED_COPY.short : 'Private'}
+                    </span>
                 </button>
             </ImageBoxFrame>
 
@@ -560,9 +605,9 @@ function LibraryThumbnail({ file }: { file: LibraryFile }) {
                     <DialogHeader>
                         <DialogTitle>{file.originalName ?? 'Stored file'}</DialogTitle>
                         <DialogDescription>
-                            This file is in a private tree, so it has no public address. Opening it
-                            reads the bytes through the platform and is recorded against your
-                            account.
+                            {blocked
+                                ? "This file's owner is over their plan's storage cap, so it has no public address for now. Opening it reads the bytes through the platform and is recorded against your account."
+                                : 'This file is in a private tree, so it has no public address. Opening it reads the bytes through the platform and is recorded against your account.'}
                         </DialogDescription>
                     </DialogHeader>
                     {/*

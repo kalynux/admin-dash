@@ -276,10 +276,11 @@ export function OrderTimelinePanel({
                   ⚠ A picker, against this repository's standing rule that
                   **filters stay free-text and only create forms get pickers**.
                   The rule is right and the reason it does not apply here is
-                  specific: `listQuery` is not `.strict()` service-wide, so a
-                  stale picker's value is dropped silently and the unfiltered
-                  list comes back `200` looking filtered — which is only a risk
-                  while the vocabulary can move underneath us.
+                  specific: `listQuery` is not `.strict()` on this endpoint (nor
+                  on most others, though not service-wide — BR-022), so a stale
+                  picker's value is dropped silently and the unfiltered list
+                  comes back `200` looking filtered — which is only a risk while
+                  the vocabulary can move underneath us.
 
                   This one cannot. `event_type` is a closed Mongoose enum on an
                   append-only collection, mirrored byte-for-byte at

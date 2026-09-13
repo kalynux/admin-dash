@@ -1,5 +1,6 @@
 import {
     Banknote,
+    Bot,
     Building2,
     ClipboardCheck,
     Coins,
@@ -133,6 +134,26 @@ export const ERROR_JOURNAL_PERMISSION: RoutedPermissionName[] = [
     'system.errors.read',
     'developer_tools.logs.read',
     'support.errors.lookup',
+];
+
+/**
+ * `/automation`'s guard, named once because **both** its children stand on it.
+ *
+ * The same `any`-mode ladder the error journal uses, and ADR-022 D-7 says so outright — *"the
+ * ladder mirrors `/system/errors` exactly: one route, three answers"*. Both `GET
+ * /automation/failures` and `GET /automation/summary` accept all three names, so declaring the
+ * array twice would be two lists that can disagree about a module where the whole point is
+ * that the *server* decides what each caller sees.
+ *
+ * ⚠ **One name for all three rungs is not expressible**, which is why there are three. The
+ * stack trace is raw internal state and belongs to `developer_tools`, and a boot assertion
+ * refuses that family to any tier but Developer — so the Admin and Support rungs had to be
+ * two new names in two other families.
+ */
+export const AUTOMATION_PERMISSION: RoutedPermissionName[] = [
+    'system.automation.read',
+    'developer_tools.logs.read',
+    'support.automation.lookup',
 ];
 
 export interface NavSection {
@@ -880,6 +901,105 @@ export const NAV_SECTIONS: NavSection[] = [
                       supposed to prevent. The screen there shows it beside the platform's twin,
                       which is the comparison an operator actually wants.
                     */
+                ],
+            },
+            {
+                /**
+                 * ── The Automation module ─────────────────────────────────────
+                 * **Beside System, not inside it**, and the boundary is the one
+                 * `automation.md` opens with: `/system` reports on *this
+                 * platform's* machinery, and the customer bot runs on a
+                 * third-party runtime (n8n) that fails independently of it. *"Is
+                 * the bot working?"* is a question `/system` cannot answer at any
+                 * depth, which is what makes this a module rather than a seventh
+                 * System child.
+                 *
+                 * **In Platform and not Support desk**, on the rule Media
+                 * established: a section here is a tier boundary, and Support desk
+                 * is where a tier-3 administrator lives. This module is *reachable*
+                 * by tier 3 — `support.automation.lookup` is deliberately on the
+                 * grant, because "the bot did not reply to me" is a ticket — but it
+                 * is a platform-operations surface that tiers 1 and 2 own, and both
+                 * of its screens are graded for the reader.
+                 *
+                 * **No index child**, like System, Media and Money:
+                 * `ModuleIndexRedirect` lands each caller on the first child they
+                 * may open. Both children carry the same guard here, so in practice
+                 * everyone lands on the summary — which is the intended landing
+                 * anyway, for the reason its child comment gives.
+                 */
+                id: 'automation',
+                label: 'Automation',
+                icon: Bot,
+                path: '/dashboard/automation',
+                implemented: true,
+                phase: 19,
+                children: [
+                    {
+                        /**
+                         * Declared first deliberately, and **not** because it is
+                         * the smaller screen.
+                         *
+                         * `GET /automation/summary` is the one read in this module
+                         * that is **not tier-projected** — a count carries no
+                         * machine detail and no identifier, so nothing is withheld
+                         * from anybody. A Support administrator therefore sees
+                         * *more* here (the workflow, its id, the distinct-customer
+                         * count) than the failures feed will ever show them.
+                         * Landing tier 3 on the feed would land them on the
+                         * thinnest thing in the module.
+                         *
+                         * `distinctCustomers` is why it earns the landing: 47
+                         * reports from 12 customers is a platform incident, 47 from
+                         * 1 is one person retrying, and no list of rows can tell
+                         * you which.
+                         *
+                         * ✅ **Settled, and this ordering stands —
+                         * [BR-020](../../api-doc/admin/dashboard/backend-requests/BR-020-automation-summary-tier-projection.md),
+                         * answered 2026-09-12 (and on 2026-09-09 before we added
+                         * the wire evidence).** We asked whether the ungraded
+                         * summary was a decision or an oversight, because the
+                         * ordering above rests on it: if the summary were later
+                         * projected, tier 3 would land on the emptier of the two
+                         * screens. The answer is **(a), a decision** —
+                         * **aggregate** workflow identity is a weaker disclosure
+                         * than **per-incident** identity, and Support may see it.
+                         * So do not reverse this.
+                         *
+                         * ⚠ What *was* wrong is the justification, not the shape:
+                         * `automation.md` claimed the summary "carries no machine
+                         * detail" while publishing `workflowId` and `workflowName`
+                         * — the two fields the failures feed withholds from tier 3.
+                         * That sentence was replaced upstream rather than softened,
+                         * and the real reason now appears in four places precisely
+                         * so it cannot drift back into looking like an accident.
+                         */
+                        id: 'automation-summary',
+                        label: 'Summary',
+                        path: '/dashboard/automation/summary',
+                        permission: AUTOMATION_PERMISSION,
+                        permissionMode: 'any',
+                        implemented: true,
+                        phase: 19,
+                    },
+                    {
+                        /**
+                         * The feed itself — one route, three answers, `data.view`
+                         * naming which one arrived.
+                         *
+                         * Same guard as its sibling: `AUTOMATION_PERMISSION` is
+                         * declared once precisely so these two cannot disagree
+                         * about a module whose defining property is that the server
+                         * decides what each caller sees.
+                         */
+                        id: 'automation-failures',
+                        label: 'Failures',
+                        path: '/dashboard/automation/failures',
+                        permission: AUTOMATION_PERMISSION,
+                        permissionMode: 'any',
+                        implemented: true,
+                        phase: 19,
+                    },
                 ],
             },
             {

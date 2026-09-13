@@ -404,10 +404,37 @@ export interface ContractTerminationBlockers {
 
 /** 409 — the contract is not in a status this verb can move it from. */
 export const PLATFORM_CODE_CONTRACT_INVALID_TRANSITION = 'CONTRACT_INVALID_TRANSITION';
-/** 409 — the transition exists, but not for the party attempting it. */
+
+/**
+ * **403** — the transition exists, but not for the party attempting it.
+ *
+ * ⚠ **Declared for the record. It cannot be branched on, and this constant must
+ * never be compared against `error.platformCode`.** jovi-mall raises it at
+ * **403**, whose category is `authorization` — one of the two categories whose
+ * `details` allowlist is closed (`required` · `requiredAny` · `mode` ·
+ * `resource` · `action` · `hint`), and `platformCode` is not on it. What
+ * arrives is `403 PLATFORM_OPERATION_REJECTED` carrying jovi-mall's own
+ * sentence and no code at all — `errors.md:325`, `users.md:481-492`.
+ *
+ * This was documented here as a 409 and branched on for months; the branch could
+ * never fire. Branch on `status === 403` and render `message` — see
+ * `handleSharedRefusal` in `components/contracts/ContractWriteDialogs.tsx`.
+ */
 export const PLATFORM_CODE_CONTRACT_TRANSITION_NOT_PERMITTED = 'CONTRACT_TRANSITION_NOT_PERMITTED';
-/** 409 — a termination request is already open on this contract. */
-export const PLATFORM_CODE_CONTRACT_REQUEST_ALREADY_PENDING = 'CONTRACT_REQUEST_ALREADY_PENDING';
+
+/**
+ * 409 — a status-change request is already open on this contract.
+ *
+ * ⚠ **The code is `CONTRACT_STATUS_REQUEST_…`, not `CONTRACT_REQUEST_…`.**
+ * This constant carried the shorter string until 2026-09-09 and **no such code
+ * exists in jovi-mall's registry**, so the Terminate dialog's branch never
+ * matched: an operator asking twice got a generic failure instead of "a
+ * termination request is already open". Verified against the source mirror
+ * `api-doc/jovi-mall/error-codes.ts:1011`; `contracts.md:201` names the same
+ * value and that page's own banner records the correction.
+ */
+export const PLATFORM_CODE_CONTRACT_REQUEST_ALREADY_PENDING =
+    'CONTRACT_STATUS_REQUEST_ALREADY_PENDING';
 
 /**
  * Which statuses each intervention is legal from, per `contracts.md`.

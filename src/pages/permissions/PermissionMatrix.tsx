@@ -98,7 +98,7 @@ function Holds({ held, label }: { held: boolean; label: string }) {
  *
  * ── Why this screen has to exist, and why it may not be hard-coded ────────────
  * Hard-coding the permission **vocabulary** is correct, and `types/permissions.types.ts` does it:
- * the 116 names are literal types, and a test diffs them against the policy document so a
+ * the 118 names are literal types, and a test diffs them against the policy document so a
  * backend change fails the suite rather than drifting silently. Hard-coding **which level holds
  * what** is not, and there is deliberately no tier → permission table anywhere in `src/`. The
  * tier sets in `src/test/fixtures.ts` exist for tests and are the one thing app code must never

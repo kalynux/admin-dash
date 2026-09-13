@@ -297,6 +297,30 @@ describe('the picture, and what it costs', () => {
         expect(image).toHaveAttribute('src', libraryFile().url);
     });
 
+    it('calls a quota-blocked file blocked, not private, and offers no way in', async () => {
+        /**
+         * 🔴 **A billing state on a browse table.** The Type column said
+         * "Private tree" for it until 2026-09-09 — the wrong noun — and the
+         * thumbnail offered the private branch's locked tile, whose dialog holds
+         * a reveal that cannot succeed and would file an audit row before
+         * failing. The file is in a **public** tree; its owner is over a plan.
+         */
+        const calls = stubLibrary([
+            libraryFile({ url: null, access: 'quota_blocked' }),
+        ]);
+        render();
+
+        await screen.findByText('shop-logo.png');
+
+        expect(screen.getByText(/over their storage limit/i)).toBeInTheDocument();
+        expect(screen.queryByText(/private tree/i)).not.toBeInTheDocument();
+        // No affordance at all: not a locked tile, not a dialog, not a reveal.
+        expect(
+            screen.queryByRole('button', { name: /stored privately/i }),
+        ).not.toBeInTheDocument();
+        expect(calls.some((call) => call.url.includes('/content'))).toBe(false);
+    });
+
     it('spends no audited read on a private image until it is asked for twice', async () => {
         /**
          * ⚠ **The rule the whole `ImageBox` primitive rests on, applied to a

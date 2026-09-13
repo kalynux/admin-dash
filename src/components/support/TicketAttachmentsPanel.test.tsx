@@ -307,6 +307,90 @@ describe('the preview before the write', () => {
         expect(await screen.findByText(/unusual for an attachment/i)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /click to view/i })).toBeInTheDocument();
     });
+
+    /**
+     * 🔴 **The worst place on the dashboard to have mislabelled this**, and the
+     * reason it is asserted twice over. This box is read as a *confirmation* —
+     * an operator looks at it and then presses Attach — and until 2026-09-09 a
+     * file blocked on its owner's storage cap was described here as
+     * *"Private tree — unusual for an attachment"*.
+     *
+     * That is wrong in both halves. The file is in a **public** tree, so there
+     * is no storage mistake to hunt; and what is actually true — somebody is
+     * over a plan limit, so this will not display until that is resolved — is the
+     * one fact that would have changed what the operator did next.
+     */
+    it('calls a quota-blocked file blocked, not private, before Attach is pressed', async () => {
+        panel({
+            rows: [],
+            file: () =>
+                successResponse({
+                    ...PUBLIC_FILE,
+                    url: null,
+                    access: 'quota_blocked',
+                }),
+        });
+
+        await userEvent.type(await screen.findByLabelText(/file id/i), FILE_ID);
+
+        expect(await screen.findByText(/over their storage limit/i)).toBeInTheDocument();
+        expect(screen.queryByText(/unusual for an attachment/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/permanent link/i)).not.toBeInTheDocument();
+    });
+
+    /**
+     * 🔴 **This test was called *"offers no audited open on a blocked file, because
+     * none can succeed"* and it passed, and the reason in its name was false.**
+     *
+     * It is worth keeping the epitaph. The claim came from
+     * [`files.md`](../../../api-doc/admin/api/files.md) — *"the content route
+     * will not help you either"* — and the test proved only that the component
+     * agreed with the stub, which was built from the same sentence. Measured against
+     * a running service on 2026-09-09, the route answers `200` with the bytes for a
+     * quota-blocked file in every tree. BR-023.
+     *
+     * A test name that states a *reason* is a good habit; this is what it costs when
+     * the reason is taken from a document instead of a measurement.
+     */
+    it('offers the audited open on a blocked file, because it does succeed', async () => {
+        panel({
+            rows: [],
+            file: () =>
+                successResponse({
+                    ...PUBLIC_FILE,
+                    url: null,
+                    access: 'quota_blocked',
+                }),
+        });
+
+        await userEvent.type(await screen.findByLabelText(/file id/i), FILE_ID);
+
+        expect(
+            await screen.findByRole('button', { name: /click to view/i }),
+        ).toBeInTheDocument();
+        // Unchanged and still the point: attaching is legal and the id is valid.
+        expect(screen.getByRole('button', { name: /attach/i })).toBeEnabled();
+    });
+
+    it('warns that the public link will not work yet, not that the file is unviewable', async () => {
+        // The distinction an operator needs before pressing Attach: a ticket
+        // attachment is delivered as a public URL, and *that* is what a quota block
+        // withholds. The file itself is openable here and now.
+        panel({
+            rows: [],
+            file: () =>
+                successResponse({
+                    ...PUBLIC_FILE,
+                    url: null,
+                    access: 'quota_blocked',
+                }),
+        });
+
+        await userEvent.type(await screen.findByLabelText(/file id/i), FILE_ID);
+
+        expect(await screen.findByText(/public link will not work/i)).toBeInTheDocument();
+        expect(screen.queryByText(/it will not display until/i)).not.toBeInTheDocument();
+    });
 });
 
 describe('what a caller without the write permission sees', () => {

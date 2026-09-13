@@ -329,6 +329,64 @@ describe('images', () => {
 
         expect(await screen.findByText(/carries no picture/i)).toBeInTheDocument();
     });
+
+    /**
+     * 🔴 **The one `url: null` that IS expected on this public tree**:
+     * `access: "quota_blocked"`, the vendor over their plan's storage cap.
+     *
+     * This test asserted that the audited fallback *"cannot rescue"* it and that
+     * the page asks for nothing — both taken from
+     * [`files.md`](../../../api-doc/admin/api/files.md), and both false. The
+     * content route serves a blocked file's bytes (BR-023, measured 2026-09-09),
+     * so the gallery resolves it like any other addressless image and offers the
+     * open. What was right, and still is: *"carries no picture"* would be a lie,
+     * because the listing has one.
+     */
+    it('offers the audited open on a picture blocked by the vendor’s storage plan', async () => {
+        const base = vendorProductDetailFixture();
+        const blockedImages = base.media.images.map((image) => ({
+            ...image,
+            url: null,
+            access: 'quota_blocked' as const,
+        }));
+
+        // The gallery now resolves each blocked image, so the stub must answer
+        // `GET /files/:id` — the request the old assertion forbade.
+        stubFetch((call: FetchCall) => {
+            if (call.url.includes('/products/')) {
+                return successResponse({
+                    ...base,
+                    media: { ...base.media, images: blockedImages },
+                });
+            }
+            const match = blockedImages.find((image) => call.url.includes(`/files/${image.id}`));
+            if (match) return successResponse(match);
+            throw new Error(`unexpected request: ${call.method} ${call.url}`);
+        });
+
+        renderWithProviders(
+            <Routes>
+                <Route
+                    path="/dashboard/vendors/:vendorId/products/:productId"
+                    element={<VendorProductDetail />}
+                />
+            </Routes>,
+            {
+                route: `/dashboard/vendors/${VENDOR_ID}/products/${PRODUCT_ID}`,
+                auth: {
+                    status: 'authenticated',
+                    admin: adminFixture({ timezone: 'Africa/Douala' }),
+                },
+                permissions: { held: heldFixture(1) },
+            },
+        );
+
+        expect(
+            await screen.findAllByRole('button', { name: /click to view/i }),
+        ).not.toHaveLength(0);
+        expect(screen.getAllByText(/over their plan's storage cap/i).length).toBeGreaterThan(0);
+        expect(screen.queryByText(/carries no picture/i)).not.toBeInTheDocument();
+    });
 });
 
 describe('the write affordances', () => {

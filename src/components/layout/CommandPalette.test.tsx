@@ -28,7 +28,7 @@ describe('what the palette offers', () => {
     });
 
     it('omits what the sidebar omits', () => {
-        // Support holds 30 of 116 permissions and never sees the administrator
+        // Support holds 31 of 118 permissions and never sees the administrator
         // directory. The palette is built from the same two functions the
         // sidebar filters on, so it cannot disagree with it — a second list
         // would eventually offer a destination that answers 403.

@@ -48,7 +48,7 @@ describe('the sources reference', () => {
     it('says you receive a source whose permission you hold', async () => {
         stubSources([notificationSourceFixture()]);
 
-        // The default permissions state is tier 1 with all 116.
+        // The default permissions state is tier 1 with all 118.
         sourcesPage();
 
         expect(await screen.findByText(/you hold cod\.discrepancies\.read/i)).toBeInTheDocument();

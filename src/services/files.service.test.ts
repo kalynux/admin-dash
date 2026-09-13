@@ -11,9 +11,12 @@ import {
 } from '@/services/files.service';
 import { errorResponse, stubFetch, successResponse, type FetchCall } from '@/test/utils';
 import {
+    FILE_ACCESS_QUOTA_BLOCKED,
     FILE_UPLOAD_MAX_BYTES,
     PLATFORM_CODE_UPLOAD_POLICY_VIOLATION,
+    QUOTA_BLOCKED_COPY,
     isDisplayableImage,
+    isQuotaBlocked,
     isViewableImage,
     type FileDetail,
     type FileLibraryMeta,
@@ -127,7 +130,11 @@ describe('the single form raises where the batch does not', () => {
 describe('the two fields the contract used to get wrong', () => {
     // ✅ Confirmed at BR-010 and both documents corrected — `url` really is
     // `string | null`, `access` really is present on every route, and the union
-    // really is closed at two. These pin the behaviour that was already right.
+    // was closed at two *then*. These pin the behaviour that was already right.
+    //
+    // ⚠ It is closed at **three** since 2026-09-08, and the case immediately
+    // below — an unrecognised value failing safe — is the reason that arrived
+    // without breaking a render. See the `quota_blocked` block after this one.
 
     it('refuses to render a private-tree file FROM ITS URL', () => {
         /**
@@ -151,9 +158,10 @@ describe('the two fields the contract used to get wrong', () => {
     });
 
     it('would still refuse an unrecognised access value', () => {
-        // The union is closed at two upstream and the backend still asked us to
-        // stay defensive across the service boundary. Anything unrecognised is
-        // NOT displayable — the safe direction.
+        // The backend asked us to stay defensive across the service boundary
+        // even while the union was closed. Anything unrecognised is NOT
+        // displayable — the safe direction, and the one that made a third value
+        // a labelling job rather than an outage.
         expect(isDisplayableImage(fileFixture({ access: 'something-new' }))).toBe(false);
     });
 
@@ -163,6 +171,107 @@ describe('the two fields the contract used to get wrong', () => {
         expect(isDisplayableImage(proof)).toBe(false);
         expect(isViewableImage(proof)).toBe(true);
         expect(isViewableImage({ mimeType: 'application/zip' })).toBe(false);
+    });
+});
+
+describe('quota_blocked — the third access value, and a billing state', () => {
+    /**
+     * 🔴 **The value that arrived after the union was called closed.** A
+     * `quota_blocked` file sits in a **public** tree and is withheld because its
+     * owner is over their plan's storage cap. `files.md` § `quota_blocked` is
+     * the contract; three properties of it drive every assertion here:
+     *
+     *   · it is **not** a missing file and **not** a platform fault;
+     *   · it is **temporary** — unlike `authorized`, it comes back when the plan
+     *     is upgraded;
+     *   · it **outranks** `authorized`, so it must be branched on first.
+     */
+    const blocked = fileFixture({ url: null, access: FILE_ACCESS_QUOTA_BLOCKED });
+
+    it('is recognised, and is not confused with a private tree', () => {
+        expect(isQuotaBlocked(blocked)).toBe(true);
+        expect(isQuotaBlocked(fileFixture({ url: null, access: 'authorized' }))).toBe(false);
+        expect(isQuotaBlocked(fileFixture())).toBe(false);
+    });
+
+    it('is not displayable from its url, which the open union already ensured', () => {
+        // ⚠ The point of this case is that it needed **no** code change to pass:
+        // `isDisplayableImage` requires `access === 'public'`, so the new value
+        // failed safe on the day it appeared. What was broken was every screen
+        // that then said "private".
+        expect(isDisplayableImage(blocked)).toBe(false);
+    });
+
+    it('is still an image, so "cannot be shown" must not be read as "not a picture"', () => {
+        // `isViewableImage` is access-blind and stays that way. A blocked JPEG is
+        // a JPEG — the reason it cannot be drawn is nothing to do with its bytes.
+        expect(isViewableImage(blocked)).toBe(true);
+    });
+
+    it('outranks authorized, so a blocked file in a private tree is still a billing state', () => {
+        /**
+         * ⚠ **The precedence rule, asserted as a client obligation.** The wire
+         * stamps `quota_blocked` per file (`files.quotaBlockedAt`) rather than
+         * deriving it from the tree, so a blocked file in `shipments/` reports
+         * `quota_blocked` and never `authorized`. A screen that tests
+         * `access === 'authorized'` first would therefore never reach the branch
+         * that says what is actually wrong — which is exactly what three screens
+         * did until 2026-09-09.
+         */
+        const blockedProof = fileFixture({
+            key: 'shipments/2026/08/9c8b7a_proof.jpg',
+            url: null,
+            access: FILE_ACCESS_QUOTA_BLOCKED,
+        });
+
+        expect(isQuotaBlocked(blockedProof)).toBe(true);
+        expect(blockedProof.access).not.toBe('authorized');
+    });
+
+    it('says money, and says the file is coming back', () => {
+        /**
+         * ⚠ **The copy is the fix**, so the copy is what is pinned. `files.md`
+         * forbids two renderings by name — *"Never render this as a broken image,
+         * and never as 'file missing'"* — because one reads as a platform bug and
+         * the other as data loss, when the real answer is that somebody needs to
+         * pay for more storage. This is the one wording six surfaces share.
+         */
+        expect(QUOTA_BLOCKED_COPY.title).toMatch(/storage limit/i);
+        expect(QUOTA_BLOCKED_COPY.body).toMatch(/storage cap/i);
+        expect(QUOTA_BLOCKED_COPY.body).toMatch(/upgrad|freed/i);
+        expect(QUOTA_BLOCKED_COPY.body).toMatch(/nothing has been deleted/i);
+        expect(QUOTA_BLOCKED_COPY.label).toMatch(/blocked/i);
+
+        // The two words the contract rules out, in every field an operator reads.
+        for (const line of Object.values(QUOTA_BLOCKED_COPY)) {
+            expect(line).not.toMatch(/missing|broken|private/i);
+        }
+    });
+
+    it('never says the file cannot be shown, because it can — the BR-023 guard', () => {
+        /**
+         * 🔴 **The regression guard for the most expensive sentence in this
+         * repository.** `body` used to end *"so this file cannot be shown"*, taken
+         * from [`files.md`](../../api-doc/admin/api/files.md) — *"the content
+         * route will not help you either"*. It is false: the audited route answers
+         * `200` with the bytes for a blocked file in every tree (measured
+         * 2026-09-09, BR-023).
+         *
+         * ⚠ **One constant fed six surfaces, so the wrong claim was rendered seven
+         * times and corrected once.** That is the argument for the constant, and it
+         * is why the guard belongs here rather than at each screen. The screens
+         * assert their own *affordance*; this asserts the *words*.
+         */
+        for (const [field, line] of Object.entries(QUOTA_BLOCKED_COPY)) {
+            expect(line, `${field} must not claim the file is unviewable`).not.toMatch(
+                /cannot be (shown|displayed|viewed|opened)|will not (display|open)|unviewable/i,
+            );
+        }
+
+        // And the note that replaced it has to say the open still works, or the
+        // affordance beside it is unexplained.
+        expect(QUOTA_BLOCKED_COPY.note).toMatch(/still works/i);
+        expect(QUOTA_BLOCKED_COPY.note).toMatch(/no public address|storage cap/i);
     });
 });
 

@@ -72,7 +72,7 @@ const platform = {
     CONTRACT_INVALID_TRANSITION: 'Le contrat ne peut pas passer à cet état depuis celui où il est.',
     CONTRACT_TRANSITION_NOT_PERMITTED:
         'La plateforme n’autorise pas cette partie à effectuer ce changement, quelle que soit l’autorisation que vous détenez ici.',
-    CONTRACT_REQUEST_ALREADY_PENDING:
+    CONTRACT_STATUS_REQUEST_ALREADY_PENDING:
         'Une demande est déjà ouverte sur ce contrat. Elle doit être traitée avant qu’une autre puisse être déposée.',
     CONTRACT_HAS_OUTSTANDING_COD:
         'L’agent doit encore de l’argent à cette agence. Cela doit être soldé avant tout transfert.',

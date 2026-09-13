@@ -44,7 +44,7 @@ export function TierChangePreview({ fromTier, toTier }: { fromTier: AdminTier; t
     const mayRead = can('permissions.read');
 
     /*
-     * Fetched here rather than on the detail screen: it is a 116 × 3 payload
+     * Fetched here rather than on the detail screen: it is a 118 × 3 payload
      * that nobody needs until somebody is actually moving a level, and Radix
      * unmounts a closed dialog's content, so opening the dialog is what triggers
      * it. Safe under `useAsyncData` because it is an unaudited read of static

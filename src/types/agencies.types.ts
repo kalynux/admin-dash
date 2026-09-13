@@ -1,7 +1,7 @@
 /**
  * `/agencies` — the delivery network: who carries shipments, and whether they may.
  *
- * Sources: `api-doc/admin/api/agencies.md`, `api-doc/admin/ADR-009-DELIVERY-NETWORK.md`,
+ * Sources: `api-doc/admin/api/agencies.md`, `api-doc/docs/ADR-009-DELIVERY-NETWORK.md`,
  * and — where those disagree with the running service —
  * `backend/admin/src/modules/agencies/` plus
  * `backend/jovi-mall/src/modules/delivery/delivery-agency.model.ts`.

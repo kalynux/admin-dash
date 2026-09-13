@@ -8,11 +8,12 @@
  * exception is only safe while this file passes.
  *
  * ── Why an exception is defensible here at all ────────────────────────────────
- * The rule exists because **`listQuery` is not `.strict()` service-wide**: an
- * unrecognised query parameter is dropped silently and the unfiltered list comes
- * back `200`, looking filtered. A picker built from a vocabulary that has moved
- * therefore matches nothing *while looking correct* — the worst failure a filter
- * has.
+ * The rule exists because **`listQuery` is not `.strict()`** — on this endpoint
+ * and most others, though **not service-wide, which this note used to claim**
+ * (BR-022, answered 2026-09-12): an unrecognised query parameter is dropped
+ * silently and the unfiltered list comes back `200`, looking filtered. A picker
+ * built from a vocabulary that has moved therefore matches nothing *while
+ * looking correct* — the worst failure a filter has.
  *
  * What makes the timeline different is that the vocabulary is closed **at the
  * model**, not by convention: `order-timeline.model.ts` declares a Mongoose

@@ -1,5 +1,12 @@
 import { useState } from 'react';
-import { AlertTriangle, ExternalLink, FileQuestion, Images, Paperclip, Trash2 } from 'lucide-react';
+import {
+    AlertTriangle,
+    ExternalLink,
+    FileQuestion,
+    Images,
+    Paperclip,
+    Trash2,
+} from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
 import { ErrorState } from '@/components/common/DataState';
@@ -29,7 +36,13 @@ import {
     listTicketAttachments,
 } from '@/services/support.service';
 import { ApiError } from '@/types/api.types';
-import { FILE_RESOLVE_MAX_IDS, isViewableImage, type FileDetail } from '@/types/files.types';
+import {
+    FILE_RESOLVE_MAX_IDS,
+    QUOTA_BLOCKED_COPY,
+    isQuotaBlocked,
+    isViewableImage,
+    type FileDetail,
+} from '@/types/files.types';
 import type { TicketAttachment } from '@/types/support.types';
 
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
@@ -519,7 +532,14 @@ function AttachmentPreview({ fileId }: { fileId: string }) {
             <div className="flex flex-wrap items-start gap-3">
                 <div className="w-32 shrink-0">
                     {/* Public tree → the URL the resolve already gave, shown at
-                        once. Private tree → the audited route, which asks. */}
+                        once. Anything else → the audited route, which asks.
+
+                        🔴 A third branch stood first here until 2026-09-09, for a
+                        file blocked on its owner's storage cap, because *"the
+                        content route cannot serve it either"*. It can (BR-023), so
+                        a blocked file now takes the audited branch like any other
+                        file without a usable URL — and `ImageBox` says why the
+                        thumbnail was not simply there. */}
                     {detail.url && isViewableImage(detail) ? (
                         <ImageBox src={detail.url} alt={detail.originalName ?? 'the file'} />
                     ) : (
@@ -552,11 +572,30 @@ function AttachmentPreview({ fileId }: { fileId: string }) {
                           never meant to be attached to anything, and an operator
                           should see which they picked before they press the
                           button rather than after.
+
+                          ⚠ **And a `quota_blocked` one is neither.** This branch
+                          said "Private tree — unusual for an attachment" for it
+                          until 2026-09-09, which is the worst place on the
+                          dashboard to have got this wrong: it is read as a
+                          confirmation, *before* Attach, and it sent an operator
+                          looking for a storage-tree mistake that had not
+                          happened. The file is in a public tree; its owner is
+                          over a plan limit. Tested first, because the wire ranks
+                          `quota_blocked` above `authorized`.
+
+                          🔴 It then said the file *"will not display until that is
+                          resolved"*, which was the same false claim in gentler
+                          words — it displays through the audited route (BR-023).
+                          What is actually true, and is what an operator needs
+                          before pressing Attach, is that the **public link** the
+                          attachment will carry does not work yet.
                         */}
                         <dd>
-                            {detail.access === 'public'
-                                ? 'Public — a permanent link, once attached'
-                                : 'Private tree — unusual for an attachment'}
+                            {isQuotaBlocked(detail)
+                                ? `${QUOTA_BLOCKED_COPY.label} — the attachment is valid, but its public link will not work until that is resolved`
+                                : detail.access === 'public'
+                                  ? 'Public — a permanent link, once attached'
+                                  : 'Private tree — unusual for an attachment'}
                         </dd>
                     </div>
                 </dl>

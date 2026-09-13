@@ -24,6 +24,7 @@ import {
 } from '@/components/users/SendCredentialLinkDialog';
 import { SendTelegramDialog } from '@/components/users/SendTelegramDialog';
 import { SuspendUserDialog } from '@/components/users/SuspendUserDialog';
+import { ClosurePanel } from '@/components/users/ClosurePanel';
 import { SuspensionPanel } from '@/components/users/SuspensionPanel';
 import { UserActivityPanel } from '@/components/users/UserActivityPanel';
 import { UserStatusBadge } from '@/components/users/UserStatusBadge';
@@ -274,6 +275,16 @@ function UserDetailScreen({ userId }: { userId: string }) {
                         cannot read as a current suspension. */}
                     {record.status === 'suspended' && record.suspension ? (
                         <SuspensionPanel suspension={record.suspension} timeZone={timeZone} />
+                    ) : null}
+
+                    {/* `closedAt` pairs with `status` the same way, so it is keyed the
+                        same way — but the panel renders on `status` ALONE, not on the
+                        instant. The contract types `closedAt` as `ISO-8601 | null`, so a
+                        closed account whose date was never recorded still needs the
+                        explanation: the identifiers below it are erased and not
+                        recoverable, and without this the row reads as a broken payload. */}
+                    {record.status === 'closed' ? (
+                        <ClosurePanel closedAt={record.closedAt} timeZone={timeZone} />
                     ) : null}
 
                     <Card>

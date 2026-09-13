@@ -90,6 +90,21 @@ export interface User {
     status: UserStatus;
     /** **Non-null only while `status === 'suspended'`.** */
     suspension: Suspension | null;
+    /**
+     * When the owner closed the account. **Non-null only while
+     * `status === 'closed'`** — the same pairing rule as `suspension`, and it
+     * fails the same way: an active account rendering a stale instant reads as
+     * closed on any screen that does not check `status` first.
+     *
+     * ⚠ **A closure is not a suspension with a different word.** The owner did
+     * it, not an administrator, and jovi-mall has already removed the
+     * identifiers: `email`, `phone` and the customer's name are gone and are
+     * **not recoverable** (`users.md:100`). The row survives only so orders,
+     * tickets and bookings still resolve to something. So a closed row is
+     * expected to be missing the fields a screen would normally key on — that is
+     * the state working, not a broken payload — and there is no reinstatement.
+     */
+    closedAt: string | null;
     createdAt: string;
     updatedAt: string;
 }

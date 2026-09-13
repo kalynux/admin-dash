@@ -12,6 +12,7 @@ import {
     permittedChildren,
     permittedSections,
     routeRequirement,
+    AUTOMATION_PERMISSION,
     NAV_ENTRIES,
     NAV_ITEMS,
     PERMISSION_FREE_ROUTES,
@@ -287,12 +288,20 @@ describe('permittedSections', () => {
         // settlements, granted on purpose because "did my payment go through" is
         // one of the commonest ticket questions.
         //
-        // **Platform is visible too, holding System alone**, and this is the
-        // change children brought. `GET /system/errors` accepts any of three
+        // **Platform is visible too, holding System and Automation**, and this is
+        // the change children brought. `GET /system/errors` accepts any of three
         // permissions, one of which is `support.errors.lookup`; a container is
         // reachable when anything inside it is, so hiding System would hide the
         // one platform screen tier 3 is meant to have. Developer tools stays
         // hidden — every one of its children is `developer_tools.*`.
+        //
+        // **Automation joined it on 2026-09-09** and both of its children are
+        // visible, not one: `support.automation.lookup` is on the same `any`-mode
+        // ladder for the feed *and* the summary. ADR-022 D-7 put Support on that
+        // grant deliberately — "the bot did not reply to me" is a ticket, and an
+        // agent who cannot see that the automation layer was degraded escalates it
+        // to somebody who knows less about it than they do. **Media stays hidden**:
+        // every `files.*` name it stands on stops at tier 2.
         //
         // **Audit has no Exports child for Support** — `audit.export` is withheld
         // from tier 3, and the child list is filtered by the same rule the module
@@ -315,8 +324,48 @@ describe('permittedSections', () => {
             ['support', ['support-tickets', 'content']],
             ['finance', ['money']],
             ['administration', ['audit']],
-            ['platform', ['system']],
+            ['platform', ['system', 'automation']],
         ]);
+    });
+
+    /**
+     * The per-tier shape of the Automation module, pinned because it is the one module whose
+     * *children* are identical across all three levels while its **content** is not.
+     *
+     * Both children carry the same `any`-mode three-permission guard, so every level sees both
+     * links. What differs is decided by the server and rendered on the page: the feed is
+     * graded and names its grading in `data.view`, and the summary is not graded at all. A
+     * later phase that "tidies" this by giving the summary a narrower permission would be
+     * withholding a screen from the tier the contract deliberately admitted.
+     */
+    it.each([1, 2, 3] as const)('gives tier %i both Automation children', (tier) => {
+        const automation = permittedSections(heldFixture(tier))
+            .find((section) => section.id === 'platform')
+            ?.items.find((entry) => entry.id === 'automation');
+
+        expect(automation).toBeDefined();
+        expect(permittedChildren(automation as NavItem, heldFixture(tier)).map((c) => c.id)).toEqual(
+            ['automation-summary', 'automation-failures'],
+        );
+    });
+
+    /**
+     * ⚠ **No index child**, like System, Media and Money — so `/dashboard/automation` redirects
+     * rather than rendering. Summary is declared first because it is the module's *widest*
+     * screen, not its smallest: `GET /automation/summary` is not tier-projected, so a Support
+     * administrator sees more there (the workflow, its id, `distinctCustomers`) than the feed
+     * will ever show them. Landing tier 3 on the feed would land them on the thinnest thing in
+     * the module.
+     */
+    it('lands every tier on the summary, because no child is an index', () => {
+        const automation = NAV_ITEMS.find((entry) => entry.id === 'automation') as NavItem;
+
+        expect(automation.children?.some((c) => c.index)).toBe(false);
+        for (const tier of [1, 2, 3] as const) {
+            expect(firstPermittedChild(automation, heldFixture(tier))?.id).toBe(
+                'automation-summary',
+            );
+        }
     });
 
     it('shows a Developer everything', () => {
@@ -370,6 +419,30 @@ describe('route access', () => {
         // registered without saying who may call it is a bug, not a public route.
         expect(routeRequirement('/dashboard/nothing-here')).toBe('undeclared');
         expect(canAccessRoute(heldFixture(1), '/dashboard/nothing-here')).toBe(false);
+    });
+
+    it('lets every tier reach both Automation routes, through three different names', () => {
+        for (const tier of [1, 2, 3] as const) {
+            expect(canAccessRoute(heldFixture(tier), '/dashboard/automation/summary')).toBe(true);
+            expect(canAccessRoute(heldFixture(tier), '/dashboard/automation/failures')).toBe(true);
+        }
+    });
+
+    /**
+     * The constant, not two copies of it. `GET /automation/failures` and
+     * `GET /automation/summary` accept the same three names, and a module whose defining
+     * property is that the *server* decides what each caller sees must not have two client
+     * lists that can disagree about who gets in the door.
+     */
+    it('gates both Automation children on the one exported requirement', () => {
+        const automation = NAV_ITEMS.find((entry) => entry.id === 'automation') as NavItem;
+
+        for (const declared of automation.children ?? []) {
+            expect(entryRequirement(declared)).toEqual({
+                permission: AUTOMATION_PERMISSION,
+                mode: 'any',
+            });
+        }
     });
 
     it('lets Support reach what its sidebar offers, and refuses the rest', () => {

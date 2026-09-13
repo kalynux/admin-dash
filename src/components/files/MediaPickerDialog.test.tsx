@@ -137,6 +137,52 @@ describe('the blog’s constraint, which is real', () => {
             await screen.findByText(/previews are not configured on this deployment/i),
         ).toBeInTheDocument();
     });
+
+    /**
+     * 🔴 **A `null` URL has four causes and the reason line has to name the right
+     * one.** Three of them are covered above. The fourth is
+     * `access: "quota_blocked"` — a **public**-tree file whose owner is over
+     * their plan's storage cap — and it is the only one that is **temporary**.
+     * "No public address" is true of it and useless: it reads as permanent, and
+     * the fact that would resolve it is that somebody needs a bigger plan.
+     */
+    it('says a quota-blocked file is blocked, not merely address-less', async () => {
+        stubLibrary([libraryFile({ url: null, access: 'quota_blocked' })]);
+        open({ requirePublicUrl: true });
+
+        expect(await screen.findByText(/blocked by a storage limit/i)).toBeInTheDocument();
+        expect(screen.getByText(/until the owner’s plan is upgraded/i)).toBeInTheDocument();
+        // Not the generic reason, which would be the permanent-sounding one.
+        expect(screen.queryByText(/^No public address/i)).not.toBeInTheDocument();
+    });
+
+    it('still disables it where a stored URL is what the caller needs', async () => {
+        // The blog stores the string. There is no string today, so the tile is
+        // refused today — the copy is what changes, not the gate.
+        const onSelect = vi.fn();
+        stubLibrary([libraryFile({ url: null, access: 'quota_blocked' })]);
+        open({ requirePublicUrl: true, onSelect });
+
+        const tile = await screen.findByRole('button', { name: /shop-logo\.png/i });
+        expect(tile).toBeDisabled();
+
+        await userEvent.click(tile);
+        expect(onSelect).not.toHaveBeenCalled();
+    });
+
+    it('offers it, with a warning, where a fileId is what gets stored', async () => {
+        /**
+         * ⚠ **A warning, not a refusal.** The ticket forms keep the id, the id is
+         * valid, and the attachment is a legal thing to make — it simply will not
+         * display until the plan is upgraded. Refusing it here would be the
+         * picker deciding something the contract does not.
+         */
+        stubLibrary([libraryFile({ url: null, access: 'quota_blocked' })]);
+        open({ requirePublicUrl: false });
+
+        expect(await screen.findByRole('button', { name: /shop-logo\.png/i })).toBeEnabled();
+        expect(screen.getByText(/will not display until the owner’s plan is upgraded/i)).toBeInTheDocument();
+    });
 });
 
 describe('two permissions, and neither implies the other', () => {

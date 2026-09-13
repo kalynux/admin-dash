@@ -1,7 +1,7 @@
 /**
  * `/agencies` — the eight endpoints of the delivery-agency surface.
  *
- * Sources: `api-doc/admin/api/agencies.md`, `api-doc/admin/ADR-009-DELIVERY-NETWORK.md`,
+ * Sources: `api-doc/admin/api/agencies.md`, `api-doc/docs/ADR-009-DELIVERY-NETWORK.md`,
  * `backend/admin/src/modules/agencies/`, and — for the delegated writes' real
  * failure codes, which no doc publishes —
  * `backend/jovi-mall/src/modules/delivery/services/admin-agency.service.ts`.

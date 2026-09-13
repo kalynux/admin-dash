@@ -84,11 +84,11 @@ describe('server errors', () => {
     });
 
     /**
-     * **Gap G1.** The service throws `details.problems`, and `problems` sits on
-     * the error boundary's always-drop list — so this arrives with no `details` at
-     * all, despite `auth.md` promising that it "names the problems". Falling back
-     * to the documented rules is what stops the operator seeing a bare
-     * "422" with nothing to act on.
+     * The fallback, which is no longer the *normal* path but is still the one a
+     * `422` with an emptied `details` takes — every build before 2026-09-08 threw
+     * `details.problems`, a key the boundary scrub drops in every category, so
+     * this is what those answered with. Falling back to the documented rules is
+     * what stops the operator seeing a bare "422" with nothing to act on.
      */
     it('renders the documented rules when a 422 arrives with no details', async () => {
         stubFetch(() =>
@@ -106,12 +106,19 @@ describe('server errors', () => {
         expect(screen.getByText('• Not a single repeated character')).toBeInTheDocument();
     });
 
-    /** And if the gap is ever fixed upstream, the server's own list wins. */
-    it('prefers the failures the server sent, when it sends any', async () => {
+    /**
+     * The normal path since 2026-09-08: the server names the rules that failed
+     * and its list wins over the documented four.
+     *
+     * ⚠ The key is **`failedRules`**. The phrases complete *"your password …"*,
+     * only the failed rules appear, and the array is never empty on a `422` —
+     * `auth.md` § Password policy.
+     */
+    it('prefers the failed rules the server sent, when it sends any', async () => {
         stubFetch(() =>
             errorResponse(422, 'ADMIN_AUTH_PASSWORD_WEAK', {
                 category: 'business_rule',
-                details: { problems: ['is too common'] },
+                details: { failedRules: ['is too common'] },
             }),
         );
         renderForm();
@@ -120,6 +127,33 @@ describe('server errors', () => {
 
         expect(await screen.findByText('• is too common')).toBeInTheDocument();
         expect(screen.queryByText('• At least 12 characters')).not.toBeInTheDocument();
+    });
+
+    /**
+     * The regression for the rename itself. `problems` is still probed as a
+     * hedge, so a test that only sent `failedRules` would pass just as happily
+     * with the old key list — this one fails if `failedRules` is dropped.
+     */
+    it('reads failedRules even when a stale key sits beside it', async () => {
+        stubFetch(() =>
+            errorResponse(422, 'ADMIN_AUTH_PASSWORD_WEAK', {
+                category: 'business_rule',
+                details: {
+                    failedRules: ['must be at least 12 characters'],
+                    problems: ['a key no build has thrown since 2026-09-08'],
+                },
+            }),
+        );
+        renderForm();
+
+        await fillAndSubmit('old passphrase here', 'changeme1234');
+
+        expect(
+            await screen.findByText('• must be at least 12 characters'),
+        ).toBeInTheDocument();
+        expect(
+            screen.queryByText('• a key no build has thrown since 2026-09-08'),
+        ).not.toBeInTheDocument();
     });
 
     /** This route sits behind the credential limiter despite being authenticated. */

@@ -16,8 +16,8 @@
  * must not be able to turn off its own switch), `PUT /maintenance` (its failure mode is losing
  * the ability to undo it), and `GET /workers` (a read).
  *
- * Design records: [ADR-014](../../api-doc/admin/ADR-014-SYSTEM-OPERATIONS.md),
- * [ADR-015](../../api-doc/admin/ADR-015-DEVELOPER-TOOLS.md).
+ * Design records: [ADR-014](../../api-doc/docs/ADR-014-SYSTEM-OPERATIONS.md),
+ * [ADR-015](../../api-doc/docs/ADR-015-DEVELOPER-TOOLS.md).
  */
 
 // ─── Feature flags ────────────────────────────────────────────────────────────

@@ -28,7 +28,6 @@ import { ApiError } from '@/types/api.types';
 import {
     PLATFORM_CODE_CONTRACT_INVALID_TRANSITION,
     PLATFORM_CODE_CONTRACT_REQUEST_ALREADY_PENDING,
-    PLATFORM_CODE_CONTRACT_TRANSITION_NOT_PERMITTED,
     type ContractDetail,
     type ContractTerminationResult,
 } from '@/types/contracts.types';
@@ -53,36 +52,72 @@ const SERVER_FIELDS = ['reason'] as const;
  * The two platform refusals every contract write shares, rendered as a toast
  * rather than a field error because neither is about what was typed.
  *
+ * ── ⚠ One is matched on its code and one on its STATUS ───────────────────────
+ * `CONTRACT_INVALID_TRANSITION` is forwarded at 409 (`conflict`), a category
+ * that carries `details` through — so it arrives with its `platformCode` and
+ * with the `from`/`allowedFrom` that make the sentence specific.
+ *
+ * `CONTRACT_TRANSITION_NOT_PERMITTED` is forwarded at **403**, and 403 is
+ * `authorization` — one of the two categories whose `details` allowlist is
+ * closed (`required` · `requiredAny` · `mode` · `resource` · `action` ·
+ * `hint`). `platformCode` is not on it and is dropped at the boundary, so
+ * **nothing arrives to compare a constant against**. `errors.md:325` says
+ * outright *"You cannot branch on this code"*, and `isUnbranchable` in
+ * `i18n/error-catalog.test.ts` pins that classification.
+ *
+ * It was written as a `case` on `platformCode` until 2026-09-09 and never once
+ * matched — so a refused write fell through to generic rendering **and skipped
+ * `onStale()`**, leaving the screen showing a state the platform had already
+ * rejected. Matching the status is what makes it fire.
+ *
+ * ⚠ **The server's own sentence is rendered verbatim, bypassing
+ * `resolveErrorMessage`, and that is deliberate.** `authorization` is not in
+ * that seam's `MESSAGE_BEARING` set, so the ladder would answer with generic
+ * category copy — while jovi-mall's message is the only thing still carrying
+ * *which* party and *which* verb. It is English, which the catalog would not
+ * have been; a specific English reason beats a translated non-reason here, and
+ * the title above it is still ours.
+ *
  * Returns `true` when it handled the error.
  */
 function handleSharedRefusal(error: unknown, onStale: () => void): boolean {
     if (!(error instanceof ApiError)) return false;
 
-    switch (error.platformCode) {
-        case PLATFORM_CODE_CONTRACT_INVALID_TRANSITION: {
-            // `details` names the transition, the current `from`, and the
-            // `allowedFrom` set — the only thing that says which of the two
-            // causes this was.
-            const from = error.details?.from;
-            notify.warning('The contract has moved since you loaded it', {
-                description:
-                    typeof from === 'string'
-                        ? `It is now "${from}", which this action cannot be performed from. Reloading what it says now.`
-                        : 'Its status no longer allows this action. Reloading what it says now.',
-            });
-            onStale();
-            return true;
-        }
-        case PLATFORM_CODE_CONTRACT_TRANSITION_NOT_PERMITTED:
-            notify.warning('The platform refused this transition', {
-                description:
-                    'The transition exists but not for the party attempting it. This is a platform-side guard; nothing on this screen can clear it.',
-            });
-            onStale();
-            return true;
-        default:
-            return false;
+    if (error.platformCode === PLATFORM_CODE_CONTRACT_INVALID_TRANSITION) {
+        // `details` names the transition, the current `from`, and the
+        // `allowedFrom` set — the only thing that says which of the two
+        // causes this was.
+        const from = error.details?.from;
+        notify.warning('The contract has moved since you loaded it', {
+            description:
+                typeof from === 'string'
+                    ? `It is now "${from}", which this action cannot be performed from. Reloading what it says now.`
+                    : 'Its status no longer allows this action. Reloading what it says now.',
+        });
+        onStale();
+        return true;
     }
+
+    /*
+      A **forwarded** 403 — `isPlatformRejection`, never wi-admin's own
+      `AUTHZ_PERMISSION_DENIED`, which is a different answer entirely: a
+      permission this operator does not hold is not a stale screen and must not
+      trigger a reload.
+    */
+    if (error.isPlatformRejection && error.status === 403) {
+        // ⚠ `serverMessage`, never `message` — the latter is never empty, so a
+        // truthiness check would render "Request failed with status 403" as the
+        // explanation on exactly the failures that carry no envelope.
+        const why =
+            error.serverMessage ?? 'The transition exists but not for the party attempting it.';
+        notify.warning('The platform refused this transition', {
+            description: `${why} This is a platform-side guard; nothing on this screen can clear it. Reloading what the contract says now.`,
+        });
+        onStale();
+        return true;
+    }
+
+    return false;
 }
 
 // ─── Suspend ──────────────────────────────────────────────────────────────────
@@ -351,7 +386,13 @@ export function TerminateContractDialog({
     contract: ContractDetail;
     open: boolean;
     onOpenChange: (open: boolean) => void;
-    onDone: (result: ContractTerminationResult) => void;
+    /**
+     * `null` means **nothing was written** — a refusal the screen has to
+     * re-read to catch up with, rather than a result to render. Two paths pass
+     * it: the already-open request, and the forwarded 403. Both leave the
+     * contract in a state this dialog's copy no longer describes.
+     */
+    onDone: (result: ContractTerminationResult | null) => void;
 }) {
     const [formError, setFormError] = useState<unknown>(null);
     const form = useForm<ReasonValues>({
@@ -394,11 +435,16 @@ export function TerminateContractDialog({
                             'It is waiting on the counterparty and the outstanding balances. Asking again changes nothing.',
                     });
                     onOpenChange(false);
+                    // The open request is on the record and this screen is not
+                    // showing it — re-read, rather than leaving the operator to
+                    // guess whether their first attempt landed.
+                    onDone(null);
                     return;
                 }
                 if (
                     handleSharedRefusal(error, () => {
                         onOpenChange(false);
+                        onDone(null);
                     })
                 ) {
                     return;

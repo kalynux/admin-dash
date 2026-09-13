@@ -45,10 +45,20 @@ export const AUDIT_STATUSES: readonly AuditStatus[] = [
 ];
 
 /**
- * The 22 `targetType` values, verbatim from `audit.md`.
+ * The 23 `targetType` values, verbatim from `audit.md` (§ `targetType` values).
  *
  * `none` is a real member, not a placeholder for absent: an action that concerns
  * no record — a login, a health probe — records it deliberately.
+ *
+ * ⚠ **`file` was missing here for as long as this list existed**, and the cost was
+ * one-directional and silent: the filter is a `select` built from this array, so
+ * an operator could not narrow the trail to file actions at all — while
+ * `AuditEntryDetail` was already emitting `?targetType=file` deep links into that
+ * same dropdown. The link arrived at a value the control did not offer. It is the
+ * target of `GET /files/:fileId/content`, the fourth audited read on the service.
+ *
+ * The order is the contract's, not alphabetical, and is kept so the two can be
+ * diffed by eye.
  */
 export const AUDIT_TARGET_TYPES: readonly string[] = [
     'user',
@@ -65,6 +75,7 @@ export const AUDIT_TARGET_TYPES: readonly string[] = [
     'ticket',
     'article',
     'plan',
+    'file',
     'administrator',
     'admin_session',
     'approval_request',

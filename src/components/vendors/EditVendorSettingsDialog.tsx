@@ -80,7 +80,7 @@ interface EditVendorSettingsDialogProps {
  * rejected **by name** by the strict schema, so it is shown as read-only on the
  * detail rather than offered here — the rule that separates them is that a setting
  * is the administrator's when its effect lands on somebody other than the vendor
- * ([ADR-008 D-8](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)), and an expiry
+ * ([ADR-008 D-8](../../api-doc/docs/ADR-008-VENDOR-MANAGEMENT.md)), and an expiry
  * notice is a message to the vendor about the vendor.
  *
  * **Commission is not here and must never be added.** It lives on the billing

@@ -82,6 +82,13 @@ const codes = {
     TRACKING_DOOR_REFUSED: 'Le service de suivi a refusé cette lecture',
     TRACKING_DOOR_UNAVAILABLE: 'Le service de suivi est injoignable',
 
+    // Porte de signalement de l’automatisation. Ces messages s’adressent à un
+    // opérateur qui lit la réponse d’un nœud n8n, jamais à un utilisateur du
+    // tableau de bord : la route qui les émet ne lui est pas accessible.
+    AUTOMATION_REPORT_TOKEN_INVALID: 'Le jeton de signalement d’automatisation est absent ou erroné',
+    AUTOMATION_REPORT_MALFORMED: 'Ce rapport d’incident n’indique ni workflow ni type',
+    AUTOMATION_DOOR_UNCONFIGURED: 'Ce déploiement n’accepte aucun rapport d’incident d’automatisation',
+
     // ─── Assistance ──────────────────────────────────────────────────────────
     TICKET_NOT_FOUND: 'Ticket introuvable',
     TICKET_ALREADY_ASSIGNED: 'Quelqu’un d’autre a déjà pris ce ticket',

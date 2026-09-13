@@ -1,7 +1,7 @@
 /**
  * `/agents` — delivery agents: platform identities, not agency-owned rows.
  *
- * Sources: `api-doc/admin/api/agents.md`, `api-doc/admin/ADR-009-DELIVERY-NETWORK.md`,
+ * Sources: `api-doc/admin/api/agents.md`, `api-doc/docs/ADR-009-DELIVERY-NETWORK.md`,
  * and — where those disagree with the running service —
  * `backend/admin/src/modules/agents/` plus
  * `backend/jovi-mall/src/modules/agents/`. **Six shapes below are read from the
@@ -453,15 +453,61 @@ export interface TrackingPolicy {
 }
 
 /**
+ * The agency a slice belongs to, named rather than merely identified.
+ *
+ * wi-admin decorates jovi-mall's verdict with this: the business name lives on
+ * the Magazin, which the endpoint's subject in jovi-mall has no reason to join,
+ * so **only wi-admin can produce it** (`agents.md` § "Why this one is delegated
+ * *and* mapped"). That is also why `agencies.read` joined the guard on this
+ * route — it is a second door onto the agency directory.
+ */
+export interface CodAllocationAgency {
+    id: string;
+    /**
+     * The Magazin's name. **`null` where the Magazin has none** — an agency
+     * mid-onboarding must still be identifiable by its id.
+     *
+     * ⚠ `null`, never `""`, and **never `display_name`**, which is the agency's
+     * contact *person*. Substituting a human under a column headed "Agency" is
+     * the BR-006 confusion.
+     */
+    businessName: string | null;
+    /**
+     * ⚠ **The AGENCY's account status** — `active` · `pending_verification` ·
+     * `inactive` — and **not** the contract's, which sits beside it on the same
+     * slice under the name `status`. The two mean different things: the
+     * contract's decides whether the slice consumes the pool, this one whether
+     * the agency may trade at all. Typed open, per the standing enum rule.
+     */
+    status: string;
+}
+
+/**
  * One contract's slice of the pool, as `GET /agents/:agentId/cod-allocation`
  * reports it.
  *
- * ⚠ **`agents.md` documents no response shape for this endpoint at all.** Read
- * from `jovi-mall/src/modules/agents/domain/services/agent-cod-threshold.service.ts:77-98`.
+ * ✅ **`agents.md` publishes this shape since BR-016 § 2**, so it is no longer
+ * transcribed off the wire; `PUT /agents/:agentId/cod-threshold` answers with the
+ * same shape.
  */
 export interface CodAllocationSlice {
     contractId: string;
     agencyId: string;
+    /**
+     * The agency, resolved server-side.
+     *
+     * ⚠ **`null` when the agency row is gone** — and the slice still consumes the
+     * pool, so the row is kept and must still render. A `null` here is therefore
+     * "no agency to name", not "no slice"; fall back to `agencyId`, which is
+     * always present.
+     *
+     * ⚠ **This replaced a client-side join** against `GET /agents/:agentId/contracts`.
+     * Do not reintroduce one: the join could only ever be as wide as the page of
+     * contracts it read, so an agent with more than a hundred contracts silently
+     * lost names — a limit this field does not have.
+     */
+    agency: CodAllocationAgency | null;
+    /** ⚠ **The CONTRACT's status**, not the agency's. See `agency.status`. */
     status: string;
     threshold: number;
     outstandingBalance: number;

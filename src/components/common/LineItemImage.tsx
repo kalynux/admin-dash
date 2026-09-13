@@ -36,7 +36,14 @@ import { isDisplayableImage, type FileDetail } from '@/types/files.types';
  * The `url: null` fallback goes through `ResolvedImageBox` — the audited content
  * route, waiting for a click — and should be unreachable on a public tree. It
  * exists because "should be" is not a guarantee and a blank tile is the worst of
- * the three.
+ * the four.
+ *
+ * ⚠ **One `url: null` case must NOT reach that fallback**, and it is a public
+ * tree: `access: "quota_blocked"`, the owner over their plan's storage cap. The
+ * content route cannot serve those either, so the audited path would resolve the
+ * file twice and then offer an open that spends an audit row to fail. It is a
+ * *billing* state, it is temporary, and it gets its own branch above the
+ * displayability test.
  *
  * ── ⚠ The primary image, never the gallery ───────────────────────────────────
  * The payload carries one picture per line and says so. The old component opened
@@ -83,6 +90,26 @@ export function LineItemImage({
     }
 
     const label = image.originalName?.trim() || alt;
+
+    /*
+      🔴 **A `quota_blocked` branch stood here until 2026-09-09 and has been
+      removed, because its premise was false.** It returned a billing placeholder
+      rather than letting the file reach `ResolvedImageBox`, on the grounds that
+      the audited route *"offers an open that cannot succeed"* and would spend a
+      disclosure *"on a request that was never going to return an image"*.
+
+      The request returns the image. `GET /files/:fileId/content` answers `200`
+      with the bytes for a quota-blocked file in every tree — BR-023, measured
+      against a running service, contradicting what `files.md` said at the time.
+      So a blocked file
+      now takes the ordinary path below: `url` is `null`, so `isDisplayableImage`
+      is false, so it resolves through the audited box — which offers the open and
+      says *why* there was no thumbnail, via `QUOTA_BLOCKED_COPY.note`.
+
+      ⚠ The labelling argument that justified the branch was always sound and is
+      not lost: a blocked file must never read as "no picture", because the listing
+      has one. It is now `ImageBox`'s job, stated once, for all six surfaces.
+    */
 
     /*
       ⚠ All three conditions, not any one of them: a public tree legitimately

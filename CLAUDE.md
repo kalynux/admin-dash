@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **The application exists, and every module in the sidebar is built.** Vite + React 19 + TypeScript
 on port **5175**, built phase by phase: the scaffold and app shell, the API client written from
-scratch for wi-admin, the whole `/auth` surface, the authorization layer, and all **23** route
+scratch for wi-admin, the whole `/auth` surface, the authorization layer, and all **24** route
 groups. `ModulePlaceholder` still exists as `screenFor`'s fallback, but every nav entry now
 resolves to a real screen and nothing reaches it.
 
@@ -54,8 +54,40 @@ policed**, because this service never parses the body. A file that slips past th
 `PLATFORM_OPERATION_REJECTED` with `details.platformCode: "UPLOAD_POLICY_VIOLATION"` and a
 `details.violations[]` array naming it. **That is a normal refusal, not a bug.**
 
-**Still not verified live against a running :8033** beyond the `/auth` surface and the phases that
-say so — that walkthrough remains the largest outstanding item, and it is now the *only* one.
+✅ **Verified live against a running :8033 on 2026-09-09**, for the eight surfaces carrying the most
+doubt — see [VERIFICATION-2026-09-09-LIVE.md](api-doc/VERIFICATION-2026-09-09-LIVE.md). `/content`'s
+wire shapes, the `/system/config` array, the `/automation` tier projection, 118/101/31, the
+forwarded-429 and weak-password detail scrubs, `/files/library`, CORS, CSRF and refresh rotation are
+now measurements rather than readings. **This is no longer the largest outstanding item.**
+
+⚠ **What that pass did NOT cover, so nobody reads it as "the whole client is verified":** it
+exercised roughly 30 of 239 routes. `/orders`, `/shipments`, `/cod`, `/billing`, `/money`,
+`/accounts`, `/support`, `/agents`, `/agencies`, `/contracts`, `/vendors`, `/approvals`,
+`/messaging`, `/dev-tools` and `/notifications` have still never been called by anything in
+`src/` against a live service.
+
+✅ **And it falsified a premise six of our screens were built on — now fixed.**
+`GET /files/:fileId/content` answers **200 with the bytes** on a `quota_blocked` file in **every**
+tree; the route has no quota branch at all. Phase 3 had withheld the audited open at six surfaces
+because *"none can succeed"*, and **the claim came from the contract** —
+[`files.md`](api-doc/admin/api/files.md) said *"the content route will not help you either"*
+([BR-023](api-doc/admin/dashboard/backend-requests/BR-023-quota-blocked-content-route.md)). The open
+was restored on 2026-09-09 and the billing state now sits **beside** the affordance.
+✅ **The clause was deleted upstream on 2026-09-12** and the page now carries the opposite, plus a
+`Can the content route show it → yes / yes` row and an explicit **do not pre-empt this call on
+`access`**. Re-copied here the same day — so do not go hunting for the sentence; the thing worth
+remembering is why nine tests agreed with it.
+
+⚠ **`quota_blocked` is a *publishing* state, not an access-revocation state** — it withholds the
+**address**, never the bytes. jovi-mall could not revoke a public tree's bytes even by design:
+`express.static` serves those off disk with no database access, so a blocked public file stays
+fetchable by anyone holding a stale URL. Refusing the *audited* path would hide it from the one
+caller who is permissioned and recorded. **Do not "fix" this by gating the route.**
+
+⚠ **Nine tests asserted the false premise and all nine passed**, one named *"offers no audited open
+on a blocked file, **because none can succeed**"*. They ran against stubs built from the same
+sentence — the `/content` failure mode again (see the `/content` warning above). **A stub cannot
+contradict the document that produced it.**
 
 ✅ **Every screen is complete.** The article body editor — the one item that was deliberately
 unfinished — was built on 2026-08-25 once the block union arrived as a source mirror. There is no
@@ -80,19 +112,46 @@ sends it back repoints a positional driver itself*, with a request that cannot f
 **`sourceLocale`**, stamped at create and never rewritten; `driverTranslation()` in
 [`lib/article-structure.ts`](src/lib/article-structure.ts) is the one place that reads it.
 
-⚠ **Every list endpoint on this service silently drops an unrecognised query parameter.**
+⚠ **MOST list endpoints silently drop an unrecognised query parameter — twelve routes refuse
+one.** This line read *"every list endpoint"* until 2026-09-12, and that was the false half.
 `listQuery` is not `.strict()`, so `categoryKey` instead of `category` returns the unfiltered
-list, `200`, no warning — a misspelt filter looks applied. Confirmed by the backend at BR-014 and
-**not fixed**: widening it service-wide is a change with its own blast radius. Check a filter name
-against the endpoint's page, not against the field it filters on.
+list, `200`, no warning — a misspelt filter looks applied, and that hazard is real. But **eleven
+query schemas are hand-rolled and strict**, on twelve routes: we found two by probing, the backend
+found ten more by loading every exported schema
+([BR-022](api-doc/admin/dashboard/backend-requests/BR-022-list-query-strictness-is-not-uniform.md),
+answered 2026-09-12). ⚠ **Separate the two axes** — an unrecognised **key** may be dropped; a
+recognised key with an out-of-range **value** is `400` *everywhere*, and the message names the
+permitted set. So: check a filter's **name** against the endpoint's page, not against the field it
+filters on; you do **not** need to check its values; and **never assume a list request cannot
+`400`**. The strict set is the table in [api/README.md § Filtering](api-doc/admin/api/README.md),
+pinned upstream by `test:list-strictness` — read it there rather than copying it, and see
+[`src/lib/query.ts`](src/lib/query.ts) for this repository's one statement of the rule. Widening
+`listQuery` service-wide is still deliberately **not** done.
 
-**`npm test` is green — 2277 tests in 152 files.** ⚠ **One failed on the last full run and
-passed alone**: `CreateTicketDialog.test.tsx` — 10/10 in isolation, one of its cases taking 17 s on a
-machine running nothing else. ⚠ **Three failed the same way on an earlier run, and all three passed
-alone** — `App.test.tsx`, `SearchInput.test.tsx`, `CreateTicketDialog.test.tsx`, while another
-session was building Phase F in the same working tree. That is the contention failure
-the `testTimeout` note below describes: **a full run that shares the machine measures the machine.**
-Re-run a failure in isolation before believing it.
+**`npm test` is green — 2385 tests in 157 files, measured on 2026-09-09** at the close of the
+BR-023 fix, with **every file passing in one full run** and nothing needing a re-run alone.
+
+⚠ **Two full runs the same day disagreed, and the difference was the machine, not the code.** An
+earlier run that day reported *2377 / 2381 with 4 failures* in `App.test.tsx` and
+`CreateTicketDialog.test.tsx` — taken **with two Vite dev servers up** for the live verification.
+Both files passed alone (23/23, 10/10), and the run above, taken with the dev servers stopped, was
+clean. That is the third recorded occurrence of this exact pair. **Re-run a failure alone, and note
+what else was running.**
+
+⚠ **The figure this line carried for weeks — *"2277 tests in 152 files"* — was wrong on both
+counts, and the suite it described was not green**: two doc-parsing guards were red against the
+2026-09-08 contract. Both facts were discoverable by running `npm test`, which is the point: a
+count written down by hand ages the moment somebody adds a file, and *"is green"* asserted in prose
+is not a mechanism. **Re-measure this line rather than editing it toward what you expect.**
+
+⚠ **Contention flakes are real and are not regressions.** `CreateTicketDialog.test.tsx` is
+**healthy** and has now been declared broken by **two separate sessions** on the strength of a
+full-run failure — once with 39 node processes on the machine. It is **10/10 alone**, and it was
+10/10 inside the green run above. Earlier rounds saw `App.test.tsx` and `SearchInput.test.tsx`
+fail the same way while another session built a phase in the same working tree. That is the
+contention failure the `testTimeout` note below describes: **a full run that shares the machine
+measures the machine.** Re-run a failure **alone** before believing it, and do not "fix" a file
+that passes in isolation.
 
 The two doc-parsing guards
 (`permissions.types.test.ts`, `error-catalog.test.ts`) went red when the docs were resynchronised
@@ -100,7 +159,7 @@ on 2026-08-24, which is exactly what they exist for, and were fixed by correctin
 than by weakening them. **Keep it that way.** `error-catalog.test.ts` was additionally
 *strengthened* in that round: it now diffs against `api-doc/admin/error-codes.ts` — a verbatim copy of
 the backend's own registry — as well as against `errors.md`, because the two disagreed and only the
-source is authoritative. **They agree at 85 / 85 since BR-015**, and the double diff stays anyway,
+source is authoritative. **They agree at 88 / 88 since ADR-022's three `AUTOMATION_*` codes**, and the double diff stays anyway,
 because what keeps them in step is the test.
 
 ⚠ **It was strengthened a third time on 2026-08-26, and this one closed a hole that had already
@@ -137,7 +196,7 @@ machine, not the code.
 npm run dev       # 5175, strictPort
 npm run build     # tsc -b && vite build   ← the typecheck runs here
 npm run lint      # eslint .
-npm test          # vitest run — 2277 tests in 152 files. No sibling dashboard has a test runner.
+npm test          # vitest run — 2385 tests in 157 files (2026-09-09). No sibling dashboard has one.
 ```
 
 **Every phase closes the same way**: typecheck, lint, tests, build, then a written summary naming
@@ -181,6 +240,26 @@ names the `src/` edits this repository still owes.
 four pages re-copied 2026-08-25 after BR-010/011/012). Treat it as read-only: corrections belong
 upstream in `backend/admin` and get re-copied.
 
+### ⚠ The ADR path split — every `api-doc/admin/ADR-*` link was dead
+
+The backend split its docs in two: **[api-doc/admin/](api-doc/admin/) is the contract** (the
+endpoint pages, the source mirrors, the BR channel) and **[api-doc/docs/](api-doc/docs/) is the
+reasoning** — all 21 ADRs, plus `ARCHITECTURE.md`, `CONSTRAINTS.md`, `CONTRACTS.md`, `DATA.md`,
+`OPERATIONS.md` and `IMPLEMENTATION-BLUEPRINT.md`. Nothing was renamed; the directory changed.
+
+**`api-doc/admin/ADR-0xx-*.md` therefore resolves to nothing**, and `src/` carried 40 of them
+across 22 files — concentrated in `types/vendors.types.ts` (9) and `services/vendors.service.ts`
+(6). All were repointed to `api-doc/docs/ADR-0xx-*.md` on 2026-09-09 and each was checked against
+disk. Two more wrote a **bare filename** with no directory at all
+(`types/shipments.types.ts`, `services/shipments.service.ts`) and now carry a path.
+
+⚠ **`api-doc/admin/dashboard/` did NOT move** — the BR channel is still there, and its ~22
+references in `src/` are correct. Do not "fix" them by analogy.
+
+⚠ **A broken doc link fails nothing.** No test resolves the paths in a comment, which is why 40 of
+them rotted silently through a directory move. If you move a doc, grep `src/` for its old path in
+the same change.
+
 **The deviations are now six**, so `diff -r backend/admin/docs frontend/admin-dash/api-doc/admin`
 reports six extra names rather than seven. **`dashboard/` is no longer one of them.** It used to be
 hoisted out of this mirror to `api-doc/dashboard/`, for the sake of `src/` comments pointing at it;
@@ -198,6 +277,19 @@ of 401** and this tree to its floor. The 21 `src/` comments were repointed in th
 The remaining six are **source mirrors** —
 `error-codes.ts`, `article-blocks.ts`, `content-domain.ts`, `content-dto.ts`,
 `content-validators.ts`, and [`public-article-dto.ts`](api-doc/admin/public-article-dto.ts).
+
+⚠ **A re-copy is not `cp` alone: two kinds of link have to be re-normalised, every time.** A
+mirrored page can link at paths that exist only in `backend/` — `../../src/…`,
+`../../../PRODUCTION-READINESS/…` — and those resolve upstream and nowhere here. The convention
+this repository settled on at R1 is to turn each into inline code plus
+*"(— not mirrored in this repository)"*, which is why `grep -rn "not mirrored in this repository"
+api-doc/` finds eleven files. ⚠ **A `cp` silently undoes it**, because upstream keeps writing the
+real link — the 2026-09-12 re-copy of `content.md` re-broke both of its lines and they were
+re-normalised by hand. **Where we hold a mirror of the file being linked, point at the mirror
+instead of neutralising the link**: `content.md`'s `public-article.dto.ts` reference now reads
+`../public-article-dto.ts`, which is a real file here. ⚠ **Nothing enforces any of this** — a
+broken doc link fails no test — so re-run a relative-link check over the pages you copied, in the
+same change.
 
 ⚠ **The seventh was taken on 2026-08-26 at the backend's own suggestion, and the reasoning
 generalises.** BR-019 § 3 asked them for a mirror of the `/preview` shape; they declined to write
@@ -223,11 +315,11 @@ careful reading, every time.
 
 | Folder | What it is |
 |---|---|
-| [api-doc/README.md](api-doc/README.md) · [MIGRATION](api-doc/MIGRATION-2026-08.md) · [ROUTE-MAP](api-doc/ROUTE-MAP.md) · [TRACKING-DOORS](api-doc/TRACKING-DOORS.md) · [VERIFICATION](api-doc/VERIFICATION-2026-08-24.md) | **Authored here**, not mirrored. The route map covers all 236 routes with permission and audit flag. |
-| [api-doc/admin/api/](api-doc/admin/api/) | **The contract.** 234 versioned endpoints across 23 route groups, plus 2 health probes. ⚠ Its own `README.md` still says **230**; it is a mirror, so that is reported rather than patched. If a behaviour is not written here, it is not promised. Start at [README.md](api-doc/admin/api/README.md). |
-| [api-doc/admin/](api-doc/admin/) ADR-001…020 | Why the contract is shaped this way. Read when a rule looks arbitrary — [ADR-005](api-doc/admin/ADR-005-API-CONTRACT.md) is the one that governs client code, and [ADR-020](api-doc/admin/ADR-020-ADMIN-DATA-DOOR.md) is the geo-tracker data door. |
+| [api-doc/README.md](api-doc/README.md) · [MIGRATION](api-doc/MIGRATION-2026-08.md) · [ROUTE-MAP](api-doc/ROUTE-MAP.md) · [TRACKING-DOORS](api-doc/TRACKING-DOORS.md) · [VERIFICATION](api-doc/VERIFICATION-2026-08-24.md) | **Authored here**, not mirrored. The route map covers all 239 routes with permission and audit flag, and `src/types/route-map.test.ts` parses it — the count and the exact composite-guard set are pinned by a test, not by this table. |
+| [api-doc/admin/api/](api-doc/admin/api/) | **The contract.** 237 versioned endpoints across 24 route groups, plus 2 health probes — **239** in all. If a behaviour is not written here, it is not promised. Start at [README.md](api-doc/admin/api/README.md). |
+| [api-doc/docs/](api-doc/docs/) ADR-001…022 | Why the contract is shaped this way. Read when a rule looks arbitrary — [ADR-005](api-doc/docs/ADR-005-API-CONTRACT.md) is the one that governs client code, [ADR-020](api-doc/docs/ADR-020-ADMIN-DATA-DOOR.md) is the geo-tracker data door, and [ADR-022](api-doc/docs/ADR-022-AUTOMATION-FAILURE-AUDIT.md) is the automation door. ⚠ **These moved**: see *The ADR path split* below. |
 | [api-doc/admin/dashboard/](api-doc/admin/dashboard/) | This dashboard's own backend-requests and the backend's answers. **Start a UI change at [UX-REMEDIATION-2026-08-25](api-doc/admin/dashboard/UX-REMEDIATION-2026-08-25.md)** — the current round of 31 operator asks, what ships, and what each blocked one is waiting on (BR-015…BR-019). |
-| [api-doc/admin/IMPLEMENTATION-BLUEPRINT.md](api-doc/admin/IMPLEMENTATION-BLUEPRINT.md) | Phase plan and what is shipped. Phases 0.5–4 done, 5–6 in progress, 7–8 pending. |
+| [api-doc/docs/IMPLEMENTATION-BLUEPRINT.md](api-doc/docs/IMPLEMENTATION-BLUEPRINT.md) | Phase plan and what is shipped. Phases 0.5–4 done, 5–6 in progress, 7–8 pending. ⚠ **Moved with the ADRs** — see below. |
 | [api-doc/jovi-mall/](api-doc/jovi-mall/), [api-doc/geo-tracker/](api-doc/geo-tracker/) | **Background only.** The dashboard calls neither. Useful for decoding `details.platformCode` on a delegated failure, and for domain vocabulary. Do not build a client against them. |
 
 ## How the app is built
@@ -320,7 +412,7 @@ Two Phase-C additions sit on top of them and are worth knowing before writing a 
 
 Read [permissions.md](api-doc/admin/api/permissions.md) before touching any of it.
 
-- `src/types/permissions.types.ts` — the **116** permission names as literal types.
+- `src/types/permissions.types.ts` — the **118** permission names as literal types.
   `permissions.types.test.ts` **parses `api-doc/admin/api/permissions.md` and diffs it against them**,
   so a backend policy change fails the suite rather than drifting silently.
 
@@ -335,8 +427,10 @@ Read [permissions.md](api-doc/admin/api/permissions.md) before touching any of i
   `developer_tools.webhooks.redeliver`. The 23 that left it are all of `support.*`, all of
   `content.*` and both `files.*` writes, and their screens are built.
 - `src/lib/authorization.ts` — pure predicates. `satisfies(held, requirement, mode)` takes `mode`
-  with **no default**: navigation wants `any`, the **fifteen** composite endpoint guards want `all`
-  (fourteen `all`-mode, plus `GET /system/errors`, the one `any`-mode guard).
+  with **no default**: navigation wants `any`, and the composite endpoint guards are **twenty** —
+  **17 in `all` mode** and **3 in `any`** (`GET /system/errors` plus both `/automation` reads).
+  ⚠ **This count has gone stale four separate times**, so `permissions.md` now says outright to
+  derive it rather than quote it, and `src/types/route-map.test.ts` pins the exact set by route.
 - `usePermissions()` / `useCan()` / `<Can>` / `<RequirePermission>` are the only ways to ask.
   **Never write `if (tier === 1)` in a component.**
 - **What is visible is reachable**: each module route is handed the *same* `NavItem` requirement the
@@ -432,7 +526,7 @@ Arrays are `[]`, never `null`.
 member is an additive, non-breaking change, so a closed `switch` will break on a routine deploy.
 
 **No file uploads — ⚠ narrowed on 2026-08-25, and the narrowing is in writing.** The rule was
-*"wi-admin accepts no multipart bodies anywhere"*. [ADR-021](api-doc/admin/ADR-021-ADMIN-MEDIA-LIBRARY.md)
+*"wi-admin accepts no multipart bodies anywhere"*. [ADR-021](api-doc/docs/ADR-021-ADMIN-MEDIA-LIBRARY.md)
 D-2 amends it to **"wi-admin never *parses* one"**: `POST /files/upload` pipes the raw multipart
 body through to jovi-mall **unread**, with no multer, no busboy and no new dependency. Two
 consequences. The **1 MB body limit does not apply on that path** — it belongs to `express.json`,
@@ -466,12 +560,12 @@ status code ([auth.md](api-doc/admin/api/auth.md)):
 show `secret` as the manual fallback.
 
 **Build navigation from `GET /api/v1/permissions/me`.** Do not hard-code the matrix, and do not
-discover capability by collecting 403s. There are **116** permissions named `family.resource.action`
+discover capability by collecting 403s. There are **118** permissions named `family.resource.action`
 across **20** families, and **4 of them are catalogued policy with no endpoint yet** — the
 permission existing does not mean the screen can be built.
 
-**Levels: lower number = more privilege.** Tier 1 Developer (**116/116**, MFA mandatory), tier 2
-Admin (**99/116** — the operational tier including money), tier 3 Support (**30/116** — tickets plus
+**Levels: lower number = more privilege.** Tier 1 Developer (**118/118**, MFA mandatory), tier 2
+Admin (**101/118** — the operational tier including money), tier 3 Support (**31/118** — tickets plus
 read-only lookups **and both tracking-presence and live-position reads**; nothing financial, no
 sight of the administrator directory). `tier` is on the profile from
 `/auth/me`, and both `tier` and `status` are re-read from the database on **every** request, so a
@@ -480,18 +574,29 @@ demotion or suspension applies on the next call, not at token expiry.
 **Holding a permission is necessary, never sufficient.** Four layers refuse independently:
 permission → escalation rules (`AUTHZ_SELF_ACTION_FORBIDDEN`, `AUTHZ_TARGET_TIER_PROTECTED`,
 `AUTHZ_TIER_ESCALATION_FORBIDDEN` on admin-on-admin actions) → resource scope (row-level, on `audit`
-and `tickets`, failing as 404) → dual control. Thirteen endpoints are composite guards requiring two
-or three permissions in `all` mode; `GET /system/errors` is the one `any`-mode guard and returns a
-*different projection* per level. Matrix: [permissions.md](api-doc/admin/api/permissions.md).
+and `tickets`, failing as 404) → dual control. **Seventeen** endpoints are composite guards
+requiring two or three permissions in `all` mode; **three** are `any`-mode —
+`GET /system/errors` and both `/automation` reads — and each returns a *different projection* per
+level rather than refusing. Matrix: [permissions.md](api-doc/admin/api/permissions.md).
 
 ## What exists, and what does not
 
-The **23** built route groups are `/auth`, `/administrators`, `/permissions`, `/approvals`,
+The **24** built route groups are `/auth`, `/administrators`, `/permissions`, `/approvals`,
 `/audit`, `/users`, `/vendors`, `/agencies`, `/agents`, `/contracts`, `/orders`, `/shipments`,
 `/cod`, `/billing`, `/money`, `/accounts`, `/support`, `/content`, `/messaging`, `/files`,
-`/system`, `/dev-tools`, `/notifications` (+ unversioned `/health/live`, `/health/ready`) —
-**236 routes in total**. Every one is listed with its permission in
-[api-doc/ROUTE-MAP.md](api-doc/ROUTE-MAP.md).
+`/system`, `/dev-tools`, `/notifications`, `/automation` (+ unversioned `/health/live`,
+`/health/ready`) — **239 routes in total**. Every one is listed with its permission in
+[api-doc/ROUTE-MAP.md](api-doc/ROUTE-MAP.md), and `src/types/route-map.test.ts` parses that file,
+so the 239 and the exact composite-guard set fail a test rather than ageing in prose.
+
+✅ **`/automation` is built** — the n8n failure-reporting door (ADR-022), 2 routes, added
+2026-09-07 and screened during the 2026-09-08 contract resync. It brought the two newest
+permissions (`system.automation.read`, `support.automation.lookup`) and three
+`AUTOMATION_*` error codes, and it grades its projection by tier the way `GET /system/errors`
+does — see [automation.md](api-doc/admin/api/automation.md).
+⚠ **The contract page and ADR-022 disagree on how many workflows report** — nine on the page, ten
+on ADR-022's re-measure of the live instance a day later. `src/` therefore states **no coverage
+count at all**, which is the right answer to two sources that disagree.
 
 **`/support` has 19 routes — the largest module in the service — `/content` has 14, `/files` has
 **7** since BR-015, and `/messaging` has 1**, and all of them have screens. The blog editor *moved
@@ -542,8 +647,14 @@ third, different question.
   and demoting an admin are never queued.
 - **Payout requests** arrive with `origin: "manual"` or `"auto_threshold"` (a daily sweep opens one
   once available balance hits ~2,000,000 XAF). Revealing a payout destination is a `financial`
-  permission and **the only audited read on the service** — the reveal should be an explicit action,
-  not part of the detail payload.
+  permission and **one of only four audited reads on the service** — the reveal should be an
+  explicit action, not part of the detail payload. The other three are
+  `GET /agents/:agentId/live-position`, `GET /shipments/:shipmentId/tracking-trail` and
+  `GET /files/:fileId/content`. ⚠ **This line said "the only" one until 2026-09-09**, and it was
+  wrong from the moment the tracking doors landed at ADR-020: every open of a file's content or an
+  agent's position files a disclosure row against the operator who did it, which is why `ImageBox`
+  waits for a click and the two coordinate reads collect a `reason`. `file` is the fourth's
+  `targetType` in the audit trail.
 - **Platform earnings are oversight-only** — the marketplace never pays itself out, so there is no
   payout pipeline on that account.
 - **Every mutation is audited before it answers**, in the same transaction. A `2xx` on a write means
@@ -579,7 +690,8 @@ what is outstanding is integration. See the table.
 | ~~**The article body editor**~~ | ✅ **Built.** `content.md` still names none of the nine block types, but [`api-doc/admin/article-blocks.ts`](api-doc/admin/article-blocks.ts) mirrors the backend's validator byte for byte and `content-blocks.test.ts` diffs the nine names against `ARTICLE_BLOCK_TYPES`. ⚠ **Tell the backend before adding a tenth** — their own file calls it a three-repo change; **we are the fourth** |
 | ~~**A ticket-creation form**~~ | ✅ **Built.** The five vocabularies are mirrored from [`api-doc/jovi-mall/ticket-vocabularies.ts`](api-doc/jovi-mall/ticket-vocabularies.ts) and guarded, order included. **No endpoint should ever serve them** — they are jovi-mall's. ⚠ **Filters stay free-text; only the create form gets pickers**: a stale filter matches nothing *while looking correct*, a stale create is refused with a reason |
 | ~~**Rendering a private-tree file**~~ | ✅ **Built at BR-011** — `GET /files/:fileId/content` streams the bytes for any tree. ⚠ **It is a byte stream, not a signed URL**, because the configured provider (`local`) has no signing primitive: fetch → `URL.createObjectURL`, and a bare `<img src>` cannot work. `url` stays `null` on a private file **and always will** — the content route is a different mechanism, not a URL that field could have carried |
-| **Live verification against :8033** | ⏸ **Still open.** Nothing in `src/` has been exercised against a running service beyond `/auth`. Note the audited reads need wi-admin to be a **replica set** — in a single-node development database they fail while everything else works. ⚠ **Start with `/content`**: its wire shapes were wrong for months and nothing caught it |
+| **Live verification against :8033** | 🟡 **Partly closed 2026-09-09** — [VERIFICATION-2026-09-09-LIVE.md](api-doc/VERIFICATION-2026-09-09-LIVE.md). `/content` was taken first as this row instructed, and every BR-014 / BR-019 claim held. **~30 of 239 routes**; the fourteen route groups § listed under the headline have still never been called live. ⚠ **The replica-set caveat did not apply** — this machine's `mongod` is already a single-node `rs0`, so the audited reads all worked, which is the only reason the `quota_blocked` finding was visible at all. On a single-node database that fetch fails for the wrong reason and the false premise looks correct |
+| ~~🔴 **A `quota_blocked` file's bytes ARE served, and six sites plus nine tests said otherwise**~~ | ✅ **Closed 2026-09-09 — the audited open was restored at all six surfaces.** `GET /files/:fileId/content` returns **200 with the bytes** in the public, `shipments/` and `digital/` trees alike; the handler never reads `quotaBlockedAt`. ⚠ **The row is kept because of where the error came from: the contract.** `files.md` said *"the content route will not help you either"*, Phase 3 implemented the sentence, and nine tests written from it agreed. ✅ **The clause was deleted upstream on 2026-09-12** — all four asks granted, including the `Can the content route show it → yes / yes` table row and a **do not pre-empt this call on `access`** note beside the content route; the backend also checked whether the false clause had been copied anywhere else, and it had not. Filed as [BR-023](api-doc/admin/dashboard/backend-requests/BR-023-quota-blocked-content-route.md) rather than patched into the mirror. ⚠ **`QUOTA_BLOCKED_COPY` is why the fix was cheap** — one constant fed six surfaces, so *"so this file cannot be shown"* was wrong in seven places and right again after one edit. **The labelling guidance was always correct and was kept**: never *missing*, never *broken*, never *private*, and now never *unviewable* |
 | ~~🔴 **`api-doc/admin/content-dto.ts` is a STALE mirror**~~ | ✅ **Closed 2026-08-26, and the guard did its job on the first run.** Re-copied as the first act of Phase E, exactly as this row instructed; `content-contract.test.ts` went red naming `sourceLocale`, and `src/` was corrected rather than the test. ⚠ **The lesson stands, which is why the row is kept**: a stale mirror and a stale `src/` agree with each other, so **nothing catches a mirror that was never re-taken** — only re-taking it does. Re-copy every mirror the backend's action list names, in the phase that consumes it |
 | ~~🔴 **Four granted routes with no service function**~~ | ✅ **All four closed.** `GET /vendors/:vendorId/products/:productId` (BR-005) and `GET /vendors/:vendorId/agencies` (BR-018) shipped with Phase B; `GET /files/library` and `POST /files/upload` (BR-015) shipped with **Phase F** on 2026-08-27 as the Media module and the media picker |
 | 🔴 **`vendors.md` omits two fields on the product detail** | ⏸ **Open, and reported rather than worked around.** `vendorId` and `tags` are on the wire and appear in neither its worked JSON nor its field tables, and its nullability differs from the source's on `title`, `slug` and `category`. `VendorProductDetail` follows `AdminProductDetailDto` in `backend/jovi-mall/src/modules/vendors/read-models/admin-product-detail.resolver.ts`, which is what computes the payload, and names the disagreement at each field. ⚠ Also `StorageSizeSource` has a third value the page does not show — **`unknown`**, which must stay distinguishable from a real measurement on a screen justifying a charge |
@@ -608,14 +720,49 @@ BR-012 and are kept here as settled precedent**; the rest are open.
    [`content-validators.ts`](api-doc/admin/content-validators.ts) and guarded by
    `content-contract.test.ts`.
 4. ✅ ~~`permissions.md`'s prose counts were not re-counted.~~ **Fixed at BR-013** — 114 / 97 / 30 *as they stood then*; BR-015 added `files.library.read`
-   and `files.upload`, so the live figures are **116 / 99 / 30**.
+   and `files.upload`, and the 2026-09-08 re-derivation added `system.automation.read`
+   and `support.automation.lookup` (ADR-022), so the live figures are **118 / 101 / 31**.
    The guard now *derives* the tier totals from the matrix rows and checks the prose against them,
    so the two cannot drift apart quietly again.
-5. ⏸ **`listQuery` is not `.strict()`, service-wide.** An unrecognised query parameter is
-   **silently dropped** on every list endpoint — `categoryKey` instead of `category` returns the
-   unfiltered list with a `200`. Confirmed by the backend at BR-014 and deliberately **not** fixed:
-   widening it is a change with its own blast radius. A misspelt filter looks applied, so check
-   names against the endpoint's own page.
+5. ✅ ~~`listQuery` is not `.strict()` **service-wide**.~~ **Fixed at BR-022, 2026-09-12 — and the
+   strict set is six times what we measured.** We probed and found **2** strict endpoints; loading
+   every exported query schema found **11 schemas on 12 routes**. A grep would have been wrong
+   twice — it over-reports (two strict schemas were bound to no route at all, since deleted) and
+   under-reports (a `.strict()` several lines from the name it closes). ⚠ **Ten of the twelve we
+   had no way to know about**, and several are endpoints a dashboard plausibly sends a stray
+   `page` or `limit` to: all four tracking reads on `/agents` and `/shipments`,
+   `/accounts/:ownerType/:ownerId/activity`, `/money/earnings/accounts`, both
+   `/support/tickets/reference/*` and both `/agents/:agentId` verdicts. ⚠ **`GET
+   /agents/:agentId/tracking-presence` refuses `reason` too**, unlike the other two coordinate
+   reads. The rule now names its scope in
+   [api/README.md § Filtering](api-doc/admin/api/README.md) — the page the README calls *"the
+   list-query vocabulary that every other page assumes"* — with the full table and the two axes
+   split, and it is pinned upstream by a new `test:list-strictness` (14 assertions, mutation-tested
+   in both directions). Widening `listQuery` is still deliberately **not** done. ✅ **No client
+   change was needed**: every call this dashboard makes to one of the twelve sends only that
+   route's documented parameters — checked endpoint by endpoint when the set arrived, not assumed.
+
+6. ✅ ~~The credential-link throttle is not "counted on the attempt", and `users.md` says it is.~~
+   **Fixed at BR-021, 2026-09-12 — and the answer was neither option we offered.** jovi-mall
+   resolved the channel *before* bumping the counter, so a channel a party does not have cost
+   nothing and the probe was free and unbounded: **five `POST /users/:id/password-reset-link`
+   attempts against a 3-per-hour limit never incremented it**, with the Redis key still absent
+   afterwards. We offered (a) reorder or (b) correct the claim; the answer is **(c) — the two
+   counters wanted opposite orderings**, which is why no single call site could be right:
+
+   | Counter | Spent | A refused channel |
+   |---|---|---|
+   | **per administrator** (30/hr) — bounds a compromised or careless operator account | on the **attempt**, before the channel resolves | **costs** the caller their allowance |
+   | **per party** (3/hr) — a harassment and SMS-bill bound | once the channel **resolves** | costs the party **nothing** |
+
+   ⚠ **The oracle is bounded, not closed, and the backend says so rather than implying otherwise**
+   — three requests still answer "which channels does this party have" for one party; what is gone
+   is doing it across the platform for free. The ordering is pinned by a source scan in
+   `test:messaging-login` and was mutation-tested, because a wrong **ordering** returns the right
+   status code on every single-request test, which is why it survived this long. ✅ **Nothing in
+   `src/` changed** — `SendCredentialLinkDialog` renders the server's message on both the 409 and
+   the 429 and probes for nothing. One thing is now *more* true: its **"try another channel"**
+   advice costs the party nothing, so following it cannot lock them out of the channel that works.
 
 ### 🔴 One correction to a claim this file used to make
 

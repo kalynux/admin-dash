@@ -1,7 +1,7 @@
 /**
  * The transcription guard.
  *
- * `permissions.types.ts` copies 116 permission names out of
+ * `permissions.types.ts` copies 118 permission names out of
  * `api-doc/admin/api/permissions.md` by hand. A single typo there is invisible at
  * runtime — a permission that does not exist can never be held, so the screen it
  * gates simply never appears, for everybody, forever.
@@ -103,10 +103,10 @@ describe('the permission catalogue matches api-doc/admin/api/permissions.md', ()
         // when the tier table and the † note were re-counted for
         // `files.content.read`; the assertion below pins that they still do, so
         // the two cannot drift apart again silently.
-        expect(PERMISSION_NAMES.length).toBe(116);
+        expect(PERMISSION_NAMES.length).toBe(118);
         expect(UNROUTED_PERMISSION_NAMES.length).toBe(4);
         expect(PERMISSION_FAMILIES.length).toBe(20);
-        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(112);
+        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(114);
     });
 
     /**
@@ -170,5 +170,87 @@ describe('the catalogue is internally consistent', () => {
         for (const family of PERMISSION_FAMILIES) {
             expect(used.has(family), `${family} is declared but has no permissions`).toBe(true);
         }
+    });
+});
+
+/**
+ * The composite-guard section, derived rather than quoted.
+ *
+ * `permissions.md` § "Composite guards" carries an explicit instruction:
+ *
+ * > ⚠ **This count has been stale three separate times, so derive it rather
+ * > than quoting it.**
+ *
+ * It read *"Thirteen"* until BR-012 added `GET /contracts/:contractId`;
+ * *"fourteen `all`-mode plus the `any`-mode one"* until BR-018 added
+ * `GET /vendors/:vendorId/agencies`; and *"fifteen … sixteen in all"* until the
+ * 2026-09-08 re-count found `GET /agents/:agentId/cod-allocation` and
+ * `GET /agents/:agentId/assignability` had never been listed and the
+ * `/automation` pair had landed.
+ *
+ * ⚠ **`src/` quoted it too, and got it wrong in five separate files** — four
+ * saying "thirteen" and one "Fourteen", none of them asserted by anything. The
+ * prose is checked here so the next move fails a suite instead of ageing.
+ */
+describe('the composite-guard tables match the prose that counts them', () => {
+    /** `| \`GET /path\` | \`a.b\` + \`c.d\` |` — the endpoint cell only. */
+    const ENDPOINT_ROW = /^\| `((?:GET|POST|PUT|PATCH|DELETE) [^`]+)` \|/gm;
+
+    const section = (from: string, to: string) => {
+        const start = doc.indexOf(from);
+        const end = to ? doc.indexOf(to, start) : doc.length;
+        expect(start, `"${from}" is no longer in permissions.md`).toBeGreaterThan(-1);
+        return doc.slice(start, end === -1 ? doc.length : end);
+    };
+
+    // `all` mode runs from the section heading to the `any`-mode subheading;
+    // `any` mode from there to the next `---` rule.
+    const allMode = [
+        ...section('## Composite guards', '### The three `any`-mode guards').matchAll(ENDPOINT_ROW),
+    ].map((m) => m[1]);
+
+    const anyMode = [
+        ...section('### The three `any`-mode guards', '\n---').matchAll(ENDPOINT_ROW),
+    ].map((m) => m[1]);
+
+    it('finds both tables', () => {
+        // Anti-vacuity, as elsewhere in this file: an empty parse would make
+        // every count assertion below trivially satisfiable.
+        expect(allMode.length).toBeGreaterThan(10);
+        expect(anyMode.length).toBeGreaterThan(1);
+    });
+
+    it('states in prose the number of rows each table holds', () => {
+        const WORDS: Record<number, string> = {
+            3: 'Three',
+            17: 'Seventeen',
+            20: 'twenty',
+        };
+
+        expect(doc, 'the `all`-mode count').toContain(
+            `**${WORDS[allMode.length]}** endpoints require **more than one** permission`,
+        );
+        expect(doc, 'the `any`-mode count').toContain(
+            `${WORDS[anyMode.length]} endpoints accept **any** of three permissions`,
+        );
+        expect(doc, 'the combined count').toContain(
+            `**${WORDS[allMode.length + anyMode.length]}** composite guards in all`,
+        );
+    });
+
+    it('names only permissions we declare', () => {
+        // A composite guard naming a permission this dashboard has never heard
+        // of is the same class of drift as a new name in the matrix, but it
+        // reaches us through a different table and would otherwise be silent.
+        const declared = new Set<string>(PERMISSION_NAMES);
+        const cells = section('## Composite guards', '\n## ');
+        const named = new Set(
+            [...cells.matchAll(/`([a-z_]+(?:\.[a-z_]+)+)`/g)].map((match) => match[1]),
+        );
+
+        expect(
+            [...named].filter((name) => !declared.has(name)).sort(),
+            'permissions named in a composite guard that permissions.types.ts does not declare',
+        ).toEqual([]);
     });
 });

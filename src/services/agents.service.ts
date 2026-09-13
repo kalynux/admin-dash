@@ -1,7 +1,7 @@
 /**
  * `/agents` — the fifteen endpoints of the delivery-agent surface.
  *
- * Sources: `api-doc/admin/api/agents.md`, `api-doc/admin/ADR-009-DELIVERY-NETWORK.md`,
+ * Sources: `api-doc/admin/api/agents.md`, `api-doc/docs/ADR-009-DELIVERY-NETWORK.md`,
  * `backend/admin/src/modules/agents/`, and — for the three verdict shapes and
  * every delegated failure code, none of which any doc publishes —
  * `backend/jovi-mall/src/modules/agents/`. See `types/agents.types.ts` for the
@@ -251,14 +251,26 @@ export function getTrackingPolicy(
 }
 
 /**
- * `GET /agents/:agentId/cod-allocation` · `agents.read`. **Delegated.**
+ * `GET /agents/:agentId/cod-allocation` · `agents.read` **+** `agencies.read`,
+ * `all` mode. **Delegated.**
  *
  * The pool, every contract's slice of it, and the unallocated headroom — the view
  * to consult **before** changing either level. Only *allocating* contracts appear
  * (`active`, `paused`, `suspended`), so these slices can be fewer than the rows on
  * the Agencies tab.
  *
- * ⚠ `agents.md` documents no response shape for this at all. See `CodAllocation`.
+ * ⚠ **This is a composite guard and callers must check both names before
+ * asking.** It read `agents.read` alone here until 2026-09-09; the second name
+ * joined the route when the slices gained an `agency` object, so `agents.read`
+ * alone would have made this a second door onto the agency directory
+ * (`agents.md:505`, `ROUTE-MAP.md:159`). It costs nobody access today — all
+ * three tiers that hold `agents.read` hold `agencies.read` — so an ungated
+ * fetch cannot 403 *yet*. The tier matrix is the backend's to change.
+ *
+ * ⚠ `agents.md` documented no response shape for this until BR-016 § 2. The
+ * slices now carry `agency` (`{ id, businessName, status }`, `null` when the
+ * row is gone), which `CodAllocationSlice` does **not** model — see the note
+ * there.
  */
 export function getCodAllocation(
     agentId: string,
@@ -502,13 +514,16 @@ export const PLATFORM_CODE_CONTRACT_INVALID_TRANSITION = 'CONTRACT_INVALID_TRANS
 export const PLATFORM_CODE_CONTRACT_NOT_FOUND = 'CONTRACT_NOT_FOUND';
 
 /**
- * `409` on a contract intervention. The transition exists but not for the party
+ * `403` on a contract intervention. The transition exists but not for the party
  * attempting it — a platform-side guard, not a missing permission here.
+ *
+ * ⚠ **Not branchable, and nothing here does.** It is forwarded at 403, whose
+ * category `authorization` carries a closed `details` allowlist that
+ * `platformCode` is not on, so it arrives as a bare `PLATFORM_OPERATION_REJECTED`
+ * with jovi-mall's sentence. See the fuller note on the twin constant in
+ * `types/contracts.types.ts`, which is the one the contract dialogs import.
  */
 export const PLATFORM_CODE_CONTRACT_TRANSITION_NOT_PERMITTED = 'CONTRACT_TRANSITION_NOT_PERMITTED';
-
-/** `409` on `terminate`. A status request is already open on the contract. */
-export const PLATFORM_CODE_CONTRACT_REQUEST_ALREADY_PENDING = 'CONTRACT_REQUEST_ALREADY_PENDING';
 
 /**
  * `409` on `transfer`. The agent already holds a live contract with the

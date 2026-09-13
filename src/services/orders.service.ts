@@ -1,7 +1,7 @@
 /**
  * `/orders` — the ten endpoints of the order-administration surface.
  *
- * Sources: `api-doc/admin/api/orders.md`, `api-doc/admin/ADR-010-ORDERS-AND-SHIPMENTS.md`,
+ * Sources: `api-doc/admin/api/orders.md`, `api-doc/docs/ADR-010-ORDERS-AND-SHIPMENTS.md`,
  * `backend/admin/src/modules/orders/`, and — for the delegated failures' real
  * codes, which the wi-admin docs do not publish —
  * `backend/jovi-mall/src/core/error-codes.ts` and

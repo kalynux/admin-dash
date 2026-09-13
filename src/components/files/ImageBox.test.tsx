@@ -152,6 +152,163 @@ describe('the direct-render variant', () => {
     });
 });
 
+describe('a file blocked on its owner’s storage quota', () => {
+    /**
+     * 🔴 **This block asserted the opposite of the truth until 2026-09-09, and it
+     * passed the whole time — which is the lesson worth keeping.**
+     *
+     * It was written from [`files.md`](../../../api-doc/admin/api/files.md),
+     * which said of a quota-blocked file: *"`url` is `null`, and the content route
+     * will not help you either."* Every assertion here followed from that sentence,
+     * and every one passed, **because the tests were run against a stub built from
+     * the same sentence.** A stub cannot contradict the belief that produced it.
+     *
+     * Measured against a running service, `GET /files/:fileId/content` answers
+     * `200` with the real bytes for a quota-blocked file — on a public `images/`
+     * key and on private `shipments/` and `digital/` keys alike. `quota_blocked`
+     * withholds the **address**, never the bytes. Filed as BR-023; see
+     * [VERIFICATION-2026-09-09-LIVE](../../../api-doc/VERIFICATION-2026-09-09-LIVE.md) § 7.3.
+     *
+     * So the open is offered and it works. What survives from the old block — and
+     * it was always the sound half — is that a blocked file must never read as
+     * *missing*, *broken* or *private*. Those assertions are unchanged below.
+     */
+    const BLOCKED: FileDetail = {
+        ...PROOF,
+        key: 'images/2026/08/1f2e3d_logo.png',
+        access: 'quota_blocked',
+    };
+
+    /** A stub that FAILS the test if anything is requested before a click. */
+    function noRequests() {
+        return stubFetch((call) => {
+            throw new Error(`unexpected request: ${call.method} ${call.url}`);
+        });
+    }
+
+    it('offers the audited open, because it succeeds on a blocked file', () => {
+        const calls = noRequests();
+
+        renderWithProviders(<ImageBox file={BLOCKED} alt="Shop logo" />, asSupport);
+
+        expect(screen.getByRole('button', { name: /click to view/i })).toBeInTheDocument();
+        // ⚠ Still nothing on mount: the click is the consent, exactly as for any
+        // other file. Offering the button is not the same as spending the row.
+        expect(calls).toHaveLength(0);
+    });
+
+    it('opens the bytes when clicked, and files the row that pays for them', async () => {
+        // 🔴 The assertion the old block could not have written. This is the one
+        // that would have caught BR-023 had it existed, because it describes what
+        // the service does rather than what the page said it does.
+        const calls = stubFetch(() => bytes());
+
+        renderWithProviders(<ImageBox file={BLOCKED} alt="Shop logo" />, asSupport);
+        await userEvent.click(screen.getByRole('button', { name: /click to view/i }));
+
+        expect(await screen.findByRole('img', { name: 'Shop logo' })).toBeInTheDocument();
+        expect(calls[0].url).toContain(`/files/${BLOCKED.id}/content`);
+    });
+
+    it('says the owner is over a storage cap, beside the affordance rather than instead of it', () => {
+        // ⚠ Both, in one render. The billing fact is why there was no thumbnail;
+        // the button is what still works. Dropping either one is a wrong answer:
+        // without the note the operator cannot act, and without the button the
+        // dashboard is hiding bytes it can fetch.
+        noRequests();
+
+        renderWithProviders(<ImageBox file={BLOCKED} alt="Shop logo" />, asSupport);
+
+        expect(screen.getByText(/over their plan's storage cap/i)).toBeInTheDocument();
+        expect(screen.getByText(/opening it still works/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /click to view/i })).toBeInTheDocument();
+    });
+
+    it('never claims the file cannot be shown, which is what the old copy said', () => {
+        // The regression guard for BR-023. `QUOTA_BLOCKED_COPY.body` used to end
+        // "so this file cannot be shown", drawn at six sites from one constant.
+        noRequests();
+
+        renderWithProviders(<ImageBox file={BLOCKED} alt="Shop logo" />, asSupport);
+
+        expect(screen.queryByText(/cannot be shown|will not display/i)).not.toBeInTheDocument();
+    });
+
+    it('never calls it missing, broken, or private', () => {
+        /**
+         * ⚠ **The three renderings `files.md` rules out by name**, and the half of
+         * the original block that was always right. "Missing" reads as data loss, a
+         * broken image reads as a platform incident, and "private" reads as
+         * permanent — each sends an operator somewhere that cannot resolve it, and
+         * the file is neither deleted nor faulty nor in a private tree.
+         */
+        noRequests();
+
+        renderWithProviders(<ImageBox file={BLOCKED} alt="Shop logo" />, asSupport);
+
+        expect(screen.queryByText(/missing|cleaned up|no picture/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/private/i)).not.toBeInTheDocument();
+    });
+
+    it('offers no retry, because there is nothing that failed to retry', () => {
+        noRequests();
+
+        renderWithProviders(<ImageBox file={BLOCKED} alt="Shop logo" />, asSupport);
+
+        expect(screen.queryByRole('button', { name: /try again/i })).not.toBeInTheDocument();
+        // Still a box — a state that collapses to a line of text undoes the
+        // layout this component exists to hold still.
+        expect(frames()).toHaveLength(1);
+    });
+
+    it('explains the missing permission rather than the storage cap, when that is the blocker', () => {
+        // ⚠ Reversed on 2026-09-09. This used to assert that the permission was
+        // "irrelevant here", on the reasoning that *nobody* can open a blocked
+        // file — true only under the false premise. Somebody can, so a caller who
+        // holds no `files.content.read` is refused for the ORDINARY reason, and the
+        // ordinary sentence is the honest one.
+        stubFetch((call) => {
+            throw new Error(`unexpected request: ${call.method} ${call.url}`);
+        });
+
+        renderWithProviders(<ImageBox file={BLOCKED} alt="Shop logo" />, {
+            permissions: { held: new Set(['files.resolve']) },
+        });
+
+        expect(
+            screen.getByText(/needs a permission this account does not hold/i),
+        ).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /click to view/i })).not.toBeInTheDocument();
+    });
+
+    it('takes precedence over the private tree it may also be in', () => {
+        /**
+         * ⚠ **The wire ranks `quota_blocked` above `authorized`**, because it is
+         * stamped per file rather than derived from the tree. A blocked delivery
+         * proof therefore arrives as `quota_blocked` — and the box must read the
+         * value it was given rather than inferring a tree from the key.
+         *
+         * The *rendering* no longer differs between the two — both offer the open —
+         * so what this now pins is the wording: a blocked private file must be
+         * described by its billing state, not by its tree.
+         */
+        stubFetch((call) => {
+            throw new Error(`unexpected request: ${call.method} ${call.url}`);
+        });
+
+        renderWithProviders(
+            <ImageBox
+                file={{ ...PROOF, access: 'quota_blocked' }}
+                alt="Delivery proof"
+            />,
+            asSupport,
+        );
+
+        expect(screen.getByText(/over their plan's storage cap/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /click to view/i })).toBeInTheDocument();
+    });
+});
+
 describe('the answers that are states rather than failures', () => {
     it('reads FILE_CONTENT_NOT_SUPPORTED as a configuration state and offers no retry', async () => {
         /**

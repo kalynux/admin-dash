@@ -32,10 +32,17 @@
  * chance: `balances.codCash`, `codExposure`, `flags.openDiscrepancies` and
  * `flags.overCodThreshold`. The UI says "does not apply to a vendor" for each.
  *
+ * ⚠ **That does not run backwards.** `null` on one of these does *not* identify a
+ * vendor, and `overCodThreshold` is the field where the difference bites: it is
+ * also `null` for an **agency** (no single ceiling — read `codExposure`) and for
+ * **an agent who has no ceiling set at all** (`accounts.md:257`). Copy that reads
+ * a `null` as "does not apply to a vendor" is wrong on two owner kinds out of
+ * three, so the reason must be chosen from `owner.type`, never from the `null`.
+ *
  * ── The one place a vendor's commission is readable ───────────────────────────
  * `subscription.entitlements.commissionPercent`. It is **not** on the `/vendors`
  * surface at all: it lives on the billing `PricingPlan` and moves only by
- * assigning a plan ([ADR-008 D-8](../../api-doc/admin/ADR-008-VENDOR-MANAGEMENT.md)).
+ * assigning a plan ([ADR-008 D-8](../../api-doc/docs/ADR-008-VENDOR-MANAGEMENT.md)).
  */
 
 import type { ActorStamp } from '@/types/actor.types';
@@ -286,7 +293,16 @@ export interface AccountFlags {
     /** Allocations whose COD cash the platform has not physically received. */
     unsettledCollections: number;
     shipmentCapAlertedAt: string | null;
-    /** Agent only. **`null` for a vendor** — no cash, so no ceiling. */
+    /**
+     * Their held cash has reached the ceiling that stops further dispatch,
+     * compared with `>=` — so a `0` ceiling always reads "over".
+     *
+     * ⚠ **`null` has three causes, not one**: a **vendor** (no cash), an
+     * **agency** (no single ceiling — see `codExposure`), and **an agent with no
+     * ceiling set at all**. The third is the one that surprises: it is a live
+     * agent about whom the question has no answer yet, not an owner kind the
+     * question misses. `accounts.md:257` names all three.
+     */
     overCodThreshold: boolean | null;
 }
 

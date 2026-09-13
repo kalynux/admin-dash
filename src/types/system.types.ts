@@ -27,9 +27,9 @@
  * types them, the field names come from `api-doc/jovi-mall/admin/system.md` and are marked
  * partial — render defensively and never `switch` on a value from one.
  *
- * Design records: [ADR-014](../../api-doc/admin/ADR-014-SYSTEM-OPERATIONS.md),
- * [ADR-015](../../api-doc/admin/ADR-015-DEVELOPER-TOOLS.md),
- * [ADR-016](../../api-doc/admin/ADR-016-ERROR-SYSTEM.md).
+ * Design records: [ADR-014](../../api-doc/docs/ADR-014-SYSTEM-OPERATIONS.md),
+ * [ADR-015](../../api-doc/docs/ADR-015-DEVELOPER-TOOLS.md),
+ * [ADR-016](../../api-doc/docs/ADR-016-ERROR-SYSTEM.md).
  */
 
 // ─── The operation taxonomy ───────────────────────────────────────────────────

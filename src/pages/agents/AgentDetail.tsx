@@ -134,12 +134,41 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
     const agent = useAsyncData(`/agents/${agentId}`, (signal) => getAgent(agentId, { signal }));
 
     /**
+     * `agents.read` **+** `agencies.read`, in `all` mode — one lookup for the
+     * three things on this screen behind that composite guard: the roster
+     * (`GET /agents/:agentId/contracts`), the cash pool
+     * (`GET /agents/:agentId/cod-allocation`) and the Cash tab that renders it.
+     *
+     * Two lookups can disagree; one object cannot. Computed here rather than
+     * beside the other predicates below because the allocation read needs it,
+     * and that read is a hook — it cannot sit after the early returns.
+     */
+    const canReadWithAgencies = can(['agents.read', 'agencies.read'], 'all');
+
+    /**
      * Read only to show the floor on the cash-pool dialog. It is a hint, never a
      * client-side gate — lowering the pool below what the contracts hold is
      * jovi-mall's rule, and it is the only side that can see both numbers.
+     *
+     * ⚠ **Gated, and gated inside the fetcher rather than by the key.**
+     * `cod-allocation` stopped being an `agents.read` route when its slices
+     * gained an `agency` object: the guard is composite (`agents.md:505`,
+     * `ROUTE-MAP.md:159`), and this fired unconditionally until 2026-09-09.
+     * `useAsyncData` runs its fetcher for every key including `''` — the key
+     * decides *when to re-run*, never *whether to run* — so gating by key alone
+     * would still issue the request and still collect the 403. The predicate is
+     * in the key as well, so a permission that changes under the session
+     * re-reads instead of keeping a stale answer.
+     *
+     * ⚠ **Latent, not live.** Every tier holding `agents.read` holds
+     * `agencies.read` today, so nothing 403s on it yet — `agents.md` says as
+     * much. The tier matrix is the backend's to change, which is exactly why a
+     * client must not read "nobody can hit it" as "it is gated".
      */
-    const allocation = useAsyncData(`/agents/${agentId}/cod-allocation#${reloadToken}`, (signal) =>
-        getCodAllocation(agentId, { signal }),
+    const allocation = useAsyncData(
+        `/agents/${agentId}/cod-allocation?permitted=${canReadWithAgencies}#${reloadToken}`,
+        (signal) =>
+            canReadWithAgencies ? getCodAllocation(agentId, { signal }) : Promise.resolve(null),
     );
 
     /** One write moves several reads: the record, and every panel keyed on the token. */
@@ -173,7 +202,6 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
     }
 
     const record = agent.data;
-    const canSeeContracts = can(['agents.read', 'agencies.read'], 'all');
     const canSeeAccount = can(ACCOUNT_READ_PERMISSIONS, 'all');
     const canSeeActivity = can(['agents.read', 'audit.read'], 'all');
     const canTransfer = can('agents.transfer');
@@ -226,7 +254,21 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
                     <TabsTrigger value="overview">Overview</TabsTrigger>
                     <TabsTrigger value="operational">Operational</TabsTrigger>
                     <TabsTrigger value="tracking">Tracking</TabsTrigger>
-                    <TabsTrigger value="cod">Cash</TabsTrigger>
+                    {/*
+                      ⚠ Gated on the same composite guard as the roster, because
+                      the tab's whole content is one read behind it — the cash
+                      pool and its slices. A tab that could only ever show a
+                      denial teaches people the screen is broken, which is the
+                      rule the three tabs below already follow.
+
+                      The cost is that `agents.cod_threshold.set` and
+                      `cod.trust.adjust` are the two writes living under here,
+                      and this hides them from a caller holding either without
+                      `agencies.read`. That combination is not reachable on any
+                      tier the service publishes; if one ever is, split the tab
+                      rather than ungating the read.
+                    */}
+                    {canReadWithAgencies ? <TabsTrigger value="cod">Cash</TabsTrigger> : null}
                     {/*
                       ⚠ The label is "Roster"; the tab **value** stays `agencies`.
                       It is not in the URL — the detail's tab state is local — so
@@ -234,7 +276,7 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
                       change nothing an operator can see. The word that matters is
                       the one on the trigger.
                     */}
-                    {canSeeContracts ? <TabsTrigger value="agencies">Roster</TabsTrigger> : null}
+                    {canReadWithAgencies ? <TabsTrigger value="agencies">Roster</TabsTrigger> : null}
                     {canSeeAccount ? <TabsTrigger value="account">Account</TabsTrigger> : null}
                     {canSeeActivity ? <TabsTrigger value="activity">Activity</TabsTrigger> : null}
                 </TabsList>
@@ -276,53 +318,55 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
                     <AgentLiveTrackingPanel agentId={record.id} timeZone={timeZone} />
                 </TabsContent>
 
-                <TabsContent value="cod" className="space-y-4">
-                    {/*
-                      Two independent permissions, deliberately not paired: the
-                      ceiling is an agent-directory write (`agents.*`) and the
-                      score is a COD one (`cod.trust.adjust`), and an operator can
-                      hold either without the other.
-                    */}
-                    <div className="flex flex-wrap justify-end gap-2">
-                        <Can permission="cod.trust.adjust">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setAdjustingTrust(true)}
-                            >
-                                <Gauge className="size-4" />
-                                Adjust trust score
-                            </Button>
-                        </Can>
-                        <Can permission="agents.cod_threshold.set">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setSettingThreshold(true)}
-                            >
-                                <Wallet className="size-4" />
-                                Set cash pool
-                            </Button>
-                        </Can>
-                    </div>
+                {canReadWithAgencies ? (
+                    <TabsContent value="cod" className="space-y-4">
+                        {/*
+                          Two independent permissions, deliberately not paired: the
+                          ceiling is an agent-directory write (`agents.*`) and the
+                          score is a COD one (`cod.trust.adjust`), and an operator can
+                          hold either without the other.
+                        */}
+                        <div className="flex flex-wrap justify-end gap-2">
+                            <Can permission="cod.trust.adjust">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setAdjustingTrust(true)}
+                                >
+                                    <Gauge className="size-4" />
+                                    Adjust trust score
+                                </Button>
+                            </Can>
+                            <Can permission="agents.cod_threshold.set">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setSettingThreshold(true)}
+                                >
+                                    <Wallet className="size-4" />
+                                    Set cash pool
+                                </Button>
+                            </Can>
+                        </div>
 
-                    <AgentCodPanel agent={record} reloadToken={reloadToken} />
+                        <AgentCodPanel agent={record} reloadToken={reloadToken} />
 
-                    {/*
-                      The history needs `cod.holders.read` **and** `agents.read`,
-                      which the button above needs neither of. A panel that could
-                      only ever show a refusal is not rendered.
-                    */}
-                    {canSeeTrust ? (
-                        <AgentTrustPanel
-                            agentId={record.id}
-                            timeZone={timeZone}
-                            reloadToken={reloadToken}
-                        />
-                    ) : null}
-                </TabsContent>
+                        {/*
+                          The history needs `cod.holders.read` **and** `agents.read`,
+                          which the button above needs neither of. A panel that could
+                          only ever show a refusal is not rendered.
+                        */}
+                        {canSeeTrust ? (
+                            <AgentTrustPanel
+                                agentId={record.id}
+                                timeZone={timeZone}
+                                reloadToken={reloadToken}
+                            />
+                        ) : null}
+                    </TabsContent>
+                ) : null}
 
-                {canSeeContracts ? (
+                {canReadWithAgencies ? (
                     <TabsContent value="agencies">
                         <AgentContractsPanel
                             agent={record}

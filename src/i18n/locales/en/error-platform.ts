@@ -98,9 +98,15 @@ const platform = {
     // The three administrative interventions are chosen to be ones the agency
     // holds unilaterally, so this is a platform-side guard rather than something
     // an operator can talk their way past — it is not a missing permission.
+    //
+    // ⚠ Kept for the record, and unreachable: this one is forwarded at 403, and
+    // the `authorization` allowlist drops `platformCode`. Nothing can key on
+    // it — the dialogs branch on the status and render the server's sentence.
     CONTRACT_TRANSITION_NOT_PERMITTED:
         'The platform does not allow this party to make that change, whatever permission you hold here.',
-    CONTRACT_REQUEST_ALREADY_PENDING:
+    // ⚠ `CONTRACT_STATUS_REQUEST_…`. The shorter `CONTRACT_REQUEST_…` was a
+    // name this dashboard invented; jovi-mall has never declared it.
+    CONTRACT_STATUS_REQUEST_ALREADY_PENDING:
         'A request is already open on this contract. It has to be answered before another can be raised.',
     CONTRACT_HAS_OUTSTANDING_COD:
         'The agent still owes this agency cash. It has to be settled before they can be moved.',
@@ -128,10 +134,13 @@ const platform = {
     AUTH_PHONE_TAKEN: 'That phone number already belongs to another account',
 
     // ─── Credential recovery ─────────────────────────────────────────────────
-    // `USER_CREDENTIAL_LINK_THROTTLED` deliberately says nothing about who was
-    // throttled: `details.scope` is `party` or `administrator` and the two have
-    // different remedies, so the dialog appends the specific sentence. This is
-    // the floor for the case where scope is missing.
+    // ⚠ `USER_CREDENTIAL_LINK_THROTTLED` is kept for the record and is
+    // **unreachable**: it is forwarded at 429, and `rate_limit`'s closed
+    // `details` allowlist drops both `platformCode` and `scope`
+    // (`users.md:481-492`). `SendCredentialLinkDialog` matches the status and
+    // renders jovi-mall's own sentence, which is the only thing still saying
+    // *who* was throttled — the party, or the operator. This copy says nothing
+    // about that on purpose, and nothing should be added: it cannot know.
     USER_CHANNEL_UNAVAILABLE:
         'This person has no address on that channel. Telegram only works once they have connected the bot themselves.',
     USER_CREDENTIAL_LINK_THROTTLED: 'Too many recovery links have been sent recently.',

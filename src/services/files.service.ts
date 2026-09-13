@@ -132,13 +132,38 @@ export function getFile(fileId: string, options?: RequestOptions): Promise<FileD
  * object URL. **There is no expiry to respect and nothing to re-request.**
  *
  * ── It answers for public files too, and that is deliberate ───────────────────
- * One code path; never branch on `access` to decide which call to make. It is
+ * One code path; never branch on `access` to decide *which* call to make. It is
  * also the more private choice for a public file, since the `url` from a
- * resolve is unauthenticated and this is not.
+ * resolve is unauthenticated and this is not. ✅ **And `access` decides nothing
+ * else either** — including whether to call at all. See below.
  *
  * ── ⚠ Whoever calls this owns `URL.revokeObjectURL` ──────────────────────────
  * The handle leaks for the lifetime of the document otherwise. `FileViewer`
  * revokes on unmount and on every replacement; a new caller must do the same.
+ *
+ * ── 🔴 It DOES answer for a `quota_blocked` file ──────────────────────────────
+ * **This block claimed the opposite until 2026-09-09, and the claim came from the
+ * contract.** [`files.md`](../../api-doc/admin/api/files.md) used to say that for
+ * a file blocked on its owner's storage cap *"the content route will not help you
+ * either"*. Measured against a running service, it does help: `200` and the real
+ * bytes, on a public `images/` key and on private `shipments/` and `digital/`
+ * keys alike. jovi-mall's handler never reads `quotaBlockedAt`.
+ *
+ * ✅ **The page agrees since 2026-09-12** — the clause is gone, replaced by
+ * *"the cap withholds the address, not the file"*, and the content-route section
+ * now says outright **do not pre-empt this call on `access`**. Kept written down
+ * because the sentence is not what made this expensive: we implemented it six
+ * surfaces deep and then tested it with nine tests written from the same
+ * sentence.
+ *
+ * The contract naming **no code** for that refusal was read here as "there is
+ * nothing to branch on afterwards, so branch before". The truer reading is that
+ * there is no code because **there is no refusal**. Filed as
+ * [BR-023](../../api-doc/admin/dashboard/backend-requests/BR-023-quota-blocked-content-route.md);
+ * see [VERIFICATION-2026-09-09-LIVE](../../api-doc/VERIFICATION-2026-09-09-LIVE.md) § 7.3.
+ *
+ * So: **call it for any file.** `isQuotaBlocked` labels the billing state beside
+ * the affordance; it does not gate it.
  *
  * @throws `404 FILE_NOT_FOUND` — no such file, or it was swept.
  * @throws `409 FILE_CONTENT_NOT_SUPPORTED` — **a capability answer, not an
@@ -270,6 +295,12 @@ export async function deleteFilePermanently(
  * not — render `referenceCount > references.length` as "and N more".
  * `publicUrlsConfigured: false` means *this deployment* cannot build public URLs
  * at all, which is a cause of `url: null` that has nothing to do with the file.
+ *
+ * ⚠ **A `null` URL on a row here has four possible meanings and they are not
+ * interchangeable** — see the table on `FileLibraryMeta.publicUrlsConfigured`.
+ * The one this screen most easily gets wrong is `access: "quota_blocked"`: it is
+ * a **billing** state, not a private tree, and the audited content route cannot
+ * rescue it either.
  */
 export async function listFileLibrary(
     query: FileLibraryQuery = {},

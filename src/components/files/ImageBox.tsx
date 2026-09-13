@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, Eye, FileQuestion, ImageOff, Lock } from 'lucide-react';
+import { AlertTriangle, Eye, FileQuestion, HardDrive, ImageOff, Lock } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
 import { InlineLoader } from '@/components/common/Loading';
@@ -13,6 +13,8 @@ import { cn } from '@/lib/utils';
 import { ApiError } from '@/types/api.types';
 import {
     CODE_FILE_CONTENT_NOT_SUPPORTED,
+    QUOTA_BLOCKED_COPY,
+    isQuotaBlocked,
     isViewableImage,
     type FileContent,
     type FileDetail,
@@ -96,12 +98,22 @@ export type ImageBoxProps = ImageBoxBaseProps &
  *
  * ── ⚠ Four answers here are states, not failures ─────────────────────────────
  * `FILE_CONTENT_NOT_SUPPORTED` is a *configuration* answer and gets no retry,
- * because a retry can never succeed on a deployment whose storage provider
- * cannot read bytes. `FILE_NOT_FOUND` means the sweep reached a file the record
- * still points at. A truncated body is the only signal a mid-stream failure
- * gives. And not holding `files.content.read` is an explanation, never a control
- * that would 403. Each is drawn *inside the box*, so the layout it reserved
- * still holds.
+ * because a retry can never succeed on a deployment whose storage provider cannot
+ * read bytes. `FILE_NOT_FOUND` means the sweep reached a file the record still
+ * points at. A truncated body is the only signal a mid-stream failure gives. And
+ * not holding `files.content.read` is an explanation, never a control that would
+ * 403. Each is drawn *inside the box*, so the layout it reserved still holds.
+ *
+ * 🔴 **There were five, and `quota_blocked` was the fifth. It is now a NOTE.**
+ * It was described here as *"the only one settled before any request, because
+ * neither `url` nor the content route can serve a blocked file"* — half true.
+ * `url` cannot; the content route can, and does, in every tree (BR-023, measured
+ * 2026-09-09 against a running service; `files.md` said otherwise until the
+ * clause was deleted upstream on 2026-09-12). A blocked
+ * file therefore has no state of its own: it takes the ordinary path, the click
+ * works, and the billing fact is drawn beside the affordance. What was right about
+ * the old branch — that a blocked file must never read as missing, broken or
+ * private — is preserved by `QUOTA_BLOCKED_COPY.note`.
  *
  * ── ⚠ Images only ────────────────────────────────────────────────────────────
  * The content route serves any tree and a `digital/` file is as likely to be a
@@ -135,6 +147,27 @@ function FetchedImageBox({
     gallery,
 }: VariantProps & { file: FileDetail }) {
     const { content, error, isLoading, open } = useFileContent(file.id);
+
+    // ── 🔴 The billing state is a NOTE here, not a branch ─────────────────────
+    //
+    // Until 2026-09-09 this returned a placeholder for a `quota_blocked` file and
+    // offered no open, on three stated grounds. The third was false and it
+    // carried the other two: *"the content route cannot serve these either, and
+    // `files.md` says so outright"*. The page did say so, and it was **wrong** —
+    // the route answers `200` with the bytes for a blocked file in every tree
+    // (BR-023, measured against a running service; clause deleted upstream
+    // 2026-09-12, so do not go looking for it).
+    //
+    // So the open is offered, because it works. What survives is the *labelling*
+    // argument, which was always the sound one: a blocked file must never read as
+    // missing, broken, or private, and it must never reach the red branch below
+    // with a "Try again" — but it reaches none of those, because the fetch
+    // succeeds. `quotaNote` goes beside the affordance instead of replacing it.
+    //
+    // It reads `access` and never the storage key, because the wire ranks
+    // `quota_blocked` above `authorized` — a blocked file in a private tree
+    // arrives as `quota_blocked`.
+    const quotaNote = isQuotaBlocked(file) ? QUOTA_BLOCKED_COPY.note : null;
 
     // The capability answer, which is not a failure. On a deployment whose
     // storage provider cannot read bytes this is the permanent answer for every
@@ -249,8 +282,21 @@ function FetchedImageBox({
                         <InlineLoader label="Opening…" />
                     ) : (
                         <>
-                            <Eye className="size-6" aria-hidden />
+                            {/* A drive rather than an eye when the picture did not
+                                simply appear for a billing reason — the icon is
+                                the first thing read, and "over a storage limit"
+                                and "private tree" are different next actions. */}
+                            {quotaNote ? (
+                                <HardDrive className="size-6" aria-hidden />
+                            ) : (
+                                <Eye className="size-6" aria-hidden />
+                            )}
                             <span className="text-sm font-medium">Click to view</span>
+                            {/* ⚠ Said beside the affordance, never instead of it:
+                                the open succeeds on a blocked file (BR-023). This
+                                explains why there was no thumbnail without
+                                implying the click is futile. */}
+                            {quotaNote ? <span className="text-xs">{quotaNote}</span> : null}
                             {/* Told before the click, not after: the audit row is
                                 the price of this permission reaching Support at
                                 all, and an operator should know it is being

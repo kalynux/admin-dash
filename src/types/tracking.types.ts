@@ -2,7 +2,7 @@
  * The geo-tracker **data door** — four reads, two subjects, two permissions.
  *
  * Sources: `api-doc/TRACKING-DOORS.md` (verified against wi-admin TypeScript *and*
- * geo-tracker Go), `api-doc/admin/ADR-020-ADMIN-DATA-DOOR.md`,
+ * geo-tracker Go), `api-doc/docs/ADR-020-ADMIN-DATA-DOOR.md`,
  * `api-doc/admin/api/agents.md` and `api-doc/admin/api/shipments.md`.
  *
  * ── You still only ever call wi-admin ─────────────────────────────────────────
