@@ -51,6 +51,78 @@ export function readCookie(name: string): string | undefined {
     return undefined;
 }
 
+/**
+ * The CSRF token, harvested from the auth response body and mirrored to
+ * `localStorage`.
+ *
+ * **Why a store and not just the cookie.** The `admin_csrf_token` cookie is the
+ * source of truth wherever the browser can read it — same-origin, and local dev.
+ * But when the dashboard is served from one origin and wi-admin from another, the
+ * SPA cannot read a cookie scoped to the API's host: `readCookie` returns
+ * `undefined`, every write goes out headerless, and the service answers
+ * `403 ADMIN_AUTH_CSRF_INVALID`. wi-admin also returns the token in
+ * `data.csrfToken` on `/auth/login`, `/auth/mfa/verify` and `/auth/refresh`, so
+ * we capture it there and fall back to it when the cookie is not visible.
+ *
+ * `localStorage`, not memory: a page reload has no login response left to
+ * harvest. It is no weaker than the cookie it stands in for — the token is
+ * designed to be JS-readable, and `localStorage` is same-origin-restricted
+ * exactly like `document.cookie`.
+ */
+const CSRF_STORE_KEY = 'admin_csrf_token';
+
+function readStoredCsrf(): string | undefined {
+    try {
+        if (typeof localStorage === 'undefined') return undefined;
+        return localStorage.getItem(CSRF_STORE_KEY) ?? undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+let csrfToken: string | undefined = readStoredCsrf();
+
+/**
+ * Record (or clear) the CSRF token. Exported so the session layer can drop it
+ * when the session ends — a stored token must never outlive its session, or it
+ * would masquerade as evidence of a live one in `isRefreshable`.
+ */
+export function setCsrfToken(token: string | undefined): void {
+    csrfToken = token && token.length > 0 ? token : undefined;
+    try {
+        if (typeof localStorage === 'undefined') return;
+        if (csrfToken) localStorage.setItem(CSRF_STORE_KEY, csrfToken);
+        else localStorage.removeItem(CSRF_STORE_KEY);
+    } catch {
+        // Storage disabled or full (private mode, quota). The in-memory value
+        // still serves this tab, and the next successful auth response resets it.
+    }
+}
+
+/**
+ * The token to echo in `X-CSRF-Token`. **Cookie first**, so same-origin and local
+ * dev are unchanged and a freshly-rotated cookie always wins over a possibly-stale
+ * stored copy; the store is the fallback for the cross-origin case where the
+ * cookie is not readable from this origin.
+ */
+function currentCsrfToken(): string | undefined {
+    return readCookie(CSRF_COOKIE) ?? csrfToken;
+}
+
+/**
+ * Harvest a server-issued CSRF token from a success envelope, if it carries one.
+ * `/auth/login`, `/auth/mfa/verify` and `/auth/refresh` put a freshly-minted
+ * token in `data.csrfToken`; every other response has no such field and is left
+ * untouched.
+ */
+function captureCsrfFromBody(body: unknown): void {
+    if (typeof body !== 'object' || body === null) return;
+    const data = (body as { data?: unknown }).data;
+    if (typeof data !== 'object' || data === null) return;
+    const token = (data as { csrfToken?: unknown }).csrfToken;
+    if (typeof token === 'string' && token.length > 0) setCsrfToken(token);
+}
+
 function newRequestId(): string {
     // The service accepts `[A-Za-z0-9._:-]`, 1–128 chars, and silently replaces
     // anything else with a fresh id. A UUID satisfies that everywhere.
@@ -99,7 +171,7 @@ async function refreshSession(): Promise<void> {
     // `/auth/refresh` is a public route, so CSRF is not required on it. The
     // header is sent when the cookie is there anyway: it is free, and it keeps
     // this call correct if the route is ever moved behind the auth gate.
-    const csrf = readCookie(CSRF_COOKIE);
+    const csrf = currentCsrfToken();
     if (csrf) headers[CSRF_HEADER] = csrf;
 
     let response: Response;
@@ -117,6 +189,17 @@ async function refreshSession(): Promise<void> {
         // On any refresh failure the three cookies are cleared server-side, so
         // the browser is left clean. Redirect to login; do not retry.
         throw await errorFromResponse(response, requestId);
+    }
+
+    // Refresh mints a NEW csrf token each rotation (it rotates with the session).
+    // Capture it, or the first refresh leaves the store holding a superseded token
+    // and every write after it 403s wherever the cookie is not readable. A body we
+    // cannot read still rotated the session (200); the next successful response
+    // repairs the store.
+    try {
+        captureCsrfFromBody(await response.json());
+    } catch {
+        /* empty or unreadable refresh body — the rotation itself still succeeded */
     }
 }
 
@@ -155,12 +238,13 @@ function isRefreshable(error: ApiError): boolean {
     if (error.status !== 401) return false;
     if (error.isTokenExpired) return true;
 
-    // Truthiness, not `!= null`: `readCookie` answers `undefined` when the cookie
-    // is absent and `''` when it is present but empty, and neither is evidence of
-    // a session. Comparing against `null` matches neither and would make every
-    // MISSING_TOKEN refreshable — which is the loop the three-codes rule exists
-    // to prevent.
-    return error.code === CODE_MISSING_TOKEN && Boolean(readCookie(CSRF_COOKIE));
+    // Truthiness, not `!= null`: `currentCsrfToken` answers `undefined` when
+    // neither the cookie nor the store holds one, and `''` for an empty value —
+    // neither is evidence of a session. Comparing against `null` matches neither
+    // and would make every MISSING_TOKEN refreshable, the loop the three-codes
+    // rule exists to prevent. The store is cleared on session end, so a token here
+    // means "signed in, access cookie gone", not a dead session.
+    return error.code === CODE_MISSING_TOKEN && Boolean(currentCsrfToken());
 }
 
 /**
@@ -370,7 +454,7 @@ async function performRequest(
      * `X-CSRF-Token`. Absent or mismatched is `403 ADMIN_AUTH_CSRF_INVALID`.
      */
     if (UNSAFE_METHODS.has(method)) {
-        const csrf = readCookie(CSRF_COOKIE);
+        const csrf = currentCsrfToken();
         if (csrf) headers[CSRF_HEADER] = csrf;
     }
 
@@ -427,6 +511,10 @@ async function performRequest(
     } catch (cause) {
         throw new NetworkError('The server sent a response that could not be read', cause);
     }
+
+    // Harvest a server-issued CSRF token (login, MFA-verify) into the store, so
+    // writes still carry one where the cookie is not readable from this origin.
+    captureCsrfFromBody(parsed);
 
     return { status: response.status, body: parsed, requestId: echoed };
 }
@@ -762,7 +850,7 @@ export const api = {
 
         // A cookie-authenticated `POST`, so it needs the CSRF echo like every
         // other write. Absent or mismatched is `403 ADMIN_AUTH_CSRF_INVALID`.
-        const csrf = readCookie(CSRF_COOKIE);
+        const csrf = currentCsrfToken();
         if (csrf) headers[CSRF_HEADER] = csrf;
 
         let response: Response;
@@ -915,4 +1003,5 @@ export async function fetchReadiness(signal?: AbortSignal): Promise<ReadinessRep
 export function __resetApiClientState(): void {
     isRefreshing = false;
     pendingQueue = [];
+    setCsrfToken(undefined);
 }

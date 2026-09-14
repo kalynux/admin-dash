@@ -11,7 +11,27 @@
 /** 1 Developer, 2 Admin, 3 Support. **Lower number = more privilege.** */
 export type AdminTier = 1 | 2 | 3;
 
-export type AdminStatus = 'active' | 'suspended';
+/**
+ * ⚠ **`pending` was added 2026-09-14 (ADR-023) and is the DEFAULT for every new
+ * account.** A pending administrator signs in perfectly normally — the credential
+ * check, MFA and refresh all work, and the session is a full one — and is then
+ * refused every route outside their own account with
+ * `403 ADMIN_ACTIVATION_REQUIRED`.
+ *
+ * 🔴 **Do not collapse it into `suspended`.** *"Not let in yet"* is not *"shut
+ * out"*: the remedy for the first is to finish the employee record, and for the
+ * second it is a conversation with somebody. `administrators.md` is explicit
+ * that rendering an error page here makes **every new hire's first morning look
+ * like a fault** — send them to the onboarding screen instead.
+ *
+ * Left open, like every other enum on this wire.
+ */
+export type AdminStatus = 'pending' | 'active' | 'suspended' | (string & {});
+
+/** Can this administrator reach anything but their own account? */
+export function isPendingAdmin(admin: { status: AdminStatus }): boolean {
+    return admin.status === 'pending';
+}
 
 /**
  * The profile, returned **identically** by `/auth/login`, `/auth/mfa/verify`,
@@ -30,10 +50,37 @@ export interface AdminProfile {
     email: string;
     displayName: string;
     tier: AdminTier;
-    /** A suspended administrator cannot reach a response carrying this. */
+    /**
+     * A suspended administrator cannot reach a response carrying this — but a
+     * **`pending`** one can, and `GET /auth/me` is one of the handful of routes
+     * they reach. ⚠ **Check this before routing into the dashboard**, or a new
+     * hire lands on a shell that answers 403 to everything it tries to load.
+     */
     status: AdminStatus;
     jobTitle: string | null;
     department: string | null;
+    /**
+     * Contact number, E.164. **Written only by `PATCH /auth/me/phone`** — the
+     * `/administrators` projection does not carry it at all, and
+     * `UpdateAdministratorSchema` does not accept it, so it is deliberately
+     * absent from `EditOwnProfileDialog`.
+     *
+     * ⚠ **Not a login factor.** Nothing in wi-admin's auth path reads this or
+     * `phoneVerified`. Administrators already hold TOTP, which is stronger than
+     * a WhatsApp OTP, so wiring this into the login would weaken it rather than
+     * harden it — that would be a security decision, not a refactor.
+     */
+    phone: string | null;
+    /**
+     * Proved by a WhatsApp code that **jovi-mall sent and judged** while wi-admin
+     * kept the record. See `services/auth.service.ts`.
+     *
+     * ⚠ **Saving a number always resets this to `false`**, including saving the
+     * value it already held. The service refuses to carry a flag claiming one
+     * number is proved while the row holds another — unverified is honest, a
+     * stale `true` is not. Say so before the operator saves.
+     */
+    phoneVerified: boolean;
     /** IANA zone. The reason every date range is resolved in *their* day, not the browser's. */
     timezone: string | null;
     preferredLanguage: string | null;
@@ -237,4 +284,37 @@ export interface MfaVerifyRequest {
 export interface ChangePasswordRequest {
     currentPassword: string;
     newPassword: string;
+}
+
+// ─── The administrator's own phone ────────────────────────────────────────────
+
+/**
+ * How the code was sent, reported so support has the first question answered.
+ *
+ * `text` is a free-form message, allowed only inside Meta's 24-hour service
+ * window. `template` is an approved AUTHENTICATION template, required outside
+ * it. Left open like every other enum on this wire.
+ */
+export type PhoneCodeDelivery = 'text' | 'template' | (string & {});
+
+/**
+ * What `PATCH /auth/me/phone` and `POST /auth/me/phone/verify/confirm` both
+ * answer.
+ *
+ * `verified` is always `false` from the first and always `true` from the second
+ * — neither route can answer otherwise — but it is read rather than assumed,
+ * because the field is what the record now holds.
+ */
+export interface PhoneRecord {
+    phone: string;
+    verified: boolean;
+}
+
+/** What `POST /auth/me/phone/verify/request` answers. */
+export interface PhoneCodeSent {
+    /** Masked by jovi-mall, e.g. `+237•••••3456`. Never the full number. */
+    phoneMasked: string;
+    /** When the code dies. Ten minutes by default. */
+    expiresAt: string;
+    delivery: PhoneCodeDelivery;
 }

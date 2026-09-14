@@ -5,6 +5,7 @@ import { Wallet } from 'lucide-react';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField, FilterFieldSpacer } from '@/components/common/FilterField';
 import { NotApplicable, NotSet } from '@/components/common/DefinitionList';
 import { Pager } from '@/components/common/Pager';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -136,8 +137,7 @@ export function HoldersList() {
         >
             <div className="space-y-4">
                 <FilterBar isFiltered={isFiltered} onClear={reset}>
-                    <div className="space-y-1.5">
-                        <Label htmlFor="holder-owner-type">Holder kind</Label>
+                    <FilterField label="Holder kind" htmlFor="holder-owner-type">
                         <Select
                             value={values.ownerType || ANY}
                             onValueChange={(next) => set({ ownerType: next === ANY ? null : next })}
@@ -160,26 +160,29 @@ export function HoldersList() {
                                 ))}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
-                    <div className="flex items-end gap-2 pb-1.5">
-                        <Switch
-                            id="holder-settled"
-                            checked={includeSettled}
-                            onCheckedChange={(next) =>
-                                set({ includeSettled: next ? 'true' : null })
-                            }
-                        />
-                        <Label htmlFor="holder-settled" className="flex items-center gap-1 pb-0.5">
-                            Include settled
-                            <InfoHint label="About settled holders">
-                                Accounts whose balance is back to zero. They are hidden by default
-                                because the screen answers &ldquo;who is holding our
-                                money&rdquo; — but a settled account still has a history worth
-                                opening.
-                            </InfoHint>
-                        </Label>
-                    </div>
+                    {/* A toggle names itself — the spacer aligns it with the controls beside it. */}
+                    <FilterFieldSpacer>
+                        <div className="flex h-9 items-center gap-2">
+                            <Switch
+                                id="holder-settled"
+                                checked={includeSettled}
+                                onCheckedChange={(next) =>
+                                    set({ includeSettled: next ? 'true' : null })
+                                }
+                            />
+                            <Label htmlFor="holder-settled" className="gap-1">
+                                Include settled
+                                <InfoHint label="About settled holders">
+                                    Accounts whose balance is back to zero. They are hidden by
+                                    default because the screen answers &ldquo;who is holding our
+                                    money&rdquo; — but a settled account still has a history worth
+                                    opening.
+                                </InfoHint>
+                            </Label>
+                        </div>
+                    </FilterFieldSpacer>
                 </FilterBar>
 
                 {meta ? (

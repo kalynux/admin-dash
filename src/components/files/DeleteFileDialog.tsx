@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
 
 import { AuthFormError } from '@/components/auth/AuthFormError';
+import { CopyableValue } from '@/components/common/CopyableValue';
 import { FormField } from '@/components/common/FormField';
 import { InlineLoader } from '@/components/common/Loading';
 import { Button } from '@/components/ui/button';
@@ -17,6 +18,13 @@ import { Input } from '@/components/ui/input';
 import { formatBytes, formatCount, humaniseEnum } from '@/lib/format';
 import { notify } from '@/lib/notify';
 import { deleteFilePermanently } from '@/services/files.service';
+
+/**
+ * What the operator types to arm the button.
+ *
+ * Lower case, and compared lower case — see `matches` below.
+ */
+const CONFIRMATION_WORD = 'delete';
 
 /**
  * The four fields the audit row keeps, plus the one thing that decides how loud
@@ -51,12 +59,23 @@ export interface DeletableFile {
 /**
  * `DELETE /files/:fileId/permanent` · `files.delete` · **tier 1**, `destructive`.
  *
- * ── The confirmation is the file id, byte for byte ────────────────────────────
- * The same pattern as `dev-tools/outbox/prune`: make the operator restate the
- * value that decides the blast radius. There it is the retention age; here it is
- * the id, because the id is the whole of what this operation acts on. A
- * mismatch never leaves the browser, and wi-admin refuses it again before
- * anything reaches jovi-mall (`400 FILE_DELETE_NOT_CONFIRMED`).
+ * ── The operator types `delete`; the wire still carries the id ────────────────
+ * ⚠ **Two different confirmations, and they are not interchangeable.** The
+ * request body must carry `confirmFileId` equal to the path id byte for byte or
+ * wi-admin refuses it with `400 FILE_DELETE_NOT_CONFIRMED` — that is the
+ * contract and it has not changed. What changed is what the *person* is asked
+ * for.
+ *
+ * It used to be the id, transcribed by hand. A 24-hex string is not something
+ * anybody reads: it is copied from the line directly above the box, or pasted,
+ * and either way the gesture proves dexterity rather than intent. The operator
+ * who meant to delete a different file copies the id of the one in front of them
+ * just as accurately as the one who meant this one. Typing a word you cannot
+ * copy from anywhere costs the same three seconds and is the only part of the
+ * two that is actually a decision.
+ *
+ * So the dialog names the file, states what points at it, and asks for
+ * `delete`. The id goes on the wire from `file.id`, where it was always correct.
  *
  * ── ⚠ Since Phase F it is reachable from a screen where the file is IN USE ───
  * It used to be offered only from the orphan listing, where *"nothing refers to
@@ -97,7 +116,15 @@ export function DeleteFileDialog({
     const [submitting, setSubmitting] = useState(false);
     const [formError, setFormError] = useState<unknown>(null);
 
-    const matches = confirmation.trim() === file.id;
+    /**
+     * Case-insensitive, whitespace-trimmed.
+     *
+     * The word is a statement of intent, not a password. Refusing `Delete`
+     * because the D is capital would teach the operator that the box is
+     * finicky, which is the lesson that gets people pasting into it without
+     * reading — the opposite of what it is for.
+     */
+    const matches = confirmation.trim().toLowerCase() === CONFIRMATION_WORD;
 
     /**
      * ⚠ **`> 0`, never truthiness on a possibly-`undefined` number.** `undefined`
@@ -169,29 +196,46 @@ export function DeleteFileDialog({
                                 ? ` · uploaded by ${(humaniseEnum(file.ownerType) ?? file.ownerType).toLowerCase()}`
                                 : ''}
                         </p>
+                        {/*
+                          The id is still shown — it is the one handle the audit
+                          row keeps and the only way to find this afterwards — but
+                          it is now a thing to copy if you need it, not a thing to
+                          retype to get past the button.
+                        */}
+                        <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                            <span>Id</span>
+                            <CopyableValue variant="id" value={file.id} label="file id" />
+                        </div>
                         <p className="text-muted-foreground text-xs">
-                            These four details are what the audit trail keeps — afterwards there is
+                            These details are what the audit trail keeps — afterwards there is
                             nothing left to look the file up in.
                         </p>
                     </div>
 
                     <FormField
-                        id="confirm-file-id"
-                        label="Type the file id to confirm"
+                        id="confirm-file-delete"
+                        label={
+                            <>
+                                Type <span className="font-mono font-semibold">delete</span> to
+                                confirm
+                            </>
+                        }
                         error={
-                            confirmation.length > 0 && !matches
-                                ? 'This does not match the file id above.'
+                            confirmation.trim().length > 0 && !matches
+                                ? `Type ${CONFIRMATION_WORD} to enable the button.`
                                 : undefined
                         }
-                        hint={file.id}
+                        hint="There is no undo, and nothing else on this screen will ask again."
                     >
                         {(field) => (
                             <Input
                                 {...field}
                                 value={confirmation}
                                 onChange={(event) => setConfirmation(event.target.value)}
-                                placeholder={file.id}
+                                placeholder={CONFIRMATION_WORD}
                                 autoComplete="off"
+                                autoCorrect="off"
+                                autoCapitalize="none"
                                 spellCheck={false}
                             />
                         )}

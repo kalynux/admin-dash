@@ -15,7 +15,6 @@ import { AgentLiveTrackingPanel } from '@/components/agents/AgentLiveTrackingPan
 import { AgentTrackingPanel } from '@/components/agents/AgentTrackingPanel';
 import {
     BanAgentDialog,
-    ReviewAgentKycDialog,
     SetAgentStatusDialog,
     SetAgentTrackingDialog,
     SetCodThresholdDialog,
@@ -23,6 +22,8 @@ import {
     UnbanAgentDialog,
     type TransferSourceAgency,
 } from '@/components/agents/AgentWriteDialogs';
+import { ReviewAgentVerificationDialog } from '@/components/verification/ReviewAgentVerificationDialog';
+import { VerificationPanel } from '@/components/verification/VerificationPanel';
 import { Can } from '@/components/auth/Can';
 import { AgentTrustPanel } from '@/components/cod/AgentTrustPanel';
 import { TrustAdjustmentDialog } from '@/components/cod/TrustAdjustmentDialog';
@@ -221,7 +222,7 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
                     </Can>
 
                     <Can permission="agents.kyc.review">
-                        <Button variant="outline" size="sm" onClick={() => setReviewingKyc(true)}>
+                        <Button variant="outline" size="sm" onClick={() => setTab('verification')}>
                             <BadgeCheck className="size-4" />
                             Review documents
                         </Button>
@@ -252,6 +253,14 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
             <Tabs value={tab} onValueChange={setTab} className="space-y-4">
                 <TabsList>
                     <TabsTrigger value="overview">Overview</TabsTrigger>
+                    {/*
+                      Unconditional: its read is `agents.read`, the permission this
+                      screen already required and one tier 3 holds. Support answers
+                      "why was I rejected" tickets and cannot answer one from a
+                      status 2014 which is why `verification.md` chose that permission
+                      over `agents.kyc.review`.
+                    */}
+                    <TabsTrigger value="verification">Verification</TabsTrigger>
                     <TabsTrigger value="operational">Operational</TabsTrigger>
                     <TabsTrigger value="tracking">Tracking</TabsTrigger>
                     {/*
@@ -283,6 +292,43 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
 
                 <TabsContent value="overview">
                     <AgentOverviewPanel agent={record} timeZone={timeZone} />
+                </TabsContent>
+
+                {/*
+                  ⚠ The one verdict of the three with teeth, so the tab says so:
+                  eligibility passes only on `verified`, and moving an agent off it
+                  makes them undispatchable immediately.
+
+                  The dialog is rendered by the panel's `actions` because it needs
+                  the record the panel loaded — a second fetch could build the
+                  verdict form on a different snapshot from the documents the
+                  operator just read.
+                */}
+                <TabsContent value="verification">
+                    <VerificationPanel
+                        party="agent"
+                        partyId={record.id}
+                        timeZone={timeZone}
+                        actions={(verification, reloadVerification) => (
+                            <Can permission="agents.kyc.review">
+                                <Button size="sm" onClick={() => setReviewingKyc(true)}>
+                                    <BadgeCheck className="size-4" />
+                                    Record a verdict
+                                </Button>
+                                <ReviewAgentVerificationDialog
+                                    agent={record}
+                                    record={verification}
+                                    open={reviewingKyc}
+                                    onOpenChange={setReviewingKyc}
+                                    onDone={() => {
+                                        reconcile();
+                                        reloadVerification();
+                                    }}
+                                    timeZone={timeZone}
+                                />
+                            </Can>
+                        )}
+                    />
                 </TabsContent>
 
                 <TabsContent value="operational">
@@ -402,12 +448,6 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
                 agent={record}
                 open={settingStatus}
                 onOpenChange={setSettingStatus}
-                onDone={reconcile}
-            />
-            <ReviewAgentKycDialog
-                agent={record}
-                open={reviewingKyc}
-                onOpenChange={setReviewingKyc}
                 onDone={reconcile}
             />
             <SetAgentTrackingDialog

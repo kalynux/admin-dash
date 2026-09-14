@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { api, __resetApiClientState } from '@/services/api';
+import { api, __resetApiClientState, setCsrfToken } from '@/services/api';
 import {
     emitSessionEnded,
     onMfaEnrolmentRequired,
@@ -90,6 +90,50 @@ describe('CSRF', () => {
         await api.get('/users');
 
         expect(calls[0].headers.get('X-CSRF-Token')).toBeNull();
+    });
+
+    it('captures csrfToken from an auth response and echoes it when the cookie is unreadable', async () => {
+        // The cross-origin production case: the SPA cannot read a cookie scoped to
+        // the API's host, so the token has to come from the login response body.
+        const calls = stubFetch((call) =>
+            call.url.endsWith('/auth/login')
+                ? successResponse({ csrfToken: 'store-tok-123' })
+                : successResponse(null),
+        );
+
+        await api.post('/auth/login', { email: 'ada@wimall.cm', password: 'pw' });
+        await api.post('/users/665f/suspend', { reason: 'Fraudulent chargebacks' });
+
+        // Second call is the write; no cookie was ever set.
+        expect(calls[1].headers.get('X-CSRF-Token')).toBe('store-tok-123');
+    });
+
+    it('prefers the cookie over the stored token when both are present', async () => {
+        const calls = stubFetch((call) =>
+            call.url.endsWith('/auth/login')
+                ? successResponse({ csrfToken: 'store-tok' })
+                : successResponse(null),
+        );
+
+        await api.post('/auth/login', { email: 'ada@wimall.cm', password: 'pw' });
+        document.cookie = 'admin_csrf_token=cookie-tok';
+        await api.post('/users/665f/suspend', { reason: 'x' });
+
+        expect(calls[1].headers.get('X-CSRF-Token')).toBe('cookie-tok');
+    });
+
+    it('drops the stored token when the session ends (setCsrfToken clears it)', async () => {
+        const calls = stubFetch((call) =>
+            call.url.endsWith('/auth/login')
+                ? successResponse({ csrfToken: 'store-tok' })
+                : successResponse(null),
+        );
+
+        await api.post('/auth/login', { email: 'ada@wimall.cm', password: 'pw' });
+        setCsrfToken(undefined); // what the auth store does on session-ended
+        await api.post('/users/665f/suspend', { reason: 'x' });
+
+        expect(calls[1].headers.get('X-CSRF-Token')).toBeNull();
     });
 
     it('sends credentials on every request', async () => {

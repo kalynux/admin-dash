@@ -96,3 +96,78 @@ export function RequireAnonymous({ children }: { children: React.ReactNode }) {
 
     return <>{children}</>;
 }
+
+/**
+ * The dashboard, for an administrator who has actually been let in.
+ *
+ * 🔴 **ADR-023: every new account starts `pending`, not `active`.** A pending
+ * administrator signs in perfectly normally — the credential check, MFA and
+ * refresh all work, and the session is a full one — and is then refused every
+ * route outside their own account with `403 ADMIN_ACTIVATION_REQUIRED`. Without
+ * this guard the dashboard would mount, the sidebar would render, and **every
+ * link on it would fail**: `administrators.md` puts it as *"every new hire's
+ * first morning looks like a fault."*
+ *
+ * ── Why a redirect and not an error ──────────────────────────────────────────
+ * *"Not let in yet" is not "shut out."* The remedy for a suspension is a
+ * conversation with somebody; the remedy for this is to finish your own employee
+ * record, which the person being refused can do themselves — and `/onboarding`
+ * is where they do it. This is the same shape as `mfa-enrolment-required`
+ * above, and for the same reason: a real session that has not finished being
+ * issued goes to the screen that finishes it, never to sign-in.
+ *
+ * ⚠ **Read the profile, not an error.** `GET /auth/me` carries `status`, so one
+ * call decides which shell to render — branching on a `403` that has already
+ * come back means the wrong screen has already been mounted and the operator has
+ * already seen it fail.
+ *
+ * ⚠ **Must wrap `PermissionsProvider`, not sit inside it.** `GET /permissions/me`
+ * is on the pending allowlist, so a pending session *can* fetch it — but every
+ * nav item it would then render points at a route that refuses them. Structure
+ * it so the provider cannot mount for a pending session at all, exactly as
+ * `RequireAuth` does for enrolment.
+ */
+export function RequireActivated({ children }: { children: React.ReactNode }) {
+    const { status, admin } = useAuth();
+    const location = useLocation();
+
+    if (status === 'bootstrapping') return <CheckingSession />;
+
+    if (admin?.status === 'pending') {
+        return <Navigate to="/onboarding" replace state={{ from: location }} />;
+    }
+
+    return <>{children}</>;
+}
+
+/**
+ * The onboarding screen, for a `pending` administrator only.
+ *
+ * An activated administrator is turned away for the same reason
+ * `RequireScopedSession` turns one away from the enrolment wizard: the screen
+ * exists to finish a state they are no longer in, and leaving it reachable
+ * invites somebody to sit on it wondering why nothing happens. Their employee
+ * record stays editable **forever** — `employees.md` is explicit that there is
+ * no lock, unlike the applicant record — so the place to edit it afterwards is
+ * their own account area, not here.
+ */
+export function RequirePendingSession({ children }: { children: React.ReactNode }) {
+    const { status, admin } = useAuth();
+    const location = useLocation();
+
+    if (status === 'bootstrapping') return <CheckingSession />;
+
+    if (status === 'anonymous') {
+        return <Navigate to="/sign-in" replace state={{ from: location }} />;
+    }
+
+    if (status === 'mfa-enrolment-required') {
+        return <Navigate to="/mfa-setup" replace state={{ from: location }} />;
+    }
+
+    if (admin && admin.status !== 'pending') {
+        return <Navigate to={resolveReturnTo(location.state)} replace />;
+    }
+
+    return <>{children}</>;
+}

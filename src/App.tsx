@@ -1,7 +1,15 @@
 import { useEffect, type ReactNode } from 'react';
 import { Navigate, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
 
-import { RequireAnonymous, RequireAuth, RequireScopedSession } from '@/components/auth/guards';
+import {
+    RequireActivated,
+    RequireAnonymous,
+    RequireAuth,
+    RequirePendingSession,
+    RequireScopedSession,
+} from '@/components/auth/guards';
+import { MyEmployeeRecord } from '@/pages/MyEmployeeRecord';
+import { Onboarding } from '@/pages/Onboarding';
 import { RequirePermission } from '@/components/auth/RequirePermission';
 import { AccountArea } from '@/components/layout/AccountArea';
 import { DashboardShell } from '@/components/layout/DashboardShell';
@@ -351,6 +359,24 @@ export default function App() {
                 />
 
                 {/*
+                  Onboarding, for a `pending` account (ADR-023).
+
+                  Outside the dashboard shell for exactly the reason /mfa-setup is:
+                  a pending session reaches its own account and nothing else, so
+                  every sidebar link it could see would answer
+                  403 ADMIN_ACTIVATION_REQUIRED. Rendering navigation that cannot
+                  be used is a trap, not a courtesy.
+                */}
+                <Route
+                    path="/onboarding"
+                    element={
+                        <RequirePendingSession>
+                            <Onboarding />
+                        </RequirePendingSession>
+                    }
+                />
+
+                {/*
                   `PermissionsProvider` sits *inside* `RequireAuth` deliberately.
                   A scoped enrolment session reaches four routes and everything
                   else — GET /permissions/me included — answers 403
@@ -363,9 +389,20 @@ export default function App() {
                     path="/dashboard"
                     element={
                         <RequireAuth>
-                            <PermissionsProvider>
-                                <DashboardShell actions={<AccountArea />} />
-                            </PermissionsProvider>
+                            {/*
+                              ⚠ OUTSIDE `PermissionsProvider`, not inside it.
+                              `GET /permissions/me` is on the pending allowlist, so
+                              a pending session *can* fetch it — and every nav item
+                              it would then render points at a route that refuses
+                              them. Structuring it this way makes the provider
+                              unable to mount for a pending session at all, the same
+                              way `RequireAuth` does for enrolment.
+                            */}
+                            <RequireActivated>
+                                <PermissionsProvider>
+                                    <DashboardShell actions={<AccountArea />} />
+                                </PermissionsProvider>
+                            </RequireActivated>
                         </RequireAuth>
                     }
                 >
@@ -382,6 +419,14 @@ export default function App() {
                     <Route path="account" element={<Navigate to="security" replace />} />
                     <Route path="account/security" element={<AccountSecurity />} />
                     <Route path="account/access" element={<MyAccess />} />
+                    {/*
+                      ADR-023. Self-service, so ungated — `/employees/me` is
+                      declared *self*, like every other route under this heading.
+                      It is the same five routes /onboarding uses; this is where
+                      they live once the account is activated, because the record
+                      has **no lock** and stays editable forever.
+                    */}
+                    <Route path="account/employee-record" element={<MyEmployeeRecord />} />
                     {/*
                       Notification preferences belong here rather than under the
                       Notifications module: both preference routes are declared

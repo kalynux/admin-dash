@@ -3,6 +3,7 @@ import { Laptop, Pencil, ShieldCheck, ShieldAlert } from 'lucide-react';
 
 import { EditOwnProfileDialog } from '@/components/administrators/EditOwnProfileDialog';
 import { MfaEnrolmentWizard } from '@/components/auth/MfaEnrolmentWizard';
+import { PhoneNumberCard } from '@/components/auth/PhoneNumberCard';
 import { ChangePasswordForm } from '@/components/auth/ChangePasswordForm';
 import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataState } from '@/components/common/DataState';
@@ -206,6 +207,14 @@ export function AccountSecurity() {
                         Your access level and account status are not editable here. Levels change
                         through one endpoint with dual control at the top, and suspension has its
                         own — neither is a profile edit.
+                        {admin.tier !== 1 ? (
+                            <>
+                                {' '}
+                                Your job title and department describe your place in the
+                                organisation, so a Developer-level administrator sets those for
+                                you.
+                            </>
+                        ) : null}
                     </p>
                 </CardContent>
             </Card>
@@ -253,6 +262,15 @@ export function AccountSecurity() {
                     )}
                 </CardContent>
             </Card>
+
+            {/*
+              Deliberately BELOW two-factor. The order is the argument: an
+              administrator who meets "verify your phone" first reads it as
+              securing the account, and it does not — nothing in the auth path
+              reads `phoneVerified`. Placed after the real second factor, the
+              card's own "not a sign-in step" line has something to point at.
+            */}
+            <PhoneNumberCard admin={admin} onChanged={() => void refreshProfile()} />
 
             <Card>
                 <CardHeader className="flex-row items-start justify-between gap-4 space-y-0">

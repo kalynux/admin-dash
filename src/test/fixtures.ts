@@ -68,6 +68,10 @@ export function adminFixture(overrides: Partial<AdminProfile> = {}): AdminProfil
         status: 'active',
         jobTitle: 'Operations Lead',
         department: 'Operations',
+        // Saved but unproved — the state the verify affordance is written for,
+        // and the one every new administrator starts in.
+        phone: '+237600123456',
+        phoneVerified: false,
         timezone: 'Africa/Douala',
         preferredLanguage: 'en',
         mfaEnrolled: false,
@@ -547,9 +551,36 @@ export function administratorFixture(overrides: Partial<Administrator> = {}): Ad
         suspendedReason: null,
         tierChangedAt: null,
         tierChangedBy: null,
+        // ADR-023. `activatedAt` non-null here because the default fixture is an
+        // `active` account somebody let in; a `pending` one overrides both.
+        activatedAt: '2026-02-14T11:00:00.000Z',
+        activatedBy: '665f1c2a9b3e4a91c7d2e5aa',
+        avatarFileId: null,
         createdAt: '2026-02-14T10:05:31.220Z',
         ...overrides,
     };
+}
+
+/**
+ * A newly created administrator, before a Developer has let them in.
+ *
+ * ⚠ **`activatedAt` and `activatedBy` are `null` here for the ordinary reason** —
+ * nobody has activated them — which is the *same* pair of values the bootstrap
+ * administrator carries while being `active` forever. That is why `status` is the
+ * field to read, and why this fixture exists rather than a null-stamp override on
+ * the one above.
+ */
+export function pendingAdministratorFixture(
+    overrides: Partial<Administrator> = {},
+): Administrator {
+    return administratorFixture({
+        status: 'pending',
+        activatedAt: null,
+        activatedBy: null,
+        lastLoginAt: null,
+        mfaEnrolled: false,
+        ...overrides,
+    });
 }
 
 /** The bootstrap administrator: tier 1, and the one record whose `createdBy` is `null`. */
@@ -1476,18 +1507,37 @@ export function platformEarningsFixture(
 export const TIER_1_PERMISSIONS: readonly string[] = [...PERMISSION_NAMES];
 
 /**
- * The seventeen an Admin does **not** hold: the four named in
+ * The twenty an Admin does **not** hold: the seven named in
  * `permissions.md` § "What Admin (tier 2) deliberately does not hold", plus the
- * whole `developer_tools` family. 118 − 17 = 101.
+ * whole `developer_tools` family (13). 121 − 20 = 101.
+ *
+ * ⚠ **ADR-023 added three names and every one of them is tier 1 only**, so tier
+ * 2's total did not move: 101 before and 101 after. That is the shape of a change
+ * that widens the top rung alone, and it is why only this list grew.
  */
 const TIER_2_EXCLUSIONS: readonly string[] = [
     'administrators.tier.set',
     'administrators.mfa.reset',
+    /*
+      ⚠ Tier 1 not because activation is a senior act, but because it requires
+      READING the employee record — and only tier 1 may. An Admin able to activate
+      would be admitting a person whose file they cannot open.
+    */
+    'administrators.activate',
+    /*
+      ⚠ The whole `employees` family, and its separateness IS the access control:
+      tier 2 holds `allInFamily('administrators')`, so a staff-record permission
+      living there would be one an Admin holds — and a colleague's salary, date of
+      birth and home address is not something an Admin may read. The service
+      refuses to boot if any tier but 1 holds one.
+    */
+    'employees.read',
+    'employees.employment.write',
     'files.delete',
     'users.roles.manage',
 ];
 
-/** Admin — the operational level, including the money. 101 of 118. */
+/** Admin — the operational level, including the money. 101 of 121. */
 export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
     (name) => !TIER_2_EXCLUSIONS.includes(name) && !name.startsWith('developer_tools.'),
 );

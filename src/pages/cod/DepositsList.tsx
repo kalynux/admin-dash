@@ -13,6 +13,7 @@ import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField, FilterFieldSpacer } from '@/components/common/FilterField';
 import { NotSet } from '@/components/common/DefinitionList';
 import { Pager } from '@/components/common/Pager';
 import { RowActions } from '@/components/common/RowActions';
@@ -20,7 +21,6 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { InfoHint } from '@/components/ui/info-hint';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -266,8 +266,7 @@ export function DepositsList() {
         >
             <div className="space-y-4">
                 <FilterBar isFiltered={isFiltered} onClear={reset}>
-                    <div className="space-y-1.5">
-                        <Label htmlFor="deposit-status">Status</Label>
+                    <FilterField label="Status" htmlFor="deposit-status">
                         <Select
                             value={values.status || ANY}
                             onValueChange={(next) => set({ status: next === ANY ? null : next })}
@@ -285,19 +284,23 @@ export function DepositsList() {
                                 ))}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
-                    <div className="space-y-1.5">
-                        <Label htmlFor="deposit-recipient" className="flex items-center gap-1">
-                            Handed to
-                            <InfoHint label="About the recipient">
-                                <strong>The agency</strong> is the normal route: the agent hands
-                                cash to their agency, and only the agency can confirm or reject
-                                it — this dashboard cannot, whatever permissions you hold.{' '}
-                                <strong>The platform</strong> means the cash skipped the middle
-                                leg, and those are the ones an administrator answers for.
-                            </InfoHint>
-                        </Label>
+                    <FilterField
+                        htmlFor="deposit-recipient"
+                        label={
+                            <>
+                                Handed to
+                                <InfoHint label="About the recipient">
+                                    <strong>The agency</strong> is the normal route: the agent hands
+                                    cash to their agency, and only the agency can confirm or reject
+                                    it — this dashboard cannot, whatever permissions you hold.{' '}
+                                    <strong>The platform</strong> means the cash skipped the middle
+                                    leg, and those are the ones an administrator answers for.
+                                </InfoHint>
+                            </>
+                        }
+                    >
                         <Select
                             value={values.recipient || ANY}
                             onValueChange={(next) => set({ recipient: next === ANY ? null : next })}
@@ -314,22 +317,23 @@ export function DepositsList() {
                                 ))}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
                     {/*
                       One press for the queue this dashboard actually owns:
                       unresolved, and handed to the platform. Two of the three
                       filters at once, which is otherwise two selects deep.
                     */}
-                    <div className="flex items-end pb-0.5">
+                    {/* A shortcut, not a filter: it has no state of its own to title. */}
+                    <FilterFieldSpacer>
                         <Button
                             variant="outline"
-                            size="sm"
+                            className="h-9"
                             onClick={() => set({ recipient: 'platform', status: 'declared' })}
                         >
                             Waiting on us
                         </Button>
-                    </div>
+                    </FilterFieldSpacer>
                 </FilterBar>
 
                 {values.agencyId ? (

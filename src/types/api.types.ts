@@ -426,6 +426,37 @@ export const KNOWN_ERROR_CODES = [
     'ADMIN_ACCOUNT_NOT_FOUND',
     'ADMIN_ACCOUNT_ALREADY_EXISTS',
     'ADMIN_SESSION_NOT_FOUND',
+    /*
+      Administrator activation (ADR-023, 2026-09-14).
+
+      ⚠ **`ADMIN_ACTIVATION_REQUIRED` is a ROUTING signal, not an error to show.**
+      It is what every route outside the onboarding allowlist answers to an
+      administrator whose account is still `pending` — somebody who signed in
+      perfectly normally seconds earlier. It has copy here because a stray one has
+      to say something, but the app shell must branch on it *before* a toast ever
+      renders: the remedy is "finish your employee record", not "something went
+      wrong". `administrators.md` § the account lifecycle is explicit that
+      collapsing it into `ADMIN_AUTH_ACCOUNT_SUSPENDED` makes every new hire's
+      first morning look like a fault — *not let in yet* is not *shut out*.
+
+      Five codes rather than one because the remedy differs for each, and
+      `ADMIN_ACTIVATION_INCOMPLETE` carries `details.gaps` — the checklist itself,
+      which is what the screen should render instead of the message.
+    */
+    'ADMIN_ACTIVATION_REQUIRED',
+    'ADMIN_ACTIVATION_INCOMPLETE',
+    'ADMIN_ACTIVATION_SUSPENDED',
+    'ADMIN_ACTIVATION_SELF',
+    'ADMIN_ACTIVATION_CONFLICT',
+    // Employee records (ADR-023)
+    'EMPLOYEE_SLOT_FULL',
+    /*
+      ⚠ **Always 404, never 403**, and the registry says why: the record is loaded
+      by the caller's own id, so another administrator's file is simply not in the
+      slot — and a 403 would confirm the id names a real staff document belonging
+      to somebody else.
+    */
+    'EMPLOYEE_DOCUMENT_NOT_FOUND',
     // Audit
     'AUDIT_ENTRY_NOT_FOUND',
     'AUDIT_EXPORT_NOT_FOUND',

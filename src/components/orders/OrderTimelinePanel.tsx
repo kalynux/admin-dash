@@ -5,6 +5,7 @@ import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -252,25 +253,27 @@ export function OrderTimelinePanel({
             </p>
 
             <FilterBar isFiltered={isFiltered} onClear={clear}>
-                <Select
-                    value={actorType}
-                    onValueChange={(value) => {
-                        setActorType(value);
-                        setPage(1);
-                    }}
-                >
-                    <SelectTrigger className="w-40" aria-label="Actor">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Anyone</SelectItem>
-                        {ORDER_TIMELINE_ACTOR_TYPES.map((value) => (
-                            <SelectItem key={value} value={value} className="capitalize">
-                                {value}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Actor" htmlFor="filter-actor">
+                    <Select
+                        value={actorType}
+                        onValueChange={(value) => {
+                            setActorType(value);
+                            setPage(1);
+                        }}
+                    >
+                        <SelectTrigger id="filter-actor" className="w-40">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Anyone</SelectItem>
+                            {ORDER_TIMELINE_ACTOR_TYPES.map((value) => (
+                                <SelectItem key={value} value={value} className="capitalize">
+                                    {value}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
                 {/*
                   ⚠ A picker, against this repository's standing rule that
@@ -292,25 +295,27 @@ export function OrderTimelinePanel({
                   table prints in mono under each row, and a menu that renamed
                   them would stop matching what an operator is reading.
                 */}
-                <Select
-                    value={eventType}
-                    onValueChange={(value) => {
-                        setEventType(value);
-                        setPage(1);
-                    }}
-                >
-                    <SelectTrigger className="w-56" aria-label="Event type">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any event</SelectItem>
-                        {ORDER_TIMELINE_EVENT_TYPES.map((value) => (
-                            <SelectItem key={value} value={value} className="font-mono text-xs">
-                                {value}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Event type" htmlFor="filter-event-type">
+                    <Select
+                        value={eventType}
+                        onValueChange={(value) => {
+                            setEventType(value);
+                            setPage(1);
+                        }}
+                    >
+                        <SelectTrigger id="filter-event-type" className="w-56">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any event</SelectItem>
+                            {ORDER_TIMELINE_EVENT_TYPES.map((value) => (
+                                <SelectItem key={value} value={value} className="font-mono text-xs">
+                                    {value}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
             </FilterBar>
 
             <DataTable

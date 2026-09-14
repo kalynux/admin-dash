@@ -6,12 +6,12 @@ import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { NotSet } from '@/components/common/DefinitionList';
 import { Pager } from '@/components/common/Pager';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { RefundStatusBadge } from '@/components/money/MoneyBadges';
 import { InfoHint } from '@/components/ui/info-hint';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -201,16 +201,20 @@ export function RefundsList() {
         >
             <div className="space-y-4">
                 <FilterBar isFiltered={isFiltered} onClear={reset}>
-                    <div className="space-y-1.5">
-                        <Label htmlFor="refund-status" className="flex items-center gap-1">
-                            Status
-                            <InfoHint label="About refund statuses">
-                                Lower-case here, unlike the gateway beside it and unlike every
-                                payment vocabulary. Both are the platform&rsquo;s own values passed
-                                through, and a wrong-cased filter matches nothing rather than
-                                failing — so both pickers offer exactly what the platform stores.
-                            </InfoHint>
-                        </Label>
+                    <FilterField
+                        htmlFor="refund-status"
+                        label={
+                            <>
+                                Status
+                                <InfoHint label="About refund statuses">
+                                    Lower-case here, unlike the gateway beside it and unlike every
+                                    payment vocabulary. Both are the platform&rsquo;s own values passed
+                                    through, and a wrong-cased filter matches nothing rather than
+                                    failing — so both pickers offer exactly what the platform stores.
+                                </InfoHint>
+                            </>
+                        }
+                    >
                         <Select
                             value={values.status || ANY}
                             onValueChange={(next) => set({ status: next === ANY ? null : next })}
@@ -227,10 +231,9 @@ export function RefundsList() {
                                 ))}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
-                    <div className="space-y-1.5">
-                        <Label htmlFor="refund-gateway">Gateway</Label>
+                    <FilterField label="Gateway" htmlFor="refund-gateway">
                         <Select
                             value={values.gateway || ANY}
                             onValueChange={(next) => set({ gateway: next === ANY ? null : next })}
@@ -249,7 +252,7 @@ export function RefundsList() {
                                 )}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
                     <DateRangeFilter
                         label="Requested"

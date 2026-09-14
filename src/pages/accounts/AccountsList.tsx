@@ -4,11 +4,11 @@ import { Wallet } from 'lucide-react';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Badge } from '@/components/ui/badge';
 import { InfoHint } from '@/components/ui/info-hint';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -179,8 +179,7 @@ export function AccountsList() {
         >
             <div className="space-y-4">
                 <FilterBar isFiltered={isFiltered} onClear={reset}>
-                    <div className="space-y-1.5">
-                        <Label htmlFor="account-owner-type">Owner kind</Label>
+                    <FilterField label="Owner kind" htmlFor="account-owner-type">
                         <Select
                             value={values.ownerType || ANY}
                             onValueChange={(next) => set({ ownerType: next === ANY ? null : next })}
@@ -202,7 +201,7 @@ export function AccountsList() {
                                 ))}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
                 </FilterBar>
 
                 <p className="text-muted-foreground flex items-center gap-1 text-sm">

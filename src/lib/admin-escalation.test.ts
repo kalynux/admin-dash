@@ -33,6 +33,7 @@ const EXISTING_ACTIONS: readonly ExistingAdminAction[] = [
     'update',
     'suspend',
     'reinstate',
+    'activate',
     'set_tier',
     'read_sessions',
     'revoke_sessions',
@@ -106,8 +107,21 @@ describe('rules 2 and 3 — the peer-protection matrix', () => {
                     const verdict = mayActOn(actor(actorTier), target(targetTier), action);
 
                     expect(verdict.allowed, `${action}`).toBe(expected);
-                    if (!expected) expect(verdict.refusal).toBe('target_tier_protected');
-                    else expect(verdict.dualControlRequired, `${action}`).toBe(peerDeveloper);
+                    if (!expected) {
+                        expect(verdict.refusal).toBe('target_tier_protected');
+                        continue;
+                    }
+
+                    /*
+                      ⚠ `activate` is the one allowed action rule 3 does NOT queue.
+                      Promotion creates a peer who could remove the promoter;
+                      activation only lets somebody hold the level they were
+                      already created at, chosen under rule 4 at creation. Queuing
+                      it would render "waiting for approval" over a `200`.
+                    */
+                    expect(verdict.dualControlRequired, `${action}`).toBe(
+                        action === 'activate' ? false : peerDeveloper,
+                    );
                 }
             });
         }

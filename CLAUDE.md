@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **The application exists, and every module in the sidebar is built.** Vite + React 19 + TypeScript
 on port **5175**, built phase by phase: the scaffold and app shell, the API client written from
-scratch for wi-admin, the whole `/auth` surface, the authorization layer, and all **24** route
+scratch for wi-admin, the whole `/auth` surface, the authorization layer, and all **26** route
 groups. `ModulePlaceholder` still exists as `screenFor`'s fallback, but every nav entry now
 resolves to a real screen and nothing reaches it.
 
@@ -128,8 +128,35 @@ pinned upstream by `test:list-strictness` — read it there rather than copying 
 [`src/lib/query.ts`](src/lib/query.ts) for this repository's one statement of the rule. Widening
 `listQuery` service-wide is still deliberately **not** done.
 
-**`npm test` is green — 2385 tests in 157 files, measured on 2026-09-09** at the close of the
-BR-023 fix, with **every file passing in one full run** and nothing needing a re-run alone.
+**`npm test` — 2488 tests in 164 files, measured on 2026-09-14** at the close of the admin
+phone-verification round, which added `PhoneNumberCard.test.tsx` and 13 of the tests. **Two full
+runs disagreed and neither was a regression**: 11 failures across 3 files, then 5 across 2 — a
+different subset each time, every one a 20 s timeout, and both landing inside the pair named
+below. Each passes alone: `CreateTicketDialog` **10/10**, `App` **23/23**.
+
+⚠ **One of those isolation runs briefly looked like a real finding, and it was not.** `App.test.tsx`
+failed alone once (22/23), passed with the round's `adminFixture` change reverted, and then
+passed **23/23 with that change restored** — so the middle run was the flake, not the evidence.
+**A single pass either way proves nothing on these two files**; that is what makes them expensive.
+
+**The previous measurement was 2475 in 163 files**, the same day, at the close of the ADR-023 and
+verification round.
+
+🔴 **Read this before believing a red full run here.** Three consecutive full runs that afternoon
+failed **8, then 9, then 6** tests — a *different subset each time*, always timeouts or
+timing-sensitive assertions, and always in the same small set of files. The last two runs landed
+on exactly the pair this file has named for weeks: **`CreateTicketDialog.test.tsx` and
+`App.test.tsx`**. All of them pass in isolation — the four files that failed in the middle run
+were re-run together immediately afterwards and gave **62/62**. There were **22 node processes**
+on the machine, and another session had been editing this worktree the same afternoon.
+
+That is the fourth and fifth recorded occurrence of the pattern the `testTimeout` note below
+describes. **A full run that shares the machine measures the machine.** Re-run a failure alone,
+count what else is running, and do not "fix" a file that passes by itself.
+
+**The previous measurement was 2385 in 157 files on 2026-09-09**, at the close of the BR-023 fix,
+and that one was clean in a single run. The arithmetic between them does not close exactly, which
+is expected: a count taken by hand ages the moment somebody else edits a file in this worktree.
 
 ⚠ **Two full runs the same day disagreed, and the difference was the machine, not the code.** An
 earlier run that day reported *2377 / 2381 with 4 failures* in `App.test.tsx` and
@@ -196,7 +223,7 @@ machine, not the code.
 npm run dev       # 5175, strictPort
 npm run build     # tsc -b && vite build   ← the typecheck runs here
 npm run lint      # eslint .
-npm test          # vitest run — 2385 tests in 157 files (2026-09-09). No sibling dashboard has one.
+npm test          # vitest run — 2475 tests in 163 files (2026-09-14). No sibling dashboard has one.
 ```
 
 **Every phase closes the same way**: typecheck, lint, tests, build, then a written summary naming
@@ -412,7 +439,7 @@ Two Phase-C additions sit on top of them and are worth knowing before writing a 
 
 Read [permissions.md](api-doc/admin/api/permissions.md) before touching any of it.
 
-- `src/types/permissions.types.ts` — the **118** permission names as literal types.
+- `src/types/permissions.types.ts` — the **121** permission names as literal types.
   `permissions.types.test.ts` **parses `api-doc/admin/api/permissions.md` and diffs it against them**,
   so a backend policy change fails the suite rather than drifting silently.
 
@@ -560,14 +587,28 @@ status code ([auth.md](api-doc/admin/api/auth.md)):
 show `secret` as the manual fallback.
 
 **Build navigation from `GET /api/v1/permissions/me`.** Do not hard-code the matrix, and do not
-discover capability by collecting 403s. There are **118** permissions named `family.resource.action`
-across **20** families, and **4 of them are catalogued policy with no endpoint yet** — the
+discover capability by collecting 403s. There are **121** permissions named `family.resource.action`
+across **21** families, and **4 of them are catalogued policy with no endpoint yet** — the
 permission existing does not mean the screen can be built.
 
-**Levels: lower number = more privilege.** Tier 1 Developer (**118/118**, MFA mandatory), tier 2
-Admin (**101/118** — the operational tier including money), tier 3 Support (**31/118** — tickets plus
+**Levels: lower number = more privilege.** Tier 1 Developer (**121/121**, MFA mandatory), tier 2
+Admin (**101/121** — the operational tier including money), tier 3 Support (**31/121** — tickets plus
 read-only lookups **and both tracking-presence and live-position reads**; nothing financial, no
-sight of the administrator directory). `tier` is on the profile from
+sight of the administrator directory).
+
+⚠ **118 → 121 on 2026-09-14 (ADR-023), and all three new names are tier 1 only**, so tiers 2 and 3
+did not move. The new family is `employees` (2), and `administrators.activate` is the third.
+🔴 **Take these figures by running `npm run authz:matrix`, not by reading them** — the version of
+`permissions.md` that shipped that day had a header saying 121 and a tier table still saying 118,
+so believing either half of its own prose was a coin toss. It was corrected upstream and
+re-copied; `permissions.types.test.ts` derives the totals from the matrix and checks the prose
+against them, which is what caught it.
+
+⚠ **`employees` is the narrowest family on the service — tier 1 and the subject, nobody else at
+any rung — and being a separate family IS the access control.** Tier 2 holds
+`allInFamily('administrators')`, so a staff-record permission living there would be one an Admin
+holds, and a colleague's salary, date of birth and home address is not something an Admin may
+read. A **boot assertion** refuses the family to any other tier. `tier` is on the profile from
 `/auth/me`, and both `tier` and `status` are re-read from the database on **every** request, so a
 demotion or suspension applies on the next call, not at token expiry.
 
@@ -581,13 +622,31 @@ level rather than refusing. Matrix: [permissions.md](api-doc/admin/api/permissio
 
 ## What exists, and what does not
 
-The **24** built route groups are `/auth`, `/administrators`, `/permissions`, `/approvals`,
-`/audit`, `/users`, `/vendors`, `/agencies`, `/agents`, `/contracts`, `/orders`, `/shipments`,
-`/cod`, `/billing`, `/money`, `/accounts`, `/support`, `/content`, `/messaging`, `/files`,
-`/system`, `/dev-tools`, `/notifications`, `/automation` (+ unversioned `/health/live`,
-`/health/ready`) — **239 routes in total**. Every one is listed with its permission in
-[api-doc/ROUTE-MAP.md](api-doc/ROUTE-MAP.md), and `src/types/route-map.test.ts` parses that file,
-so the 239 and the exact composite-guard set fail a test rather than ageing in prose.
+The **26** built route groups are `/auth`, `/administrators`, `/employees`, `/geo`,
+`/permissions`, `/approvals`, `/audit`, `/users`, `/vendors`, `/agencies`, `/agents`,
+`/contracts`, `/orders`, `/shipments`, `/cod`, `/billing`, `/money`, `/accounts`, `/support`,
+`/content`, `/messaging`, `/files`, `/system`, `/dev-tools`, `/notifications`, `/automation`
+(+ unversioned `/health/live`, `/health/ready`) — **255 routes in total**. Every one is listed
+with its permission in [api-doc/ROUTE-MAP.md](api-doc/ROUTE-MAP.md), and
+`src/types/route-map.test.ts` parses that file, so the 255 and the exact composite-guard set fail
+a test rather than ageing in prose.
+
+🔴 **252 → 255 the same day, and the three that arrived were found by reading SOURCE, not a
+page.** `PATCH /auth/me/phone` and both `/auth/me/phone/verify/*` routes are served and audited
+by `admin-identity/routes/auth.routes.ts` and **the word "phone" appears nowhere in
+[auth.md](api-doc/admin/api/auth.md)**, upstream or mirrored. ⚠ **This is why the route-map test
+could not fire**: it pins the map against *itself*, so it catches a route the docs **gain** and is
+silent on one they **omit**. Only `routeManifest()` closes that gap. Asked for in
+[BR-025](api-doc/admin/dashboard/backend-requests/BR-025-admin-phone-verification.md); **no new
+route group** — all three hang off `/auth`, which is now 14.
+
+⚠ **239 → 252 on 2026-09-14**, and thirteen routes arrived at once: the three
+`GET /:id/verification` reads ([verification.md](api-doc/admin/api/verification.md) — **no new
+route group**, one hangs off each party domain), `POST /administrators/:adminId/activate`, and
+the two groups **ADR-023** brought, [`/employees`](api-doc/admin/api/employees.md) (7) and
+[`/geo`](api-doc/admin/api/geo.md) (2). ⚠ **Those thirteen rows in the route map were read from
+their contract pages rather than dumped from `routeManifest()`**, which is the weaker of the two
+stamps that file carries — re-run its recipe when a service is available.
 
 ✅ **`/automation` is built** — the n8n failure-reporting door (ADR-022), 2 routes, added
 2026-09-07 and screened during the 2026-09-08 contract resync. It brought the two newest
@@ -697,6 +756,8 @@ what is outstanding is integration. See the table.
 | 🔴 **`vendors.md` omits two fields on the product detail** | ⏸ **Open, and reported rather than worked around.** `vendorId` and `tags` are on the wire and appear in neither its worked JSON nor its field tables, and its nullability differs from the source's on `title`, `slug` and `category`. `VendorProductDetail` follows `AdminProductDetailDto` in `backend/jovi-mall/src/modules/vendors/read-models/admin-product-detail.resolver.ts`, which is what computes the payload, and names the disagreement at each field. ⚠ Also `StorageSizeSource` has a third value the page does not show — **`unknown`**, which must stay distinguishable from a real measurement on a screen justifying a charge |
 | ~~🔴 **Phases B and C are BEHIND the contract, and four screens say so in the wrong direction**~~ | ✅ **Closed 2026-08-26.** All six items shipped: `items[].delivery.agencyName`, `items[].delivery.trackingNumber`, `timeline[].actorName`, `contract-history`'s `agent: {id, name}`, `items[].image` on both order and shipment, and `order.vendorName`. **Four false `InfoHint`s deleted** and **four lookups deleted with them** — the per-product catalogue N+1 on two screens, and the shipment overview's `GET /vendors/:vendorId`. ⚠ **`useVendorProducts` and `ProductImage` are gone**; `components/common/LineItemImage` renders a `FileDetail` the payload already carried. The stubs in `OrderDetail.test.tsx` and `ShipmentDetail.test.tsx` now **throw on `/products/` and `/vendors/`**, so re-introducing either lookup fails the suite |
 | ~~🔴 **A ticket attachment row carries no file id**~~ | ✅ **Closed 2026-08-26, and wi-admin closed it on itself.** Rather than wait on a jovi-mall release, wi-admin reads `file_id` off the attachment row in the shared database and stamps `fileId` onto each row (ADR-018 D-4 — delegate the projection that needs jovi-mall, read the record directly). ⚠ **`id` is the ATTACHMENT and `fileId` is the FILE**, both 24-hex on the same object: the delete takes the first, everything in `/files` takes the second. ⚠ **Not stamped on the `POST` response**, deliberately — you sent it. `uploadedByActor` was documented in the same round |
+| ~~🔴 **A verification verdict is reached with no evidence to reach it from**~~ | ✅ **Closed 2026-09-14 — the backend had already built it.** [`verification.md`](api-doc/admin/api/verification.md): `GET /{vendors,agencies,agents}/:id/verification` returns the ID-card scans, the selfie, the geocoded addresses with a `geocoded` flag, the hand-drawn sketches and (for an agent) the vehicle photographed with its rider. ⚠ **The badge and the drafted reason are OURS by contract, not by omission** — *"There is no `estimatedVerdict` field. No `complete`. No `required` column. … The response is **facts**; the badge is **yours"***, because required/optional is a review policy and the people who change their minds own this dashboard. `lib/verification-review.ts` is that policy and `jovi-mall test:kyc` § 4 fails if a second copy appears upstream. ⚠ **The permission is `*.read`, not the review permission, and the read is NOT audited** — Support answers *"why was my shop rejected"* tickets, and *looking at the picture* is the audited act (`files.content.read`), so the evidence is a **Verification tab** with the verdict dialog on top of it. 🔴 **Filter a review queue on `submittedAt !== null`, never on `status`** — `pending` is also the schema default on a vendor and an agency, so status alone lists every account that ever registered; the estimator refuses to grade a draft at all. ⚠ **`KYC_SUBJECT_NOT_FOUND` is a jovi-mall code on a delegated 404**, so it arrives as `details.platformCode` and branching on `error.code` never matches — `verification.md`'s error table prints it as the latter. [BR-024](api-doc/admin/dashboard/backend-requests/BR-024-party-verification-evidence.md) is kept with a banner listing the five design choices it proposed that were decided the other way; four of the five were about over-restricting a read |
+| ~~🔴 **An agency's verdict and rejection reason are not on the wire**~~ | ✅ **They are, and WE were not reading them.** `kyc.status` and `kyc.rejectionReason` have been served since Phase 6 Step 4; `agencies.md`'s worked JSON shows four `kyc` members and `toAgencyDetailDto` emits six, so this dashboard transcribed the page and **derived the verdict from `agency.status`** — which cannot tell *never reviewed* from *reviewed and refused*, because `pending_verification` is where an agency sits on both sides of a rejection. A re-applying agency therefore read as one nobody had opened, and the sentence they were given was nowhere on screen. Fixed in `AgencyKyc`, the Verification panel and the review dialog on 2026-09-14. ⚠ **The standing lesson applies again: a transcription cannot be diffed and a copy can.** Fourth time a page in this bundle has lagged its service, third time we shipped the lag |
 | 🔴 **An administrator's name never reaches a ticket** | ⏸ **Open, and it is the one live backend ask.** `uploadedByActor.name` is the literal string **`"Admin"`** for every administrator upload, and `author.name` is the same on every administrator *note*. jovi-mall resolves the actor against its own `admins` collection; an administrator has no row in that database at all (ADR-004 D-1, the synthetic actor), so it falls back to the capitalised role — and the identical fallback yields `"Customer"`/`"Vendor"`/`"Agency"`/`"Agent"` for a **deleted profile**. ⚠ **`name === capitalise(role)` is the only signal that nothing resolved**; `isRolePlaceholderName` in [`lib/party.ts`](src/lib/party.ts) is the guard and `TicketActorName` is the rendering. Resolving it is wi-admin's job and is deliberately unwired: `GET /administrators/:adminId` needs `administrators.read`, which **Support does not hold** — and Support is the tier that reads tickets. The write path already knows the name in `X-Actor-Name` and drops it, so **a name snapshot on the attachment and note rows is the ask**, not a lookup |
 
 ### Documentation inconsistencies

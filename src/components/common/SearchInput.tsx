@@ -1,15 +1,24 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 
+import { FilterField } from '@/components/common/FilterField';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
 
 interface SearchInputProps {
     /** The committed value — from the URL, not from the keystroke. */
     value: string;
     /** Called after the debounce, with the trimmed term or `''`. */
     onChange: (value: string) => void;
+    /**
+     * The visible title above the box, and the control's accessible name.
+     *
+     * ⚠ **It is rendered**, not just announced. It used to be an `aria-label`
+     * and nothing else, which left the box's whole meaning invisible — a filter
+     * row with four of these (the ticket list has four) was four identical
+     * boxes, and the placeholder is a hint about *format*, not about which
+     * field is being searched.
+     */
     label: string;
     placeholder?: string;
     /** Milliseconds of quiet before committing. */
@@ -96,36 +105,46 @@ export function SearchInput({
         return () => clearTimeout(timer);
     }, [text, value, delay]);
 
+    /*
+      A generated id rather than one derived from the label: `TicketsList`
+      renders four of these on one screen and `SystemErrors` two, and two
+      filters whose labels slugged to the same string would produce two
+      `<label for>` pointing at one box.
+    */
+    const inputId = useId();
+
     return (
-        <div className={cn('relative w-full sm:w-72', className)}>
-            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
-            <Input
-                type="search"
-                aria-label={label}
-                placeholder={placeholder}
-                value={text}
-                maxLength={maxLength}
-                onChange={(event) => setDraft(event.target.value)}
-                className="pr-8 pl-8"
-            />
-            {text.length > 0 ? (
-                <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label={`Clear ${label.toLowerCase()}`}
-                    className="absolute top-1/2 right-0.5 size-7 -translate-y-1/2"
-                    onClick={() => {
-                        // Commits at once rather than waiting out the debounce:
-                        // pressing a control named "clear" is a decision, not
-                        // typing that might continue.
-                        setDraft('');
-                        onChangeRef.current('');
-                    }}
-                >
-                    <X className="size-3.5" />
-                </Button>
-            ) : null}
-        </div>
+        <FilterField label={label} htmlFor={inputId} className={className}>
+            <div className="relative w-full sm:w-72">
+                <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
+                <Input
+                    id={inputId}
+                    type="search"
+                    placeholder={placeholder}
+                    value={text}
+                    maxLength={maxLength}
+                    onChange={(event) => setDraft(event.target.value)}
+                    className="pr-8 pl-8"
+                />
+                {text.length > 0 ? (
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Clear ${label.toLowerCase()}`}
+                        className="absolute top-1/2 right-0.5 size-7 -translate-y-1/2"
+                        onClick={() => {
+                            // Commits at once rather than waiting out the debounce:
+                            // pressing a control named "clear" is a decision, not
+                            // typing that might continue.
+                            setDraft('');
+                            onChangeRef.current('');
+                        }}
+                    >
+                        <X className="size-3.5" />
+                    </Button>
+                ) : null}
+            </div>
+        </FilterField>
     );
 }

@@ -85,6 +85,10 @@ export function agencyDetailFixture(overrides: Partial<AgencyDetail> = {}): Agen
         kyc: {
             registrationNumber: 'RC/DLA/2019/B/1174',
             transportLicenseId: 'TL-CM-88421',
+            // On the wire since Phase 6 Step 4 and missing from `agencies.md`'s
+            // worked JSON — read from `toAgencyDetailDto`, not from the page.
+            status: 'verified',
+            rejectionReason: null,
             verifiedAt: '2025-11-20T10:02:00.000Z',
             // `source: 'admin'` on purpose — never "wi-admin", which is what the
             // published docs show and what a screen might wrongly special-case.

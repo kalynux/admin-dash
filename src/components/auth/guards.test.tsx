@@ -2,10 +2,18 @@ import { screen } from '@testing-library/react';
 import { Route, Routes, useLocation } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 
-import { RequireAnonymous, RequireAuth, RequireScopedSession } from '@/components/auth/guards';
+import {
+    RequireActivated,
+    RequireAnonymous,
+    RequireAuth,
+    RequirePendingSession,
+    RequireScopedSession,
+} from '@/components/auth/guards';
 import { resolveReturnTo } from '@/lib/return-to';
+import { adminFixture } from '@/test/fixtures';
 import { renderWithProviders } from '@/test/utils';
 import type { AuthStatus } from '@/store';
+import type { AdminStatus } from '@/types/auth.types';
 
 /** Shows where the router landed, and what state it was handed. */
 function Landing({ name }: { name: string }) {
@@ -49,6 +57,105 @@ function renderRoutes(status: AuthStatus, route: string) {
         { route, auth: { status } },
     );
 }
+
+/**
+ * The ADR-023 pair, which need a profile rather than just a status — `pending`
+ * is on `admin.status`, not on the session.
+ */
+function renderActivationRoutes(accountStatus: AdminStatus, route: string) {
+    return renderWithProviders(
+        <Routes>
+            <Route
+                path="/sign-in"
+                element={
+                    <RequireAnonymous>
+                        <Landing name="sign-in" />
+                    </RequireAnonymous>
+                }
+            />
+            <Route
+                path="/onboarding"
+                element={
+                    <RequirePendingSession>
+                        <Landing name="onboarding" />
+                    </RequirePendingSession>
+                }
+            />
+            <Route
+                path="/dashboard/*"
+                element={
+                    <RequireAuth>
+                        <RequireActivated>
+                            <Landing name="dashboard" />
+                        </RequireActivated>
+                    </RequireAuth>
+                }
+            />
+        </Routes>,
+        {
+            route,
+            auth: {
+                status: 'authenticated',
+                admin: adminFixture({ status: accountStatus }),
+            },
+        },
+    );
+}
+
+/**
+ * ADR-023. Every new account starts `pending`, signs in perfectly normally, and
+ * is then refused every route outside its own account with
+ * `403 ADMIN_ACTIVATION_REQUIRED`.
+ */
+describe('RequireActivated', () => {
+    /**
+     * 🔴 The whole point. Without this the dashboard mounts, the sidebar renders,
+     * and every link on it fails — `administrators.md`: *"every new hire's first
+     * morning looks like a fault."*
+     */
+    it('sends a pending account to onboarding rather than into the dashboard', () => {
+        renderActivationRoutes('pending', '/dashboard/users');
+
+        expect(screen.getByTestId('screen')).toHaveTextContent('onboarding');
+    });
+
+    it('lets an activated account through', () => {
+        renderActivationRoutes('active', '/dashboard/users');
+
+        expect(screen.getByTestId('screen')).toHaveTextContent('dashboard');
+    });
+
+    /**
+     * ⚠ `pending` is decided on the PROFILE, not on a 403 that has already come
+     * back — by then the wrong screen has mounted and the operator has seen it
+     * fail. A suspended account cannot reach a response carrying a profile at
+     * all, so it is not this guard's case.
+     */
+    it('does not divert a suspended account here — that is a different remedy', () => {
+        renderActivationRoutes('suspended', '/dashboard/users');
+
+        expect(screen.getByTestId('screen')).toHaveTextContent('dashboard');
+    });
+});
+
+describe('RequirePendingSession', () => {
+    it('renders onboarding for a pending account', () => {
+        renderActivationRoutes('pending', '/onboarding');
+
+        expect(screen.getByTestId('screen')).toHaveTextContent('onboarding');
+    });
+
+    /**
+     * The same rule `RequireScopedSession` applies to the enrolment wizard: a
+     * screen that exists to finish a state you are no longer in should not be
+     * reachable, or somebody sits on it wondering why nothing happens.
+     */
+    it('turns an activated account away', () => {
+        renderActivationRoutes('active', '/onboarding');
+
+        expect(screen.getByTestId('screen')).toHaveTextContent('dashboard');
+    });
+});
 
 describe('RequireAuth', () => {
     /**

@@ -28,8 +28,10 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { assignableTiers } from '@/lib/admin-escalation';
 import { pickFieldErrors } from '@/lib/field-errors';
+import { gapsFromDetails, type EmployeeGap } from '@/types/employees.types';
 import { notify } from '@/lib/notify';
 import {
+    activateAdministrator,
     reinstateAdministrator,
     setAdministratorTier,
     suspendAdministrator,
@@ -500,5 +502,127 @@ function SetTierForm({
                 </Button>
             </DialogFooter>
         </div>
+    );
+}
+
+// ─── Activate ─────────────────────────────────────────────────────────────────
+
+/**
+ * `POST /administrators/:adminId/activate` · `administrators.activate`.
+ *
+ * **Let a pending administrator in.** Added 2026-09-14 with ADR-023, together
+ * with the `pending` status every new account now starts at.
+ *
+ * ── ⚠ The refusal IS the screen ──────────────────────────────────────────────
+ * `422 ADMIN_ACTIVATION_INCOMPLETE` carries `details.gaps` — the same
+ * `{ code, section, message }` checklist the employee sees on their own record,
+ * computed once so the two can never disagree. So a failed activation renders
+ * *that list*, not the error's message: "their employee record is not complete
+ * yet" tells a Developer nothing they can pass on, and the list is a message
+ * they can paste to the person who can fix it.
+ *
+ * ── ⚠ Not a back door around a suspension ────────────────────────────────────
+ * `409 ADMIN_ACTIVATION_SUSPENDED` is the guard, and the remedy is a different
+ * button: re-admitting a suspended administrator is a **reinstatement**, with
+ * its own permission, its own audit action, and dual control when the target is
+ * a Developer.
+ *
+ * ── Never queued ─────────────────────────────────────────────────────────────
+ * Unlike promotion, including Developer-on-Developer. Promotion creates a peer
+ * who could remove the promoter; activation only lets somebody hold the level
+ * they were already created at. So there is no `202` branch here.
+ */
+export function ActivateAdministratorDialog({
+    administrator,
+    open,
+    onOpenChange,
+    onDone,
+}: Omit<QueueableProps, 'onQueued'>) {
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [gaps, setGaps] = useState<EmployeeGap[]>([]);
+    const [formError, setFormError] = useState<unknown>(null);
+
+    async function activate() {
+        setIsSubmitting(true);
+        setGaps([]);
+        setFormError(null);
+        try {
+            await activateAdministrator(administrator.id);
+            notify.success('Administrator activated', {
+                description: 'They can reach the dashboard from their next request.',
+            });
+            onOpenChange(false);
+            onDone();
+        } catch (error) {
+            if (error instanceof ApiError && error.code === 'ADMIN_ACTIVATION_INCOMPLETE') {
+                const missing = gapsFromDetails(error.details);
+                // Fall through to the banner only if `details.gaps` was unusable —
+                // a 422 with nothing to show would otherwise render an empty list.
+                if (missing.length > 0) {
+                    setGaps(missing);
+                    return;
+                }
+            }
+            setFormError(error);
+        } finally {
+            setIsSubmitting(false);
+        }
+    }
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Activate {administratorDisplayName(administrator)}?</DialogTitle>
+                    <DialogDescription>
+                        They can already sign in. Until this is done every route outside their own
+                        account refuses them, and the dashboard shows them an onboarding screen.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                    {gaps.length > 0 ? (
+                        <div className="border-warning/30 bg-warning/10 space-y-2 rounded-lg border p-3 text-sm">
+                            <p className="font-medium">Their employee record is not complete yet</p>
+                            <ul className="list-disc space-y-1 pl-5 text-xs leading-relaxed">
+                                {gaps.map((gap) => (
+                                    <li key={gap.code}>
+                                        {gap.message}
+                                        <span className="text-muted-foreground"> ({gap.section})</span>
+                                    </li>
+                                ))}
+                            </ul>
+                            <p className="text-muted-foreground text-xs leading-relaxed">
+                                This is the same list they see on their own record. Only they can
+                                fill most of it in — send it to them rather than editing anything
+                                here.
+                            </p>
+                        </div>
+                    ) : null}
+
+                    <p className="text-muted-foreground text-sm leading-relaxed">
+                        Activation is gated on their employee record being complete, which is why
+                        it is a Developer action: it needs reading a file only tier 1 may open.
+                        Activating an already-active account changes and records nothing.
+                    </p>
+
+                    <AuthFormError error={formError} />
+
+                    <DialogFooter>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => onOpenChange(false)}
+                            disabled={isSubmitting}
+                        >
+                            Cancel
+                        </Button>
+                        <Button type="button" disabled={isSubmitting} onClick={() => void activate()}>
+                            {isSubmitting ? <InlineLoader label="Activating…" /> : 'Activate'}
+                        </Button>
+                    </DialogFooter>
+                </div>
+            </DialogContent>
+        </Dialog>
     );
 }

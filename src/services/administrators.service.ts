@@ -284,6 +284,48 @@ export function suspendAdministrator(
 }
 
 /**
+ * `POST /administrators/:adminId/activate` · `administrators.activate`.
+ *
+ * **Let a pending administrator in.** Added 2026-09-14 (ADR-023), together with
+ * the `pending` status every new account now starts at.
+ *
+ * ── ⚠ Tier 1, and not because activation is a senior act ─────────────────────
+ * It is `escalation`-flagged **because it requires reading the employee record**,
+ * and only tier 1 may read one. An Admin able to activate would be admitting a
+ * person whose file they are not allowed to open — a rubber stamp rather than a
+ * decision. The deliberate consequence: **a tier-2 Admin can create a Support
+ * account and cannot turn it on**, so every new hire waits on a Developer. Say so
+ * on the creation screen; a "created!" toast that does not mention the wait
+ * produces a ticket a week later.
+ *
+ * ── Not dual-controlled, unlike promotion to Developer ───────────────────────
+ * Promotion creates a peer who could remove the promoter; activation merely lets
+ * somebody hold the level they were already created at, and that level was
+ * chosen under the escalation rules when the account was made. So this returns
+ * an `Administrator` and never a `202`.
+ *
+ * ── Idempotent ───────────────────────────────────────────────────────────────
+ * Activating an already-active account returns it unchanged, writes nothing and
+ * **records nothing** — two Developers clicking the same button is not a fault,
+ * which is why the route declares *may* record rather than records.
+ *
+ * ⚠ **It is not a back door around a suspension**, and `409
+ * ADMIN_ACTIVATION_SUSPENDED` is the guard. Re-admitting a suspended
+ * administrator is a *reinstatement*: a different permission, a different audit
+ * action, and dual-controlled when the target is a Developer. Offer that instead.
+ *
+ * ⚠ **`422 ADMIN_ACTIVATION_INCOMPLETE` carries `details.gaps`** — the same
+ * `{ code, section, message }` checklist the employee sees on their own record.
+ * Render the list, not the message.
+ */
+export function activateAdministrator(
+    adminId: string,
+    options?: RequestOptions,
+): Promise<Administrator> {
+    return api.post<Administrator>(`${base(adminId)}/activate`, undefined, options);
+}
+
+/**
  * `POST /administrators/:adminId/reinstate` · **`administrators.suspend`** — the
  * same permission governs both directions; only the audit actions differ.
  *

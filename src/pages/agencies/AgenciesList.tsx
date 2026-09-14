@@ -8,13 +8,13 @@ import { DataTable, type Column } from '@/components/common/DataTable';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { SearchInput } from '@/components/common/SearchInput';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Button } from '@/components/ui/button';
 import { InfoHint } from '@/components/ui/info-hint';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -236,22 +236,24 @@ export function AgenciesList() {
                     onChange={(next) => set({ search: next }, { replace: true })}
                 />
 
-                <Select
-                    value={values.status || ANY}
-                    onValueChange={(value) => set({ status: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-48" aria-label="Status">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any status</SelectItem>
-                        {AGENCY_STATUSES.map((status) => (
-                            <SelectItem key={status} value={status}>
-                                {status === 'pending_verification' ? 'Pending verification' : status}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Status" htmlFor="filter-status">
+                    <Select
+                        value={values.status || ANY}
+                        onValueChange={(value) => set({ status: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-status" className="w-48">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any status</SelectItem>
+                            {AGENCY_STATUSES.map((status) => (
+                                <SelectItem key={status} value={status}>
+                                    {status === 'pending_verification' ? 'Pending verification' : status}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
                 {/*
                   Its own filter beside `status`, and that is the point: the two can
@@ -259,42 +261,43 @@ export function AgenciesList() {
                   `active` agencies that were never verified is precisely why this
                   parameter exists.
                 */}
-                <Select
-                    value={values.verified || ANY}
-                    onValueChange={(value) => set({ verified: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-44" aria-label="Verification">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any verification</SelectItem>
-                        <SelectItem value="true">Verified</SelectItem>
-                        <SelectItem value="false">Unverified</SelectItem>
-                    </SelectContent>
-                </Select>
+                <FilterField label="Verification" htmlFor="filter-verification">
+                    <Select
+                        value={values.verified || ANY}
+                        onValueChange={(value) => set({ verified: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-verification" className="w-44">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any verification</SelectItem>
+                            <SelectItem value="true">Verified</SelectItem>
+                            <SelectItem value="false">Unverified</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.autoAssign || ANY}
-                    onValueChange={(value) => set({ autoAssign: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-44" aria-label="Auto-assignment">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any auto-assign</SelectItem>
-                        <SelectItem value="true">Auto-assign on</SelectItem>
-                        <SelectItem value="false">Auto-assign off</SelectItem>
-                    </SelectContent>
-                </Select>
+                <FilterField label="Auto-assignment" htmlFor="filter-auto-assignment">
+                    <Select
+                        value={values.autoAssign || ANY}
+                        onValueChange={(value) => set({ autoAssign: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-auto-assignment" className="w-44">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any auto-assign</SelectItem>
+                            <SelectItem value="true">Auto-assign on</SelectItem>
+                            <SelectItem value="false">Auto-assign off</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
                 {/*
                   A plain input, not a picker. No endpoint on this service enumerates
                   countries, so a dropdown here would be a list this client invented.
                 */}
-                <div className="space-y-1.5">
-                    <Label htmlFor="agency-country" className="text-xs">
-                        Country
-                    </Label>
+                <FilterField label="Country" htmlFor="agency-country">
                     <Input
                         id="agency-country"
                         className="w-24 uppercase"
@@ -306,7 +309,7 @@ export function AgenciesList() {
                             set({ country: event.target.value.toUpperCase() }, { replace: true })
                         }
                     />
-                </div>
+                </FilterField>
 
                 <DateRangeFilter
                     label="Registered"

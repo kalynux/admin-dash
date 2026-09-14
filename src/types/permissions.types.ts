@@ -8,7 +8,7 @@
  * draw that line themselves: `GET /permissions/catalog` requires no permission
  * because "the vocabulary is what a dashboard is written against"
  * (`authorization.md`), while `permissions.md` says in as many words *"Do not
- * hard-code the matrix below into the dashboard"*. So the 118 **names** live
+ * hard-code the matrix below into the dashboard"*. So the 121 **names** live
  * here as literal types — a typo becomes a compile error rather than a module
  * that silently never renders — and **who holds what** comes only from
  * `GET /permissions/me`, never from this file.
@@ -22,7 +22,14 @@ import type { AdminTier } from '@/types/auth.types';
 // ─── The catalogue ────────────────────────────────────────────────────────────
 
 /**
- * All 118 permissions, `family.resource.action`, in the doc's own family order.
+ * All 121 permissions, `family.resource.action`, in the doc's own family order.
+ *
+ * The 119th, 120th and 121st are `administrators.activate`, `employees.read` and
+ * `employees.employment.write`, added 2026-09-14 with ADR-023. ⚠ **All three are
+ * tier 1 only, so tiers 2 and 3 are unchanged at 101 and 31** — the totals moved
+ * 118/101/31 → 121/101/31, which is the shape of a change that widens only the
+ * top rung. `employees` is a new family and being one IS the access control; see
+ * its entries below.
  *
  * The 117th and 118th are `support.automation.lookup` and `system.automation.read`,
  * added 2026-09-07 with the `/automation` route group (ADR-022) and absorbed at
@@ -212,6 +219,36 @@ export const PERMISSION_NAMES = [
     'administrators.sessions.revoke',
     'administrators.password.reset',
     'administrators.mfa.reset',
+    /**
+     * ⚠ **Tier 1 only, and not because activation is a senior act.** Activating
+     * requires *reading the employee record*, and only tier 1 may — so an Admin
+     * able to activate would be admitting a person whose file they cannot open.
+     * The deliberate consequence: **a tier-2 Admin can create a Support account
+     * and cannot turn it on**, so every new hire waits on a Developer.
+     */
+    'administrators.activate',
+
+    // employees
+    /**
+     * ⚠ **The narrowest family on the service: tier 1 and the subject, and nobody
+     * else at any rung** — and *being a separate family is the access control*.
+     * Tier 2 holds `allInFamily('administrators')`, so a staff-record permission
+     * living there would be one an Admin holds, and a colleague's salary, date of
+     * birth and home address is not something an Admin may read. A boot assertion
+     * refuses this family to any tier but 1.
+     *
+     * ⚠ **Neither name is how the subject reads their own record.** That is
+     * `/employees/me`, which is *self-service* and needs no permission at all —
+     * every administrator maintains their own by definition. These two are for
+     * somebody else's.
+     */
+    'employees.read',
+    /**
+     * ⚠ **Narrower than its name.** It cannot touch the personal, identity,
+     * address, contact or payout halves — those have no administrative write path
+     * at all. An employee states their own facts; the company states its terms.
+     */
+    'employees.employment.write',
 
     // approvals
     'approvals.read',
@@ -282,7 +319,14 @@ export const UNROUTED_PERMISSION_NAMES = [
     'developer_tools.webhooks.redeliver',
 ] as const;
 
-/** The 20 families, in the matrix's declaration order. */
+/**
+ * The 21 families, in the matrix's declaration order.
+ *
+ * `employees` is the 21st, added 2026-09-14 with ADR-023 and inserted after
+ * `administrators` because that is where the matrix puts it — the guard diffs
+ * this tuple against the document's `### ` headings in order, so the position is
+ * checked rather than cosmetic.
+ */
 export const PERMISSION_FAMILIES = [
     'agents',
     'agencies',
@@ -298,6 +342,7 @@ export const PERMISSION_FAMILIES = [
     'vendors',
     'shipments',
     'administrators',
+    'employees',
     'approvals',
     'permissions',
     'audit',
@@ -308,14 +353,14 @@ export const PERMISSION_FAMILIES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Any of the 118. Use for what the *server* may send us. */
+/** Any of the 121. Use for what the *server* may send us. */
 export type PermissionName = (typeof PERMISSION_NAMES)[number];
 
 /** One of the four `†`. */
 export type UnroutedPermissionName = (typeof UNROUTED_PERMISSION_NAMES)[number];
 
 /**
- * The 112 that gate a real endpoint. **Use for what *our code* asks for** — nav
+ * The 117 that gate a real endpoint — 121 less the four `†`. **Use for what *our code* asks for** — nav
  * items, `<Can>`, `RequirePermission` — so that gating a screen on a permission
  * whose endpoint does not exist is a `tsc` error.
  */

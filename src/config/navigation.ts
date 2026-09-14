@@ -1325,6 +1325,19 @@ export const PERMISSION_FREE_ROUTES: readonly string[] = [
      * so gating on it would not compile.
      */
     '/dashboard/account/notifications',
+    /**
+     * The administrator's own employee record. **ADR-023.**
+     *
+     * All five `/employees/me` routes are declared *self* and carry no
+     * permission — and the two `employees.*` permissions govern reading and
+     * writing **somebody else's**, which this screen never does. Gating it on
+     * `employees.read` would lock every administrator but a Developer out of
+     * their own file, which is the exact failure this list exists to prevent.
+     *
+     * ⚠ It is also reachable by a `pending` account, at `/onboarding` — the same
+     * five routes, outside the dashboard shell. See `guards.tsx`.
+     */
+    '/dashboard/account/employee-record',
 ] as const;
 
 /**

@@ -4,6 +4,7 @@ import { Check, Minus, RotateCw, ShieldCheck } from 'lucide-react';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { SearchInput } from '@/components/common/SearchInput';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Badge } from '@/components/ui/badge';
@@ -317,56 +318,62 @@ export function PermissionMatrix() {
                     placeholder="Search name or summary"
                 />
 
-                <Select
-                    value={values.family || ANY}
-                    onValueChange={(next) => set({ family: next === ANY ? null : next })}
-                >
-                    <SelectTrigger className="w-[190px]" aria-label="Family">
-                        <SelectValue placeholder="Any family" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any family</SelectItem>
-                        {families.map((family) => (
-                            <SelectItem key={family} value={family}>
-                                {family}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Family" htmlFor="filter-family">
+                    <Select
+                        value={values.family || ANY}
+                        onValueChange={(next) => set({ family: next === ANY ? null : next })}
+                    >
+                        <SelectTrigger id="filter-family" className="w-[190px]">
+                            <SelectValue placeholder="Any family" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any family</SelectItem>
+                            {families.map((family) => (
+                                <SelectItem key={family} value={family}>
+                                    {family}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.action || ANY}
-                    onValueChange={(next) => set({ action: next === ANY ? null : next })}
-                >
-                    <SelectTrigger className="w-[150px]" aria-label="Action">
-                        <SelectValue placeholder="Any action" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any action</SelectItem>
-                        {actions.map((action) => (
-                            <SelectItem key={action} value={action}>
-                                {action}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Action" htmlFor="filter-action">
+                    <Select
+                        value={values.action || ANY}
+                        onValueChange={(next) => set({ action: next === ANY ? null : next })}
+                    >
+                        <SelectTrigger id="filter-action" className="w-[150px]">
+                            <SelectValue placeholder="Any action" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any action</SelectItem>
+                            {actions.map((action) => (
+                                <SelectItem key={action} value={action}>
+                                    {action}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.flag || ANY}
-                    onValueChange={(next) => set({ flag: next === ANY ? null : next })}
-                >
-                    <SelectTrigger className="w-[180px]" aria-label="Sensitivity">
-                        <SelectValue placeholder="Any sensitivity" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any sensitivity</SelectItem>
-                        {FLAG_FILTERS.map((flag) => (
-                            <SelectItem key={flag.value} value={flag.value}>
-                                {flag.label}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Sensitivity" htmlFor="filter-sensitivity">
+                    <Select
+                        value={values.flag || ANY}
+                        onValueChange={(next) => set({ flag: next === ANY ? null : next })}
+                    >
+                        <SelectTrigger id="filter-sensitivity" className="w-[180px]">
+                            <SelectValue placeholder="Any sensitivity" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any sensitivity</SelectItem>
+                            {FLAG_FILTERS.map((flag) => (
+                                <SelectItem key={flag.value} value={flag.value}>
+                                    {flag.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
             </FilterBar>
 
             {catalog.data && !catalog.isLoading ? (

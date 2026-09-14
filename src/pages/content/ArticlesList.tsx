@@ -8,6 +8,7 @@ import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Badge } from '@/components/ui/badge';
@@ -232,22 +233,24 @@ export function ArticlesList() {
             }
         >
             <FilterBar isFiltered={isFiltered} onClear={reset}>
-                <Select
-                    value={values.status || ANY}
-                    onValueChange={(value) => set({ status: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-40" aria-label="Status">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any status</SelectItem>
-                        {ARTICLE_STATUSES.map((value) => (
-                            <SelectItem key={value} value={value} className="capitalize">
-                                {value}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Status" htmlFor="filter-status">
+                    <Select
+                        value={values.status || ANY}
+                        onValueChange={(value) => set({ status: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-status" className="w-40">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any status</SelectItem>
+                            {ARTICLE_STATUSES.map((value) => (
+                                <SelectItem key={value} value={value} className="capitalize">
+                                    {value}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
                 {/*
                   A picker rather than a text box, on both of these: the
@@ -255,39 +258,43 @@ export function ArticlesList() {
                   `400` to a value outside them — so a typo would be an error
                   rather than an empty list.
                 */}
-                <Select
-                    value={values.category || ANY}
-                    onValueChange={(value) => set({ category: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-44" aria-label="Category">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any category</SelectItem>
-                        {ARTICLE_CATEGORY_KEYS.map((value) => (
-                            <SelectItem key={value} value={value} className="capitalize">
-                                {value}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Category" htmlFor="filter-category">
+                    <Select
+                        value={values.category || ANY}
+                        onValueChange={(value) => set({ category: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-category" className="w-44">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any category</SelectItem>
+                            {ARTICLE_CATEGORY_KEYS.map((value) => (
+                                <SelectItem key={value} value={value} className="capitalize">
+                                    {value}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.locale || ANY}
-                    onValueChange={(value) => set({ locale: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-40" aria-label="Language">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any language</SelectItem>
-                        {CONTENT_LOCALES.map((value) => (
-                            <SelectItem key={value} value={value}>
-                                {value}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Language" htmlFor="filter-language">
+                    <Select
+                        value={values.locale || ANY}
+                        onValueChange={(value) => set({ locale: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-language" className="w-40">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any language</SelectItem>
+                            {CONTENT_LOCALES.map((value) => (
+                                <SelectItem key={value} value={value}>
+                                    {value}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
             </FilterBar>
 
             <DataTable

@@ -7,12 +7,12 @@ import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PaymentStatusBadge } from '@/components/money/MoneyBadges';
 import { Badge } from '@/components/ui/badge';
 import { InfoHint } from '@/components/ui/info-hint';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -199,16 +199,20 @@ export function PaymentsList() {
         >
             <div className="space-y-4">
                 <FilterBar isFiltered={isFiltered} onClear={reset}>
-                    <div className="space-y-1.5">
-                        <Label htmlFor="payment-status" className="flex items-center gap-1">
-                            Status
-                            <InfoHint label="About payment statuses">
-                                These values are upper-case on the wire — the gateway&rsquo;s own
-                                vocabulary, passed through unchanged. A lower-cased filter matches
-                                nothing rather than failing, so the picker offers the exact values
-                                the platform stores.
-                            </InfoHint>
-                        </Label>
+                    <FilterField
+                        htmlFor="payment-status"
+                        label={
+                            <>
+                                Status
+                                <InfoHint label="About payment statuses">
+                                    These values are upper-case on the wire — the gateway&rsquo;s own
+                                    vocabulary, passed through unchanged. A lower-cased filter matches
+                                    nothing rather than failing, so the picker offers the exact values
+                                    the platform stores.
+                                </InfoHint>
+                            </>
+                        }
+                    >
                         <Select
                             value={values.status || ANY}
                             onValueChange={(next) => set({ status: next === ANY ? null : next })}
@@ -227,10 +231,9 @@ export function PaymentsList() {
                                 )}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
-                    <div className="space-y-1.5">
-                        <Label htmlFor="payment-gateway">Gateway</Label>
+                    <FilterField label="Gateway" htmlFor="payment-gateway">
                         <Select
                             value={values.gateway || ANY}
                             onValueChange={(next) => set({ gateway: next === ANY ? null : next })}
@@ -249,10 +252,9 @@ export function PaymentsList() {
                                 )}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
-                    <div className="space-y-1.5">
-                        <Label htmlFor="payment-method">Method</Label>
+                    <FilterField label="Method" htmlFor="payment-method">
                         <Select
                             value={values.method || ANY}
                             onValueChange={(next) => set({ method: next === ANY ? null : next })}
@@ -269,7 +271,7 @@ export function PaymentsList() {
                                 ))}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
                     <DateRangeFilter
                         label="Paid"

@@ -199,6 +199,29 @@ export function AgencyKycPanel({
                 <AgencyVerificationBadge agency={agency} />
             </Definition>
 
+            {/*
+              ⚠ The VERDICT, which the badge above cannot carry.
+
+              `verified` is a boolean and `status` is `pending_verification` both
+              before a review and after a refused one, so between them they cannot
+              say *reviewed and refused* — which is the state an administrator most
+              needs to see, because a party who was refused and has come back is
+              the commonest row in this queue. `kyc.status` has been on the wire
+              since Phase 6 Step 4; this dashboard was not reading it, because
+              `agencies.md`'s worked JSON omits the field. See `AgencyKyc`.
+            */}
+            <Definition label="Verdict">
+                <span className="capitalize">{kyc.status}</span>
+            </Definition>
+
+            {/*
+              Rendered only on a refusal. The agency is shown this sentence, so it
+              is also the record of what they were told to fix.
+            */}
+            {kyc.rejectionReason ? (
+                <Definition label="Reason given">{kyc.rejectionReason}</Definition>
+            ) : null}
+
             <Definition label="Verified at">
                 {formatInstantInZone(kyc.verifiedAt, timeZone) ?? <NotSet>Not verified</NotSet>}
             </Definition>

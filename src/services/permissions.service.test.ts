@@ -48,7 +48,9 @@ describe('the flags this service deliberately does not set', () => {
         // aged out in a background tab would land on a broken shell.
         expect(calls).toHaveLength(3);
         expect(calls[1].url).toContain('/auth/refresh');
-        expect(result.permissions).toHaveLength(118);
+        // Tier 1 holds all of them — 121 since ADR-023 added `administrators.activate`
+        // and the two `employees.*` names, all three tier 1 only.
+        expect(result.permissions).toHaveLength(121);
     });
 
     it('lets a scoped session announce itself rather than swallowing the refusal', async () => {

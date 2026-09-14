@@ -4,6 +4,7 @@ import { EyeOff, Info, RotateCw, ScrollText } from 'lucide-react';
 import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataState, EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { SearchInput } from '@/components/common/SearchInput';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { MaskedNotice } from '@/components/system/MaskedNotice';
@@ -223,47 +224,59 @@ export function SystemErrors() {
                     maxLength={100}
                 />
 
-                <Select
-                    value={values.category || ANY}
-                    onValueChange={(next) => set({ category: next === ANY ? null : next })}
-                >
-                    <SelectTrigger className="w-[170px]" aria-label="Category">
-                        <SelectValue placeholder="Any category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any category</SelectItem>
-                        {ERROR_CATEGORIES.map((category) => (
-                            <SelectItem key={category} value={category}>
-                                {category}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Category" htmlFor="filter-category">
+                    <Select
+                        value={values.category || ANY}
+                        onValueChange={(next) => set({ category: next === ANY ? null : next })}
+                    >
+                        <SelectTrigger id="filter-category" className="w-[170px]">
+                            <SelectValue placeholder="Any category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any category</SelectItem>
+                            {ERROR_CATEGORIES.map((category) => (
+                                <SelectItem key={category} value={category}>
+                                    {category}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.source || ANY}
-                    onValueChange={(next) => set({ source: next === ANY ? null : next })}
-                >
-                    <SelectTrigger className="w-[150px]" aria-label="Source">
-                        <SelectValue placeholder="Durable store" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Durable store</SelectItem>
-                        {LOG_SOURCES.map((source) => (
-                            <SelectItem key={source} value={source}>
-                                {source === 'ring' ? 'In-memory buffer' : 'Durable store'}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Source" htmlFor="filter-source">
+                    <Select
+                        value={values.source || ANY}
+                        onValueChange={(next) => set({ source: next === ANY ? null : next })}
+                    >
+                        <SelectTrigger id="filter-source" className="w-[150px]">
+                            <SelectValue placeholder="Durable store" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Durable store</SelectItem>
+                            {LOG_SOURCES.map((source) => (
+                                <SelectItem key={source} value={source}>
+                                    {source === 'ring' ? 'In-memory buffer' : 'Durable store'}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <input
-                    type="date"
-                    aria-label="From"
-                    value={values.since}
-                    onChange={(event) => set({ since: event.target.value || null })}
-                    className="border-input bg-background h-9 rounded-md border px-3 text-sm"
-                />
+                {/*
+                  A single day, not a range — `?since=` has no other end — so this
+                  is a native date input rather than the `DateRangeFilter` every
+                  other list carries. It still wears the same title and the same
+                  `h-9` as its neighbours.
+                */}
+                <FilterField label="From" htmlFor="filter-since">
+                    <input
+                        id="filter-since"
+                        type="date"
+                        value={values.since}
+                        onChange={(event) => set({ since: event.target.value || null })}
+                        className="border-input bg-background h-9 rounded-md border px-3 text-sm"
+                    />
+                </FilterField>
             </FilterBar>
 
             {tooBroad ? (

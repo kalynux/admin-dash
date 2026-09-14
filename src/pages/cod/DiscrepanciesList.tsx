@@ -9,6 +9,7 @@ import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { NotApplicable, NotSet } from '@/components/common/DefinitionList';
 import { Pager } from '@/components/common/Pager';
 import { RowActions } from '@/components/common/RowActions';
@@ -16,7 +17,6 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { InfoHint } from '@/components/ui/info-hint';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -242,8 +242,7 @@ export function DiscrepanciesList() {
         >
             <div className="space-y-4">
                 <FilterBar isFiltered={isFiltered} onClear={reset}>
-                    <div className="space-y-1.5">
-                        <Label htmlFor="discrepancy-status">Status</Label>
+                    <FilterField label="Status" htmlFor="discrepancy-status">
                         <Select
                             value={values.status || ANY}
                             onValueChange={(next) => set({ status: next === ANY ? null : next })}
@@ -266,19 +265,23 @@ export function DiscrepanciesList() {
                                 )}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
-                    <div className="space-y-1.5">
-                        <Label htmlFor="discrepancy-type" className="flex items-center gap-1">
-                            Kind
-                            <InfoHint label="About the kinds of flag">
-                                <strong>Late deposit</strong> — the agent sat on collected cash
-                                past the window. <strong>Cash shortfall</strong> — they handed over
-                                less than they held. <strong>Deposit not confirmed</strong> — they
-                                declared a hand-over and the agency never answered, which is the
-                                agency&rsquo;s failure and carries no agent penalty.
-                            </InfoHint>
-                        </Label>
+                    <FilterField
+                        htmlFor="discrepancy-type"
+                        label={
+                            <>
+                                Kind
+                                <InfoHint label="About the kinds of flag">
+                                    <strong>Late deposit</strong> — the agent sat on collected cash
+                                    past the window. <strong>Cash shortfall</strong> — they handed over
+                                    less than they held. <strong>Deposit not confirmed</strong> — they
+                                    declared a hand-over and the agency never answered, which is the
+                                    agency&rsquo;s failure and carries no agent penalty.
+                                </InfoHint>
+                            </>
+                        }
+                    >
                         <Select
                             value={values.type || ANY}
                             onValueChange={(next) => set({ type: next === ANY ? null : next })}
@@ -301,7 +304,7 @@ export function DiscrepanciesList() {
                                 )}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
                     {/*
                       Labelled "Raised" rather than "Opened": the range is on

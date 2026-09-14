@@ -87,6 +87,16 @@ export function AccountMenu() {
                 </DropdownMenuItem>
 
                 {/*
+                  ADR-023. Ungated like the two above: `/employees/me` is declared
+                  *self*, and the two `employees.*` permissions govern somebody
+                  else's file. It stays reachable after activation because the
+                  record has no lock — people move house and change their bank.
+                */}
+                <DropdownMenuItem asChild>
+                    <Link to="/dashboard/account/employee-record">Employee record</Link>
+                </DropdownMenuItem>
+
+                {/*
                   Not gated on `notifications.read`, unlike the bell. The
                   preference routes are declared *self* and check no permission,
                   so hiding this behind one would be a rule this client invented.

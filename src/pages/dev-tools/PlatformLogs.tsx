@@ -4,6 +4,7 @@ import { AlertTriangle, RotateCw, ScrollText } from 'lucide-react';
 import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataState, EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { SearchInput } from '@/components/common/SearchInput';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Badge } from '@/components/ui/badge';
@@ -156,39 +157,43 @@ export function PlatformLogs() {
                     maxLength={200}
                 />
 
-                <Select
-                    value={values.level || ANY}
-                    onValueChange={(next) => set({ level: next === ANY ? null : next })}
-                >
-                    <SelectTrigger className="w-[190px]" aria-label="Level">
-                        <SelectValue placeholder="Any level" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any level</SelectItem>
-                        {LOG_LEVELS.map((level) => (
-                            <SelectItem key={level} value={level}>
-                                {level} and above
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Level" htmlFor="filter-level">
+                    <Select
+                        value={values.level || ANY}
+                        onValueChange={(next) => set({ level: next === ANY ? null : next })}
+                    >
+                        <SelectTrigger id="filter-level" className="w-[190px]">
+                            <SelectValue placeholder="Any level" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any level</SelectItem>
+                            {LOG_LEVELS.map((level) => (
+                                <SelectItem key={level} value={level}>
+                                    {level} and above
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.source || ANY}
-                    onValueChange={(next) => set({ source: next === ANY ? null : next })}
-                >
-                    <SelectTrigger className="w-[160px]" aria-label="Source">
-                        <SelectValue placeholder="Durable store" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Durable store</SelectItem>
-                        {LOG_SOURCES.map((source) => (
-                            <SelectItem key={source} value={source}>
-                                {source === 'ring' ? 'In-memory buffer' : 'Durable store'}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Source" htmlFor="filter-source">
+                    <Select
+                        value={values.source || ANY}
+                        onValueChange={(next) => set({ source: next === ANY ? null : next })}
+                    >
+                        <SelectTrigger id="filter-source" className="w-[160px]">
+                            <SelectValue placeholder="Durable store" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Durable store</SelectItem>
+                            {LOG_SOURCES.map((source) => (
+                                <SelectItem key={source} value={source}>
+                                    {source === 'ring' ? 'In-memory buffer' : 'Durable store'}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
             </FilterBar>
 
             <DataState

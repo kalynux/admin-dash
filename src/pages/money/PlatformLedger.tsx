@@ -6,13 +6,13 @@ import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { NotSet } from '@/components/common/DefinitionList';
 import { Pager } from '@/components/common/Pager';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { LedgerEntryTypeBadge } from '@/components/money/MoneyBadges';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -245,8 +245,7 @@ export function PlatformLedger() {
                 </p>
 
                 <FilterBar isFiltered={isFiltered} onClear={reset}>
-                    <div className="space-y-1.5">
-                        <Label htmlFor="ledger-entry-type">Movement</Label>
+                    <FilterField label="Movement" htmlFor="ledger-entry-type">
                         <Select
                             value={values.entryType || ANY}
                             onValueChange={(next) => set({ entryType: next === ANY ? null : next })}
@@ -265,10 +264,9 @@ export function PlatformLedger() {
                                 )}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
-                    <div className="space-y-1.5">
-                        <Label htmlFor="ledger-reason">Reason</Label>
+                    <FilterField label="Reason" htmlFor="ledger-reason">
                         <Select
                             value={values.reasonCode || ANY}
                             onValueChange={(next) => set({ reasonCode: next === ANY ? null : next })}
@@ -287,7 +285,7 @@ export function PlatformLedger() {
                                 )}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
                     <DateRangeFilter
                         label="Moved"

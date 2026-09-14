@@ -116,7 +116,13 @@ describe('the tier fixtures match the documented levels', () => {
     it('holds the counts permissions.md states', () => {
         // Matrix and prose agree again since BR-013; `permissions.types.test.ts`
         // is what keeps them that way.
-        expect(TIER_1_PERMISSIONS.length).toBe(118);
+        //
+        // ⚠ **118 → 121 on 2026-09-14 (ADR-023), and tiers 2 and 3 did not move.**
+        // All three new names are tier 1 only, which is why only the first number
+        // changed. The figures were taken by executing `npm run authz:matrix`
+        // against `backend/admin`, not read: the `permissions.md` that shipped
+        // that day had a header saying 121 and a tier table still saying 118.
+        expect(TIER_1_PERMISSIONS.length).toBe(121);
         expect(TIER_2_PERMISSIONS.length).toBe(101);
         expect(TIER_3_PERMISSIONS.length).toBe(31);
     });

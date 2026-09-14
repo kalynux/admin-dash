@@ -415,8 +415,7 @@ translation in that language answers `404 BLOG_ARTICLE_NOT_FOUND` with `details:
 
 ### The public shape
 
-Source: `backend/admin/src/modules/content/read-models/public-article.dto.ts` — **mirrored here** as
-[`public-article-dto.ts`](../public-article-dto.ts).
+Source: [`public-article-dto.ts`](../public-article-dto.ts) — this repository's mirror of `src/modules/content/read-models/public-article.dto.ts`.
 **This is wi-admin's own file**, not a jovi-mall shape reached over HTTP — the projection is
 reproduced here so that a preview needs no call to the other service. It is a
 `PublicArticleDetailDto`, wrapped in this service's usual `{ success: true, data }` envelope.

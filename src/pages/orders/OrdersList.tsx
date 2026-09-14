@@ -6,6 +6,7 @@ import { DataTable } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { SearchInput } from '@/components/common/SearchInput';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -169,105 +170,117 @@ export function OrdersList() {
                     onChange={(next) => set({ search: next }, { replace: true })}
                 />
 
-                <Select
-                    value={values.orderType || ANY}
-                    onValueChange={(value) => set({ orderType: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-36" aria-label="Order type">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any type</SelectItem>
-                        {ORDER_TYPES.map((value) => (
-                            <SelectItem key={value} value={value} className="capitalize">
-                                {value}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Order type" htmlFor="filter-order-type">
+                    <Select
+                        value={values.orderType || ANY}
+                        onValueChange={(value) => set({ orderType: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-order-type" className="w-36">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any type</SelectItem>
+                            {ORDER_TYPES.map((value) => (
+                                <SelectItem key={value} value={value} className="capitalize">
+                                    {value}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.paymentMethod || ANY}
-                    onValueChange={(value) => set({ paymentMethod: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-44" aria-label="Payment method">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any method</SelectItem>
-                        {ORDER_PAYMENT_METHODS.map((value) => (
-                            <SelectItem key={value} value={value} className="capitalize">
-                                {value.replace(/_/g, ' ')}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <Select
-                    value={values.paymentStatus || ANY}
-                    onValueChange={(value) => set({ paymentStatus: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-48" aria-label="Payment status">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any payment status</SelectItem>
-                        {withCurrent(ORDER_PAYMENT_STATUSES, values.paymentStatus).map((value) => (
-                            <SelectItem key={value} value={value}>
-                                {value.replace(/_/g, ' ').toLowerCase()}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <Select
-                    value={values.fulfillmentStatus || ANY}
-                    onValueChange={(value) =>
-                        set({ fulfillmentStatus: value === ANY ? null : value })
-                    }
-                >
-                    <SelectTrigger className="w-48" aria-label="Fulfilment status">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any fulfilment status</SelectItem>
-                        {withCurrent(ORDER_FULFILLMENT_STATUSES, values.fulfillmentStatus).map(
-                            (value) => (
-                                <SelectItem key={value} value={value}>
+                <FilterField label="Payment method" htmlFor="filter-payment-method">
+                    <Select
+                        value={values.paymentMethod || ANY}
+                        onValueChange={(value) => set({ paymentMethod: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-payment-method" className="w-44">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any method</SelectItem>
+                            {ORDER_PAYMENT_METHODS.map((value) => (
+                                <SelectItem key={value} value={value} className="capitalize">
                                     {value.replace(/_/g, ' ')}
                                 </SelectItem>
-                            ),
-                        )}
-                    </SelectContent>
-                </Select>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.disputed || ANY}
-                    onValueChange={(value) => set({ disputed: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-40" aria-label="Dispute">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any dispute state</SelectItem>
-                        <SelectItem value="true">Disputed</SelectItem>
-                        <SelectItem value="false">Not disputed</SelectItem>
-                    </SelectContent>
-                </Select>
+                <FilterField label="Payment status" htmlFor="filter-payment-status">
+                    <Select
+                        value={values.paymentStatus || ANY}
+                        onValueChange={(value) => set({ paymentStatus: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-payment-status" className="w-48">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any payment status</SelectItem>
+                            {withCurrent(ORDER_PAYMENT_STATUSES, values.paymentStatus).map((value) => (
+                                <SelectItem key={value} value={value}>
+                                    {value.replace(/_/g, ' ').toLowerCase()}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.completed || ANY}
-                    onValueChange={(value) => set({ completed: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-44" aria-label="Escrow">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any escrow state</SelectItem>
-                        <SelectItem value="true">Funds released</SelectItem>
-                        <SelectItem value="false">Funds still held</SelectItem>
-                    </SelectContent>
-                </Select>
+                <FilterField label="Fulfilment status" htmlFor="filter-fulfilment-status">
+                    <Select
+                        value={values.fulfillmentStatus || ANY}
+                        onValueChange={(value) =>
+                            set({ fulfillmentStatus: value === ANY ? null : value })
+                        }
+                    >
+                        <SelectTrigger id="filter-fulfilment-status" className="w-48">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any fulfilment status</SelectItem>
+                            {withCurrent(ORDER_FULFILLMENT_STATUSES, values.fulfillmentStatus).map(
+                                (value) => (
+                                    <SelectItem key={value} value={value}>
+                                        {value.replace(/_/g, ' ')}
+                                    </SelectItem>
+                                ),
+                            )}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
+
+                <FilterField label="Dispute" htmlFor="filter-dispute">
+                    <Select
+                        value={values.disputed || ANY}
+                        onValueChange={(value) => set({ disputed: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-dispute" className="w-40">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any dispute state</SelectItem>
+                            <SelectItem value="true">Disputed</SelectItem>
+                            <SelectItem value="false">Not disputed</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </FilterField>
+
+                <FilterField label="Escrow" htmlFor="filter-escrow">
+                    <Select
+                        value={values.completed || ANY}
+                        onValueChange={(value) => set({ completed: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-escrow" className="w-44">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any escrow state</SelectItem>
+                            <SelectItem value="true">Funds released</SelectItem>
+                            <SelectItem value="false">Funds still held</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
                 <DateRangeFilter
                     label="Placed"

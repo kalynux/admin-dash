@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Lock } from 'lucide-react';
 
 import { AuthFormError } from '@/components/auth/AuthFormError';
 import { FormField } from '@/components/common/FormField';
 import { InlineLoader } from '@/components/common/Loading';
+import { TimeZoneSelect } from '@/components/common/TimeZoneSelect';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -16,6 +18,14 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { LOCALES, SUPPORTED_LOCALES, isLocale } from '@/i18n/config';
 import { pickFieldErrors } from '@/lib/field-errors';
 import { notify } from '@/lib/notify';
 import { updateAdministrator, updateOwnProfile } from '@/services/administrators.service';
@@ -90,6 +100,24 @@ interface EditAdministratorDialogProps {
 }
 
 /**
+ * Job title and department are the organisation's description of a person, not
+ * the person's own — so below tier 1 they are read-only here.
+ *
+ * ⚠ **This is a house rule, not the contract.** `PATCH /administrators/me`
+ * accepts both fields from every tier and will not refuse them, which is exactly
+ * why the lock has to be honoured on the way *out* as well as in the markup: the
+ * submit handler never puts a locked key in the body, so a disabled input that
+ * was re-enabled in a devtools panel still changes nothing. The real boundary is
+ * `PATCH /administrators/:adminId` behind `administrators.update`, where somebody
+ * who is allowed to describe other people's roles does it.
+ *
+ * Tier 1 keeps both, because there is no level above it to ask.
+ */
+function organisationFieldsLocked(administrator: Administrator, mode: EditMode): boolean {
+    return mode.kind === 'self' && administrator.tier !== 1;
+}
+
+/**
  * Edit an administrator's profile — the five fields that are theirs to hold.
  *
  * ── `tier` and `status` are not here, and must not be added ───────────────────
@@ -145,12 +173,14 @@ function EditAdministratorForm({
     onDone: () => void;
 }) {
     const [formError, setFormError] = useState<unknown>(null);
+    const locked = organisationFieldsLocked(administrator, mode);
 
     const {
         register,
         handleSubmit,
         setError,
         setValue,
+        control,
         formState: { errors, isSubmitting, dirtyFields },
     } = useForm<EditValues>({
         resolver: zodResolver(schema),
@@ -162,6 +192,18 @@ function EditAdministratorForm({
             preferredLanguage: administrator.preferredLanguage,
         },
     });
+
+    /*
+      Neither control is an `<input>`, so neither can be `register`ed. Reading
+      the field and writing it back with `shouldDirty` keeps them inside the same
+      dirty-tracking the clearable-field rule below depends on.
+
+      `useWatch`, not `watch()`: the latter returns a fresh function every render
+      and the React Compiler refuses to memoise a component that calls it, which
+      is a lint error here rather than a style note.
+    */
+    const timezone = useWatch({ control, name: 'timezone' });
+    const preferredLanguage = useWatch({ control, name: 'preferredLanguage' });
 
     async function onSubmit(values: EditValues) {
         setFormError(null);
@@ -177,8 +219,10 @@ function EditAdministratorForm({
          */
         const body: UpdateAdministratorProfileBody = {};
         if (dirtyFields.displayName) body.displayName = values.displayName;
-        if (dirtyFields.jobTitle) body.jobTitle = values.jobTitle || null;
-        if (dirtyFields.department) body.department = values.department || null;
+        // ⚠ The lock is enforced here, not only in the markup — see
+        // `organisationFieldsLocked`. A disabled control is a hint; this is the rule.
+        if (!locked && dirtyFields.jobTitle) body.jobTitle = values.jobTitle || null;
+        if (!locked && dirtyFields.department) body.department = values.department || null;
         if (dirtyFields.timezone) body.timezone = values.timezone;
         if (dirtyFields.preferredLanguage) body.preferredLanguage = values.preferredLanguage;
 
@@ -236,54 +280,70 @@ function EditAdministratorForm({
                 )}
             </FormField>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-                <FormField id="edit-job" label="Job title" hint="Clear it to remove it.">
-                    {(field) => (
-                        <Input maxLength={FIELD_MAX} {...field} {...register('jobTitle')} />
-                    )}
-                </FormField>
-                <FormField id="edit-department" label="Department" hint="Clear it to remove it.">
-                    {(field) => (
-                        <Input maxLength={FIELD_MAX} {...field} {...register('department')} />
-                    )}
-                </FormField>
-            </div>
+            {locked ? (
+                /*
+                  Rendered as facts rather than as disabled inputs.
+                  A greyed-out box still reads as "a field you could fill in if
+                  you tried harder", and there is no amount of trying: the value
+                  is somebody else's to set. Two lines of text and one sentence
+                  saying who, which is the question this raises.
+                */
+                <div className="bg-muted/40 space-y-3 rounded-lg border px-3 py-3">
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <LockedDetail label="Job title" value={administrator.jobTitle} />
+                        <LockedDetail label="Department" value={administrator.department} />
+                    </div>
+                    <p className="text-muted-foreground flex items-start gap-1.5 text-xs">
+                        <Lock className="mt-0.5 size-3 shrink-0" aria-hidden />
+                        <span>
+                            Your job title and department describe your place in the organisation,
+                            so they are set for you. Ask a Developer-level administrator to change
+                            either.
+                        </span>
+                    </p>
+                </div>
+            ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                    <FormField
+                        id="edit-job"
+                        label="Job title"
+                        error={errors.jobTitle?.message}
+                        hint="Clear it to remove it."
+                    >
+                        {(field) => (
+                            <Input maxLength={FIELD_MAX} {...field} {...register('jobTitle')} />
+                        )}
+                    </FormField>
+                    <FormField
+                        id="edit-department"
+                        label="Department"
+                        error={errors.department?.message}
+                        hint="Clear it to remove it."
+                    >
+                        {(field) => (
+                            <Input maxLength={FIELD_MAX} {...field} {...register('department')} />
+                        )}
+                    </FormField>
+                </div>
+            )}
 
             <FormField
                 id="edit-timezone"
                 label="Time zone"
                 error={errors.timezone?.message}
-                hint="An IANA zone name. Every date range on this dashboard is resolved in it, so a report covers your day rather than the browser's."
+                hint="Every date range on this dashboard is resolved in it, so a report covers your day rather than the browser's."
             >
                 {(field) => (
-                    <div className="flex items-center gap-2">
-                        <Input
-                            maxLength={ZONE_MAX}
-                            placeholder="Africa/Douala"
-                            {...field}
-                            {...register('timezone')}
-                        />
-                        {/*
-                          A full zone picker is not worth a dependency, and the
-                          browser already knows the answer for the common case. The
-                          service validates the string.
-                        */}
-                        <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="shrink-0"
-                            onClick={() =>
-                                setValue(
-                                    'timezone',
-                                    Intl.DateTimeFormat().resolvedOptions().timeZone,
-                                    { shouldDirty: true, shouldValidate: true },
-                                )
-                            }
-                        >
-                            Use this device
-                        </Button>
-                    </div>
+                    <TimeZoneSelect
+                        {...field}
+                        value={timezone}
+                        onChange={(zone) =>
+                            setValue('timezone', zone, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                            })
+                        }
+                    />
                 )}
             </FormField>
 
@@ -291,14 +351,55 @@ function EditAdministratorForm({
                 id="edit-language"
                 label="Preferred language"
                 error={errors.preferredLanguage?.message}
+                hint="What this dashboard is shown in, on every device you sign in from."
             >
                 {(field) => (
-                    <Input
-                        maxLength={LANGUAGE_MAX}
-                        placeholder="en"
-                        {...field}
-                        {...register('preferredLanguage')}
-                    />
+                    <Select
+                        value={preferredLanguage}
+                        onValueChange={(next) =>
+                            setValue('preferredLanguage', next, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                            })
+                        }
+                    >
+                        <SelectTrigger {...field} className="w-full">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {SUPPORTED_LOCALES.map((code) => (
+                                <SelectItem key={code} value={code}>
+                                    {LOCALES[code].nativeLabel}
+                                    <span className="text-muted-foreground">
+                                        {' '}
+                                        — {LOCALES[code].label}
+                                    </span>
+                                </SelectItem>
+                            ))}
+
+                            {/*
+                              ⚠ The stored value stays selectable when the
+                              dashboard does not speak it.
+
+                              `preferredLanguage` is a free 2–10 character string
+                              on the wire and this field is shared with wi-admin's
+                              own record, so a value like `pt` is data, not
+                              corruption. Dropping it from the list would make the
+                              Select show an empty trigger and silently rewrite the
+                              administrator's saved language the first time they
+                              opened this form to change their time zone.
+                            */}
+                            {preferredLanguage && !isLocale(preferredLanguage) ? (
+                                <SelectItem value={preferredLanguage}>
+                                    {preferredLanguage}
+                                    <span className="text-muted-foreground">
+                                        {' '}
+                                        — not translated; shown in English
+                                    </span>
+                                </SelectItem>
+                            ) : null}
+                        </SelectContent>
+                    </Select>
                 )}
             </FormField>
 
@@ -311,5 +412,17 @@ function EditAdministratorForm({
                 </Button>
             </DialogFooter>
         </form>
+    );
+}
+
+/** One of the two fields this administrator may read but not write. */
+function LockedDetail({ label, value }: { label: string; value: string | null }) {
+    return (
+        <div className="space-y-1">
+            <p className="text-muted-foreground text-xs font-medium">{label}</p>
+            <p className="text-sm">
+                {value ?? <span className="text-muted-foreground">Not set</span>}
+            </p>
+        </div>
     );
 }

@@ -4,9 +4,9 @@ import { Banknote } from 'lucide-react';
 import { DataTable } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { payoutColumns } from '@/components/money/payoutColumns';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -79,8 +79,7 @@ export function AccountPayoutsPanel({
                     setPage(1);
                 }}
             >
-                <div className="space-y-1.5">
-                    <Label htmlFor="payout-status">Status</Label>
+                <FilterField label="Status" htmlFor="payout-status">
                     <Select
                         value={status}
                         onValueChange={(next) => {
@@ -100,7 +99,7 @@ export function AccountPayoutsPanel({
                             ))}
                         </SelectContent>
                     </Select>
-                </div>
+                </FilterField>
             </FilterBar>
 
             <DataTable

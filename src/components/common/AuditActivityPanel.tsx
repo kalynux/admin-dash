@@ -6,6 +6,7 @@ import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { Button } from '@/components/ui/button';
 import {
@@ -348,46 +349,50 @@ export function AuditActivityPanel({
                   empty list means "no filter", not "a filter with one option".
                 */}
                 {offeredActions.length > 0 ? (
+                    <FilterField label="Action" htmlFor="filter-action">
+                        <Select
+                            value={action}
+                            onValueChange={(value) => {
+                                setAction(value);
+                                setPage(1);
+                            }}
+                        >
+                            <SelectTrigger id="filter-action" className="w-56">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value={ANY}>Any action</SelectItem>
+                                {offeredActions.map((name) => (
+                                    <SelectItem key={name} value={name}>
+                                        {offeredLabels[name] ?? name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </FilterField>
+                ) : null}
+
+                <FilterField label="Outcome" htmlFor="filter-outcome">
                     <Select
-                        value={action}
+                        value={status}
                         onValueChange={(value) => {
-                            setAction(value);
+                            setStatus(value);
                             setPage(1);
                         }}
                     >
-                        <SelectTrigger className="w-56" aria-label="Action">
+                        <SelectTrigger id="filter-outcome" className="w-40">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value={ANY}>Any action</SelectItem>
-                            {offeredActions.map((name) => (
-                                <SelectItem key={name} value={name}>
-                                    {offeredLabels[name] ?? name}
+                            <SelectItem value={ANY}>Any outcome</SelectItem>
+                            {ACTIVITY_STATUSES.map((value) => (
+                                <SelectItem key={value} value={value} className="capitalize">
+                                    {value}
                                 </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
-                ) : null}
-
-                <Select
-                    value={status}
-                    onValueChange={(value) => {
-                        setStatus(value);
-                        setPage(1);
-                    }}
-                >
-                    <SelectTrigger className="w-40" aria-label="Outcome">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any outcome</SelectItem>
-                        {ACTIVITY_STATUSES.map((value) => (
-                            <SelectItem key={value} value={value} className="capitalize">
-                                {value}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                </FilterField>
 
                 <DateRangeFilter
                     label="When"

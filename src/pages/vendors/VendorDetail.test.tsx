@@ -18,6 +18,7 @@ import {
     vendorDetailFixture,
     vendorProductFixture,
 } from '@/test/fixtures';
+import { vendorVerificationFixture } from '@/test/verification-fixtures';
 import {
     renderWithProviders,
     stubFetch,
@@ -31,6 +32,7 @@ interface StubOptions {
     detail?: ReturnType<typeof vendorDetailFixture>;
     products?: ReturnType<typeof vendorProductFixture>[];
     connections?: ReturnType<typeof vendorAgencyConnectionFixture>[];
+    verification?: ReturnType<typeof vendorVerificationFixture>;
     write?: () => Response;
 }
 
@@ -48,6 +50,7 @@ function stubDetail({
     detail = vendorDetailFixture(),
     products = [],
     connections = [vendorAgencyConnectionFixture()],
+    verification = vendorVerificationFixture(),
     write,
 }: StubOptions = {}) {
     return stubFetch((call: FetchCall) => {
@@ -67,6 +70,14 @@ function stubDetail({
                     pages: connections.length ? 1 : 0,
                 },
             });
+        }
+        /*
+          ⚠ Before `/vendors/`, like every other sub-resource here: the detail path
+          is a prefix of this one, so ordering it the other way hands the vendor
+          document to the verification panel and every row renders `undefined`.
+        */
+        if (call.url.includes('/verification')) {
+            return successResponse(verification);
         }
         if (call.url.includes('/activity')) {
             return successResponse([auditEntryFixture({ action: 'vendors.suspend' })], {
@@ -108,6 +119,19 @@ function detailCalls(options: StubOptions & { tier?: 1 | 2 | 3; id?: string } = 
     );
 
     return calls;
+}
+
+/**
+ * Toolbar → Verification tab → the verdict dialog.
+ *
+ * Two clicks, because the toolbar button opens the evidence rather than a form:
+ * the whole point of the redesign is that a verdict cannot be reached without
+ * passing the checklist.
+ */
+async function openVerdict(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole('button', { name: /review verification/i }));
+    await user.click(await screen.findByRole('button', { name: /record a verdict/i }));
+    return screen.findByRole('radiogroup', { name: 'Verdict' });
 }
 
 /** Mounted through a route so `useParams` sees a real `:vendorId`. */
@@ -273,7 +297,7 @@ describe('what each tier may reach', () => {
 
         expect(screen.queryByRole('button', { name: /suspend/i })).not.toBeInTheDocument();
         expect(
-            screen.queryByRole('button', { name: /approve verification/i }),
+            screen.queryByRole('button', { name: /review verification/i }),
         ).not.toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /order settings/i })).not.toBeInTheDocument();
     });
@@ -293,22 +317,54 @@ describe('the write affordances follow the record', () => {
 
     /**
      * Asking for the verdict a vendor already holds is `409
-     * VENDOR_KYC_STATUS_CONFLICT`, so a button that could only ever produce it is
+     * VENDOR_KYC_STATUS_CONFLICT`, so an option that could only ever produce it is
      * not offered.
+     *
+     * ⚠ **The invariant moved, it did not go away.** The toolbar used to carry two
+     * verdict buttons and filter them here; it now carries one *Review
+     * verification* button and the filtering happens inside the dialog, because an
+     * operator was otherwise being asked to choose an outcome before being shown
+     * anything to choose it from. This asserts it where it now lives.
      */
     it('offers only the verification verdict that would change something', async () => {
+        const user = userEvent.setup();
+
         const { unmount } = detail({ detail: vendorDetailFixture({ kycStatus: 'verified' }) });
-        await screen.findByRole('button', { name: /reject verification/i });
+        const verified = await openVerdict(user);
         expect(
-            screen.queryByRole('button', { name: /approve verification/i }),
+            within(verified).getByRole('radio', { name: /reject verification/i }),
+        ).toBeInTheDocument();
+        expect(
+            within(verified).queryByRole('radio', { name: /approve verification/i }),
         ).not.toBeInTheDocument();
         unmount();
 
         detail({ detail: vendorDetailFixture({ kycStatus: 'rejected' }) });
-        await screen.findByRole('button', { name: /approve verification/i });
+        const rejected = await openVerdict(user);
         expect(
-            screen.queryByRole('button', { name: /reject verification/i }),
+            within(rejected).getByRole('radio', { name: /approve verification/i }),
+        ).toBeInTheDocument();
+        expect(
+            within(rejected).queryByRole('radio', { name: /reject verification/i }),
         ).not.toBeInTheDocument();
+    });
+
+    /**
+     * ⚠ **The evidence comes first, and this is the path that proves it.** The
+     * toolbar no longer opens a form — it opens the **Verification tab**, and the
+     * verdict is an affordance beside the documents. An operator cannot reach the
+     * radio group without passing the checklist.
+     */
+    it('routes the toolbar button to the evidence, not to a verdict form', async () => {
+        const user = userEvent.setup();
+        detail();
+
+        await user.click(await screen.findByRole('button', { name: /review verification/i }));
+
+        expect(await screen.findByText('What the applicant was asked for')).toBeInTheDocument();
+        // No verdict form yet — it is a second, deliberate click.
+        expect(screen.queryByRole('radiogroup', { name: 'Verdict' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /record a verdict/i })).toBeInTheDocument();
     });
 });
 

@@ -7,12 +7,12 @@ import { DataTable } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { RowActions } from '@/components/common/RowActions';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Button } from '@/components/ui/button';
 import { InfoHint } from '@/components/ui/info-hint';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -139,8 +139,7 @@ export function SubscriptionsList() {
         >
             <div className="space-y-4">
                 <FilterBar isFiltered={isFiltered} onClear={reset}>
-                    <div className="space-y-1.5">
-                        <Label htmlFor="subscription-status">Status</Label>
+                    <FilterField label="Status" htmlFor="subscription-status">
                         <Select
                             value={values.status || ANY}
                             onValueChange={(next) => set({ status: next === ANY ? null : next })}
@@ -163,10 +162,9 @@ export function SubscriptionsList() {
                                 )}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
-                    <div className="space-y-1.5">
-                        <Label htmlFor="subscription-owner">Owner kind</Label>
+                    <FilterField label="Owner kind" htmlFor="subscription-owner">
                         <Select
                             value={values.ownerType || ANY}
                             onValueChange={(next) => set({ ownerType: next === ANY ? null : next })}
@@ -183,7 +181,7 @@ export function SubscriptionsList() {
                                 ))}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
                     <DateRangeFilter
                         label="Created"

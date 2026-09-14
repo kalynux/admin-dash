@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, BadgeCheck, BadgeX, Power, PowerOff } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, Power, PowerOff } from 'lucide-react';
 
 import { AccountPanel } from '@/components/accounts/AccountPanel';
 import { AgencyActivityPanel } from '@/components/agencies/AgencyActivityPanel';
@@ -14,9 +14,9 @@ import { AgencyRosterPanel } from '@/components/agencies/AgencyRosterPanel';
 import {
     DeactivateAgencyDialog,
     ReactivateAgencyDialog,
-    RejectAgencyDialog,
-    VerifyAgencyDialog,
 } from '@/components/agencies/AgencyWriteDialogs';
+import { ReviewAgencyVerificationDialog } from '@/components/verification/ReviewAgencyVerificationDialog';
+import { VerificationPanel } from '@/components/verification/VerificationPanel';
 import { Can } from '@/components/auth/Can';
 import { ContractHistoryPanel } from '@/components/contracts/ContractHistoryPanel';
 import { ErrorState } from '@/components/common/DataState';
@@ -114,8 +114,7 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
     const timeZone = resolveTimeZone(admin.timezone);
 
     const [tab, setTab] = useState('overview');
-    const [verifying, setVerifying] = useState(false);
-    const [rejecting, setRejecting] = useState(false);
+    const [reviewing, setReviewing] = useState(false);
     const [deactivating, setDeactivating] = useState(false);
     const [reactivating, setReactivating] = useState(false);
 
@@ -180,34 +179,23 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
             description={<CopyableId value={record.id} label="agency ID" truncate={false} />}
             actions={
                 <>
+                    {/*
+                      Both verdicts sit behind the SAME permission and now behind
+                      the same button. `agencies.verify` is the review capability,
+                      named for its happy path; the audit action is what separates
+                      approving from refusing, so offering them as two toolbar
+                      buttons was offering one act twice — and asked the operator
+                      to pick an outcome before seeing anything to pick it from.
+
+                      Still gated on `canVerifyAgency`, because both verdicts are
+                      only reachable while the agency is still pending.
+                    */}
                     <Can permission="agencies.verify">
                         {canVerifyAgency(record) ? (
-                            <>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setVerifying(true)}
-                                >
-                                    <BadgeCheck className="size-4" />
-                                    Verify
-                                </Button>
-                                {/*
-                                  The other verdict, behind the SAME permission.
-                                  `agencies.verify` is the review capability, named
-                                  for its happy path; the audit action is what
-                                  separates approving from refusing. Gated on the
-                                  same predicate because both are only reachable
-                                  while the agency is still pending.
-                                */}
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setRejecting(true)}
-                                >
-                                    <BadgeX className="size-4" />
-                                    Reject
-                                </Button>
-                            </>
+                            <Button variant="outline" size="sm" onClick={() => setTab('verification')}>
+                                <BadgeCheck className="size-4" />
+                                Review verification
+                            </Button>
                         ) : null}
                     </Can>
 
@@ -264,8 +252,51 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
                     <AgencyOverviewPanel agency={record} timeZone={timeZone} />
                 </TabsContent>
 
-                <TabsContent value="verification">
+                {/*
+                  Two blocks on one tab, and the order is the argument.
+
+                  `AgencyKycPanel` is the verdict and the two reference strings —
+                  which is all a reviewer had until 2026-09-14, and neither of
+                  which identifies the *person* who will be holding a customer's
+                  cash. The evidence goes under it, because that is what the
+                  verdict is now supposed to rest on.
+
+                  ⚠ The verdict dialog is rendered by the panel's `actions`, since
+                  it needs the record the panel loaded — a dialog fetching its own
+                  could build the form on a different snapshot from the documents
+                  the operator just read.
+                */}
+                <TabsContent value="verification" className="space-y-6">
                     <AgencyKycPanel agency={record} timeZone={timeZone} />
+
+                    <VerificationPanel
+                        party="agency"
+                        partyId={record.id}
+                        timeZone={timeZone}
+                        actions={(verification, reloadVerification) => (
+                            <Can permission="agencies.verify">
+                                {canVerifyAgency(record) ? (
+                                    <>
+                                        <Button size="sm" onClick={() => setReviewing(true)}>
+                                            <BadgeCheck className="size-4" />
+                                            Record a verdict
+                                        </Button>
+                                        <ReviewAgencyVerificationDialog
+                                            agency={record}
+                                            record={verification}
+                                            open={reviewing}
+                                            onOpenChange={setReviewing}
+                                            onDone={() => {
+                                                reconcile();
+                                                reloadVerification();
+                                            }}
+                                            timeZone={timeZone}
+                                        />
+                                    </>
+                                ) : null}
+                            </Can>
+                        )}
+                    />
                 </TabsContent>
 
                 <TabsContent value="terms">
@@ -311,18 +342,6 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
                 ) : null}
             </Tabs>
 
-            <VerifyAgencyDialog
-                agency={record}
-                open={verifying}
-                onOpenChange={setVerifying}
-                onDone={reconcile}
-            />
-            <RejectAgencyDialog
-                agency={record}
-                open={rejecting}
-                onOpenChange={setRejecting}
-                onDone={reconcile}
-            />
             <DeactivateAgencyDialog
                 agency={record}
                 open={deactivating}

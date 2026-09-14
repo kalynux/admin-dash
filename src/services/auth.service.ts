@@ -1,5 +1,12 @@
 /**
- * `/auth` — ten of the surface's eleven routes.
+ * `/auth` — thirteen of the surface's fourteen routes.
+ *
+ * ⚠ **Three of them are documented nowhere.** `PATCH /auth/me/phone` and the two
+ * `/auth/me/phone/verify/*` routes are served by
+ * `admin-identity/routes/auth.routes.ts` and appear in neither
+ * [`auth.md`](../../api-doc/admin/api/auth.md) nor the route map; the shapes
+ * below were read off `admin-phone.service.ts` and `auth.validator.ts`. Asked
+ * for in BR-025 — re-read this block against the page once it lands.
  *
  * **There is deliberately no `refresh()` here.** Refresh tokens rotate on every
  * use, and replaying a superseded one is `ADMIN_AUTH_REFRESH_REUSED`, which
@@ -23,6 +30,8 @@ import type {
     MfaActivateResult,
     MfaEnrolmentOffer,
     MfaVerifyRequest,
+    PhoneCodeSent,
+    PhoneRecord,
     SessionsEndedResult,
 } from '@/types/auth.types';
 
@@ -176,4 +185,54 @@ export function enrolMfa(): Promise<MfaEnrolmentOffer> {
  */
 export function activateMfa(code: string): Promise<MfaActivateResult> {
     return api.post<MfaActivateResult>('/auth/mfa/activate', { code });
+}
+
+// ─── The administrator's own phone ────────────────────────────────────────────
+
+/**
+ * Save or replace the caller's own contact number.
+ *
+ * ⚠ **This always clears `phoneVerified`**, even when the number is unchanged:
+ * the service writes `phone_verified: false` unconditionally rather than keep a
+ * flag that could claim one number is proved while the row holds another.
+ * Callers must refetch the profile, not merge `verified` from elsewhere.
+ *
+ * Length only, 6–20, and **no format rule here** — the same division
+ * `EditIdentifiersDialog` draws. jovi-mall owns E.164 and judges it when the
+ * code is sent, so a second definition here would drift in the silent direction.
+ */
+export function setPhone(phone: string): Promise<PhoneRecord> {
+    return api.patch<PhoneRecord>('/auth/me/phone', { phone });
+}
+
+/**
+ * Ask jovi-mall to send a six-digit code over WhatsApp.
+ *
+ * **No body, and the target is chosen server-side** from the number already on
+ * the account — there is no parameter for it. A caller that could name the
+ * number could prove control of one and have another marked verified.
+ *
+ * Three refusals are worth knowing before reading the catalog. With no number
+ * saved it is a plain `422 VALIDATION_ERROR` raised by wi-admin itself, not a
+ * delegated `PHONE_VERIFICATION_NO_TARGET`. With `JOVI_MALL_BASE_URL` unset it
+ * is `503 SERVICE_DEPENDENCY_UNAVAILABLE`. And when WhatsApp refuses the send it
+ * is `502 SERVICE_DEPENDENCY_UNAVAILABLE` carrying
+ * `details.platformCode: 'PHONE_VERIFICATION_DELIVERY_FAILED'` — see
+ * `PhoneNumberCard` for why that one is the ordinary case today.
+ */
+export function requestPhoneCode(): Promise<PhoneCodeSent> {
+    return api.post<PhoneCodeSent>('/auth/me/phone/verify/request', undefined);
+}
+
+/**
+ * Spend the code.
+ *
+ * ⚠ **The body is `.strict()` and takes `code` alone.** Sending `phone` beside
+ * it is a `400`, not a stripped field — the number was fixed when the code was
+ * minted, and wi-admin re-checks the proved number against its own record before
+ * stamping. An administrator who changed their number between requesting a code
+ * and typing it gets `409`, because the code proves the *old* one.
+ */
+export function confirmPhoneCode(code: string): Promise<PhoneRecord> {
+    return api.post<PhoneRecord>('/auth/me/phone/verify/confirm', { code });
 }

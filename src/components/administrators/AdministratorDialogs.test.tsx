@@ -183,6 +183,123 @@ describe('EditAdministratorDialog', () => {
     });
 });
 
+// ─── Editing your own profile ─────────────────────────────────────────────────
+
+describe('EditAdministratorDialog, in self mode', () => {
+    function renderSelf(tier: 1 | 2 | 3) {
+        const calls = stubFetch(() => successResponse(administratorFixture({ tier })));
+
+        renderWithProviders(
+            <EditAdministratorDialog
+                administrator={administratorFixture({ tier })}
+                mode={{ kind: 'self' }}
+                open
+                onOpenChange={noop}
+                onUpdated={noop}
+            />,
+            {},
+        );
+
+        return calls;
+    }
+
+    /**
+     * ⚠ A house rule, not the contract: `PATCH /administrators/me` accepts both
+     * fields from every tier. Job title and department describe a person's place
+     * in the organisation, so below tier 1 they are somebody else's to set — and
+     * the dialog says who rather than leaving a greyed-out box to be puzzled at.
+     */
+    it('shows a Support administrator their job title without offering to change it', () => {
+        renderSelf(3);
+
+        expect(screen.queryByLabelText(/job title/i)).not.toBeInTheDocument();
+        expect(screen.queryByLabelText(/department/i)).not.toBeInTheDocument();
+
+        // Read-only, not hidden: the value is still a fact about their account.
+        expect(screen.getByText('Support Agent')).toBeInTheDocument();
+        expect(screen.getByText('Customer Care')).toBeInTheDocument();
+        expect(screen.getByText(/ask a developer-level administrator/i)).toBeInTheDocument();
+    });
+
+    it('locks them for an Admin too — the rule is "not tier 1", not "tier 3"', () => {
+        renderSelf(2);
+
+        expect(screen.queryByLabelText(/job title/i)).not.toBeInTheDocument();
+    });
+
+    it('leaves a Developer both fields, because there is no level above to ask', () => {
+        renderSelf(1);
+
+        expect(screen.getByLabelText(/job title/i)).toBeInTheDocument();
+        expect(screen.getByLabelText(/department/i)).toBeInTheDocument();
+    });
+
+    it('still lets a locked administrator change their own name, zone and language', async () => {
+        const calls = renderSelf(3);
+
+        await userEvent.clear(screen.getByLabelText(/display name/i));
+        await userEvent.type(screen.getByLabelText(/display name/i), 'Sam E.');
+        await userEvent.click(screen.getByRole('button', { name: /save changes/i }));
+
+        await waitFor(() => expect(calls).toHaveLength(1));
+        const body = bodyOf(calls[0]);
+        expect(body).toEqual({ displayName: 'Sam E.' });
+        // The lock is enforced on the way out as well as in the markup.
+        expect(body).not.toHaveProperty('jobTitle');
+        expect(body).not.toHaveProperty('department');
+    });
+
+    /**
+     * Both were free text boxes. A time zone decides how every date filter on
+     * this dashboard resolves a day, and `Africa/Doula` is a plausible thing to
+     * type and not a zone; a language typed as `english` renders in English by
+     * `resolveLocale`'s fallback and looks saved.
+     */
+    it('offers the language as a choice rather than a text box', async () => {
+        renderSelf(1);
+
+        const language = screen.getByRole('combobox', { name: /preferred language/i });
+        await userEvent.click(language);
+
+        expect(await screen.findByRole('option', { name: /Français/ })).toBeInTheDocument();
+        expect(screen.getByRole('option', { name: /English/ })).toBeInTheDocument();
+    });
+
+    it('offers the time zone as a searchable list, not a text box', () => {
+        renderSelf(1);
+
+        expect(screen.getByRole('combobox', { name: 'Time zone' })).toHaveTextContent(
+            'Africa/Douala',
+        );
+        // The old control was `<Input placeholder="Africa/Douala">`.
+        expect(screen.queryByPlaceholderText('Africa/Douala')).not.toBeInTheDocument();
+    });
+
+    it('keeps a saved language the dashboard does not speak, rather than rewriting it', async () => {
+        // `preferredLanguage` is a free 2–10 character string on the wire and is
+        // shared with wi-admin's record. Dropping `pt` from the list would blank
+        // the trigger and silently save `en` on the next unrelated edit.
+        const calls = stubFetch(() => successResponse(administratorFixture()));
+        renderWithProviders(
+            <EditAdministratorDialog
+                administrator={administratorFixture({ tier: 1, preferredLanguage: 'pt' })}
+                mode={{ kind: 'self' }}
+                open
+                onOpenChange={noop}
+                onUpdated={noop}
+            />,
+            {},
+        );
+
+        expect(screen.getByRole('combobox', { name: /preferred language/i })).toHaveTextContent(
+            'pt',
+        );
+
+        await userEvent.click(screen.getByRole('button', { name: /save changes/i }));
+        await waitFor(() => expect(calls).toHaveLength(0));
+    });
+});
+
 // ─── Suspend ──────────────────────────────────────────────────────────────────
 
 describe('SuspendAdministratorDialog', () => {

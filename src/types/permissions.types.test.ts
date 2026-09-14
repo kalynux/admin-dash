@@ -103,10 +103,18 @@ describe('the permission catalogue matches api-doc/admin/api/permissions.md', ()
         // when the tier table and the † note were re-counted for
         // `files.content.read`; the assertion below pins that they still do, so
         // the two cannot drift apart again silently.
-        expect(PERMISSION_NAMES.length).toBe(118);
+        //
+        // ⚠ **Moved 118 → 121 on 2026-09-14 (ADR-023)**, and the figure was taken
+        // by *executing* `npm run authz:matrix` against `backend/admin` — 121 /
+        // 101 / 31 — rather than by reading the banner that announced it. That
+        // mattered: `permissions.md` shipped with a header saying 121 and a tier
+        // table still saying 118, so believing either half of its own prose would
+        // have been a coin toss. The three new names are all tier 1, which is why
+        // only the first total moved.
+        expect(PERMISSION_NAMES.length).toBe(121);
         expect(UNROUTED_PERMISSION_NAMES.length).toBe(4);
-        expect(PERMISSION_FAMILIES.length).toBe(20);
-        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(114);
+        expect(PERMISSION_FAMILIES.length).toBe(21);
+        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(117);
     });
 
     /**

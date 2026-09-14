@@ -7,6 +7,7 @@ import { DataTable, type Column } from '@/components/common/DataTable';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { SearchInput } from '@/components/common/SearchInput';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -213,40 +214,44 @@ export function UsersList() {
                     onChange={(next) => set({ search: next }, { replace: true })}
                 />
 
-                <Select
-                    value={values.role || ANY}
-                    onValueChange={(value) => set({ role: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-36" aria-label="Role">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any role</SelectItem>
-                        {/* `admin` is deliberately absent — no users row can hold it. */}
-                        {USER_ROLES.map((role) => (
-                            <SelectItem key={role} value={role} className="capitalize">
-                                {role}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Role" htmlFor="filter-role">
+                    <Select
+                        value={values.role || ANY}
+                        onValueChange={(value) => set({ role: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-role" className="w-36">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any role</SelectItem>
+                            {/* `admin` is deliberately absent — no users row can hold it. */}
+                            {USER_ROLES.map((role) => (
+                                <SelectItem key={role} value={role} className="capitalize">
+                                    {role}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.status || ANY}
-                    onValueChange={(value) => set({ status: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-36" aria-label="Status">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any status</SelectItem>
-                        {USER_STATUSES.map((status) => (
-                            <SelectItem key={status} value={status} className="capitalize">
-                                {status}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Status" htmlFor="filter-status">
+                    <Select
+                        value={values.status || ANY}
+                        onValueChange={(value) => set({ status: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-status" className="w-36">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any status</SelectItem>
+                            {USER_STATUSES.map((status) => (
+                                <SelectItem key={status} value={status} className="capitalize">
+                                    {status}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
                 <DateRangeFilter
                     label="Created"

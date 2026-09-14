@@ -7,6 +7,7 @@ import { DataTable, type Column } from '@/components/common/DataTable';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { SearchInput } from '@/components/common/SearchInput';
 import { DeleteFileDialog, type DeletableFile } from '@/components/files/DeleteFileDialog';
@@ -310,73 +311,81 @@ export function MediaLibrary() {
                     onChange={(next) => set({ search: next }, { replace: true })}
                 />
 
-                <Select
-                    value={values.category || ANY}
-                    onValueChange={(value) => set({ category: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-40" aria-label="Category">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any kind</SelectItem>
-                        {FILE_CATEGORIES.map((category) => (
-                            <SelectItem key={category} value={category}>
-                                {humaniseEnum(category) ?? category}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Category" htmlFor="filter-category">
+                    <Select
+                        value={values.category || ANY}
+                        onValueChange={(value) => set({ category: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-category" className="w-40">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any kind</SelectItem>
+                            {FILE_CATEGORIES.map((category) => (
+                                <SelectItem key={category} value={category}>
+                                    {humaniseEnum(category) ?? category}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.ownerType || ANY}
-                    onValueChange={(value) => set({ ownerType: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-44" aria-label="Uploaded by">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any uploader</SelectItem>
-                        {FILE_OWNER_TYPES.map((owner) => (
-                            <SelectItem key={owner} value={owner}>
-                                {humaniseEnum(owner) ?? owner}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Uploaded by" htmlFor="filter-uploaded-by">
+                    <Select
+                        value={values.ownerType || ANY}
+                        onValueChange={(value) => set({ ownerType: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-uploaded-by" className="w-44">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any uploader</SelectItem>
+                            {FILE_OWNER_TYPES.map((owner) => (
+                                <SelectItem key={owner} value={owner}>
+                                    {humaniseEnum(owner) ?? owner}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.usage || ANY}
-                    onValueChange={(value) => set({ usage: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-40" aria-label="Attachment">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any usage</SelectItem>
-                        {FILE_USAGE_FILTERS.map((usage) => (
-                            <SelectItem key={usage} value={usage}>
-                                {usage === 'used' ? 'Not swept' : 'Marked unused'}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Attachment" htmlFor="filter-attachment">
+                    <Select
+                        value={values.usage || ANY}
+                        onValueChange={(value) => set({ usage: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-attachment" className="w-40">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any usage</SelectItem>
+                            {FILE_USAGE_FILTERS.map((usage) => (
+                                <SelectItem key={usage} value={usage}>
+                                    {usage === 'used' ? 'Not swept' : 'Marked unused'}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.provider || ANY}
-                    onValueChange={(value) => set({ provider: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-40" aria-label="Storage provider">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any provider</SelectItem>
-                        {FILE_PROVIDERS.map((provider) => (
-                            <SelectItem key={provider} value={provider}>
-                                {provider}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Storage provider" htmlFor="filter-storage-provider">
+                    <Select
+                        value={values.provider || ANY}
+                        onValueChange={(value) => set({ provider: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-storage-provider" className="w-40">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any provider</SelectItem>
+                            {FILE_PROVIDERS.map((provider) => (
+                                <SelectItem key={provider} value={provider}>
+                                    {provider}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
                 <DateRangeFilter
                     label="Uploaded"

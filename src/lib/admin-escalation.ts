@@ -60,6 +60,20 @@ export type AdminAction =
     | 'update'
     | 'suspend'
     | 'reinstate'
+    /**
+     * Letting a `pending` administrator in. **ADR-023, 2026-09-14.**
+     *
+     * ⚠ **It carries `administrators.activate`, which is `escalation`-flagged and
+     * therefore tier 1 only — and not because activation is a senior act.** It
+     * requires *reading the employee record*, and only tier 1 may. So a tier-2
+     * Admin can create a Support account and cannot turn it on.
+     *
+     * ⚠ **Never dual-controlled**, even Developer-on-Developer. Promotion creates
+     * a peer who could remove the promoter; activation merely lets somebody hold
+     * the level they were already created at, and that level was chosen under
+     * rule 4 when the account was made. See `mayActOn`, which exempts it.
+     */
+    | 'activate'
     | 'set_tier'
     /**
      * Listing another administrator's sessions.
@@ -179,6 +193,16 @@ export const UI_SELF_FORBIDDEN: ReadonlySet<AdminAction> = new Set<AdminAction>(
     'update',
     'read_sessions',
     'reset_mfa',
+    /*
+      `activate` — refused on yourself, and **here rather than in
+      `SELF_FORBIDDEN`** because the server does not enforce it through the
+      generic escalation set: it raises its own `ADMIN_ACTIVATION_SELF` from
+      inside the activation handler. Mirroring it into the server set would make
+      the parity test assert something the server does not do. The rule itself is
+      not in doubt — *"A Developer tried to activate their own account. Another
+      Developer must do it."*
+    */
+    'activate',
 ]);
 
 // ─── Verdict constructors ─────────────────────────────────────────────────────
@@ -294,6 +318,16 @@ export function mayActOn(
     const peerDeveloperAction = actor.tier === 1 && target.tier === 1;
 
     if (target.tier <= actor.tier && !peerDeveloperAction) return TARGET_PROTECTED;
+
+    /*
+      ⚠ **Activation is never dual-controlled, including Developer-on-Developer**,
+      so it does not take rule 3's queue. `administrators.md`: promotion creates a
+      peer who could remove the promoter; activation merely lets somebody hold a
+      level chosen under rule 4 when the account was made. Without this exemption
+      a Developer activating a Developer would render "waiting for approval" over
+      a route that answers `200`.
+    */
+    if (action === 'activate') return ALLOWED;
 
     const base = peerDeveloperAction ? QUEUED_PEER_DEVELOPER : ALLOWED;
 

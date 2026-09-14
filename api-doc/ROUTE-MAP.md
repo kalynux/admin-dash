@@ -1,10 +1,31 @@
-# Route map — all 239 wi-admin routes
+# Route map — all 255 wi-admin routes
 
-**Verified against source on 2026-09-08** — all 239 rows diffed row by row against the live
-`routeManifest()`: method, path, permission (including all 17 `all`-mode and 3 `any`-mode
-composites) and audit declaration. **Zero disagreements.** The two `/health/*` probes are outside
-the manifest by construction (they do not go through `defineRoute`), and the 240th route is the
-excluded internal one below. `118 / 20 / 3` re-derived by executing `npm run authz:matrix`.
+⚠ **Three more found the same day by reading SOURCE — 252 → 255, and the way they were
+missed is the point.** `PATCH /auth/me/phone` and the two `/auth/me/phone/verify/*` routes are
+served by `admin-identity/routes/auth.routes.ts` and documented **nowhere**: the word "phone"
+does not appear in [`auth.md`](admin/api/auth.md), upstream or here. A file extended *from the
+contract* cannot see a route the contract omits, which is exactly what happened to the 252 below
+— so their permission and audit cells are read from the router source, and their "documented in"
+cell names that source rather than a page. Asked for in
+[BR-025](admin/dashboard/backend-requests/BR-025-admin-phone-verification.md). **Re-run the
+recipe against a live `routeManifest()` and this stops being a reading.**
+
+⚠ **Extended from the contract on 2026-09-14, NOT from a router dump — 239 → 252.** Thirteen
+routes arrived and each row below was transcribed from its own contract page rather than from
+`routeManifest()`: the three `GET /:id/verification` reads
+([`verification.md`](admin/api/verification.md) — no new route group, one hangs off each party
+domain), `POST /administrators/:adminId/activate`, and the two groups ADR-023 brought,
+[`/employees`](admin/api/employees.md) (7) and [`/geo`](admin/api/geo.md) (2). **The permission
+and audit cells for those thirteen are therefore READ, not measured**, which is the weaker of the
+two stamps this file carries — re-run the recipe below when a service is available. Permissions
+are now **121 / 21 families**.
+
+**Verified against source on 2026-09-08** — the 239 rows *then existing*, diffed row by row
+against the live `routeManifest()`: method, path, permission (including all 17 `all`-mode and 3
+`any`-mode composites) and audit declaration. **Zero disagreements.** The two `/health/*` probes
+are outside the manifest by construction (they do not go through `defineRoute`), and the 240th
+route is the excluded internal one below. `118 / 20 / 3` re-derived by executing
+`npm run authz:matrix`.
 
 > ⚠ **What this stamp does NOT cover.** The *"documented in"* column was reconciled mechanically at
 > the 2026-08-24 generation and re-checked for the routes added since **only** where a page was
@@ -100,7 +121,7 @@ If either number moves, this file is stale and so is everything built from it.
 
 ---
 
-## The 239 routes, by namespace
+## The 255 routes, by namespace
 
 ### `/support` — 19 routes
 
@@ -126,7 +147,7 @@ If either number moves, this file is stale and so is everything built from it.
 | GET | `/support/tickets/reference/orders` | `support.reference.read` | — | [`support.md`](admin/api/support.md) |
 | GET | `/support/tickets/reference/products` | `support.reference.read` | — | [`support.md`](admin/api/support.md) |
 
-### `/administrators` — 17 routes
+### `/administrators` — 18 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -136,6 +157,7 @@ If either number moves, this file is stale and so is everything built from it.
 | PATCH | `/administrators/:adminId` | `administrators.update` | ✅ administrators.update | [`administrators.md`](admin/api/administrators.md) |
 | GET | `/administrators/:adminId/activity` | `audit.read` | — | [`administrators.md`](admin/api/administrators.md) |
 | GET | `/administrators/:adminId/history` | `audit.read` | — | [`administrators.md`](admin/api/administrators.md) |
+| POST | `/administrators/:adminId/activate` | `administrators.activate` | ◐ administrators.activate | [`administrators.md`](admin/api/administrators.md) |
 | POST | `/administrators/:adminId/mfa-reset` | `administrators.mfa.reset` | ✅ administrators.mfa.reset | [`administrators.md`](admin/api/administrators.md) |
 | POST | `/administrators/:adminId/password-reset` | `administrators.password.reset` | ✅ administrators.password.reset | [`administrators.md`](admin/api/administrators.md) |
 | POST | `/administrators/:adminId/reinstate` | `administrators.suspend` | ✅ administrators.reinstate | [`administrators.md`](admin/api/administrators.md) |
@@ -148,7 +170,7 @@ If either number moves, this file is stale and so is everything built from it.
 | PATCH | `/administrators/me` | *self* | ✅ administrators.profile.update_self | [`administrators.md`](admin/api/administrators.md) |
 | GET | `/administrators/me/activity` | *self* | — | [`administrators.md`](admin/api/administrators.md) |
 
-### `/agents` — 18 routes
+### `/agents` — 19 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -167,6 +189,7 @@ If either number moves, this file is stale and so is everything built from it.
 | PUT | `/agents/:agentId/status` | `agents.status.set` | ✅ agents.status.set | [`agents.md`](admin/api/agents.md) |
 | PUT | `/agents/:agentId/tracking` | `agents.tracking.set` | ✅ agents.tracking.set | [`agents.md`](admin/api/agents.md) |
 | GET | `/agents/:agentId/tracking-policy` | `agents.read` | — | [`agents.md`](admin/api/agents.md) |
+| GET | `/agents/:agentId/verification` | `agents.read` | — | [`verification.md`](admin/api/verification.md) |
 | GET | `/agents/:agentId/tracking-presence` | `agents.tracking.read` | — | [`agents.md`](admin/api/agents.md) |
 | POST | `/agents/:agentId/unban` | `agents.ban` | ✅ agents.unban | [`agents.md`](admin/api/agents.md) |
 | POST | `/agents/transfer` | `agents.transfer` | ✅ agents.transfer | [`agents.md`](admin/api/agents.md) |
@@ -252,13 +275,14 @@ If either number moves, this file is stale and so is everything built from it.
 | POST | `/money/payouts/:payoutId/reject` | `money.payouts.reject` | ✅ money.payouts.reject | [`money.md`](admin/api/money.md) |
 | GET | `/money/refunds` | `money.payments.read` | — | [`money.md`](admin/api/money.md) |
 
-### `/vendors` — 13 routes
+### `/vendors` — 14 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
 | GET | `/vendors/` | `vendors.read` | — | [`vendors.md`](admin/api/vendors.md) |
 | GET | `/vendors/:vendorId` | `vendors.read` | — | [`vendors.md`](admin/api/vendors.md) |
 | GET | `/vendors/:vendorId/activity` | `vendors.read` + `audit.read` | — | [`vendors.md`](admin/api/vendors.md) |
+| GET | `/vendors/:vendorId/verification` | `vendors.read` | — | [`verification.md`](admin/api/verification.md) |
 | GET | `/vendors/:vendorId/agencies` | `vendors.read` + `agencies.read` | — | [`vendors.md`](admin/api/vendors.md) |
 | POST | `/vendors/:vendorId/kyc/approve` | `vendors.kyc.review` | ✅ vendors.kyc.approve | [`vendors.md`](admin/api/vendors.md) |
 | POST | `/vendors/:vendorId/kyc/reject` | `vendors.kyc.review` | ✅ vendors.kyc.reject | [`vendors.md`](admin/api/vendors.md) |
@@ -270,7 +294,7 @@ If either number moves, this file is stale and so is everything built from it.
 | PATCH | `/vendors/:vendorId/settings` | `vendors.settings.manage` | ✅ vendors.settings.update | [`vendors.md`](admin/api/vendors.md) |
 | POST | `/vendors/:vendorId/suspend` | `vendors.suspend` | ✅ vendors.suspend | [`vendors.md`](admin/api/vendors.md) |
 
-### `/auth` — 11 routes
+### `/auth` — 14 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -278,6 +302,9 @@ If either number moves, this file is stale and so is everything built from it.
 | POST | `/auth/logout` | *mfa-enrolment* | ✅ administrators.auth.logout | [`auth.md`](admin/api/auth.md) |
 | POST | `/auth/logout-all` | *self* | ✅ administrators.auth.logout_all | [`auth.md`](admin/api/auth.md) |
 | GET | `/auth/me` | *mfa-enrolment* | — | [`auth.md`](admin/api/auth.md) |
+| PATCH | `/auth/me/phone` | *self* | ✅ administrators.profile.phone_set | ⚠ **undocumented** — [`auth.routes.ts`](../../backend/admin/src/modules/admin-identity/routes/auth.routes.ts) |
+| POST | `/auth/me/phone/verify/confirm` | *self* | ✅ administrators.profile.phone_verified | ⚠ **undocumented** — [`auth.routes.ts`](../../backend/admin/src/modules/admin-identity/routes/auth.routes.ts) |
+| POST | `/auth/me/phone/verify/request` | *self* | ◐ administrators.profile.phone_set | ⚠ **undocumented** — [`auth.routes.ts`](../../backend/admin/src/modules/admin-identity/routes/auth.routes.ts) |
 | POST | `/auth/mfa/activate` | *mfa-enrolment* | ✅ administrators.auth.mfa_activated | [`auth.md`](admin/api/auth.md) |
 | POST | `/auth/mfa/enroll` | *mfa-enrolment* | ✅ administrators.auth.mfa_enrolled | [`auth.md`](admin/api/auth.md) |
 | POST | `/auth/mfa/verify` | *public* | ✅ administrators.auth.mfa_failed, administrators.auth.login_succeeded | [`auth.md`](admin/api/auth.md) |
@@ -331,7 +358,7 @@ If either number moves, this file is stale and so is everything built from it.
 | GET | `/orders/:orderId/timeline` | `orders.read` | — | [`orders.md`](admin/api/orders.md) |
 | GET | `/orders/disputes` | `orders.disputes.read` | — | [`orders.md`](admin/api/orders.md) |
 
-### `/agencies` — 9 routes
+### `/agencies` — 10 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -340,6 +367,7 @@ If either number moves, this file is stale and so is everything built from it.
 | GET | `/agencies/:agencyId/activity` | `agencies.read` + `audit.read` | — | [`agencies.md`](admin/api/agencies.md) |
 | GET | `/agencies/:agencyId/agents` | `agencies.read` + `agents.read` | — | [`agencies.md`](admin/api/agencies.md) |
 | GET | `/agencies/:agencyId/contract-history` | `agencies.read` | — | [`agencies.md`](admin/api/agencies.md) |
+| GET | `/agencies/:agencyId/verification` | `agencies.read` | — | [`verification.md`](admin/api/verification.md) |
 | POST | `/agencies/:agencyId/deactivate` | `agencies.deactivate` | ✅ agencies.deactivate | [`agencies.md`](admin/api/agencies.md) |
 | POST | `/agencies/:agencyId/reactivate` | `agencies.reactivate` | ✅ agencies.reactivate | [`agencies.md`](admin/api/agencies.md) |
 | POST | `/agencies/:agencyId/reject` | `agencies.verify` | ✅ agencies.reject | [`agencies.md`](admin/api/agencies.md) |
@@ -425,6 +453,39 @@ If either number moves, this file is stale and so is everything built from it.
 | POST | `/contracts/:contractId/reinstate` | `agents.contracts.manage` | ✅ agents.contracts.reinstate | [`contracts.md`](admin/api/contracts.md) |
 | POST | `/contracts/:contractId/suspend` | `agents.contracts.manage` | ✅ agents.contracts.suspend | [`contracts.md`](admin/api/contracts.md) |
 | POST | `/contracts/:contractId/terminate` | `agents.contracts.manage` | ✅ agents.contracts.terminate | [`contracts.md`](admin/api/contracts.md) |
+
+### `/employees` — 7 routes
+
+**Added 2026-09-14 (ADR-023).** ⚠ **The narrowest surface on the service, and the only route
+group with no listing route at any tier.** Five routes are *self* — every administrator
+maintains their own record — and the two that read or write somebody *else's* are tier 1 only,
+refused to any other rung by a **boot assertion** rather than by a grant table. There is no
+`GET /employees` and no delete; a listing is how somebody asks *"show me every salary"*, and
+departure is `employment.endedOn`.
+
+| Method | Path | Permission | Audited | Documented in |
+|---|---|---|---|---|
+| GET | `/employees/me` | *self* | — | [`employees.md`](admin/api/employees.md) |
+| PATCH | `/employees/me` | *self* | ✅ employees.record.update_self | [`employees.md`](admin/api/employees.md) |
+| PUT | `/employees/me/avatar` | *self* | ✅ employees.avatar.set | [`employees.md`](admin/api/employees.md) |
+| POST | `/employees/me/documents/:slot` | *self* | ✅ employees.documents.upload, employees.documents.attach | [`employees.md`](admin/api/employees.md) |
+| DELETE | `/employees/me/documents/:slot/:fileId` | *self* | ✅ employees.documents.detach | [`employees.md`](admin/api/employees.md) |
+| GET | `/employees/:adminId` | `employees.read` | — | [`employees.md`](admin/api/employees.md) |
+| PATCH | `/employees/:adminId/employment` | `employees.employment.write` | ✅ employees.employment.update | [`employees.md`](admin/api/employees.md) |
+
+### `/geo` — 2 routes
+
+**Added 2026-09-14 (ADR-023).** ⚠ **No permission, and that is a decision.** These act on no
+identity at all — a public gazetteer read through a third-party geocoder, touching no platform
+data and no person — so there is no subject to grade by, and an invented permission is one
+somebody later grants to a tier for the wrong reason. Both are reachable by a `pending`
+administrator, who cannot finish their employee record otherwise. Not audited: what gets
+recorded is the address somebody **stores**, by the audited write that stores it.
+
+| Method | Path | Permission | Audited | Documented in |
+|---|---|---|---|---|
+| GET | `/geo/search` | *self* | — | [`geo.md`](admin/api/geo.md) |
+| GET | `/geo/reverse` | *self* | — | [`geo.md`](admin/api/geo.md) |
 
 ### `/files` — 7 routes
 

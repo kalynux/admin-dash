@@ -5,11 +5,11 @@ import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { NotSet } from '@/components/common/DefinitionList';
 import { Pager } from '@/components/common/Pager';
 import { Badge } from '@/components/ui/badge';
 import { InfoHint } from '@/components/ui/info-hint';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -191,8 +191,7 @@ export function AccountCreditsPanel({
                     setPage(1);
                 }}
             >
-                <div className="space-y-1.5">
-                    <Label htmlFor="credit-type">Type</Label>
+                <FilterField label="Type" htmlFor="credit-type">
                     <Select
                         value={type}
                         onValueChange={(next) => {
@@ -212,7 +211,7 @@ export function AccountCreditsPanel({
                             ))}
                         </SelectContent>
                     </Select>
-                </div>
+                </FilterField>
             </FilterBar>
 
             <DataTable

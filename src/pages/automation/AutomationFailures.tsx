@@ -11,6 +11,7 @@ import { WindowHoursSelect } from '@/components/automation/WindowHoursSelect';
 import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataState, EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { SearchInput } from '@/components/common/SearchInput';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { MaskedNotice } from '@/components/system/MaskedNotice';
@@ -169,22 +170,24 @@ export function AutomationFailures() {
                     maxLength={AUTOMATION_WORKFLOW_ID_MAX_LENGTH}
                 />
 
-                <Select
-                    value={values.kind || ANY}
-                    onValueChange={(next) => set({ kind: next === ANY ? null : next })}
-                >
-                    <SelectTrigger className="w-[170px]" aria-label="Kind">
-                        <SelectValue placeholder="Any kind" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any kind</SelectItem>
-                        {AUTOMATION_FAILURE_KINDS.map((kind) => (
-                            <SelectItem key={kind} value={kind}>
-                                {KIND_COPY[kind]?.title ?? kind}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Kind" htmlFor="filter-kind">
+                    <Select
+                        value={values.kind || ANY}
+                        onValueChange={(next) => set({ kind: next === ANY ? null : next })}
+                    >
+                        <SelectTrigger id="filter-kind" className="w-[170px]">
+                            <SelectValue placeholder="Any kind" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any kind</SelectItem>
+                            {AUTOMATION_FAILURE_KINDS.map((kind) => (
+                                <SelectItem key={kind} value={kind}>
+                                    {KIND_COPY[kind]?.title ?? kind}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
                 {/*
                   ⚠ `unknown` is offered and must stay offered. It is the stored default, and an
@@ -192,43 +195,47 @@ export function AutomationFailures() {
                   Telegram/WhatsApp-only dropdown hides most of the died-outright rows while
                   looking complete.
                 */}
-                <Select
-                    value={values.channel || ANY}
-                    onValueChange={(next) => set({ channel: next === ANY ? null : next })}
-                >
-                    <SelectTrigger className="w-[160px]" aria-label="Channel">
-                        <SelectValue placeholder="Any channel" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any channel</SelectItem>
-                        {AUTOMATION_CHANNELS.map((channel) => (
-                            <SelectItem key={channel} value={channel}>
-                                {channel === 'unknown' ? 'Unknown channel' : channel}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Channel" htmlFor="filter-channel">
+                    <Select
+                        value={values.channel || ANY}
+                        onValueChange={(next) => set({ channel: next === ANY ? null : next })}
+                    >
+                        <SelectTrigger id="filter-channel" className="w-[160px]">
+                            <SelectValue placeholder="Any channel" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any channel</SelectItem>
+                            {AUTOMATION_CHANNELS.map((channel) => (
+                                <SelectItem key={channel} value={channel}>
+                                    {channel === 'unknown' ? 'Unknown channel' : channel}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
                 <WindowHoursSelect
                     value={values.windowHours}
                     onChange={(next) => set({ windowHours: next })}
                 />
 
-                <Select
-                    value={values.limit || `${AUTOMATION_LIMIT_DEFAULT}`}
-                    onValueChange={(next) => set({ limit: next })}
-                >
-                    <SelectTrigger className="w-[130px]" aria-label="Rows">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {LIMIT_OPTIONS.map((limit) => (
-                            <SelectItem key={limit} value={limit}>
-                                {limit} rows
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Rows" htmlFor="filter-rows">
+                    <Select
+                        value={values.limit || `${AUTOMATION_LIMIT_DEFAULT}`}
+                        onValueChange={(next) => set({ limit: next })}
+                    >
+                        <SelectTrigger id="filter-rows" className="w-[130px]">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {LIMIT_OPTIONS.map((limit) => (
+                                <SelectItem key={limit} value={limit}>
+                                    {limit} rows
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
             </FilterBar>
 
             {data ? (

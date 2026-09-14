@@ -12,6 +12,7 @@ import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { SearchInput } from '@/components/common/SearchInput';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -222,39 +223,43 @@ export function AdministratorsList() {
                     onChange={(next) => set({ search: next }, { replace: true })}
                 />
 
-                <Select
-                    value={values.tier || ANY}
-                    onValueChange={(value) => set({ tier: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-40" aria-label="Level">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any level</SelectItem>
-                        {ADMINISTRATOR_TIERS.map((tier) => (
-                            <SelectItem key={tier} value={String(tier)}>
-                                {tierLabel(tier)}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Level" htmlFor="filter-level">
+                    <Select
+                        value={values.tier || ANY}
+                        onValueChange={(value) => set({ tier: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-level" className="w-40">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any level</SelectItem>
+                            {ADMINISTRATOR_TIERS.map((tier) => (
+                                <SelectItem key={tier} value={String(tier)}>
+                                    {tierLabel(tier)}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.status || ANY}
-                    onValueChange={(value) => set({ status: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-36" aria-label="Status">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any status</SelectItem>
-                        {ADMINISTRATOR_STATUSES.map((status) => (
-                            <SelectItem key={status} value={status} className="capitalize">
-                                {status}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Status" htmlFor="filter-status">
+                    <Select
+                        value={values.status || ANY}
+                        onValueChange={(value) => set({ status: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-status" className="w-36">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any status</SelectItem>
+                            {ADMINISTRATOR_STATUSES.map((status) => (
+                                <SelectItem key={status} value={status} className="capitalize">
+                                    {status}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
                 {/* No date range: `/administrators` accepts no `from`/`to`. */}
             </FilterBar>
 

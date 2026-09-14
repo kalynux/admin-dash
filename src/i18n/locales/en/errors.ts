@@ -68,6 +68,25 @@ const codes = {
     ADMIN_ACCOUNT_ALREADY_EXISTS: 'An administrator already uses that address',
     ADMIN_SESSION_NOT_FOUND: 'No such session',
 
+    // ─── Administrator activation (ADR-023) ──────────────────────────────────
+    /*
+      ⚠ The first of these should almost never be read by a human. It is the
+      routing signal for "this account is still pending", and the shell is meant
+      to catch it and render the onboarding screen instead. The copy is written
+      for the case where one escapes anyway — so it says what to do, and it
+      deliberately does not use the word "denied": the account is not shut out,
+      it has not been let in yet.
+    */
+    ADMIN_ACTIVATION_REQUIRED: 'Your account is waiting to be activated',
+    ADMIN_ACTIVATION_INCOMPLETE: 'Their employee record is not complete yet',
+    ADMIN_ACTIVATION_SUSPENDED: 'That account is suspended — reinstate it instead',
+    ADMIN_ACTIVATION_SELF: 'Another Developer has to activate your account',
+    ADMIN_ACTIVATION_CONFLICT: 'Somebody changed that account while you were looking',
+
+    // ─── Employee records (ADR-023) ──────────────────────────────────────────
+    EMPLOYEE_SLOT_FULL: 'That slot is full — remove a file before adding another',
+    EMPLOYEE_DOCUMENT_NOT_FOUND: 'That slot does not hold that file',
+
     // ─── Audit ───────────────────────────────────────────────────────────────
     AUDIT_ENTRY_NOT_FOUND: 'No such audit entry',
     AUDIT_EXPORT_NOT_FOUND: 'No such export',

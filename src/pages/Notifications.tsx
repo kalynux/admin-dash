@@ -4,6 +4,7 @@ import { CheckCheck, Inbox, RotateCw } from 'lucide-react';
 import { DataState, EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { ListSkeleton } from '@/components/common/Loading';
 import { Pager } from '@/components/common/Pager';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -270,59 +271,65 @@ export function Notifications() {
             }
         >
             <FilterBar isFiltered={isFiltered} onClear={reset}>
-                <Select value={status} onValueChange={(value) => set({ status: value })}>
-                    <SelectTrigger className="h-9 w-44" aria-label="Status">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {NOTIFICATION_STATUS_FILTERS.map((value) => (
-                            <SelectItem key={value} value={value}>
-                                {STATUS_LABELS[value]}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Status" htmlFor="filter-status">
+                    <Select value={status} onValueChange={(value) => set({ status: value })}>
+                        <SelectTrigger id="filter-status" className="h-9 w-44">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {NOTIFICATION_STATUS_FILTERS.map((value) => (
+                                <SelectItem key={value} value={value}>
+                                    {STATUS_LABELS[value]}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.type || ANY}
-                    onValueChange={(value) => set({ type: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="h-9 w-56" aria-label="Type">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {/*
-                          ⚠ Mono, and still not a value render — here and in the
-                          source select below. These are option *labels*: the
-                          string is the filter, not something identifying a row,
-                          and a copy button inside a `SelectItem` would swallow
-                          the click that selects it.
-                        */}
-                        <SelectItem value={ANY}>Any type</SelectItem>
-                        {typeOptions.map((value) => (
-                            <SelectItem key={value} value={value} className="font-mono text-xs">
-                                {value}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Type" htmlFor="filter-type">
+                    <Select
+                        value={values.type || ANY}
+                        onValueChange={(value) => set({ type: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-type" className="h-9 w-56">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {/*
+                              ⚠ Mono, and still not a value render — here and in the
+                              source select below. These are option *labels*: the
+                              string is the filter, not something identifying a row,
+                              and a copy button inside a `SelectItem` would swallow
+                              the click that selects it.
+                            */}
+                            <SelectItem value={ANY}>Any type</SelectItem>
+                            {typeOptions.map((value) => (
+                                <SelectItem key={value} value={value} className="font-mono text-xs">
+                                    {value}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.severity || ANY}
-                    onValueChange={(value) => set({ severity: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="h-9 w-40" aria-label="Severity">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any severity</SelectItem>
-                        {severityOptions.map((value) => (
-                            <SelectItem key={value} value={value}>
-                                {value}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Severity" htmlFor="filter-severity">
+                    <Select
+                        value={values.severity || ANY}
+                        onValueChange={(value) => set({ severity: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-severity" className="h-9 w-40">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any severity</SelectItem>
+                            {severityOptions.map((value) => (
+                                <SelectItem key={value} value={value}>
+                                    {value}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
                 {/*
                   The source select offers **only** what the registry answered:
@@ -332,22 +339,24 @@ export function Notifications() {
                   is why this renders nothing rather than an empty select.
                 */}
                 {sourceOptions.length > 0 ? (
-                    <Select
-                        value={values.source || ANY}
-                        onValueChange={(value) => set({ source: value === ANY ? null : value })}
-                    >
-                        <SelectTrigger className="h-9 w-56" aria-label="Source">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value={ANY}>Any source</SelectItem>
-                            {sourceOptions.map((value) => (
-                                <SelectItem key={value} value={value} className="font-mono text-xs">
-                                    {value}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <FilterField label="Source" htmlFor="filter-source">
+                        <Select
+                            value={values.source || ANY}
+                            onValueChange={(value) => set({ source: value === ANY ? null : value })}
+                        >
+                            <SelectTrigger id="filter-source" className="h-9 w-56">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value={ANY}>Any source</SelectItem>
+                                {sourceOptions.map((value) => (
+                                    <SelectItem key={value} value={value} className="font-mono text-xs">
+                                        {value}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </FilterField>
                 ) : null}
 
                 <DateRangeFilter
@@ -359,21 +368,23 @@ export function Notifications() {
                     maxDays={MAX_DAYS_DEFAULT}
                 />
 
-                <Select
-                    value={values.sort || SORT_DEFAULT}
-                    onValueChange={(value) => set({ sort: value })}
-                >
-                    <SelectTrigger className="h-9 w-52" aria-label="Sort">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {SORT_OPTIONS.map((option) => (
-                            <SelectItem key={option.value} value={option.value}>
-                                {option.label}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Sort" htmlFor="filter-sort">
+                    <Select
+                        value={values.sort || SORT_DEFAULT}
+                        onValueChange={(value) => set({ sort: value })}
+                    >
+                        <SelectTrigger id="filter-sort" className="h-9 w-52">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {SORT_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
                 {meta ? (
                     <p className="text-muted-foreground ml-auto text-sm tabular-nums">

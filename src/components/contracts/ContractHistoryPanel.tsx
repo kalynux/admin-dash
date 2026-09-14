@@ -5,11 +5,11 @@ import { DataTable, type Column } from '@/components/common/DataTable';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { PartyValue } from '@/components/common/PartyValue';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -262,10 +262,7 @@ export function ContractHistoryPanel({ side, ownerId, timeZone }: ContractHistor
                   pinned copy would go stale — so an invented dropdown here would be a
                   list that can silently stop matching.
                 */}
-                <div className="space-y-1.5">
-                    <Label htmlFor={`contract-event-type-${ownerId}`} className="text-xs">
-                        Event type
-                    </Label>
+                <FilterField label="Event type" htmlFor={`contract-event-type-${ownerId}`}>
                     <Input
                         id={`contract-event-type-${ownerId}`}
                         className="w-56"
@@ -278,27 +275,29 @@ export function ContractHistoryPanel({ side, ownerId, timeZone }: ContractHistor
                             setPage(1);
                         }}
                     />
-                </div>
+                </FilterField>
 
-                <Select
-                    value={actorRole || ANY}
-                    onValueChange={(value) => {
-                        setActorRole(value === ANY ? '' : value);
-                        setPage(1);
-                    }}
-                >
-                    <SelectTrigger className="w-40" aria-label="Acted by">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Anyone</SelectItem>
-                        {CONTRACT_ACTOR_ROLES.map((role) => (
-                            <SelectItem key={role} value={role} className="capitalize">
-                                {role}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Acted by" htmlFor="filter-acted-by">
+                    <Select
+                        value={actorRole || ANY}
+                        onValueChange={(value) => {
+                            setActorRole(value === ANY ? '' : value);
+                            setPage(1);
+                        }}
+                    >
+                        <SelectTrigger id="filter-acted-by" className="w-40">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Anyone</SelectItem>
+                            {CONTRACT_ACTOR_ROLES.map((role) => (
+                                <SelectItem key={role} value={role} className="capitalize">
+                                    {role}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
                 <DateRangeFilter
                     label="Occurred"

@@ -223,9 +223,11 @@ function LibraryBrowser({
                         setPage(1);
                     }}
                 />
+                {/* `h-9`, matching the search box it sits beside — `items-end`
+                    lines the two up on the control row, under the search title. */}
                 <Button
                     variant="outline"
-                    size="sm"
+                    className="h-9"
                     onClick={refresh}
                     disabled={library.isLoading || library.isRefreshing}
                 >

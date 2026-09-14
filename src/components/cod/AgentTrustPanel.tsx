@@ -5,10 +5,10 @@ import { DataTable } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -115,8 +115,7 @@ export function AgentTrustPanel({
                         setPage(1);
                     }}
                 >
-                    <div className="space-y-1.5">
-                        <Label htmlFor="trust-event-type">Kind</Label>
+                    <FilterField label="Kind" htmlFor="trust-event-type">
                         <Select
                             value={eventType || 'any'}
                             onValueChange={(next) => {
@@ -136,7 +135,7 @@ export function AgentTrustPanel({
                                 ))}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
                     <DateRangeFilter
                         label="When"

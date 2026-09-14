@@ -5,6 +5,7 @@ import { DataTable } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { RowActions } from '@/components/common/RowActions';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -17,7 +18,6 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { InfoHint } from '@/components/ui/info-hint';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -221,8 +221,7 @@ export function PayoutsQueue() {
                 ) : null}
 
                 <FilterBar isFiltered={isFiltered} onClear={reset}>
-                    <div className="space-y-1.5">
-                        <Label htmlFor="payout-status">Status</Label>
+                    <FilterField label="Status" htmlFor="payout-status">
                         <Select
                             value={values.status || ANY}
                             onValueChange={(next) => set({ status: next === ANY ? null : next })}
@@ -239,10 +238,9 @@ export function PayoutsQueue() {
                                 ))}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
-                    <div className="space-y-1.5">
-                        <Label htmlFor="payout-owner-type">Owner kind</Label>
+                    <FilterField label="Owner kind" htmlFor="payout-owner-type">
                         <Select
                             value={values.ownerType || ANY}
                             onValueChange={(next) => set({ ownerType: next === ANY ? null : next })}
@@ -262,20 +260,21 @@ export function PayoutsQueue() {
                                 ))}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
-                    <div className="space-y-1.5">
-                        <Label
-                            htmlFor="payout-origin"
-                            className="flex items-center gap-1"
-                        >
-                            Opened by
-                            <InfoHint label="About payout origin">
-                                A request the owner made, versus one the platform opened for them
-                                automatically once their available balance reached the payout
-                                threshold. Nobody asked for the latter.
-                            </InfoHint>
-                        </Label>
+                    <FilterField
+                        htmlFor="payout-origin"
+                        label={
+                            <>
+                                Opened by
+                                <InfoHint label="About payout origin">
+                                    A request the owner made, versus one the platform opened for them
+                                    automatically once their available balance reached the payout
+                                    threshold. Nobody asked for the latter.
+                                </InfoHint>
+                            </>
+                        }
+                    >
                         <Select
                             value={values.origin || ANY}
                             onValueChange={(next) => set({ origin: next === ANY ? null : next })}
@@ -292,7 +291,7 @@ export function PayoutsQueue() {
                                 ))}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
                     <DateRangeFilter
                         label="Requested"

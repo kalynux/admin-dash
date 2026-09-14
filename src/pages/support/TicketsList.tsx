@@ -6,6 +6,7 @@ import { DataTable } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { SearchInput } from '@/components/common/SearchInput';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -171,21 +172,23 @@ export function TicketsList() {
                     onChange={(next) => set({ search: next }, { replace: true })}
                 />
 
-                <Select
-                    value={values.queue || 'all'}
-                    onValueChange={(value) => set({ queue: value })}
-                >
-                    <SelectTrigger className="w-52" aria-label="Queue">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {TICKET_QUEUES.map((value) => (
-                            <SelectItem key={value} value={value}>
-                                {QUEUE_LABELS[value]}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Queue" htmlFor="filter-queue">
+                    <Select
+                        value={values.queue || 'all'}
+                        onValueChange={(value) => set({ queue: value })}
+                    >
+                        <SelectTrigger id="filter-queue" className="w-52">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            {TICKET_QUEUES.map((value) => (
+                                <SelectItem key={value} value={value}>
+                                    {QUEUE_LABELS[value]}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
                 {/*
                   Typed rather than picked. These four vocabularies belong to

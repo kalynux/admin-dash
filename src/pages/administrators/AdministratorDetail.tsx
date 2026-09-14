@@ -1,6 +1,16 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Ban, KeyRound, Pencil, RotateCcw, RotateCw, ShieldOff, Shuffle } from 'lucide-react';
+import {
+    ArrowLeft,
+    BadgeCheck,
+    Ban,
+    KeyRound,
+    Pencil,
+    RotateCcw,
+    RotateCw,
+    ShieldOff,
+    Shuffle,
+} from 'lucide-react';
 
 import {
     AdministratorActivityPanel,
@@ -17,6 +27,7 @@ import {
     ResetAdministratorPasswordDialog,
 } from '@/components/administrators/AdministratorCredentialDialogs';
 import {
+    ActivateAdministratorDialog,
     ReinstateAdministratorDialog,
     SetAdministratorTierDialog,
     SuspendAdministratorDialog,
@@ -29,6 +40,7 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { TierBadge } from '@/components/layout/TierBadge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { EmployeeRecordPanel } from '@/components/employees/EmployeeRecordPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { offerAction, type ExistingAdminAction } from '@/lib/admin-escalation';
@@ -115,6 +127,7 @@ function AdministratorDetailScreen({ adminId }: { adminId: string }) {
     const [editing, setEditing] = useState(false);
     const [suspending, setSuspending] = useState(false);
     const [reinstating, setReinstating] = useState(false);
+    const [activating, setActivating] = useState(false);
     const [changingTier, setChangingTier] = useState(false);
     const [resettingPassword, setResettingPassword] = useState(false);
     const [resettingMfa, setResettingMfa] = useState(false);
@@ -189,6 +202,26 @@ function AdministratorDetailScreen({ adminId }: { adminId: string }) {
     const canEdit = can('administrators.update') && may('update').allowed;
     const canSuspend = can('administrators.suspend') && may('suspend').allowed;
     const canReinstate = can('administrators.suspend') && may('reinstate').allowed;
+    /*
+      ⚠ Offered **only on a `pending` account**, because activating an active one
+      is an idempotent no-op that records nothing — a button that could only ever
+      do nothing is not a button.
+
+      `may('activate')` refuses it on yourself: a Developer cannot activate their
+      own account (`ADMIN_ACTIVATION_SELF`), and another Developer must.
+    */
+    /*
+      ⚠ Not `isSelf`-guarded: reading your own record here is harmless and the
+      route answers it. The self-service screen is the better door, and the
+      account menu points at it — but hiding this tab from yourself would be a
+      rule the service does not have.
+    */
+    const canSeeEmployeeRecord = can('employees.read');
+
+    const canActivate =
+        target.status === 'pending' &&
+        can('administrators.activate') &&
+        may('activate').allowed;
     const canSetTier =
         can('administrators.tier.set') &&
         may('set_tier').allowed &&
@@ -264,6 +297,13 @@ function AdministratorDetailScreen({ adminId }: { adminId: string }) {
                         </Button>
                     ) : null}
 
+                    {canActivate ? (
+                        <Button size="sm" onClick={() => setActivating(true)}>
+                            <BadgeCheck className="size-4" />
+                            Activate
+                        </Button>
+                    ) : null}
+
                     {/* One permission, two directions — which is offered follows
                         the record's status, so both can never appear at once. */}
                     {target.status === 'suspended'
@@ -303,10 +343,27 @@ function AdministratorDetailScreen({ adminId }: { adminId: string }) {
             <Tabs defaultValue="profile" className="space-y-4">
                 <TabsList>
                     <TabsTrigger value="profile">Profile</TabsTrigger>
+                    {/*
+                      ADR-023. Omitted rather than rendered-and-refused, like every
+                      other conditional tab here — and the condition is unusually
+                      tight: `employees.read` is **tier 1 only**, refused to every
+                      other rung by a boot assertion, so for a tier-2 Admin this tab
+                      could never load. They can manage the directory and cannot
+                      open a colleague's file, which is the point of the family.
+                    */}
+                    {canSeeEmployeeRecord ? (
+                        <TabsTrigger value="employee">Employee record</TabsTrigger>
+                    ) : null}
                     {canSeeSessions ? <TabsTrigger value="sessions">Sessions</TabsTrigger> : null}
                     {canSeeAudit ? <TabsTrigger value="activity">Activity</TabsTrigger> : null}
                     {canSeeAudit ? <TabsTrigger value="history">History</TabsTrigger> : null}
                 </TabsList>
+
+                {canSeeEmployeeRecord ? (
+                    <TabsContent value="employee">
+                        <EmployeeRecordPanel adminId={target.id} />
+                    </TabsContent>
+                ) : null}
 
                 <TabsContent value="profile" className="space-y-4">
                     {target.status === 'suspended' ? (
@@ -494,6 +551,12 @@ function AdministratorDetailScreen({ adminId }: { adminId: string }) {
                 onOpenChange={setSuspending}
                 onDone={reconcile}
                 onQueued={onQueued}
+            />
+            <ActivateAdministratorDialog
+                administrator={target}
+                open={activating}
+                onOpenChange={setActivating}
+                onDone={reconcile}
             />
             <ReinstateAdministratorDialog
                 administrator={target}

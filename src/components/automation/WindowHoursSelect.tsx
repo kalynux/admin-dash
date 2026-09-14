@@ -1,3 +1,4 @@
+import { FilterField } from '@/components/common/FilterField';
 import {
     Select,
     SelectContent,
@@ -37,20 +38,24 @@ interface WindowHoursSelectProps {
 
 export function WindowHoursSelect({ value, onChange }: WindowHoursSelectProps) {
     return (
-        <Select
-            value={value || `${AUTOMATION_WINDOW_HOURS_DEFAULT}`}
-            onValueChange={onChange}
-        >
-            <SelectTrigger className="w-[150px]" aria-label="Window">
-                <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-                {AUTOMATION_WINDOW_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                    </SelectItem>
-                ))}
-            </SelectContent>
-        </Select>
+        // Titled like every other filter, and by this component rather than by
+        // its two call sites — both mount it inside a `FilterBar`.
+        <FilterField label="Window" htmlFor="filter-window">
+            <Select
+                value={value || `${AUTOMATION_WINDOW_HOURS_DEFAULT}`}
+                onValueChange={onChange}
+            >
+                <SelectTrigger id="filter-window" className="w-[150px]">
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    {AUTOMATION_WINDOW_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </FilterField>
     );
 }

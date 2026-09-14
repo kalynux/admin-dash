@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Ban, BadgeCheck, BadgeX, RotateCcw, RotateCw, SlidersHorizontal } from 'lucide-react';
+import { ArrowLeft, Ban, BadgeCheck, RotateCcw, RotateCw, SlidersHorizontal } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
 import { ErrorState } from '@/components/common/DataState';
@@ -13,10 +13,8 @@ import { RestoreVendorDialog } from '@/components/vendors/RestoreVendorDialog';
 import { SuspendVendorDialog } from '@/components/vendors/SuspendVendorDialog';
 import { AccountPanel } from '@/components/accounts/AccountPanel';
 import { VendorActivityPanel } from '@/components/vendors/VendorActivityPanel';
-import {
-    ApproveVendorKycDialog,
-    RejectVendorKycDialog,
-} from '@/components/vendors/VendorKycDialogs';
+import { ReviewVendorVerificationDialog } from '@/components/verification/ReviewVendorVerificationDialog';
+import { VerificationPanel } from '@/components/verification/VerificationPanel';
 import {
     VendorAddressesPanel,
     VendorContactPanel,
@@ -120,8 +118,7 @@ function VendorDetailScreen({ vendorId }: { vendorId: string }) {
     const [tab, setTab] = useState('overview');
     const [suspending, setSuspending] = useState(false);
     const [restoring, setRestoring] = useState(false);
-    const [approving, setApproving] = useState(false);
-    const [rejecting, setRejecting] = useState(false);
+    const [reviewing, setReviewing] = useState(false);
     const [editingSettings, setEditingSettings] = useState(false);
 
     const [cascade, setCascade] = useState<PlatformVendor | null>(null);
@@ -210,24 +207,29 @@ function VendorDetailScreen({ vendorId }: { vendorId: string }) {
                     </Button>
 
                     {/*
-                      One permission, two verdicts — and each is offered only where it
-                      would change something. Asking for the verdict a vendor already
-                      holds is `409 VENDOR_KYC_STATUS_CONFLICT`, so a button that could
-                      only ever produce it is not a button.
+                      ⚠ **This opens the tab, it does not open the dialog**, and
+                      that is the whole of the redesign.
+
+                      It used to be two buttons — *Approve verification* and
+                      *Reject verification* — so the operator picked an outcome and
+                      was then shown a form about it, with nothing anywhere on the
+                      screen to pick it from. Now the button goes to the evidence,
+                      and the verdict is an affordance beside the documents.
+
+                      Gated on the **review** permission because it is a shortcut
+                      to an act; the tab itself is not gated, since its read is
+                      `vendors.read` and Support needs it.
+
+                      The conflict rule did not go away, it moved: asking for the
+                      verdict a vendor already holds is
+                      `409 VENDOR_KYC_STATUS_CONFLICT`, so the dialog offers only
+                      the verdicts that would change something.
                     */}
                     <Can permission="vendors.kyc.review">
-                        {record.kycStatus !== 'verified' ? (
-                            <Button variant="outline" size="sm" onClick={() => setApproving(true)}>
-                                <BadgeCheck className="size-4" />
-                                Approve verification
-                            </Button>
-                        ) : null}
-                        {record.kycStatus !== 'rejected' ? (
-                            <Button variant="outline" size="sm" onClick={() => setRejecting(true)}>
-                                <BadgeX className="size-4" />
-                                Reject verification
-                            </Button>
-                        ) : null}
+                        <Button variant="outline" size="sm" onClick={() => setTab('verification')}>
+                            <BadgeCheck className="size-4" />
+                            Review verification
+                        </Button>
                     </Can>
 
                     <Can permission="vendors.settings.manage">
@@ -285,6 +287,14 @@ function VendorDetailScreen({ vendorId }: { vendorId: string }) {
             <Tabs value={tab} onValueChange={setTab} className="space-y-4">
                 <TabsList>
                     <TabsTrigger value="overview">Overview</TabsTrigger>
+                    {/*
+                      Unconditional, because its read is gated on `vendors.read` —
+                      the same permission the module gate already required, and one
+                      tier 3 holds. `verification.md` chose that permission on
+                      purpose: Support answers "why was my shop rejected" tickets
+                      and cannot answer one from a status alone.
+                    */}
+                    <TabsTrigger value="verification">Verification</TabsTrigger>
                     <TabsTrigger value="catalogue">Catalogue</TabsTrigger>
                     {canSeeAccount ? <TabsTrigger value="account">Account</TabsTrigger> : null}
                     {canSeeActivity ? <TabsTrigger value="activity">Activity</TabsTrigger> : null}
@@ -359,6 +369,42 @@ function VendorDetailScreen({ vendorId }: { vendorId: string }) {
                     </p>
                 </TabsContent>
 
+                {/*
+                  The evidence, and the verdict on top of it.
+
+                  ⚠ **The verdict dialog is rendered by the panel's `actions`, not
+                  by the page**, because it needs the record the panel loaded. A
+                  dialog that fetched its own would risk building the verdict form
+                  on a different snapshot from the documents the operator just
+                  read — which on an identity review is the one wrong thing here.
+                */}
+                <TabsContent value="verification">
+                    <VerificationPanel
+                        party="vendor"
+                        partyId={record.id}
+                        timeZone={timeZone}
+                        actions={(verification, reloadVerification) => (
+                            <Can permission="vendors.kyc.review">
+                                <Button size="sm" onClick={() => setReviewing(true)}>
+                                    <BadgeCheck className="size-4" />
+                                    Record a verdict
+                                </Button>
+                                <ReviewVendorVerificationDialog
+                                    vendor={record}
+                                    record={verification}
+                                    open={reviewing}
+                                    onOpenChange={setReviewing}
+                                    onDecided={() => {
+                                        reconcile();
+                                        reloadVerification();
+                                    }}
+                                    timeZone={timeZone}
+                                />
+                            </Can>
+                        )}
+                    />
+                </TabsContent>
+
                 <TabsContent value="catalogue">
                     <VendorProductsPanel
                         vendorId={record.id}
@@ -402,18 +448,6 @@ function VendorDetailScreen({ vendorId }: { vendorId: string }) {
                 open={restoring}
                 onOpenChange={setRestoring}
                 onRestored={reconcileCascade}
-            />
-            <ApproveVendorKycDialog
-                vendor={record}
-                open={approving}
-                onOpenChange={setApproving}
-                onDecided={reconcile}
-            />
-            <RejectVendorKycDialog
-                vendor={record}
-                open={rejecting}
-                onOpenChange={setRejecting}
-                onDecided={reconcile}
             />
             <EditVendorSettingsDialog
                 vendor={record}

@@ -108,12 +108,26 @@ describe('the route total is the sum of its parts', () => {
         );
     });
 
-    it('holds the 239 routes the 2026-09-08 verification counted', () => {
+    it('holds the 255 routes on the service as of 2026-09-14', () => {
         // Pinned deliberately, and it is the assertion that fires when the
         // backend ships a route group. A change here is not a failure to fix by
         // editing this number: it means a route arrived, and something in `src/`
         // may now need a service function, a nav entry or a wider guard.
-        expect(totalDeclared).toBe(239);
+        //
+        // ⚠ It fired on 2026-09-14 and thirteen routes had arrived: the three
+        // `GET /:id/verification` reads (no new route group — one hangs off each
+        // party domain), `POST /administrators/:adminId/activate`, and the two
+        // new groups ADR-023 brought, `/employees` (7) and `/geo` (2). 239 → 252.
+        //
+        // ⚠ Then three MORE the same day, and this assertion could not have fired
+        // for them: `PATCH /auth/me/phone` and the two `/auth/me/phone/verify/*`
+        // routes are in `auth.routes.ts` and in **no contract page at all**, so a
+        // route map extended from the contract never saw them and the total it
+        // declared never moved. **This test pins the map against itself, not
+        // against the router** — it catches a route the docs gained, never one
+        // they omit. Only `routeManifest()` closes that, which is what the map's
+        // own recipe is for. 252 → 255; BR-025 asks for the page.
+        expect(totalDeclared).toBe(255);
     });
 });
 

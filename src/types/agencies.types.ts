@@ -48,6 +48,22 @@ export type AgencyStatus = 'active' | 'pending_verification' | 'inactive' | (str
 
 export const AGENCY_STATUSES = ['active', 'pending_verification', 'inactive'] as const;
 
+/**
+ * The **verification verdict**, which is a different axis from `AgencyStatus`.
+ *
+ * ⚠ Three values because the boolean `verified` cannot tell *never reviewed*
+ * from *reviewed and refused* — both are `false` — and neither can `status`,
+ * since `pending_verification` is where an agency sits on both sides of a
+ * rejection. The same reasoning, and the same vocabulary, as
+ * `VendorKycStatus`.
+ *
+ * Left open like every other enum on this wire: adding a member upstream is an
+ * additive, non-breaking change.
+ */
+export type AgencyKycStatus = 'pending' | 'verified' | 'rejected' | (string & {});
+
+export const AGENCY_KYC_STATUSES = ['pending', 'verified', 'rejected'] as const;
+
 // ─── The policies block ───────────────────────────────────────────────────────
 
 /**
@@ -202,6 +218,31 @@ export interface Agency {
 export interface AgencyKyc {
     registrationNumber: string | null;
     transportLicenseId: string | null;
+    /**
+     * The verdict — **on the wire since Phase 6 Step 4, and absent from this type
+     * until 2026-09-14.**
+     *
+     * 🔴 `agencies.md`'s worked JSON shows four `kyc` members and this is not one
+     * of them, so it was transcribed from the contract and the contract is
+     * behind the service. Read instead from `toAgencyDetailDto` in
+     * `backend/admin/src/modules/agencies/controllers/agency.controller.ts`,
+     * which emits `status: kyc.status ?? 'pending'` — the fallback covering rows
+     * written before the field existed, and reading as the truth about them:
+     * nobody has reached a verdict.
+     *
+     * ⚠ **Not derivable from the agency's `status`**, and the DTO says so:
+     * `pending_verification` is where an agency sits **both before a review and
+     * after a refused one**. Deriving the verdict from it — which this dashboard
+     * did — makes a re-applying agency indistinguishable from an unreviewed one,
+     * which is the single commonest row in the review queue. See
+     * [BR-024](../../api-doc/admin/dashboard/backend-requests/BR-024-party-verification-evidence.md) § the documentation half.
+     */
+    status: AgencyKycStatus;
+    /**
+     * Set on `rejected`, cleared on `verified` — **and shown to the agency**, who
+     * has to know what to fix. Omitted from `agencies.md` alongside `status`.
+     */
+    rejectionReason: string | null;
     verifiedAt: string | null;
     /**
      * ⚠ **Present only while verified.** An unverified agency carrying a stale

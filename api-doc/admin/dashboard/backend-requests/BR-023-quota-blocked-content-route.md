@@ -39,7 +39,7 @@ Each was measured twice — before the flag and with it — and the answer was `
 files were restored to exactly the state they were found in.
 
 **Why, in source:** jovi-mall's handler
-([`admin-file.routes.ts:247-292`](../../../../../backend/jovi-mall/src/modules/catalog/routes/admin-file.routes.ts))
+(`backend/jovi-mall/src/modules/catalog/routes/admin-file.routes.ts` (— not mirrored in this repository))
 asks `supportsDownloadStream()`, loads the record via `findManyByIds`, and calls
 `getDownloadStream(file.key)`. It **never reads `quotaBlockedAt`**, though the mapper does project
 it. There is no quota branch to have failed; there is no quota branch.
@@ -51,7 +51,7 @@ the quota sweep stops the platform **handing out an address**. It revokes nothin
 
 ⚠ **And for a public tree it could not revoke anything even if you wanted it to.** Those trees are
 served by `express.static` straight off disk
-([`api/index.ts:628-630`](../../../../../backend/jovi-mall/src/api/index.ts)), which has no database
+(`backend/jovi-mall/src/api/index.ts` (— not mirrored in this repository)), which has no database
 access. A blocked public file therefore **stays fetchable by anyone who kept its URL**, for as long
 as the file exists. Any enforcement in the content route would refuse the one caller who is
 authenticated, permissioned and audited while leaving the anonymous holder of a stale link

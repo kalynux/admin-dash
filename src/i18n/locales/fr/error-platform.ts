@@ -10,6 +10,7 @@
 
 const platform = {
     // ─── Livraisons ───────────────────────────────────────────────────────────
+    KYC_SUBJECT_NOT_FOUND: 'Ce compte n’a aucun dossier de vérification',
     SHIPMENT_STATUS_CONFLICT: 'La livraison a changé pendant que cet écran était ouvert',
     SHIPMENT_NOT_FOUND: 'La plateforme n’a aucune livraison de ce type',
     SHIPMENT_REASSIGN_SAME_AGENT: 'C’est déjà l’agent qui transporte cette livraison.',
@@ -98,6 +99,21 @@ const platform = {
     USER_CONTACT_REQUIRED: 'Un compte doit conserver au moins un identifiant de connexion',
     AUTH_EMAIL_TAKEN: 'Cet e-mail appartient déjà à un autre compte',
     AUTH_PHONE_TAKEN: 'Ce numéro de téléphone appartient déjà à un autre compte',
+
+    // ─── Téléphone d'un administrateur (code WhatsApp) ────────────────────────
+    /* Voir le fichier anglais : deux de ces six codes n'arrivent pas encore. */
+    PHONE_VERIFICATION_NO_TARGET:
+        'Aucun numéro de téléphone n’est enregistré sur votre compte. Enregistrez-en un d’abord.',
+    PHONE_VERIFICATION_CODE_INVALID:
+        'Ce code n’est pas le bon. Vérifiez les chiffres et réessayez.',
+    PHONE_VERIFICATION_CODE_EXPIRED:
+        'Ce code a expiré, ou aucun n’est en cours. Envoyez-en un nouveau.',
+    PHONE_VERIFICATION_TOO_MANY_ATTEMPTS:
+        'Trop de codes erronés. Celui-ci a été détruit — envoyez-en un nouveau.',
+    PHONE_VERIFICATION_RESEND_TOO_SOON:
+        'Un code vient d’être envoyé. Patientez un instant avant d’en demander un autre.',
+    PHONE_VERIFICATION_DELIVERY_FAILED:
+        'WhatsApp n’a pas pu délivrer le code. En général, cela signifie que personne n’a écrit à la plateforme depuis ce numéro au cours des dernières 24 heures.',
 
     // ─── Récupération d’accès ────────────────────────────────────────────────
     USER_CHANNEL_UNAVAILABLE:

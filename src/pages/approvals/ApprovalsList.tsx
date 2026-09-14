@@ -11,6 +11,7 @@ import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { RowActions } from '@/components/common/RowActions';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -241,22 +242,24 @@ export function ApprovalsList() {
             }
         >
             <FilterBar isFiltered={isFiltered} onClear={reset}>
-                <Select
-                    value={values.status || ANY}
-                    onValueChange={(value) => set({ status: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-40" aria-label="Status">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any status</SelectItem>
-                        {STATUSES.map((status) => (
-                            <SelectItem key={status} value={status} className="capitalize">
-                                {status}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Status" htmlFor="filter-status">
+                    <Select
+                        value={values.status || ANY}
+                        onValueChange={(value) => set({ status: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-status" className="w-40">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any status</SelectItem>
+                            {STATUSES.map((status) => (
+                                <SelectItem key={status} value={status} className="capitalize">
+                                    {status}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
             </FilterBar>
 
             {meta && !approvals.isLoading ? (

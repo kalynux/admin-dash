@@ -271,7 +271,8 @@ describe('the two affordances, each on its own permission', () => {
         await screen.findByText('shop-logo.png');
         await userEvent.click(screen.getByRole('button', { name: /delete/i }));
 
-        await screen.findByText(/Type the file id to confirm/i);
+        // The confirmation box, found by what it asks for: the word `delete`.
+        await screen.findByPlaceholderText('delete');
         // ⚠ Narrow on purpose: the page's own description contains the words
         // "still points at it", so a looser matcher passes for the wrong reason.
         expect(screen.queryByText(/live records? still points? at this file/i)).not.toBeInTheDocument();

@@ -8,6 +8,7 @@ import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField, FilterFieldSpacer } from '@/components/common/FilterField';
 import { NotSet } from '@/components/common/DefinitionList';
 import { Pager } from '@/components/common/Pager';
 import { SearchInput } from '@/components/common/SearchInput';
@@ -225,8 +226,7 @@ export function PlansList() {
                         placeholder="Code, name or id"
                     />
 
-                    <div className="space-y-1.5">
-                        <Label htmlFor="plan-role-filter">Role</Label>
+                    <FilterField label="Role" htmlFor="plan-role-filter">
                         <Select
                             value={values.role || ANY}
                             onValueChange={(next) => set({ role: next === ANY ? null : next })}
@@ -243,25 +243,34 @@ export function PlansList() {
                                 ))}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
-                    <div className="flex items-end gap-2 pb-1.5">
-                        <Switch
-                            id="plan-archived"
-                            checked={includeArchived}
-                            onCheckedChange={(next) =>
-                                set({ includeArchived: next ? 'true' : null })
-                            }
-                        />
-                        <Label htmlFor="plan-archived" className="flex items-center gap-1 pb-0.5">
-                            Include archived
-                            <InfoHint label="About archived plans">
-                                Archiving a tier removes it from the catalog but not from the
-                                database — everyone already on it keeps it until their term ends.
-                                So a subscription can name a tier this list otherwise hides.
-                            </InfoHint>
-                        </Label>
-                    </div>
+                    {/*
+                      A toggle names itself, so it takes the spacer rather than a
+                      `FilterField`: a title above it and the same words beside it
+                      would say one thing twice. The spacer is what puts it on the
+                      same line as the controls next to it.
+                    */}
+                    <FilterFieldSpacer>
+                        <div className="flex h-9 items-center gap-2">
+                            <Switch
+                                id="plan-archived"
+                                checked={includeArchived}
+                                onCheckedChange={(next) =>
+                                    set({ includeArchived: next ? 'true' : null })
+                                }
+                            />
+                            <Label htmlFor="plan-archived" className="gap-1">
+                                Include archived
+                                <InfoHint label="About archived plans">
+                                    Archiving a tier removes it from the catalog but not from the
+                                    database — everyone already on it keeps it until their term
+                                    ends. So a subscription can name a tier this list otherwise
+                                    hides.
+                                </InfoHint>
+                            </Label>
+                        </div>
+                    </FilterFieldSpacer>
                 </FilterBar>
 
                 {meta ? (

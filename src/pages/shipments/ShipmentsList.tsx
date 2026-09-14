@@ -10,6 +10,7 @@ import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { SearchInput } from '@/components/common/SearchInput';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -278,71 +279,79 @@ export function ShipmentsList() {
                     onChange={(next) => set({ search: next }, { replace: true })}
                 />
 
-                <Select
-                    value={values.status || ANY}
-                    onValueChange={(value) => set({ status: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-52" aria-label="Status">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any status</SelectItem>
-                        {withCurrent(SHIPMENT_STATUSES, values.status).map((value) => (
-                            <SelectItem key={value} value={value} className="capitalize">
-                                {value.replace(/_/g, ' ')}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <Select
-                    value={values.assignmentState || ANY}
-                    onValueChange={(value) =>
-                        set({ assignmentState: value === ANY ? null : value })
-                    }
-                >
-                    <SelectTrigger className="w-44" aria-label="Assignment state">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any assignment</SelectItem>
-                        {withCurrent(SHIPMENT_ASSIGNMENT_STATES, values.assignmentState).map(
-                            (value) => (
+                <FilterField label="Status" htmlFor="filter-status">
+                    <Select
+                        value={values.status || ANY}
+                        onValueChange={(value) => set({ status: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-status" className="w-52">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any status</SelectItem>
+                            {withCurrent(SHIPMENT_STATUSES, values.status).map((value) => (
                                 <SelectItem key={value} value={value} className="capitalize">
                                     {value.replace(/_/g, ' ')}
                                 </SelectItem>
-                            ),
-                        )}
-                    </SelectContent>
-                </Select>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.unassigned || ANY}
-                    onValueChange={(value) => set({ unassigned: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-40" aria-label="Agent bound">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any agent state</SelectItem>
-                        <SelectItem value="true">No agent bound</SelectItem>
-                        <SelectItem value="false">Agent bound</SelectItem>
-                    </SelectContent>
-                </Select>
+                <FilterField label="Assignment state" htmlFor="filter-assignment-state">
+                    <Select
+                        value={values.assignmentState || ANY}
+                        onValueChange={(value) =>
+                            set({ assignmentState: value === ANY ? null : value })
+                        }
+                    >
+                        <SelectTrigger id="filter-assignment-state" className="w-44">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any assignment</SelectItem>
+                            {withCurrent(SHIPMENT_ASSIGNMENT_STATES, values.assignmentState).map(
+                                (value) => (
+                                    <SelectItem key={value} value={value} className="capitalize">
+                                        {value.replace(/_/g, ' ')}
+                                    </SelectItem>
+                                ),
+                            )}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.held || ANY}
-                    onValueChange={(value) => set({ held: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-36" aria-label="Held">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any hold state</SelectItem>
-                        <SelectItem value="true">Held</SelectItem>
-                        <SelectItem value="false">Not held</SelectItem>
-                    </SelectContent>
-                </Select>
+                <FilterField label="Agent bound" htmlFor="filter-agent-bound">
+                    <Select
+                        value={values.unassigned || ANY}
+                        onValueChange={(value) => set({ unassigned: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-agent-bound" className="w-40">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any agent state</SelectItem>
+                            <SelectItem value="true">No agent bound</SelectItem>
+                            <SelectItem value="false">Agent bound</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </FilterField>
+
+                <FilterField label="Held" htmlFor="filter-held">
+                    <Select
+                        value={values.held || ANY}
+                        onValueChange={(value) => set({ held: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-held" className="w-36">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any hold state</SelectItem>
+                            <SelectItem value="true">Held</SelectItem>
+                            <SelectItem value="false">Not held</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
                 <DateRangeFilter
                     label="Created"

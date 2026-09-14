@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { emitSessionEnded, onMfaEnrolmentRequired, onSessionEnded } from '@/lib/session-events';
+import { setCsrfToken } from '@/services/api';
 import * as authService from '@/services/auth.service';
 import { ApiError, CODE_ACCOUNT_NOT_FOUND } from '@/types/api.types';
 import {
@@ -108,7 +109,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
      * is alive and its owner is about to use it to enrol.
      */
     useEffect(() => {
-        const unsubscribeEnded = onSessionEnded(() => clear());
+        const unsubscribeEnded = onSessionEnded(() => {
+            clear();
+            // The session is over, from any cause (logout, a failed refresh,
+            // reauthentication-required). Drop the harvested CSRF token so it
+            // cannot masquerade as a live session in the client's refresh check.
+            setCsrfToken(undefined);
+        });
         const unsubscribeMfa = onMfaEnrolmentRequired(() => setStatus('mfa-enrolment-required'));
         return () => {
             unsubscribeEnded();

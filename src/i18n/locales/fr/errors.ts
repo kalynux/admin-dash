@@ -58,6 +58,17 @@ const codes = {
     ADMIN_ACCOUNT_ALREADY_EXISTS: 'Un administrateur utilise déjà cette adresse',
     ADMIN_SESSION_NOT_FOUND: 'Session introuvable',
 
+    // ─── Activation des administrateurs (ADR-023) ────────────────────────────
+    ADMIN_ACTIVATION_REQUIRED: 'Votre compte attend son activation',
+    ADMIN_ACTIVATION_INCOMPLETE: 'Son dossier salarié n’est pas encore complet',
+    ADMIN_ACTIVATION_SUSPENDED: 'Ce compte est suspendu — rétablissez-le plutôt',
+    ADMIN_ACTIVATION_SELF: 'Un autre développeur doit activer votre compte',
+    ADMIN_ACTIVATION_CONFLICT: 'Quelqu’un a modifié ce compte pendant votre consultation',
+
+    // ─── Dossiers salariés (ADR-023) ─────────────────────────────────────────
+    EMPLOYEE_SLOT_FULL: 'Cet emplacement est plein — retirez un fichier avant d’en ajouter un autre',
+    EMPLOYEE_DOCUMENT_NOT_FOUND: 'Cet emplacement ne contient pas ce fichier',
+
     // ─── Journal d’audit ─────────────────────────────────────────────────────
     AUDIT_ENTRY_NOT_FOUND: 'Entrée d’audit introuvable',
     AUDIT_EXPORT_NOT_FOUND: 'Export introuvable',

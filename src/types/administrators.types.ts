@@ -37,10 +37,10 @@ export type { AdminTier };
  * versioning rules — so a closed union here would break a badge on a routine
  * deploy.
  */
-export type AdministratorStatus = 'active' | 'suspended' | (string & {});
+export type AdministratorStatus = 'pending' | 'active' | 'suspended' | (string & {});
 
 export const ADMINISTRATOR_TIERS: readonly AdminTier[] = [1, 2, 3];
-export const ADMINISTRATOR_STATUSES: readonly string[] = ['active', 'suspended'];
+export const ADMINISTRATOR_STATUSES: readonly string[] = ['pending', 'active', 'suspended'];
 
 // ─── The record ───────────────────────────────────────────────────────────────
 
@@ -85,7 +85,29 @@ export interface Administrator {
     suspendedReason: string | null;
     tierChangedAt: string | null;
     tierChangedBy: string | null;
+    /**
+     * When a Developer let this account in. **Added 2026-09-14 (ADR-023).**
+     *
+     * 🔴 **`null` does NOT mean "not activated".** The bootstrapped first
+     * administrator is `active` with a null `activatedAt` forever, because
+     * nobody activated them. Read `status` for that question; this field only
+     * says *when*, and only when somebody did it.
+     */
+    activatedAt: string | null;
+    /** An administrator id, as a bare string — like `createdBy`, not an actor stamp. */
+    activatedBy: string | null;
+    /**
+     * A `jovi_mall.files` id, **never a URL**. Resolve through `GET /files?ids=`.
+     * Set by the owner at `PUT /employees/me/avatar`, never by an administrator
+     * acting on somebody else.
+     */
+    avatarFileId: string | null;
     createdAt: string;
+}
+
+/** Waiting on a tier-1 Developer. They can sign in and reach only their own account. */
+export function isAdministratorPending(administrator: Pick<Administrator, 'status'>): boolean {
+    return administrator.status === 'pending';
 }
 
 /** Keys on `status`, never on `suspendedAt` — the three fields are cleared together. */

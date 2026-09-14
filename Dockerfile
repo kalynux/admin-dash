@@ -65,9 +65,9 @@ RUN npm run build
 #   Asserting that localhost is absent fails every legitimate build. Measured on
 #   a real one before this guard was written, which is the only reason it is
 #   phrased this way round.
-RUN grep -rq "admin-api[.]wi-mall[.]com" dist/assets/ || ( \
-      echo "FATAL: the production API host is not in the built bundle."; \
-      echo "  .env.production was not read by this build."; \
+RUN grep -rq "admin[.]wi-mall[.]com" dist/assets/ || ( \
+      echo "FATAL: the production API base (https://admin.wi-mall.com/api/v1) is"; \
+      echo "  not in the built bundle — .env.production was not read by this build."; \
       echo "  Check that .dockerignore does not exclude it."; \
       exit 1 )
 

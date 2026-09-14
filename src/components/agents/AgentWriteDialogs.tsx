@@ -38,7 +38,6 @@ import {
     PLATFORM_CODE_CONTRACT_HAS_UNPAID_EARNINGS,
     PLATFORM_CODE_MEMBERSHIP_ALREADY_EXISTS,
     banAgent,
-    reviewAgentKyc,
     setAgentCodThreshold,
     setAgentStatus,
     setAgentTracking,
@@ -49,13 +48,10 @@ import { useCan } from '@/store';
 import { resolveAgencyDisplayName } from '@/types/agencies.types';
 import { ApiError } from '@/types/api.types';
 import {
-    AGENT_KYC_STATUSES,
     AGENT_STATUSES,
     agentDisplayName,
-    kycVerdictNeedsReason,
     statusChangeNeedsReason,
     type AgentDetail,
-    type AgentKycStatus,
     type AgentStatus,
 } from '@/types/agents.types';
 
@@ -78,7 +74,6 @@ import {
 
 const REASON_MIN = 3;
 const REASON_MAX = 500;
-const REFERENCE_MAX = 200;
 
 const reasonField = z
     .string()
@@ -264,186 +259,6 @@ function StatusForm({
                 <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting ? <InlineLoader /> : null}
                     Save status
-                </Button>
-            </DialogFooter>
-        </form>
-    );
-}
-
-// ─── KYC ──────────────────────────────────────────────────────────────────────
-
-const kycSchema = z
-    .object({
-        status: z.string().min(1, 'Choose a verdict'),
-        reference: z.string().trim().max(REFERENCE_MAX, `Use at most ${REFERENCE_MAX} characters`),
-        rejectionReason: z.string().trim(),
-    })
-    .superRefine((values, ctx) => {
-        if (
-            kycVerdictNeedsReason(values.status as AgentKycStatus) &&
-            values.rejectionReason.length < REASON_MIN
-        ) {
-            ctx.addIssue({
-                code: 'custom',
-                path: ['rejectionReason'],
-                message: 'A rejection reason is required — the agent is shown it',
-            });
-        }
-    });
-
-type KycValues = { status: string; reference: string; rejectionReason: string };
-
-export function ReviewAgentKycDialog({
-    agent,
-    open,
-    onOpenChange,
-    onDone,
-}: {
-    agent: AgentDetail;
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    onDone: () => void;
-}) {
-    return (
-        <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle>Review documents for {agentDisplayName(agent)}</DialogTitle>
-                    <DialogDescription>
-                        This is the write that lets an agent work. Moving them off verified makes
-                        them undispatchable immediately; shipments already in hand are unaffected.
-                    </DialogDescription>
-                </DialogHeader>
-                <KycForm
-                    agent={agent}
-                    onCancel={() => onOpenChange(false)}
-                    onDone={() => {
-                        onOpenChange(false);
-                        onDone();
-                    }}
-                />
-            </DialogContent>
-        </Dialog>
-    );
-}
-
-function KycForm({
-    agent,
-    onCancel,
-    onDone,
-}: {
-    agent: AgentDetail;
-    onCancel: () => void;
-    onDone: () => void;
-}) {
-    const [formError, setFormError] = useState<unknown>(null);
-    const {
-        register,
-        handleSubmit,
-        setValue,
-        setError,
-        control,
-        formState: { errors, isSubmitting },
-    } = useForm<KycValues>({
-        resolver: zodResolver(kycSchema),
-        defaultValues: {
-            status: agent.kyc.status ?? 'unverified',
-            reference: agent.kyc.reference ?? '',
-            rejectionReason: '',
-        },
-    });
-
-    // See the note in `StatusForm` — `useWatch`, never `watch()`.
-    const status = useWatch({ control, name: 'status' });
-    const needsReason = kycVerdictNeedsReason(status as AgentKycStatus);
-
-    async function onSubmit(values: KycValues) {
-        setFormError(null);
-        try {
-            await reviewAgentKyc(agent.id, {
-                status: values.status as AgentKycStatus,
-                ...(values.reference ? { reference: values.reference } : {}),
-                ...(needsReason ? { rejectionReason: values.rejectionReason } : {}),
-            });
-            notify.success('Identity documents reviewed');
-            onDone();
-        } catch (error) {
-            if (applyFieldError(error, ['status', 'reference', 'rejectionReason'], setError)) return;
-            setFormError(error);
-        }
-    }
-
-    return (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div className="space-y-1.5">
-                <Label htmlFor="agent-kyc-status">Verdict</Label>
-                <Select
-                    value={status}
-                    onValueChange={(value) => setValue('status', value, { shouldValidate: true })}
-                >
-                    <SelectTrigger id="agent-kyc-status">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {AGENT_KYC_STATUSES.map((value) => (
-                            <SelectItem key={value} value={value} className="capitalize">
-                                {value}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-
-            <FormField
-                id="agent-kyc-reference"
-                label="Reference"
-                error={errors.reference?.message}
-                hint="A free-form pointer to whatever document set was checked off-platform. This service stores no documents of its own."
-            >
-                {(field) => (
-                    <Input
-                        maxLength={REFERENCE_MAX}
-                        placeholder="Where the documents were checked"
-                        {...field}
-                        {...register('reference')}
-                    />
-                )}
-            </FormField>
-
-            {needsReason ? (
-                <FormField
-                    id="agent-kyc-rejection"
-                    label="Rejection reason"
-                    error={errors.rejectionReason?.message}
-                    hint={
-                        <>
-                            <strong>The agent is shown this.</strong> &ldquo;Your documents were
-                            rejected&rdquo; with no cause is an unactionable message that generates
-                            a support ticket by construction.
-                        </>
-                    }
-                >
-                    {(field) => (
-                        <Textarea
-                            rows={3}
-                            maxLength={REASON_MAX}
-                            placeholder="What was wrong with the documents"
-                            {...field}
-                            {...register('rejectionReason')}
-                        />
-                    )}
-                </FormField>
-            ) : null}
-
-            {formError ? <AuthFormError error={formError} /> : null}
-
-            <DialogFooter>
-                <Button type="button" variant="outline" onClick={onCancel}>
-                    Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting ? <InlineLoader /> : null}
-                    Record verdict
                 </Button>
             </DialogFooter>
         </form>

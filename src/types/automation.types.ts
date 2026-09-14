@@ -196,10 +196,29 @@ export interface AutomationFailureGroup {
 /**
  * `GET /automation/summary` — **the one surface in this module that is not graded.**
  *
- * A count carries no machine detail and no identifier, so there is nothing to withhold and
- * every rung gets the same answer. That asymmetry is worth knowing before laying out the
- * module: a Support administrator sees *more* here — the workflow name, the id, the distinct
- * customer count — than the failures feed will ever show them.
+ * 🔴 **The reason this comment used to give was checkable and false.** It said *"a count
+ * carries no machine detail and no identifier, so there is nothing to withhold"* — true of
+ * `count` and `lastOccurredAt`, and **not true of the object they sit in**, which carries
+ * `workflowId` and `workflowName`: the two fields the failures feed is careful to withhold from
+ * tier 3. Corrected upstream at BR-020 on 2026-09-09, and re-copied here.
+ *
+ * **The asymmetry is intended, and the real reason is what the tier-3 boundary is for.** It is
+ * not confidentiality — ADR-022 D-7 says what Support is denied is machine detail *"which on a
+ * support call is not a secret so much as a false lead"*. The hazard is **per-incident causal
+ * attribution**: an agent reading one row and telling a customer their message failed because
+ * the `sync identity` node timed out. A summary cannot produce that sentence — it has no node,
+ * no message, no stack and no per-incident row, only *this workflow, this channel, this many,
+ * since then*. **Aggregate identity is a weaker disclosure than per-incident identity**, and the
+ * statement it supports — *"WhatsApp is degraded right now, we know"* — is precisely the one D-7
+ * grants Support this surface in order to make.
+ *
+ * So the module's rule is: **the feed is graded, the summary is whole.** Render it as it
+ * arrives, at every tier. A Support administrator does see the workflow name here and not on the
+ * feed, and that is the design rather than a leak.
+ *
+ * ⚠ **`workflowId` is also an ungated query *filter* on `/failures`** — `FailureQuerySchema` does
+ * not consult the caller's tier, so tier 3 can narrow the feed by a workflow id and still gets
+ * tier-3 rows back. Consistent with the above, and named so it is not later mistaken for a bug.
  *
  * `since` is the window's start as the service computed it; prefer it to re-deriving the
  * boundary from `windowHours` in the browser's clock.

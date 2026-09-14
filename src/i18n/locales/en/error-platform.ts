@@ -35,6 +35,15 @@
  */
 
 const platform = {
+    // ─── Identity verification ────────────────────────────────────────────────
+    /*
+      ⚠ **An absence, not a fault, and the copy has to say so.** It means "no such
+      party, **or** an account in a state that has no verification record" — and
+      the second is the ordinary case, because most accounts never start one.
+      Worded for the second.
+    */
+    KYC_SUBJECT_NOT_FOUND: 'This account has no verification record',
+
     // ─── Shipments ────────────────────────────────────────────────────────────
     SHIPMENT_STATUS_CONFLICT: 'The shipment moved while this was open',
     SHIPMENT_NOT_FOUND: 'The platform has no such shipment',
@@ -132,6 +141,38 @@ const platform = {
     USER_CONTACT_REQUIRED: 'An account must keep at least one login identifier',
     AUTH_EMAIL_TAKEN: 'That email already belongs to another account',
     AUTH_PHONE_TAKEN: 'That phone number already belongs to another account',
+
+    // ─── An administrator's own phone (WhatsApp OTP) ──────────────────────────
+    /*
+      ⚠ **Two of these six cannot currently arrive, and it is worth knowing which.**
+      wi-admin's `projectDetails` runs a `rate_limit` refusal through an allowlist
+      of `retryAfterSeconds`/`limit`/`windowSeconds` — and `platformCode` is not on
+      it. So both 429s (`RESEND_TOO_SOON`, `TOO_MANY_ATTEMPTS`) reach us as a bare
+      `PLATFORM_OPERATION_REJECTED` with no code to key on, and never reach these
+      keys at all. Nor do they reach jovi-mall's own sentence: `rate_limit` is not
+      message-bearing in `lib/errors.ts`. They render as the category line, plus
+      the retry line where `retryAfterSeconds` survived — which is a fair landing
+      for the cooldown and a poor one for the spent attempt limit, whose remedy is
+      "that code is destroyed, send a new one" and cannot be said. The keys stay so
+      the copy is right the day the allowlist is widened; BR-025 asks for it.
+
+      `DELIVERY_FAILED` is the opposite case and does arrive: it is a 502, and the
+      5xx branch of the same function keeps `platformCode` on purpose. ⚠ Its
+      *message* is replaced with a registry default, so this sentence must carry
+      the explanation itself — do not write "the message below says which".
+    */
+    PHONE_VERIFICATION_NO_TARGET:
+        'There is no phone number on your account to send a code to. Save one first.',
+    PHONE_VERIFICATION_CODE_INVALID: 'That code is not right. Check the digits and try again.',
+    /* Deliberately distinct from INVALID: the remedy is a new code, not a retype. */
+    PHONE_VERIFICATION_CODE_EXPIRED:
+        'That code has expired, or there is none in flight. Send a new one.',
+    PHONE_VERIFICATION_TOO_MANY_ATTEMPTS:
+        'Too many wrong codes. That one has been destroyed — send a new one.',
+    PHONE_VERIFICATION_RESEND_TOO_SOON:
+        'A code was just sent. Wait a moment before asking for another.',
+    PHONE_VERIFICATION_DELIVERY_FAILED:
+        'WhatsApp would not deliver the code. This usually means nobody has messaged the platform from that number in the last 24 hours.',
 
     // ─── Credential recovery ─────────────────────────────────────────────────
     // ⚠ `USER_CREDENTIAL_LINK_THROTTLED` is kept for the record and is

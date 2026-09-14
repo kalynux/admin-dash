@@ -75,6 +75,39 @@ set of two; `quota_blocked` is a third value and is live in both services. The c
 | [BR-018](BR-018-vendor-agency-connections.md) | A vendor's delivery-agency connections, as rows rather than counts | [`RESPONSE-2026-08-26.md`](RESPONSE-2026-08-26.md) |
 | [BR-019](BR-019-contract-clarifications.md) | Four things the contract leaves undecided that a client now has to decide | [`RESPONSE-2026-08-26.md`](RESPONSE-2026-08-26.md) |
 
+### Round four — opened 2026-09-14, from an operator pass over the three verification verdicts
+
+| # | Request | Blocking screen | Frontend state |
+|---|---|---|---|
+| [BR-024](BR-024-party-verification-evidence.md) | The evidence behind a verification verdict — identity documents, geocoded addresses and location sketches for vendors, agencies and agents | Vendors · Agencies · Agents → **Verification** tab | ✅ **Answered the same day it was written** — and it was already being built. Live contract [`verification.md`](../../api/verification.md) |
+
+⚠ **This one was not a contract disagreement — it was an input a shipped decision never had.**
+
+### Round five — opened 2026-09-14, from building the administrator's own phone card
+
+| # | Request | Blocking screen | Frontend state |
+|---|---|---|---|
+| [BR-025](BR-025-admin-phone-verification.md) | Three shipped `/auth/me/phone*` routes are in no contract page, and a delegated `429` drops its `platformCode` | None — **Account & security** → **Phone number** shipped the same day | ⏸ **Open.** Built from backend *source*; the ask is the page that should have made that unnecessary |
+
+⚠ **Neither half of this is blocking, and that is why it is worth reading.** The first is a
+documentation gap that a test could not catch: `route-map.test.ts` pins the route total by parsing
+the route map, so it fires when the docs *gain* a route and is silent when they *omit* one. Three
+routes were served, audited and invisible. The second is a one-key allowlist omission that makes
+two refusals with opposite remedies indistinguishable to every client, on every delegated `429` —
+not only this flow.
+Three write endpoints record a verdict, forward a reason to the party and (on `/agents`) enforce
+it, and between them they showed the reviewer one free-text reference number and two registration
+strings.
+
+✅ **Closed by `verification.md`, 2026-09-14.** The half the request got right is the division of
+labour — *"The response is **facts**; the badge is **yours**"* — and its per-role checklist is the
+shipped rule. **Five of its design choices were decided the other way, each for a stated reason**
+(the permission is `*.read` so Support can use it, the read is *not* audited because the audited
+act is opening the picture, documents arrive as embedded `FileDetail`s, the sketches are arrays,
+and "has premises" is derived from `storeAddresses` rather than flagged). The banner on the
+document lays out all five — worth reading before the next request, because four of the five were
+about **over-restricting** a read.
+
 ---
 
 ## The rules every request inherits

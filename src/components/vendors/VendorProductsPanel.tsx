@@ -7,6 +7,7 @@ import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { SearchInput } from '@/components/common/SearchInput';
 import { Badge } from '@/components/ui/badge';
@@ -376,86 +377,94 @@ export function VendorProductsPanel({
                     }}
                 />
 
-                <Select
-                    value={status}
-                    onValueChange={(value) => {
-                        setStatus(value);
-                        setPage(1);
-                    }}
-                >
-                    <SelectTrigger className="w-40" aria-label="Status">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any status</SelectItem>
-                        {PRODUCT_STATUSES.map((value) => (
-                            <SelectItem key={value} value={value}>
-                                {value === 'pending_review' ? 'Pending review' : value}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <Select
-                    value={type}
-                    onValueChange={(value) => {
-                        setType(value);
-                        setPage(1);
-                    }}
-                >
-                    <SelectTrigger className="w-36" aria-label="Type">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any type</SelectItem>
-                        {PRODUCT_TYPES.map((value) => (
-                            <SelectItem key={value} value={value} className="capitalize">
-                                {value}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <Select
-                    value={mode}
-                    onValueChange={(value) => {
-                        setMode(value);
-                        setPage(1);
-                    }}
-                >
-                    <SelectTrigger className="w-36" aria-label="Mode">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any mode</SelectItem>
-                        {PRODUCT_MODES.map((value) => (
-                            <SelectItem key={value} value={value} className="capitalize">
-                                {value}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
-
-                <div className="flex items-center gap-1">
+                <FilterField label="Status" htmlFor="filter-status">
                     <Select
-                        value={reason}
+                        value={status}
                         onValueChange={(value) => {
-                            setReason(value);
+                            setStatus(value);
                             setPage(1);
                         }}
                     >
-                        <SelectTrigger className="w-56" aria-label="Suspension reason">
+                        <SelectTrigger id="filter-status" className="w-40">
                             <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value={ANY}>Any takedown reason</SelectItem>
-                            {PRODUCT_SUSPENSION_REASONS.map((value) => (
+                            <SelectItem value={ANY}>Any status</SelectItem>
+                            {PRODUCT_STATUSES.map((value) => (
                                 <SelectItem key={value} value={value}>
-                                    {productSuspensionReasonLabel(value)}
+                                    {value === 'pending_review' ? 'Pending review' : value}
                                 </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
+                </FilterField>
+
+                <FilterField label="Type" htmlFor="filter-type">
+                    <Select
+                        value={type}
+                        onValueChange={(value) => {
+                            setType(value);
+                            setPage(1);
+                        }}
+                    >
+                        <SelectTrigger id="filter-type" className="w-36">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any type</SelectItem>
+                            {PRODUCT_TYPES.map((value) => (
+                                <SelectItem key={value} value={value} className="capitalize">
+                                    {value}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
+
+                <FilterField label="Mode" htmlFor="filter-mode">
+                    <Select
+                        value={mode}
+                        onValueChange={(value) => {
+                            setMode(value);
+                            setPage(1);
+                        }}
+                    >
+                        <SelectTrigger id="filter-mode" className="w-36">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any mode</SelectItem>
+                            {PRODUCT_MODES.map((value) => (
+                                <SelectItem key={value} value={value} className="capitalize">
+                                    {value}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
+
+                <div className="flex items-center gap-1">
+                    <FilterField label="Suspension reason" htmlFor="filter-suspension-reason">
+                        <Select
+                            value={reason}
+                            onValueChange={(value) => {
+                                setReason(value);
+                                setPage(1);
+                            }}
+                        >
+                            <SelectTrigger id="filter-suspension-reason" className="w-56">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value={ANY}>Any takedown reason</SelectItem>
+                                {PRODUCT_SUSPENSION_REASONS.map((value) => (
+                                    <SelectItem key={value} value={value}>
+                                        {productSuspensionReasonLabel(value)}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </FilterField>
                     <InfoHint label="About takedown reasons">
                         Which listings <em>we</em> took down, and which their delivery agency did.
                         The two have different remedies: only a platform takedown can be lifted from

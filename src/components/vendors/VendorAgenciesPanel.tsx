@@ -6,6 +6,7 @@ import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -240,25 +241,27 @@ export function VendorAgenciesPanel({
                         setPage(1);
                     }}
                 >
-                    <Select
-                        value={status}
-                        onValueChange={(value) => {
-                            setStatus(value);
-                            setPage(1);
-                        }}
-                    >
-                        <SelectTrigger className="w-56" aria-label="Connection status">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value={ANY}>Any status</SelectItem>
-                            {AGENCY_CONNECTION_STATUSES.map((value) => (
-                                <SelectItem key={value} value={value}>
-                                    {humaniseEnum(value) ?? value}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <FilterField label="Connection status" htmlFor="filter-connection-status">
+                        <Select
+                            value={status}
+                            onValueChange={(value) => {
+                                setStatus(value);
+                                setPage(1);
+                            }}
+                        >
+                            <SelectTrigger id="filter-connection-status" className="w-56">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value={ANY}>Any status</SelectItem>
+                                {AGENCY_CONNECTION_STATUSES.map((value) => (
+                                    <SelectItem key={value} value={value}>
+                                        {humaniseEnum(value) ?? value}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </FilterField>
                 </FilterBar>
 
                 <DataTable

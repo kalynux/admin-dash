@@ -8,6 +8,7 @@ import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { SearchInput } from '@/components/common/SearchInput';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -272,103 +273,115 @@ export function AgentsList() {
                     onChange={(next) => set({ search: next }, { replace: true })}
                 />
 
-                <Select
-                    value={values.status || ANY}
-                    onValueChange={(value) => set({ status: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-44" aria-label="Account status">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any status</SelectItem>
-                        {AGENT_STATUSES.map((status) => (
-                            <SelectItem key={status} value={status} className="capitalize">
-                                {status}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Account status" htmlFor="filter-account-status">
+                    <Select
+                        value={values.status || ANY}
+                        onValueChange={(value) => set({ status: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-account-status" className="w-44">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any status</SelectItem>
+                            {AGENT_STATUSES.map((status) => (
+                                <SelectItem key={status} value={status} className="capitalize">
+                                    {status}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.kycStatus || ANY}
-                    onValueChange={(value) => set({ kycStatus: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-44" aria-label="Identity documents">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any KYC state</SelectItem>
-                        {AGENT_KYC_STATUSES.map((status) => (
-                            <SelectItem key={status} value={status} className="capitalize">
-                                {status}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Identity documents" htmlFor="filter-identity-documents">
+                    <Select
+                        value={values.kycStatus || ANY}
+                        onValueChange={(value) => set({ kycStatus: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-identity-documents" className="w-44">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any KYC state</SelectItem>
+                            {AGENT_KYC_STATUSES.map((status) => (
+                                <SelectItem key={status} value={status} className="capitalize">
+                                    {status}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.availability || ANY}
-                    onValueChange={(value) => set({ availability: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-40" aria-label="Availability">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any availability</SelectItem>
-                        {AGENT_AVAILABILITY_STATES.map((state) => (
-                            <SelectItem key={state} value={state} className="capitalize">
-                                {state.replace(/_/g, ' ')}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Availability" htmlFor="filter-availability">
+                    <Select
+                        value={values.availability || ANY}
+                        onValueChange={(value) => set({ availability: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-availability" className="w-40">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any availability</SelectItem>
+                            {AGENT_AVAILABILITY_STATES.map((state) => (
+                                <SelectItem key={state} value={state} className="capitalize">
+                                    {state.replace(/_/g, ' ')}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.workingState || ANY}
-                    onValueChange={(value) => set({ workingState: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-40" aria-label="Working state">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any working state</SelectItem>
-                        {AGENT_WORKING_STATES.map((state) => (
-                            <SelectItem key={state} value={state} className="capitalize">
-                                {state.replace(/_/g, ' ')}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Working state" htmlFor="filter-working-state">
+                    <Select
+                        value={values.workingState || ANY}
+                        onValueChange={(value) => set({ workingState: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-working-state" className="w-40">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any working state</SelectItem>
+                            {AGENT_WORKING_STATES.map((state) => (
+                                <SelectItem key={state} value={state} className="capitalize">
+                                    {state.replace(/_/g, ' ')}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.banned || ANY}
-                    onValueChange={(value) => set({ banned: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-36" aria-label="Platform ban">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any ban state</SelectItem>
-                        <SelectItem value="true">Banned</SelectItem>
-                        <SelectItem value="false">Not banned</SelectItem>
-                    </SelectContent>
-                </Select>
+                <FilterField label="Platform ban" htmlFor="filter-platform-ban">
+                    <Select
+                        value={values.banned || ANY}
+                        onValueChange={(value) => set({ banned: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-platform-ban" className="w-36">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any ban state</SelectItem>
+                            <SelectItem value="true">Banned</SelectItem>
+                            <SelectItem value="false">Not banned</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.trackingAllowed || ANY}
-                    onValueChange={(value) =>
-                        set({ trackingAllowed: value === ANY ? null : value })
-                    }
-                >
-                    <SelectTrigger className="w-44" aria-label="Tracking">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any tracking state</SelectItem>
-                        <SelectItem value="true">Tracking allowed</SelectItem>
-                        <SelectItem value="false">Tracking not allowed</SelectItem>
-                    </SelectContent>
-                </Select>
+                <FilterField label="Tracking" htmlFor="filter-tracking">
+                    <Select
+                        value={values.trackingAllowed || ANY}
+                        onValueChange={(value) =>
+                            set({ trackingAllowed: value === ANY ? null : value })
+                        }
+                    >
+                        <SelectTrigger id="filter-tracking" className="w-44">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any tracking state</SelectItem>
+                            <SelectItem value="true">Tracking allowed</SelectItem>
+                            <SelectItem value="false">Tracking not allowed</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
                 <DateRangeFilter
                     label="Joined"

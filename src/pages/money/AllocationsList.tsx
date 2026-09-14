@@ -6,6 +6,7 @@ import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField, FilterFieldSpacer } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { AllocationStatusBadge } from '@/components/money/MoneyBadges';
@@ -192,8 +193,7 @@ export function AllocationsList() {
         >
             <div className="space-y-4">
                 <FilterBar isFiltered={isFiltered} onClear={reset}>
-                    <div className="space-y-1.5">
-                        <Label htmlFor="allocation-beneficiary">Beneficiary</Label>
+                    <FilterField label="Beneficiary" htmlFor="allocation-beneficiary">
                         <Select
                             value={values.beneficiaryType || ANY}
                             onValueChange={(next) =>
@@ -215,10 +215,9 @@ export function AllocationsList() {
                                 ))}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
-                    <div className="space-y-1.5">
-                        <Label htmlFor="allocation-status">Status</Label>
+                    <FilterField label="Status" htmlFor="allocation-status">
                         <Select
                             value={values.status || ANY}
                             onValueChange={(next) => set({ status: next === ANY ? null : next })}
@@ -237,29 +236,30 @@ export function AllocationsList() {
                                 )}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
 
-                    <div className="flex items-end gap-2 pb-1.5">
-                        <Switch
-                            id="allocation-unsettled"
-                            checked={unsettledOnly}
-                            onCheckedChange={(next) =>
-                                set({ unsettledOnly: next ? 'true' : null })
-                            }
-                        />
-                        <Label
-                            htmlFor="allocation-unsettled"
-                            className="flex items-center gap-1 pb-0.5"
-                        >
-                            Waiting on cash
-                            <InfoHint label="About waiting on cash">
-                                Cash-on-delivery allocations where the money is physical cash the
-                                platform has not received yet. This is what a stuck remittance
-                                looks like from the earnings side — the sale completed, the hold
-                                elapsed, and the beneficiary still cannot be paid.
-                            </InfoHint>
-                        </Label>
-                    </div>
+                    {/* A toggle names itself — the spacer aligns it with the controls beside it. */}
+                    <FilterFieldSpacer>
+                        <div className="flex h-9 items-center gap-2">
+                            <Switch
+                                id="allocation-unsettled"
+                                checked={unsettledOnly}
+                                onCheckedChange={(next) =>
+                                    set({ unsettledOnly: next ? 'true' : null })
+                                }
+                            />
+                            <Label htmlFor="allocation-unsettled" className="gap-1">
+                                Waiting on cash
+                                <InfoHint label="About waiting on cash">
+                                    Cash-on-delivery allocations where the money is physical cash
+                                    the platform has not received yet. This is what a stuck
+                                    remittance looks like from the earnings side — the sale
+                                    completed, the hold elapsed, and the beneficiary still cannot
+                                    be paid.
+                                </InfoHint>
+                            </Label>
+                        </div>
+                    </FilterFieldSpacer>
 
                     <DateRangeFilter
                         label="Allocated"

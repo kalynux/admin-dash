@@ -11,6 +11,7 @@ import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { NotSet } from '@/components/common/DefinitionList';
 import { Pager } from '@/components/common/Pager';
 import { RowActions } from '@/components/common/RowActions';
@@ -18,7 +19,6 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { InfoHint } from '@/components/ui/info-hint';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -252,16 +252,20 @@ export function RemittancesList() {
         >
             <div className="space-y-4">
                 <FilterBar isFiltered={isFiltered} onClear={reset}>
-                    <div className="space-y-1.5">
-                        <Label htmlFor="remittance-status" className="flex items-center gap-1">
-                            Status
-                            <InfoHint label="About remittance status">
-                                <strong>Declared</strong> is a claim and nothing has moved yet.{' '}
-                                <strong>Confirmed</strong> means an administrator agreed the cash
-                                arrived, which settles the agency&rsquo;s collections and releases
-                                their earnings. <strong>Rejected</strong> settles nothing.
-                            </InfoHint>
-                        </Label>
+                    <FilterField
+                        htmlFor="remittance-status"
+                        label={
+                            <>
+                                Status
+                                <InfoHint label="About remittance status">
+                                    <strong>Declared</strong> is a claim and nothing has moved yet.{' '}
+                                    <strong>Confirmed</strong> means an administrator agreed the cash
+                                    arrived, which settles the agency&rsquo;s collections and releases
+                                    their earnings. <strong>Rejected</strong> settles nothing.
+                                </InfoHint>
+                            </>
+                        }
+                    >
                         <Select
                             value={values.status || ANY}
                             onValueChange={(next) => set({ status: next === ANY ? null : next })}
@@ -284,7 +288,7 @@ export function RemittancesList() {
                                 ))}
                             </SelectContent>
                         </Select>
-                    </div>
+                    </FilterField>
                 </FilterBar>
 
                 {/*

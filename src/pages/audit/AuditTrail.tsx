@@ -8,6 +8,7 @@ import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField, FilterFieldSpacer } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { SearchInput } from '@/components/common/SearchInput';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -304,22 +305,24 @@ export function AuditTrail() {
                   built from a guess is how a client starts sending 400s.
                 */}
                 {vocabulary.actions.length > 0 ? (
-                    <Select
-                        value={values.action || ANY}
-                        onValueChange={(value) => set({ action: value === ANY ? null : value })}
-                    >
-                        <SelectTrigger className="w-64" aria-label="Action">
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value={ANY}>Any action</SelectItem>
-                            {vocabulary.actions.map((name) => (
-                                <SelectItem key={name} value={name}>
-                                    {vocabulary.labels[name] ?? name}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <FilterField label="Action" htmlFor="filter-action">
+                        <Select
+                            value={values.action || ANY}
+                            onValueChange={(value) => set({ action: value === ANY ? null : value })}
+                        >
+                            <SelectTrigger id="filter-action" className="w-64">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value={ANY}>Any action</SelectItem>
+                                {vocabulary.actions.map((name) => (
+                                    <SelectItem key={name} value={name}>
+                                        {vocabulary.labels[name] ?? name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </FilterField>
                 ) : null}
 
                 {/*
@@ -330,56 +333,62 @@ export function AuditTrail() {
                   options from the catalog would quietly drop the families whose
                   actions are all still unbuilt.
                 */}
-                <Select
-                    value={values.actionFamily || ANY}
-                    onValueChange={(value) => set({ actionFamily: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-44" aria-label="Family">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any family</SelectItem>
-                        {PERMISSION_FAMILIES.map((family) => (
-                            <SelectItem key={family} value={family}>
-                                {family}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Family" htmlFor="filter-family">
+                    <Select
+                        value={values.actionFamily || ANY}
+                        onValueChange={(value) => set({ actionFamily: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-family" className="w-44">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any family</SelectItem>
+                            {PERMISSION_FAMILIES.map((family) => (
+                                <SelectItem key={family} value={family}>
+                                    {family}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.status || ANY}
-                    onValueChange={(value) => set({ status: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-36" aria-label="Result">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any result</SelectItem>
-                        {AUDIT_STATUSES.map((status) => (
-                            <SelectItem key={status} value={status} className="capitalize">
-                                {status}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Result" htmlFor="filter-result">
+                    <Select
+                        value={values.status || ANY}
+                        onValueChange={(value) => set({ status: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-result" className="w-36">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any result</SelectItem>
+                            {AUDIT_STATUSES.map((status) => (
+                                <SelectItem key={status} value={status} className="capitalize">
+                                    {status}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.targetType || ANY}
-                    onValueChange={(value) => set({ targetType: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-44" aria-label="Resource type">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any resource</SelectItem>
-                        {AUDIT_TARGET_TYPES.map((type) => (
-                            <SelectItem key={type} value={type}>
-                                {type.replace(/_/g, ' ')}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Resource type" htmlFor="filter-resource-type">
+                    <Select
+                        value={values.targetType || ANY}
+                        onValueChange={(value) => set({ targetType: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-resource-type" className="w-44">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any resource</SelectItem>
+                            {AUDIT_TARGET_TYPES.map((type) => (
+                                <SelectItem key={type} value={type}>
+                                    {type.replace(/_/g, ' ')}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
                 <DateRangeFilter
                     label="When"
@@ -391,18 +400,21 @@ export function AuditTrail() {
                     onChange={(range) => set({ from: range.from || null, to: range.to || null })}
                 />
 
-                <div className="flex items-center gap-2">
-                    <Switch
-                        id="audit-sensitive-only"
-                        checked={values.sensitiveOnly === 'true'}
-                        onCheckedChange={(checked) =>
-                            set({ sensitiveOnly: checked ? 'true' : null })
-                        }
-                    />
-                    <Label htmlFor="audit-sensitive-only" className="text-sm font-normal">
-                        Sensitive only
-                    </Label>
-                </div>
+                {/* A toggle names itself — the spacer aligns it with the controls beside it. */}
+                <FilterFieldSpacer>
+                    <div className="flex h-9 items-center gap-2">
+                        <Switch
+                            id="audit-sensitive-only"
+                            checked={values.sensitiveOnly === 'true'}
+                            onCheckedChange={(checked) =>
+                                set({ sensitiveOnly: checked ? 'true' : null })
+                            }
+                        />
+                        <Label htmlFor="audit-sensitive-only" className="font-normal">
+                            Sensitive only
+                        </Label>
+                    </div>
+                </FilterFieldSpacer>
             </FilterBar>
 
             {pinned.length > 0 ? (

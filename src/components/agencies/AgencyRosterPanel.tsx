@@ -6,6 +6,7 @@ import { ContractStatusBadge } from '@/components/contracts/ContractStatusBadge'
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField, FilterFieldSpacer } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -239,10 +240,7 @@ export function AgencyRosterPanel({ agencyId, timeZone }: AgencyRosterPanelProps
                   as a bounded string, and it gained `withdrawn` recently. A pinned list
                   here would silently stop matching.
                 */}
-                <div className="space-y-1.5">
-                    <Label htmlFor={`roster-status-${agencyId}`} className="text-xs">
-                        Contract status
-                    </Label>
+                <FilterField label="Contract status" htmlFor={`roster-status-${agencyId}`}>
                     <Input
                         id={`roster-status-${agencyId}`}
                         className="w-48"
@@ -255,26 +253,29 @@ export function AgencyRosterPanel({ agencyId, timeZone }: AgencyRosterPanelProps
                             setPage(1);
                         }}
                     />
-                </div>
+                </FilterField>
 
-                <div className="flex items-center gap-2 self-end pb-2">
-                    <Switch
-                        id={`roster-primary-${agencyId}`}
-                        checked={primaryOnly}
-                        onCheckedChange={(checked) => {
-                            setPrimaryOnly(checked);
-                            setPage(1);
-                        }}
-                    />
-                    <Label htmlFor={`roster-primary-${agencyId}`} className="text-sm font-normal">
-                        Allocating COD only
-                    </Label>
-                    <InfoHint label="What allocating means">
-                        Only the contracts that currently consume the agent&apos;s COD pool —
-                        active, paused and suspended ones. A contract that was rejected, withdrawn
-                        or deactivated releases its slice back, so it is excluded.
-                    </InfoHint>
-                </div>
+                {/* A toggle names itself — the spacer aligns it with the controls beside it. */}
+                <FilterFieldSpacer>
+                    <div className="flex h-9 items-center gap-2">
+                        <Switch
+                            id={`roster-primary-${agencyId}`}
+                            checked={primaryOnly}
+                            onCheckedChange={(checked) => {
+                                setPrimaryOnly(checked);
+                                setPage(1);
+                            }}
+                        />
+                        <Label htmlFor={`roster-primary-${agencyId}`} className="font-normal">
+                            Allocating COD only
+                        </Label>
+                        <InfoHint label="What allocating means">
+                            Only the contracts that currently consume the agent&apos;s COD pool —
+                            active, paused and suspended ones. A contract that was rejected,
+                            withdrawn or deactivated releases its slice back, so it is excluded.
+                        </InfoHint>
+                    </div>
+                </FilterFieldSpacer>
             </FilterBar>
 
             {meta && !roster.isLoading ? (

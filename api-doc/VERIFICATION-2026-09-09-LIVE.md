@@ -412,12 +412,12 @@ the bytes**, in every tree:
 | `6a8fb001…` `application/zip` | `digital/` (private) | `200` | **`200`, binary** |
 
 The content route does not consult `quotaBlockedAt` at all — jovi-mall's handler
-([`admin-file.routes.ts:247-292`](../../backend/jovi-mall/src/modules/catalog/routes/admin-file.routes.ts))
+(`backend/jovi-mall/src/modules/catalog/routes/admin-file.routes.ts` (— not mirrored in this repository))
 has no quota branch to fail. The quota block withholds the **public URL**; it does not withhold the
 bytes from the audited route, which streams from storage.
 
 ⚠️ **And it could not withhold them from a public tree even by design.** Those trees are served by
-`express.static` off disk ([`api/index.ts:628-630`](../../backend/jovi-mall/src/api/index.ts)), which
+`express.static` off disk (`backend/jovi-mall/src/api/index.ts` (— not mirrored in this repository)), which
 has no database access — so a blocked public file stays fetchable by anyone holding its stale URL,
 permanently. **`quota_blocked` is a *publishing* state, not an access-revocation state.**
 

@@ -7,6 +7,16 @@ interface AuthLayoutProps {
     description?: React.ReactNode;
     children: React.ReactNode;
     footer?: React.ReactNode;
+    /**
+     * How wide the card is.
+     *
+     * `sm` is the credential screens — one field at a time, and a narrow column
+     * is what makes them read as a single decision. `lg` exists for onboarding,
+     * which is a *form*: it sits outside the dashboard shell for the same reason
+     * the enrolment wizard does (every nav item a pending session could see
+     * points at a route that refuses it), but it is not one question.
+     */
+    width?: 'sm' | 'lg';
 }
 
 /**
@@ -16,10 +26,16 @@ interface AuthLayoutProps {
  * It sits inside the theme provider, so it honours a chosen theme even though no
  * session exists yet to have a preference.
  */
-export function AuthLayout({ title, description, children, footer }: AuthLayoutProps) {
+export function AuthLayout({
+    title,
+    description,
+    children,
+    footer,
+    width = 'sm',
+}: AuthLayoutProps) {
     return (
         <div className="bg-muted/30 flex min-h-screen flex-col items-center justify-center gap-4 p-4">
-            <Card className="w-full max-w-sm">
+            <Card className={width === 'lg' ? 'w-full max-w-3xl' : 'w-full max-w-sm'}>
                 <CardHeader className="items-center text-center">
                     <AppLogo className="mx-auto size-12" />
                     <CardTitle className="mt-2 text-lg">{title}</CardTitle>

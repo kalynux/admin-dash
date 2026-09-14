@@ -7,6 +7,7 @@ import { DataTable, type Column } from '@/components/common/DataTable';
 import { DateRangeFilter } from '@/components/common/DateRangeFilter';
 import { EmptyState } from '@/components/common/DataState';
 import { FilterBar } from '@/components/common/FilterBar';
+import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { SearchInput } from '@/components/common/SearchInput';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -15,7 +16,6 @@ import { VendorStatusBadge } from '@/components/vendors/VendorStatusBadge';
 import { Button } from '@/components/ui/button';
 import { InfoHint } from '@/components/ui/info-hint';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
     Select,
     SelectContent,
@@ -285,66 +285,69 @@ export function VendorsList() {
                     onChange={(next) => set({ search: next }, { replace: true })}
                 />
 
-                <Select
-                    value={values.status || ANY}
-                    onValueChange={(value) => set({ status: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-48" aria-label="Status">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any status</SelectItem>
-                        {VENDOR_STATUSES.map((status) => (
-                            <SelectItem key={status} value={status}>
-                                {status === 'pending_verification' ? 'Pending verification' : status}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Status" htmlFor="filter-status">
+                    <Select
+                        value={values.status || ANY}
+                        onValueChange={(value) => set({ status: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-status" className="w-48">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any status</SelectItem>
+                            {VENDOR_STATUSES.map((status) => (
+                                <SelectItem key={status} value={status}>
+                                    {status === 'pending_verification' ? 'Pending verification' : status}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.kycStatus || ANY}
-                    onValueChange={(value) => set({ kycStatus: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-44" aria-label="Verification">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any verification</SelectItem>
-                        {VENDOR_KYC_STATUSES.map((status) => (
-                            <SelectItem key={status} value={status} className="capitalize">
-                                {status}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Verification" htmlFor="filter-verification">
+                    <Select
+                        value={values.kycStatus || ANY}
+                        onValueChange={(value) => set({ kycStatus: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-verification" className="w-44">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any verification</SelectItem>
+                            {VENDOR_KYC_STATUSES.map((status) => (
+                                <SelectItem key={status} value={status} className="capitalize">
+                                    {status}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
-                <Select
-                    value={values.onboarding || ANY}
-                    onValueChange={(value) => set({ onboarding: value === ANY ? null : value })}
-                >
-                    <SelectTrigger className="w-44" aria-label="Onboarding">
-                        <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value={ANY}>Any onboarding</SelectItem>
-                        {VENDOR_ONBOARDING_FILTERS.map((value) => (
-                            <SelectItem key={value} value={value} className="capitalize">
-                                {value}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <FilterField label="Onboarding" htmlFor="filter-onboarding">
+                    <Select
+                        value={values.onboarding || ANY}
+                        onValueChange={(value) => set({ onboarding: value === ANY ? null : value })}
+                    >
+                        <SelectTrigger id="filter-onboarding" className="w-44">
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value={ANY}>Any onboarding</SelectItem>
+                            {VENDOR_ONBOARDING_FILTERS.map((value) => (
+                                <SelectItem key={value} value={value} className="capitalize">
+                                    {value}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </FilterField>
 
                 {/*
                   A plain input, not a picker. No endpoint on this service enumerates
                   countries, so a dropdown here would be a list this client invented —
                   and one that could disagree with what the data actually holds.
                 */}
-                <div className="space-y-1.5">
-                    <Label htmlFor="vendor-country" className="text-xs">
-                        Country
-                    </Label>
+                <FilterField label="Country" htmlFor="vendor-country">
                     <Input
                         id="vendor-country"
                         className="w-24 uppercase"
@@ -359,7 +362,7 @@ export function VendorsList() {
                             )
                         }
                     />
-                </div>
+                </FilterField>
 
                 <DateRangeFilter
                     label="Registered"
