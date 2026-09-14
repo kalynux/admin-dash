@@ -8,7 +8,37 @@ import { __resetRuntimeI18n } from '@/i18n';
 import { __resetTranslatorWarnings } from '@/i18n/translator';
 import { __resetApiClientState } from '@/services/api';
 
-afterEach(() => {
+/**
+ * How long `input-otp`'s uncancellable timers need to drain.
+ *
+ * It schedules **three** on every value or focus change — `setTimeout(fn, 0)`,
+ * `(fn, 10)` and `(fn, 50)` — from a `useEffect` that **returns no cleanup
+ * function**. Unmounting therefore does not cancel them, and each one calls
+ * `setState` when it fires.
+ *
+ * 🔴 **This is why CI can go red with every test passing.** On a slow runner the
+ * 10 ms and 50 ms timers land *after* vitest has torn jsdom down; React then
+ * reads `window` inside `resolveUpdatePriority` and throws
+ * `ReferenceError: window is not defined` as an **uncaught exception**. Vitest
+ * reports `2488 passed (2488)` and exits **1**. It cost a green `main` and a red
+ * `production` on the *same commit* — see the run for 9de0277.
+ *
+ * ⚠ **Do not "fix" this with `dangerouslyIgnoreUnhandledErrors`.** That would
+ * silence every post-teardown throw in the suite, including the ones that mean
+ * something. Letting the timers expire while jsdom is still alive is the narrow
+ * fix: they call `setState` on an unmounted tree, which React 19 ignores.
+ */
+const OTP_TIMER_DRAIN_MS = 60;
+
+afterEach(async () => {
+    /*
+      Read BEFORE `cleanup()` — afterwards the tree is gone and there is nothing
+      left to detect. Gated on the field actually having been rendered because
+      60 ms on all 2488 tests would add about two and a half minutes to the suite
+      to serve the handful that mount an OTP input.
+    */
+    const hadOtpField = document.querySelector('[data-input-otp]') !== null;
+
     cleanup();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
@@ -27,6 +57,11 @@ afterEach(() => {
     for (const entry of document.cookie.split('; ')) {
         const name = entry.split('=')[0];
         if (name) document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+    }
+
+    // Last, so the timers drain against a document this hook has finished with.
+    if (hadOtpField) {
+        await new Promise((resolve) => setTimeout(resolve, OTP_TIMER_DRAIN_MS));
     }
 });
 
