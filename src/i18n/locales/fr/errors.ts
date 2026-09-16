@@ -65,6 +65,11 @@ const codes = {
     ADMIN_ACTIVATION_SELF: 'Un autre développeur doit activer votre compte',
     ADMIN_ACTIVATION_CONFLICT: 'Quelqu’un a modifié ce compte pendant votre consultation',
 
+    // ─── Téléphone de l’administrateur (ADR-023) ─────────────────────────────
+    ADMIN_PHONE_NOT_SET: 'Enregistrez un numéro de téléphone avant de demander un code',
+    ADMIN_PHONE_VERIFICATION_MISMATCH:
+        'Votre numéro a changé pendant l’envoi du code — demandez-en un nouveau',
+
     // ─── Dossiers salariés (ADR-023) ─────────────────────────────────────────
     EMPLOYEE_SLOT_FULL: 'Cet emplacement est plein — retirez un fichier avant d’en ajouter un autre',
     EMPLOYEE_DOCUMENT_NOT_FOUND: 'Cet emplacement ne contient pas ce fichier',

@@ -43,6 +43,32 @@
 > ⛔ The storage-tree ask below is **already done** — `kyc: 'private'` is live, which is why every
 > document resolves `url: null` / `access: "authorized"`. Everything under *"The data that exists
 > nowhere"* now exists.
+>
+> ---
+>
+> ### ✅ Closed out 2026-09-15 — the last two acceptance boxes
+>
+> Both were still open a day after this was marked answered, which is worth noticing: **the
+> banner above was written about the ROUTES and quietly stood in for the whole document.** Two
+> items in it were about pages rather than code, and nobody ticked them.
+>
+> **1 · The `KYC_SUBJECT_NOT_FOUND` row is fixed.** The ⚠ above described the defect and left it
+> in place. [`verification.md`](../../api/verification.md)'s error table now names
+> `PLATFORM_OPERATION_REJECTED` as the `error.code` and puts `KYC_SUBJECT_NOT_FOUND` where it
+> actually arrives — `details.platformCode` — with the reason stated on the row.
+>
+> **2 · `agencies.md` carries `status` and `rejectionReason`.** Confirmed against
+> `toAgencyDetailDto` (`agency.controller.ts:175-192`): the DTO emits **six** members and the
+> page showed **four**. Both are now in the worked JSON and in the field notes, each carrying the
+> reason it exists — *`pending_verification` is where an agency sits **both** before a review and
+> after a refused one*, and the rejection sentence is shown to the agency, so it had better be
+> visible to the operator who wrote it.
+>
+> ⚠ **Your diagnosis of how that happened is the durable part and it is now on the page too**:
+> this dashboard transcribed a page that lagged its own service, so `AgencyKyc` declared four
+> fields and the review dialog re-derived the verdict from `verified` + `agency.status` —
+> reproducing precisely the ambiguity the backend had already removed. **A transcription cannot
+> be diffed and a copy can.** Same conclusion as BR-025 § 1; same remedy.
 
 **Priority: high.** Three shipped write endpoints ask an administrator to reach a verdict, and
 **none of the three shows them anything to reach it from.** This is not a missing convenience; it
@@ -355,7 +381,7 @@ worth more than another careful reading.
       `access: "authorized"`, and streams through `GET /files/:fileId/content`.
 - [ ] `photoWithAgentFileId` is a distinct field from `vehicle_info.photo_file_id`; neither
       shadows the other.
-- [ ] `agencies.md`'s `kyc` example and field notes carry `status` and `rejectionReason`, which
+- [x] `agencies.md`'s `kyc` example and field notes carry `status` and `rejectionReason`, which
       the controller has emitted since Phase 6 Step 4.
 - [ ] Every new field appears in [`vendors.md`](../../api/vendors.md),
       [`agencies.md`](../../api/agencies.md) and [`agents.md`](../../api/agents.md), and the three

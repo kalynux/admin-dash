@@ -4,7 +4,12 @@ import { Link } from 'react-router-dom';
 import type { Column } from '@/components/common/DataTable';
 import { NotSet } from '@/components/common/DefinitionList';
 import { DestinationSummary } from '@/components/money/DestinationSummary';
-import { PayoutOriginBadge, PayoutStatusBadge } from '@/components/money/PayoutBadges';
+import {
+    PayoutOriginBadge,
+    PayoutStatusBadge,
+    PayoutTriageBadge,
+    PayoutVerificationBadge,
+} from '@/components/money/PayoutBadges';
 import { formatInstantInZone, formatMoney } from '@/lib/format';
 import type { CanPredicate } from '@/store';
 import type { Payout } from '@/types/money.types';
@@ -70,14 +75,63 @@ export function payoutColumns({
     }
 
     columns.push(
+        /*
+          ⚠ **Its own column, and NOT folded into `ownerCell`** — BR-026 § 1.
+
+          Two reasons, and the second is the one that would have bitten. It reads
+          beside the owner because "who am I paying" and "has anybody checked
+          them" are one question for a reviewer; but `ownerCell` is skipped
+          entirely when `showOwner` is false, and the account page is exactly
+          where a *verified* vendor's whole payout history would otherwise have
+          rendered with no verdict at all. The backend made the same observation
+          about its own mapper: leaving the field unhydrated there "would not have
+          looked like a bug".
+
+          ⚠ **No `sortKey`, and that is a refusal rather than an omission.** The
+          verdict lives in `vendors`/`delivery_agencies`/`delivery_agents` while
+          the queue pages over `payout_requests`, so a server-side sort or filter
+          means a three-way `$lookup` that would widen the one narrow projection
+          that keeps the payout number off this path. A header offering a sort the
+          endpoint answers with a `400` is worse than no header, so this carries
+          none — see the client-side filter on the queue instead.
+        */
+        {
+            id: 'verification',
+            header: 'Owner vetted',
+            className: 'align-top',
+            cell: (payout) => <PayoutVerificationBadge verification={payout.verification} />,
+        },
         {
             id: 'status',
             header: 'Status',
             className: 'align-top',
             cell: (payout) => (
                 <div className="space-y-1">
-                    <PayoutStatusBadge status={payout.status} />
-                    {payout.rejectionReason ? (
+                    <span className="flex flex-wrap items-center gap-1">
+                        <PayoutStatusBadge status={payout.status} />
+                        {/*
+                          Beside the status, never instead of it: an endorsed
+                          payout is still `pending` — endorsement is a field, not
+                          a state (ADR-024 D-6). Renders nothing when nobody has
+                          reviewed it, because an un-endorsed request is an
+                          ordinary one rather than an incomplete one.
+                        */}
+                        <PayoutTriageBadge triage={payout.triage} />
+                    </span>
+
+                    {/*
+                      ⚠ **The failure reason, and it is not a rejection reason.**
+                      `failed` means the gateway refused the transfer and **the
+                      funds are still held** — the row is still open work. Shown
+                      in the same slot as `rejectionReason` because only one of
+                      the two can ever be the current story, and a `failed` row
+                      with no sentence beside it reads like a closed one.
+                    */}
+                    {payout.status === 'failed' && payout.transferFailureReason ? (
+                        <p className="text-muted-foreground max-w-[22ch] truncate text-xs">
+                            {payout.transferFailureReason}
+                        </p>
+                    ) : payout.rejectionReason ? (
                         <p className="text-muted-foreground max-w-[22ch] truncate text-xs">
                             {payout.rejectionReason}
                         </p>

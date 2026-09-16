@@ -16,8 +16,19 @@ import type { AgencyStatus } from '@/types/agencies.types';
  * audit trail and the API.
  *
  * `pending_verification` is drawn as neutral rather than as a warning: it is where
- * every agency is created, and `POST /agencies/:agencyId/verify` is the exit. It
- * is a queue position, not a fault.
+ * every agency is created. It is a queue position, not a fault.
+ *
+ * ⚠ **This clause said `POST /agencies/:agencyId/verify` is the exit, and jovi-mall
+ * changed that on 2026-09-15** (`core/accounts/activation.ts`). An agency now leaves
+ * `pending_verification` **itself**, by proving a phone number and holding a name —
+ * approval writes only the KYC verdict and no longer touches `status` at all
+ * (`DeliveryAgencyRepository.markVerifiedIfPending` — not mirrored in this
+ * repository). So an agency awaiting review is routinely already `active`, and this badge says
+ * even less about vetting than it used to. The verdict is `AgencyVerificationBadge`
+ * and `AgencyKyc.status`; do not read one off the other.
+ *
+ * ⚠ **Not deployed yet at the time of writing** — the note is here so nobody
+ * re-derives the old fusion from the old sentence.
  *
  * `inactive` is drawn as destructive because on this surface it is: reaching it
  * cascades a suspension across every vendor product defaulting to the agency.

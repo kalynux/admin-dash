@@ -37,10 +37,27 @@ import type { ActorStamp } from '@/types/actor.types';
 /**
  * May the agency operate?
  *
- * A **pinned** three-value enum, unlike the contract vocabulary next door — this
- * one wi-admin writes: `verify` moves `pending_verification → active` and
- * `deactivate` moves anything → `inactive`. A filter that could name a fourth
- * value would be a filter for a state no verb here produces.
+ * A **pinned** three-value enum, unlike the contract vocabulary next door.
+ * `deactivate` moves anything → `inactive` and `reactivate` brings it back. A
+ * filter that could name a fourth value would be a filter for a state no verb
+ * here produces.
+ *
+ * ⚠ **`verify` NO LONGER moves `pending_verification → active`** — it did until
+ * jovi-mall's 2026-09-15 activation change, and that fusion is the single thing
+ * most likely to be re-derived here by anybody reading an older page. An account
+ * now promotes **itself** the moment it has a verified phone number and a name;
+ * approval writes only `kyc_details`. Two consequences worth holding:
+ *
+ *   - **`status: 'active'` is no evidence that anybody vetted the agency.** Read
+ *     `AgencyKyc.status` for that, never this. Only `verified` means verified —
+ *     *never* derive it as `status === 'active'` or as `verdict !== 'rejected'`,
+ *     because "never reviewed" is most of the platform.
+ *   - **An agency awaiting review is routinely already `active`**, so a review
+ *     queue filtered on this enum finds the wrong rows. Filter on
+ *     `submittedAt !== null`, as the verification module already does.
+ *
+ * ⚠ Wi-admin's `agencies.md` still describes the old fusion (it was verified
+ * against source on 2026-09-08, a week before the change) — see BR-026.
  *
  * Verified: `agency.validator.ts` `AGENCY_STATUSES`, and the model's own enum.
  */

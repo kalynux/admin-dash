@@ -30,6 +30,7 @@
  */
 
 import type { ActorStamp } from '@/types/actor.types';
+import type { TriageStamp } from '@/types/triage.types';
 import { ApiError } from '@/types/api.types';
 
 /** `GET /money/earnings/platform` · delegated. */
@@ -247,6 +248,40 @@ export interface MoneyOwnerRef {
  * through `toIso`, which returns `null` for an absent date — and `createdAt` is
  * the **default sort key**.
  */
+/**
+ * The KYC axis, read uniformly across the three payable roles — the twin of
+ * wi-admin's `money/domain/owner-verification.ts`.
+ *
+ * ⛔ **`verified` is the ONLY field any decision may test.** Never derive it as
+ * `verdict !== 'rejected'`: "never reviewed" is not approval, and on a young
+ * platform that is most accounts. Never derive it from the owner's `status`
+ * either — that is the mistake the whole 2026-09-15 split exists to break.
+ *
+ * ⚠ **It is information, not enforcement.** The platform does not refuse these
+ * payouts; working with an unverified counterparty is a business judgement. **Do
+ * not gate the pay action on it** — surface it and let the reviewer decide.
+ */
+export interface OwnerVerification {
+    verified: boolean;
+    /**
+     * The role's own word, **for display only**.
+     *
+     * ⚠ **Do not flatten the vocabulary across roles.** Vendor and agency default
+     * to `pending`; an **agent** defaults to `unverified` and reaches `pending`
+     * only once documents are submitted. On an agent those two words separate
+     * *nothing submitted* from *submitted, waiting* — which is precisely what
+     * tells a reviewer whether there is anything to chase.
+     *
+     * Left open, as every wire vocabulary here is. wi-admin's `verificationOf`
+     * fails closed — it coerces anything it does not recognise to `unverified` —
+     * so a fifth value cannot reach us until that list grows. Render the word
+     * raw regardless; only `verified` is branched on.
+     */
+    verdict: 'unverified' | 'pending' | 'verified' | 'rejected' | (string & {});
+}
+
+export const VERIFICATION_VERDICTS = ['unverified', 'pending', 'verified', 'rejected'] as const;
+
 export interface Payout {
     id: string;
     owner: MoneyOwnerRef;
@@ -254,11 +289,27 @@ export interface Payout {
     amount: number;
     currency: string;
     /**
-     * `pending` · `paid` · `rejected`.
+     * `pending` · `processing` · `paid` · `rejected` · `failed` — **five since
+     * ADR-024**, and the two new members are the whole hazard of that change.
      *
      * A bounded string on the wire, not a pinned enum: this service writes
      * against none of jovi-mall's vocabularies. Render raw, never `switch`
-     * exhaustively.
+     * exhaustively — a closed switch over the old three sends both new values
+     * into whichever branch was last, which in most implementations is
+     * `rejected`, telling an owner their payout was declined while it is in
+     * flight.
+     *
+     * ⛔ **`processing` and `failed` are BOTH still holding the owner's money.**
+     * A failed transfer has not returned anything. Only `paid` is settled, and
+     * only `rejected` released the hold — see {@link payoutHoldsFunds}.
+     *
+     * ⚠ **A `200` from `/send` does not mean the money arrived.** The usual
+     * answer is `processing`, confirmed later by a gateway callback.
+     *
+     * ⛔ **`processing` cannot be rejected** (`409`
+     * `EARNINGS_PAYOUT_TRANSFER_IN_FLIGHT`): releasing a hold while a transfer
+     * may still be in flight is how an owner gets paid twice. See
+     * {@link canRejectPayout}.
      */
     status: string;
     /** `manual` (the owner asked) or `auto_threshold` (the platform opened it for them). */
@@ -268,6 +319,62 @@ export interface Payout {
      * destination carrying no details.
      */
     destination: PayoutDestination | null;
+    /**
+     * Has a human vetted the owner this money is going to? — BR-026 § 1.
+     *
+     * ⚠ **`owner` being `active` stopped answering this on 2026-09-15.** Accounts
+     * now activate themselves by verifying a phone number, so an active vendor
+     * with a plausible destination is indistinguishable from a stranger who
+     * registered this morning. Payout review is the platform's one human
+     * checkpoint on money leaving it, which is why this is on **every row** and
+     * not behind a detail click.
+     *
+     * ⚠ **Never absent and never `null`.** `toPayoutListItemDto` defaults an
+     * unresolvable owner to `UNKNOWN_VERIFICATION` — the parameter default and
+     * the mapper fallback are the same decision written twice, deliberately,
+     * because either alone leaves a hole. A missing row must never render as a
+     * silent approval.
+     *
+     * ⚠ **wi-admin computes this; it does not forward jovi-mall's.** This queue
+     * reads `payout_requests` directly (ADR-009 D-1), so jovi-mall's identically
+     * named field never crosses this wire. It therefore does **not** wait on a
+     * jovi-mall deploy — and the two definitions of "vetted" are held together
+     * only by `test:money` § 11 and jovi-mall's `test:payout-verification`.
+     */
+    verification: OwnerVerification;
+    /**
+     * The tier-3 endorsement, or `null` until somebody reviews it — ADR-024 D-1.
+     *
+     * ⛔ **Advisory, and NEVER a precondition.** A payout nobody has endorsed is
+     * exactly as payable as one that has been. Do not disable Send or Mark-paid
+     * on a `null` here: the pre-screen exists to save the approver work, not to
+     * gate them, and an empty Support queue must never stall payments (D-2).
+     *
+     * ⚠ **An endorsed payout is still `status: "pending"`.** Endorsement is a
+     * FIELD, not a state (D-6) — three things key on `pending`, including the
+     * partial unique index that stops an owner opening a second request against
+     * money they have not yet received. So a control keyed on `status` must not
+     * consult this at all.
+     *
+     * ⚠ **There is no `rejected` verdict here.** A reviewer who rejects calls
+     * `/reject`, the same terminal write anyone else makes, and it appears as
+     * `status: "rejected"` with a `rejectionReason`. Storing a rejected verdict
+     * beside a rejected status would be two fields free to disagree about
+     * whether a request is closed.
+     */
+    triage: TriageStamp | null;
+    /**
+     * The **gateway's own** transfer id, for reconciling against the provider's
+     * dashboard. Never our merchant reference, and `null` until one is issued.
+     */
+    transferGatewayRef: string | null;
+    /**
+     * Why the last transfer attempt failed.
+     *
+     * ⚠ **The funds are still held when this is set.** It accompanies
+     * `status: "failed"`, which is neither terminal nor a refund.
+     */
+    transferFailureReason: string | null;
     ticketId: string | null;
     requestedByUserId: string | null;
     resolvedAt: string | null;
@@ -328,8 +435,118 @@ export interface EarningsAccountsQuery {
 export const PAYOUT_SORT_KEYS = ['createdAt', 'amount', 'resolvedAt'] as const;
 export const PAYOUT_SORT_DEFAULT = '-createdAt';
 
-/** For filter options only — the wire value is an unenumerated string. */
-export const PAYOUT_STATUSES = ['pending', 'paid', 'rejected'] as const;
+/**
+ * For filter options only — the wire value is an unenumerated string.
+ *
+ * ⚠ **Five since ADR-024.** `processing` and `failed` are listed in lifecycle
+ * order rather than alphabetically, so the filter reads as the path a request
+ * takes: it is offered, it is in flight, it settled, it was refused, it bounced.
+ */
+export const PAYOUT_STATUSES = [
+    'pending',
+    'processing',
+    'paid',
+    'rejected',
+    'failed',
+] as const;
+
+/**
+ * The statuses in which the owner's money is still held by the platform.
+ *
+ * ⛔ **`failed` is in this set, and that is the single most important thing on
+ * this page** (ADR-024 D-7). A failed transfer has not returned anything — the
+ * gateway refused it and the hold stayed exactly where it was. Rendering
+ * `failed` as a closed or refunded state tells an owner their money is back
+ * when it is not, and tells an administrator there is nothing to do when there
+ * is: the request still needs a retry or a rejection.
+ *
+ * `pending` is here too: `requestPayout` moves the owner's balance
+ * `available → requested` the moment the ticket opens, which is also why
+ * rejecting is a money movement and why `money.payouts.triage` is flagged
+ * `financial` (D-4).
+ */
+export const PAYOUT_HELD_STATUSES = ['pending', 'processing', 'failed'] as const;
+
+export function payoutHoldsFunds(status: string | null | undefined): boolean {
+    return (PAYOUT_HELD_STATUSES as readonly string[]).includes(status ?? '');
+}
+
+/**
+ * May the platform be asked to send this one through the gateway?
+ *
+ * `pending | failed` — wi-admin's `SENDABLE_FROM`
+ * (`money/domain/payout-dual-control.ts`), and **both halves matter**. A payout
+ * whose transfer failed is precisely the one an administrator needs to retry, so
+ * refusing it would strand the money with no way forward but rejection. A payout
+ * whose transfer is in flight must be refused, because sending again risks a
+ * second transfer.
+ *
+ * ⚠ **Retry is this same call.** `POST /send` on a `failed` payout re-sends it
+ * safely: the backend reuses the original provider reference, so a transfer that
+ * actually succeeded and merely failed to report is deduplicated by the provider
+ * rather than paying the owner twice (D-8). There is no retry endpoint and a
+ * client-side idempotency key would defeat exactly that.
+ */
+export function isPayoutSendable(status: string | null | undefined): boolean {
+    return status === 'pending' || status === 'failed';
+}
+
+/**
+ * May this one be recorded as settled by hand?
+ *
+ * ⚠⚠ **`pending` ONLY, and this is NARROWER than jovi-mall's own rule** — the
+ * asymmetry is wi-admin's and it is what this dashboard must obey.
+ * `assertPending(row, 'manual')` allows `['pending']` alone, so `/mark-paid` on
+ * a `failed` payout is refused by wi-admin's pre-flight with `409
+ * PAYOUT_NOT_PENDING` — before the delegated call is ever made.
+ *
+ * jovi-mall would accept it (`payout-requests.md`: *"`failed → paid` mark-paid
+ * — reconcile an out-of-band settlement"*), and the dashboard brief's lifecycle
+ * diagram carries that line too. **Neither is reachable through this service.**
+ * Offering the control on a `failed` row would therefore walk an operator into a
+ * guaranteed 409, so it is withheld and the reconciliation path is named in the
+ * copy instead. Reported upstream rather than worked around.
+ */
+export function canMarkPayoutPaid(status: string | null | undefined): boolean {
+    return status === 'pending';
+}
+
+/**
+ * May this one be rejected, releasing the hold back to the owner?
+ *
+ * ⛔ **Everything except `processing`.** This is the single most important
+ * refusal in ADR-024 (D-7): releasing a hold while a transfer may still be in
+ * flight is how a payout is sent twice — once by the transfer that was never
+ * actually dead, and once out of the balance that came back. The control is
+ * **disabled with a reason**, never hidden and never left to fail: an operator
+ * who presses it into a `409` learns the same fact the hard way.
+ *
+ * `failed` **is** rejectable — that is the way out of a transfer that will not
+ * go through.
+ */
+export function canRejectPayout(status: string | null | undefined): boolean {
+    return status === 'pending' || status === 'failed';
+}
+
+/**
+ * Is a gateway send even possible for this destination?
+ *
+ * `mobile_money` only. A `bank` or `card` destination answers `422
+ * EARNINGS_PAYOUT_GATEWAY_UNSUPPORTED` — no gateway wired here can reach one —
+ * so those are settled by hand and Mark-paid is the control they get.
+ *
+ * ⚠ **A guess, not a guarantee, and it fails OPEN on purpose.** `method` is a
+ * bounded string and a `null` destination is a legacy row predating the
+ * snapshot, so an unrecognised value is treated as *possibly sendable* rather
+ * than hidden: the 422 is handled and offers Mark-paid as the fallback, which is
+ * a recoverable wrong guess. Hiding Send on a destination the gateway could
+ * actually pay is not.
+ */
+export function isGatewaySendableDestination(
+    destination: PayoutDestination | null | undefined,
+): boolean {
+    return destination?.method !== 'bank' && destination?.method !== 'card';
+}
 export const PAYOUT_ORIGINS = ['manual', 'auto_threshold'] as const;
 
 export const PAYOUT_ORIGIN_LABELS: Record<string, string> = {
@@ -366,12 +583,23 @@ export const PAYOUT_AUDIT_ACTIONS = [
     'money.payouts.mark_paid',
     'money.payouts.reject',
     'money.payouts.destination.read',
+    /*
+      ⚠ **`/send` audits as `money.payouts.mark_paid`, not under a name of its
+      own**, because it rides that permission (ADR-024 D-3) and `records()` stamps
+      the permission. So a gateway transfer and a hand-recorded settlement are the
+      same row in this feed and there is deliberately no fourth filter option for
+      it — the payout's own `transferGatewayRef` is what tells them apart.
+    */
+    'money.payouts.triage',
 ] as const;
 
 export const PAYOUT_AUDIT_ACTION_LABELS: Record<string, string> = {
-    'money.payouts.mark_paid': 'Marked paid',
+    // "Paid or sent", never just "Marked paid": the gateway send records under
+    // this same action, so a row here may be either.
+    'money.payouts.mark_paid': 'Paid or sent',
     'money.payouts.reject': 'Rejected',
     'money.payouts.destination.read': 'Destination revealed',
+    'money.payouts.triage': 'Endorsed',
 };
 
 // ─── Error codes ──────────────────────────────────────────────────────────────
@@ -394,6 +622,118 @@ export const CODE_PAYOUT_NOT_PENDING = 'PAYOUT_NOT_PENDING';
  * `PLATFORM_OPERATION_REJECTED`. Branch on both.
  */
 export const PLATFORM_CODE_PAYOUT_NOT_PENDING = 'EARNINGS_PAYOUT_REQUEST_NOT_PENDING';
+
+/* ── The gateway-transfer refusals, ADR-024 ────────────────────────────────────
+
+   ⚠ **Every one of these is jovi-mall's, so it arrives as `details.platformCode`
+   under wi-admin's `PLATFORM_OPERATION_REJECTED` — never as `error.code`.**
+   None is declared in wi-admin's own registry (checked against
+   `core/errors/error-codes.ts`, which declares `PAYOUT_NOT_PENDING` and nothing
+   else on this surface), and the dashboard brief's error table prints them in the
+   `code` column, which is the shape a branch on `error.code` would be written
+   from. Such a branch never fires.
+
+   ⚠ **The accompanying `details` may or may not survive the hop.** wi-admin
+   forwards jovi-mall's `details` only when jovi-mall's envelope declares a
+   client-safe `category` (`platform.client.ts:577-586`); `conflict` and
+   `business_rule` are in that set, so the 409 details below *should* arrive —
+   but a pre-Phase-16 jovi-mall forwards nothing at all. `platformCode` always
+   survives because it is a published contract rather than a payload. So branch on
+   the code and read everything beside it defensively. */
+
+/** `409` — a transfer is already in flight. ⛔ **No retry button on this one.** */
+export const PLATFORM_CODE_PAYOUT_TRANSFER_IN_FLIGHT = 'EARNINGS_PAYOUT_TRANSFER_IN_FLIGHT';
+
+/**
+ * `422` **or** `503`, and the two mean different things.
+ *
+ * ⚠ **One code, two situations, separated only by the status.** `422` is *this
+ * destination* — a bank or card the gateway cannot reach, so settle it by hand.
+ * `503` is *this deployment* — automatic payouts are switched off, and the same
+ * payout would send fine elsewhere. A single copy string keyed on the code alone
+ * would have to be vague enough to cover both, which is why
+ * {@link gatewayUnsupportedKind} reads the status instead.
+ */
+export const PLATFORM_CODE_PAYOUT_GATEWAY_UNSUPPORTED = 'EARNINGS_PAYOUT_GATEWAY_UNSUPPORTED';
+
+/** `409` — the gateway refused the transfer. ⚠ **Nothing was sent, and the funds are still held.** */
+export const PLATFORM_CODE_PAYOUT_TRANSFER_FAILED = 'EARNINGS_PAYOUT_TRANSFER_FAILED';
+
+/** `409` — already resolved, on the send path. */
+export const PLATFORM_CODE_PAYOUT_NOT_SENDABLE = 'EARNINGS_PAYOUT_NOT_SENDABLE';
+
+/** `409` — somebody endorsed it first. `details.endorsedBy` names who, when it survives. */
+export const PLATFORM_CODE_PAYOUT_ALREADY_TRIAGED = 'EARNINGS_PAYOUT_ALREADY_TRIAGED';
+
+/** Does this error carry the given `details.platformCode`? */
+function isPlatformCode(error: unknown, code: string): boolean {
+    return error instanceof ApiError && error.isPlatformRejection && error.platformCode === code;
+}
+
+export function isPayoutTransferInFlight(error: unknown): boolean {
+    return isPlatformCode(error, PLATFORM_CODE_PAYOUT_TRANSFER_IN_FLIGHT);
+}
+
+export function isPayoutAlreadyTriaged(error: unknown): boolean {
+    return isPlatformCode(error, PLATFORM_CODE_PAYOUT_ALREADY_TRIAGED);
+}
+
+/**
+ * Which of the two `GATEWAY_UNSUPPORTED` situations this is.
+ *
+ * `'destination'` (422) is permanent for this payout and Mark-paid is the
+ * answer. `'deployment'` (503) is temporary and platform-wide — Mark-paid still
+ * works, because a human moving the money never needed the gateway.
+ *
+ * Returns `null` when the error is something else. A status this does not
+ * recognise reads as `'deployment'`: that is the reading whose advice ("try
+ * again, or settle by hand") is safe if wrong, whereas telling an operator their
+ * destination is permanently unreachable is not.
+ */
+export function gatewayUnsupportedKind(error: unknown): 'destination' | 'deployment' | null {
+    if (!isPlatformCode(error, PLATFORM_CODE_PAYOUT_GATEWAY_UNSUPPORTED)) return null;
+    return (error as ApiError).status === 422 ? 'destination' : 'deployment';
+}
+
+/**
+ * The payout float shortfall, when the gateway reported one.
+ *
+ * ⚠ **`409 EARNINGS_PAYOUT_TRANSFER_FAILED` with
+ * `details.reason: "insufficient_gateway_balance"` means NOTHING WAS SENT** —
+ * which makes it the one transfer failure that is safe to retry immediately once
+ * the float is topped up, and the one that must not read as "the payout failed".
+ *
+ * Both figures are read defensively and independently: the `details` survive the
+ * hop only conditionally, and a partial object must degrade to the sentence
+ * without the numbers rather than render `undefined of undefined`.
+ */
+export function gatewayShortfallOf(
+    error: unknown,
+): { available: number | null; required: number | null } | null {
+    if (!isPlatformCode(error, PLATFORM_CODE_PAYOUT_TRANSFER_FAILED)) return null;
+    const details = (error as ApiError).details;
+    if (details?.reason !== 'insufficient_gateway_balance') return null;
+
+    const num = (value: unknown) => (typeof value === 'number' ? value : null);
+    return { available: num(details.available), required: num(details.required) };
+}
+
+/**
+ * Who endorsed it first, on a `409 EARNINGS_PAYOUT_ALREADY_TRIAGED`.
+ *
+ * Defensive for the usual reason — the `details` are conditional — and the
+ * caller drops the clause rather than naming nobody.
+ */
+export function endorsedByOf(error: unknown): string | null {
+    if (!isPayoutAlreadyTriaged(error)) return null;
+    const endorsedBy = (error as ApiError).details?.endorsedBy;
+    if (typeof endorsedBy === 'string') return endorsedBy;
+    if (endorsedBy && typeof endorsedBy === 'object') {
+        const name = (endorsedBy as { name?: unknown }).name;
+        if (typeof name === 'string') return name;
+    }
+    return null;
+}
 
 /**
  * Has this payout already been resolved?

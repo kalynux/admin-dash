@@ -219,19 +219,32 @@ describe('the four writes', () => {
         expect(JSON.parse(calls[calls.length - 1].body ?? '{}')).toEqual({});
     });
 
-    it('surfaces the platform status conflict with its undocumented details', async () => {
+    it('surfaces the verification conflict, reading the verdict rather than the status', async () => {
         /**
-         * `DELIVERY_AGENCY_STATUS_CONFLICT` — note the prefix; a branch on
-         * `AGENCY_STATUS_CONFLICT` would never fire. `details.currentStatus` is
-         * undocumented and is the only thing separating "already approved by a
-         * colleague" from "deactivated while you were reading".
+         * `DELIVERY_AGENCY_VERIFICATION_CONFLICT` — **renamed** from
+         * `DELIVERY_AGENCY_STATUS_CONFLICT` on 2026-09-15 at our own request
+         * (BR-026 § 3), because the compare-and-set moved off `status` onto the
+         * verdict. Note the `DELIVERY_` prefix too: a branch on
+         * `AGENCY_VERIFICATION_CONFLICT` would never fire.
+         *
+         * ⚠ **This is the only thing in the repository that pins the string.** It
+         * is a jovi-mall code arriving in `details.platformCode`, so it is in
+         * neither wi-admin registry and `error-catalog.test.ts` cannot see it.
+         *
+         * The payload deliberately carries **both** keys, as the service sends
+         * them, so the assertion can prove we read the one that decided the
+         * refusal. `currentStatus: 'active'` is the trap: under the activation
+         * split an agency awaiting review is routinely active, so a client still
+         * reading it would tell the operator "this agency is active" when the
+         * answer is "a colleague already reached a verdict".
          */
         stubFetch(() =>
             errorResponse(409, 'PLATFORM_OPERATION_REJECTED', {
                 category: 'conflict',
                 details: {
-                    platformCode: 'DELIVERY_AGENCY_STATUS_CONFLICT',
-                    currentStatus: 'inactive',
+                    platformCode: 'DELIVERY_AGENCY_VERIFICATION_CONFLICT',
+                    currentVerification: 'verified',
+                    currentStatus: 'active',
                 },
             }),
         );
@@ -239,8 +252,8 @@ describe('the four writes', () => {
         await expect(verifyAgency('6650bb22cc33dd44ee55ff66')).rejects.toSatisfy(
             (error: unknown) =>
                 error instanceof ApiError &&
-                error.platformCode === 'DELIVERY_AGENCY_STATUS_CONFLICT' &&
-                error.details?.currentStatus === 'inactive',
+                error.platformCode === 'DELIVERY_AGENCY_VERIFICATION_CONFLICT' &&
+                error.details?.currentVerification === 'verified',
         );
     });
 });

@@ -213,12 +213,17 @@ export function setPhone(phone: string): Promise<PhoneRecord> {
  * number could prove control of one and have another marked verified.
  *
  * Three refusals are worth knowing before reading the catalog. With no number
- * saved it is a plain `422 VALIDATION_ERROR` raised by wi-admin itself, not a
- * delegated `PHONE_VERIFICATION_NO_TARGET`. With `JOVI_MALL_BASE_URL` unset it
- * is `503 SERVICE_DEPENDENCY_UNAVAILABLE`. And when WhatsApp refuses the send it
- * is `502 SERVICE_DEPENDENCY_UNAVAILABLE` carrying
- * `details.platformCode: 'PHONE_VERIFICATION_DELIVERY_FAILED'` — see
- * `PhoneNumberCard` for why that one is the ordinary case today.
+ * saved it is **`422 ADMIN_PHONE_NOT_SET`** — wi-admin's own code, not a
+ * delegated `PHONE_VERIFICATION_NO_TARGET`, because the call is refused before
+ * it is made. ⚠ **It was a plain `VALIDATION_ERROR` until 2026-09-14** and this
+ * comment said so; it is `business_rule` now, on purpose — the body was valid,
+ * so there is no field to point at and no `details.fields` to carry. With
+ * `JOVI_MALL_BASE_URL` unset it is `503 SERVICE_DEPENDENCY_UNAVAILABLE`. And
+ * when WhatsApp refuses the send it is `502 SERVICE_DEPENDENCY_UNAVAILABLE`
+ * carrying `details.platformCode: 'PHONE_VERIFICATION_DELIVERY_FAILED'` —
+ * ✅ **no longer the ordinary case**: the missing AUTHENTICATION template was
+ * approved on 2026-09-15 and the 24-hour window is now recorded, so this is the
+ * edge case it reads as.
  */
 export function requestPhoneCode(): Promise<PhoneCodeSent> {
     return api.post<PhoneCodeSent>('/auth/me/phone/verify/request', undefined);
@@ -231,7 +236,13 @@ export function requestPhoneCode(): Promise<PhoneCodeSent> {
  * it is a `400`, not a stripped field — the number was fixed when the code was
  * minted, and wi-admin re-checks the proved number against its own record before
  * stamping. An administrator who changed their number between requesting a code
- * and typing it gets `409`, because the code proves the *old* one.
+ * and typing it gets **`409 ADMIN_PHONE_VERIFICATION_MISMATCH`**, because the
+ * code proves the *old* one, and **nothing is written**. ⚠ **That code is named
+ * as of 2026-09-14** — it was a `VALIDATION_ERROR` carrying a conflict, which is
+ * what BR-025 § 1 described and decided not to ask about; it had already shipped.
+ *
+ * Verified against the mirror at [`api-doc/admin/auth-validator.ts`](../../api-doc/admin/auth-validator.ts),
+ * which `phone-contract.test.ts` diffs against this client's own schemas.
  */
 export function confirmPhoneCode(code: string): Promise<PhoneRecord> {
     return api.post<PhoneRecord>('/auth/me/phone/verify/confirm', { code });

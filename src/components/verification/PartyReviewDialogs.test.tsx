@@ -21,7 +21,19 @@ const RECORD = vendorVerificationFixture({ role: 'agency' });
 const AGENT_RECORD = agentVerificationFixture();
 
 describe('the agency review', () => {
-    it('shows the two strings the verdict has been reached on, and says what they are worth', async () => {
+    /**
+     * ⚠ **The two typed strings are NOT repeated in the dialog**, and that is the
+     * change this pins. They are the agency's `registrationNumber` and
+     * `transportLicenseId`, and they live on the agency's **Overview** tab
+     * (`AgencyProfilePanels`) — the dialog used to reprint them, which made it
+     * taller than the viewport to show what was already two clicks behind it.
+     *
+     * ⚠ They must keep existing SOMEWHERE: they are the only registration
+     * evidence this service forwards at all (BR-024), so a change that removes
+     * them from the profile panel too has taken away the thing the verdict is
+     * reached on.
+     */
+    it('does not repeat the typed registration strings, which live on the profile', async () => {
         stubFetch(() => {
             throw new Error('the review dialog fetches nothing on open');
         });
@@ -37,9 +49,11 @@ describe('the agency review', () => {
             />,
         );
 
-        expect(await screen.findByText('RC/DLA/2019/B/1174')).toBeInTheDocument();
-        expect(screen.getByText('TL-CM-88421')).toBeInTheDocument();
-        expect(screen.getByText(/identify a claim rather than corroborate one/i)).toBeInTheDocument();
+        // The verdict form is what this dialog is now for.
+        expect(await screen.findByRole('radiogroup', { name: 'Verdict' })).toBeInTheDocument();
+
+        expect(screen.queryByText('RC/DLA/2019/B/1174')).not.toBeInTheDocument();
+        expect(screen.queryByText('TL-CM-88421')).not.toBeInTheDocument();
     });
 
     /**
@@ -174,11 +188,14 @@ describe('the agent review', () => {
     });
 
     /**
-     * ⚠ `vehicle.photoFileId` is *"photo of the vehicle"*; the checklist row asks
-     * for one with the agent in the frame. They are rendered in different sections
-     * so nobody ticks the second by looking at the first.
+     * ⚠ **The vehicle evidence is NOT repeated in the dialog either.** The
+     * checklist row that asks for a photograph *with the agent beside the
+     * vehicle* is on the Verification tab, built by `buildChecks` from
+     * `documents.vehicleWithAgent` — so the distinction it draws against the
+     * plain `vehicle.photoFileId` on the record survives this removal. What must
+     * not come back is a second copy of it here.
      */
-    it('separates the vehicle photograph on the record from the vehicle check', async () => {
+    it('does not repeat the vehicle evidence, which lives on the tab', async () => {
         stubFetch(() => {
             throw new Error('the review dialog fetches nothing on open');
         });
@@ -194,9 +211,11 @@ describe('the agent review', () => {
             />,
         );
 
+        expect(await screen.findByRole('radiogroup', { name: 'Verdict' })).toBeInTheDocument();
+
         expect(
-            await screen.findByText('Vehicle photograph, with the agent beside it'),
-        ).toBeInTheDocument();
-        expect(screen.getByText(/bike · red · LT-4471-CM/)).toBeInTheDocument();
+            screen.queryByText('Vehicle photograph, with the agent beside it'),
+        ).not.toBeInTheDocument();
+        expect(screen.queryByText(/bike · red · LT-4471-CM/)).not.toBeInTheDocument();
     });
 });

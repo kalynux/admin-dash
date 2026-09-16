@@ -221,12 +221,9 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
                         </Button>
                     </Can>
 
-                    <Can permission="agents.kyc.review">
-                        <Button variant="outline" size="sm" onClick={() => setTab('verification')}>
-                            <BadgeCheck className="size-4" />
-                            Review documents
-                        </Button>
-                    </Can>
+                    {/* No verification shortcut — the Verification tab is
+                        unconditional and carries the verdict beside the
+                        documents. See VendorDetail for the reasoning. */}
 
                     <Can permission="agents.ban">
                         {record.ban.banned ? (

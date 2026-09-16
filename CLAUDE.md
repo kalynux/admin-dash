@@ -54,6 +54,164 @@ policed**, because this service never parses the body. A file that slips past th
 `PLATFORM_OPERATION_REJECTED` with `details.platformCode: "UPLOAD_POLICY_VIOLATION"` and a
 `details.violations[]` array naming it. **That is a normal refusal, not a bug.**
 
+🔴 **A forwarded 429 now carries `details.platformCode`, and one screen's copy depended on it not
+doing so.** BR-025 § 2 was granted on 2026-09-15: `platformcode` is on `RATE_LIMIT_DETAIL_KEYS`
+(`detail-policy.ts:68`), so `PHONE_VERIFICATION_RESEND_TOO_SOON` (*wait — the code in their hand
+still works*) and `PHONE_VERIFICATION_TOO_MANY_ATTEMPTS` (*that code is destroyed*) are finally
+separable, and `PhoneNumberCard`'s both-remedies-at-once notice is gone. ⚠ **403 was deliberately
+NOT changed and the asymmetry is now the decision** — pinned upstream by `test:contract` § 11 in
+both directions, so do not "tidy" it either way. ⚠ **This is every delegated 429**, not just the
+phone flow: `USER_CREDENTIAL_LINK_THROTTLED` reaches `SendCredentialLinkDialog` with a code now —
+and **nothing there changed, because `scope` is still dropped** and `scope` is the half that
+decides the remedy. ⚠ `errors.md`'s own row for it still says both keys are dropped; source wins.
+
+✅ **The administrator phone flow works, and the "no template" story is over.** Two faults closed
+on 2026-09-15 with **no code change on either side**: Meta approved
+`wi_mall_phone_verification` (`en` + `fr`) once the WABA's owning business reached `verified`, and
+the 24-hour window is now recorded on every inbound message. So **build the ordinary flow** —
+`PHONE_VERIFICATION_DELIVERY_FAILED` is the edge case it reads as again, the in-window trick
+(message the business number, then verify) is a **fallback** in the failure notice rather than the
+primary path, and the copy no longer blames the operator's own silence. ⛔
+`wi_mall_phone_verification_utility` stays rejected on `INCORRECT_CATEGORY` and **must never be
+resubmitted** — that verdict is about OTP *content*, and rewording to get past the classifier
+would put the WABA's other 189 templates at risk.
+
+⚠ **Two `ADMIN_PHONE_*` codes are named, and BR-025 said it was not asking for one.**
+`ADMIN_PHONE_NOT_SET` (422, `business_rule`) and `ADMIN_PHONE_VERIFICATION_MISMATCH` (409,
+`conflict`) shipped on 2026-09-14 — hours *before* the request that decided not to ask — so two of
+its four reported behaviours were stale the day it was filed. **Both are wi-admin's own, not
+delegated**, because each refusal happens before the call to jovi-mall is made; the six
+`PHONE_VERIFICATION_*` verdicts beside them are jovi-mall's and arrive only as
+`details.platformCode`. The split is *where the refusal happens*, never which feature it belongs to.
+
+🔴 **`routeManifest()` was finally re-run on 2026-09-15 and the live service has four routes
+[ROUTE-MAP.md](api-doc/ROUTE-MAP.md) does not**: `POST /cod/{deposits,remittances}/:id/triage`,
+`POST /money/payouts/:payoutId/triage` and `POST /money/payouts/:payoutId/send`. `authz:matrix`
+prints **123 / 103 / 37** where `permissions.md` says 121 / 101 / 31 — two new names
+(`cod.triage`, `money.payouts.triage`) plus four existing COD/payout reads newly granted to
+**tier 3**. ⚠ **The screens are now BUILT (2026-09-16) and the two names are still not catalogued** —
+they appear nowhere in [permissions.md](api-doc/admin/api/permissions.md), upstream or mirrored, so
+`permissions.types.ts` cannot carry them and the four ROUTE-MAP rows would still fail
+`route-map.test.ts`. The guard is right and the catalogue is behind; the names wait in
+[`permissions.pending.ts`](src/types/permissions.pending.ts). See the ADR-024 block below.
+`cod.md`, `money.md` and `authorization.md` all changed upstream *during* that round, so treat it
+as arriving rather than arrived. Its design record is
+[ADR-024](api-doc/docs/ADR-024-PAYOUT-EXECUTION-AND-TRIAGE.md) — payout **execution** (both
+mobile-money gateways can disburse and neither was wired) plus **a review stage below the tier
+that pays**: Support already saw the `PAYOUT_REQUEST` ticket through `resource-scope.ts` and held
+no permission naming it. **Re-run the recipe in ROUTE-MAP.md before trusting 255**, and expect a
+nav change when it deploys.
+
+✅ **ADR-024 is BUILT as of 2026-09-16 — payout execution, and the review stage below the tier that
+pays.** `POST /money/payouts/:payoutId/{triage,send}` and `POST /cod/{deposits,remittances}/:id/triage`
+all have service functions and screens. What follows is what bites.
+
+🔴 **`PayoutRequest.status` went from three values to FIVE, and both new ones still hold the
+owner's money.** `processing` and `failed` joined `pending | paid | rejected`. A status map that
+was exhaustive over the old three sends both into whichever branch was last — in most
+implementations `rejected` — which tells an owner their payout was declined while it is in flight.
+**A failed transfer has returned nothing**: the gateway refused it, the hold stayed put, and the
+request is still open work. `PayoutStatusBadge` therefore draws `failed` in the **warning** tone
+and never `destructive`, which is `rejected`'s and means *closed, money returned*. The five rules
+live as predicates in [`money.types.ts`](src/types/money.types.ts) —
+`payoutHoldsFunds` · `isPayoutSendable` · `canMarkPayoutPaid` · `canRejectPayout` — and
+`money.types.test.ts` pins each refusal, because every one of them is a rule a reasonable person
+gets backwards and none is visible at runtime until money moves twice.
+
+⛔ **Endorsement is ADVISORY and nothing may gate on it.** A payout nobody has endorsed is exactly
+as payable as one that has been (ADR-024 D-2); an un-endorsed remittance is exactly as confirmable.
+**Do not disable Send, Mark-paid or Confirm on `triage: null`** — the pre-screen exists to save the
+approver work, not to gate them, and an empty Support queue must never stall payments. It is also a
+**field, not a state** (D-6): an endorsed payout is still `pending`, so a control keyed on `status`
+must not consult it at all. The screens key on `status` alone and the queue tests assert that both
+ways. ⚠ There is deliberately **no "not endorsed" badge** — an advisory field displayed like a
+checklist item becomes a gate in practice however the API is written.
+
+⛔ **`processing` cannot be rejected** (`409 EARNINGS_PAYOUT_TRANSFER_IN_FLIGHT`). The control is
+**disabled with a reason**, never hidden: releasing a hold while a transfer may still be live is
+how a payout goes out twice, and an operator who finds the button simply missing learns nothing.
+
+⚠ **Retry is `POST .../send` again — there is no retry endpoint and no client-side idempotency
+key.** The backend reuses the *stored* provider reference (D-8), so a transfer that actually
+succeeded and merely failed to report is deduplicated by the provider rather than paying twice.
+Minting a key per attempt is precisely what would defeat that; `money.service.test.ts` asserts no
+such header or field is sent.
+
+🔴 **`/mark-paid` on a `failed` payout is refused by wi-admin, and the brief says otherwise.**
+`assertPending(row, 'manual')` allows `['pending']` **alone**
+(`money/domain/payout-dual-control.ts`), so the pre-flight answers `409 PAYOUT_NOT_PENDING` before
+the delegated call is made. jovi-mall itself *would* accept it —
+[`payout-requests.md`](api-doc/jovi-mall/admin/payout-requests.md) documents `failed → paid` as *"reconcile an
+out-of-band settlement"*, and BRIEF-payout-admin-dash § 1's lifecycle diagram repeats that line.
+**Neither is reachable through this service**, which is the only one this dashboard calls, so the
+Mark-paid control is withheld on a `failed` row rather than walking an operator into a guaranteed
+refusal. ⚠ **Reported, not worked around** — `canMarkPayoutPaid` is the one line that moves if the
+backend closes the gap, and its test says so.
+
+🔴 **Every `EARNINGS_PAYOUT_*` code is jovi-mall's and arrives as `details.platformCode`.** Both
+`/triage` and `/send` are **delegated**, and none of these codes is in wi-admin's own registry
+(checked against `core/errors/error-codes.ts`, which declares `PAYOUT_NOT_PENDING` and nothing else
+here). The brief's § 5 error table prints them in a `code` column — which is the shape a branch on
+`error.code` would be written from, and **such a branch never fires**. ⚠ The `details` beside them
+are **conditional**: wi-admin forwards jovi-mall's `details` only when the platform's envelope
+declares a client-safe category, so `available` / `required` / `endorsedBy` may simply not arrive
+and every reader in `money.types.ts` tolerates that. ⚠ **`EARNINGS_PAYOUT_GATEWAY_UNSUPPORTED` is
+one code meaning two different things** — `422` is *this destination* (a bank or card; settle by
+hand) and `503` is *this deployment* (automatic payouts off). `gatewayUnsupportedKind()` separates
+them on the **status**, because no copy keyed on the code alone can carry both remedies.
+
+🔴 **Two permissions the service grants are still absent from `permissions.md`, so they cannot go
+through `can()`.** `money.payouts.triage` and `cod.triage` are real — declared in
+`permission.catalog.ts`, guarding live routes, printed by `authz:matrix` — but the catalogue is
+behind, **upstream as well as mirrored**, so `permissions.types.test.ts` ("declares every
+documented permission, and no others") would fail for the right reason about the wrong file, and
+`route-map.test.ts` still refuses the four new ROUTE-MAP rows. They live in
+[`permissions.pending.ts`](src/types/permissions.pending.ts) — a **waiting room**, read through
+`usePendingPermission()` over `HeldPermissions`, which is `ReadonlySet<string>` precisely because
+*"`/permissions/me` may name a permission this build has never heard of"*. ⛔ **It is not an
+extension point**: `permissions.pending.test.ts` goes red the day `permissions.md` publishes either
+row, and the file is designed to be deleted. Adding a third name there because filing a BR is
+harder is the failure mode.
+
+⚠ **Reject reaches Support, and there must be exactly one Reject control.** `/reject` takes
+`anyPermission('money.payouts.reject', 'money.payouts.triage')` — it is the half of triage that
+actually closes a request, and a reviewer's rejection is **final**: it returns the money to the
+owner's available balance. **Do not build a "recommend rejection" flow.** Send, Mark-paid and the
+destination reveal are **hidden** from Support rather than left to answer `403`.
+
+⚠ **A queued payout approval carries `mode` (`gateway` | `manual`) and the approval card must show
+it.** The second administrator is agreeing either to *instruct a live transfer* or to *record that
+a human already paid* — different decisions, and the backend hashes `mode` into the approval key so
+a signature for one cannot be spent on the other. `payoutApprovalMode()` in
+[`approvals.types.ts`](src/types/approvals.types.ts) is the one reading, shared by the `202` notice,
+the card and the queue row. 🔴 **The server's own sentence is WRONG for a gateway send**:
+`LARGE_PAYOUT.describe()` renders *"Mark payout request … PAID"* for **both** modes — it predates
+the gateway and reads only the amount and the owner — so an approver scanning the queue is told a
+live transfer is a request to record a payment already made. That is why the mode is rendered
+beside `description` rather than trusting it, on the list as well as the detail. ⚠ **`/send`'s `202` is handled identically to `/mark-paid`'s**, because it rides the
+same permission and therefore the same 2,000,000 XAF threshold — a client that treated it as
+success would show a payout as sent while it sits in a queue.
+
+⚠ **COD endorse appears only on `recipient === 'platform'` deposits**, and on **all** remittances.
+`/deposits/:id/triage` is refused on an agency-recipient deposit (`403
+COD_DEPOSIT_WRONG_RECIPIENT`) and no permission fixes it — that handover is counter-signed between
+two organisations and the platform never saw the cash. `agency` is the *normal* route, so most rows
+are not endorsable here. ⚠ `cod.triage` is **not** `financial`, unlike its payout sibling: a record
+in `declared` holds nothing, so endorsing moves nothing and rejecting moves nothing either.
+
+⚠ **Tier 3 also gained `cod.overview.read`, `cod.remittances.read` and `cod.deposits.read`, and
+that needed no code at all.** The COD screens became reachable by Support the moment the grant
+shipped, because the tier→permission matrix is never hard-coded here — it comes from
+`GET /permissions/me`. Support holds no confirm, reject, create, resolve or adjust permission there.
+
+⚠ **`money.md` is mid-flight and its own prose disagrees with it.** The two-stage section is
+spliced **into the middle of the route table** (three `/money/payments` rows land after it), the
+header still says *"Fourteen routes"* over 16 rows, `/triage` and `/send` have **no endpoint
+sections at all** — only table rows — and the worked JSON for `GET /money/payouts` shows neither
+`triage` nor `transferGatewayRef` nor `transferFailureReason`. **The wire shapes here were taken
+from `money/read-models/money.dto.ts`, not from the page**, which is the same lesson `/content`
+taught: a copy can be diffed and a transcription cannot.
+
 ✅ **Verified live against a running :8033 on 2026-09-09**, for the eight surfaces carrying the most
 doubt — see [VERIFICATION-2026-09-09-LIVE.md](api-doc/VERIFICATION-2026-09-09-LIVE.md). `/content`'s
 wire shapes, the `/system/config` array, the `/automation` tier projection, 118/101/31, the
@@ -128,18 +286,41 @@ pinned upstream by `test:list-strictness` — read it there rather than copying 
 [`src/lib/query.ts`](src/lib/query.ts) for this repository's one statement of the rule. Widening
 `listQuery` service-wide is still deliberately **not** done.
 
-**`npm test` — 2488 tests in 164 files, measured on 2026-09-14** at the close of the admin
-phone-verification round, which added `PhoneNumberCard.test.tsx` and 13 of the tests. **Two full
-runs disagreed and neither was a regression**: 11 failures across 3 files, then 5 across 2 — a
-different subset each time, every one a 20 s timeout, and both landing inside the pair named
-below. Each passes alone: `CreateTicketDialog` **10/10**, `App` **23/23**.
+**`npm test` — 2568 tests in 167 files, measured on 2026-09-16** at the close of the ADR-024
+payout-execution round, which added `permissions.pending.test.ts` (the waiting room's
+self-deleting guard — the 167th file) and grew `PayoutsQueue.test.tsx` from 22 tests to 43 and
+`PayoutDetail.test.tsx` from 15 to 23 as the lifecycle went from three states to five.
+
+⚠ **Three full runs that evening failed 6, then 8, then 5** — a *different subset each time*,
+always timeouts or interleaved `userEvent` typing, always in the same small set of files, and
+**never once in a file the round had touched**. `App.test.tsx` and `CreateTicketDialog.test.tsx`
+appeared in all three; `VendorProductDetail.test.tsx` joined for one. They were re-run together
+twice on the same code and gave **73/73** and **53/53**. That is the eighth, ninth and tenth
+recorded occurrence, and `VendorProductDetail.test.tsx` is now the fifth file in the pattern.
+
+**The previous measurement was 2510 tests in 166 files on 2026-09-15**, at the close of the
+BR-024/025 round, which added `phone-contract.test.ts` (the seventh source mirror's guard) and
+grew `PhoneNumberCard.test.tsx` from 13 tests to 18 as the 429 branch split in two. **Two full runs
+disagreed again and neither was a regression**: 6 failures across 3 files, then **14 across 4** —
+a different subset each time, and the second run overlapped a session that was editing this
+worktree *and* a second `vitest` of my own. **All four files then gave 73/73 run together**,
+immediately afterwards, on the same code.
+
+⚠ **That is the sixth and seventh recorded occurrence, and the fourth file has now joined the
+pattern**: `App.test.tsx`, `CreateTicketDialog.test.tsx`, `ArticleTranslationDialog.test.tsx`,
+`TicketAttachmentsPanel.test.tsx`. **A bigger red set is not a worse regression — it is a busier
+machine.** Count what else is running before reading anything into it.
+
+**The previous measurement was 2488 in 164 files on 2026-09-14**, at the close of the admin
+phone-verification round. Two runs disagreed there too: 11 failures across 3 files, then 5 across
+2, each passing alone — `CreateTicketDialog` **10/10**, `App` **23/23**.
 
 ⚠ **One of those isolation runs briefly looked like a real finding, and it was not.** `App.test.tsx`
 failed alone once (22/23), passed with the round's `adminFixture` change reverted, and then
 passed **23/23 with that change restored** — so the middle run was the flake, not the evidence.
 **A single pass either way proves nothing on these two files**; that is what makes them expensive.
 
-**The previous measurement was 2475 in 163 files**, the same day, at the close of the ADR-023 and
+**And 2475 in 163 files before that**, the same day, at the close of the ADR-023 and
 verification round.
 
 🔴 **Read this before believing a red full run here.** Three consecutive full runs that afternoon
@@ -186,8 +367,11 @@ on 2026-08-24, which is exactly what they exist for, and were fixed by correctin
 than by weakening them. **Keep it that way.** `error-catalog.test.ts` was additionally
 *strengthened* in that round: it now diffs against `api-doc/admin/error-codes.ts` — a verbatim copy of
 the backend's own registry — as well as against `errors.md`, because the two disagreed and only the
-source is authoritative. **They agree at 88 / 88 since ADR-022's three `AUTOMATION_*` codes**, and the double diff stays anyway,
-because what keeps them in step is the test.
+source is authoritative. **The mirror declares 97 and the page publishes 110 rows** (measured
+2026-09-15: +7 at ADR-023, +2 at BR-025's `ADMIN_PHONE_*`, and the thirteen doc-only rows are
+jovi-mall's verdicts, which wi-admin's registry correctly never declares). The double diff stays,
+because what keeps them in step is the test. ⚠ **Take these by running the suite, not by reading
+this line** — it said *"88 / 88"* for three weeks across two rounds that moved both numbers.
 
 ⚠ **It was strengthened a third time on 2026-08-26, and this one closed a hole that had already
 been walked through.** The 2026-08-24 resync re-copied `errors.md` — which gained
@@ -223,7 +407,7 @@ machine, not the code.
 npm run dev       # 5175, strictPort
 npm run build     # tsc -b && vite build   ← the typecheck runs here
 npm run lint      # eslint .
-npm test          # vitest run — 2475 tests in 163 files (2026-09-14). No sibling dashboard has one.
+npm test          # vitest run — 2568 tests in 167 files (2026-09-16). No sibling dashboard has one.
 ```
 
 **Every phase closes the same way**: typecheck, lint, tests, build, then a written summary naming
@@ -287,8 +471,13 @@ references in `src/` are correct. Do not "fix" them by analogy.
 them rotted silently through a directory move. If you move a doc, grep `src/` for its old path in
 the same change.
 
-**The deviations are now six**, so `diff -r backend/admin/docs frontend/admin-dash/api-doc/admin`
-reports six extra names rather than seven. **`dashboard/` is no longer one of them.** It used to be
+**The deviations are now seven** — `auth-validator.ts` was taken on 2026-09-15 — so
+`diff -r backend/admin/api-doc frontend/admin-dash/api-doc/admin` reports seven extra names.
+⚠ **Compare against `backend/admin/api-doc`, not `backend/admin/docs`**: the contract moved to
+`api-doc/` upstream when the ADRs stayed in `docs/`, which is the same split described below, and
+this line named the wrong side of it. ⚠ **Use `--strip-trailing-cr`** — git hands this worktree
+CRLF, so a plain `diff -r` reports every mirrored file as different and the real delta is
+invisible. **`dashboard/` is no longer one of them.** It used to be
 hoisted out of this mirror to `api-doc/dashboard/`, for the sake of `src/` comments pointing at it;
 on 2026-09-06 it moved back **inside**, to [api-doc/admin/dashboard/](api-doc/admin/dashboard/),
 matching where the backend keeps it.
@@ -301,9 +490,15 @@ before the move: 30 links worked on both sides, 12 only upstream, 34 only here, 
 the nesting and normalising every link to the upstream form took `backend/admin/docs` to **0 broken
 of 401** and this tree to its floor. The 21 `src/` comments were repointed in the same change.
 
-The remaining six are **source mirrors** —
+The remaining seven are **source mirrors** —
 `error-codes.ts`, `article-blocks.ts`, `content-domain.ts`, `content-dto.ts`,
-`content-validators.ts`, and [`public-article-dto.ts`](api-doc/admin/public-article-dto.ts).
+`content-validators.ts`, [`public-article-dto.ts`](api-doc/admin/public-article-dto.ts), and
+[`auth-validator.ts`](api-doc/admin/auth-validator.ts) — the seventh, taken 2026-09-15 at the
+backend's word for BR-025 § 1 and guarded by `src/components/auth/phone-contract.test.ts`.
+⚠ **That mirror does NOT replace [auth.md](api-doc/admin/api/auth.md)**, and the backend said so
+when it granted the copy: a validator carries the *field rules* and none of the four behaviours
+that actually bite — a `PATCH` always clearing `phone_verified`, the confirm taking `code` alone,
+the `409` on a number that moved, the `422` with no number saved. Read both.
 
 ⚠ **A re-copy is not `cp` alone: two kinds of link have to be re-normalised, every time.** A
 mirrored page can link at paths that exist only in `backend/` — `../../src/…`,
@@ -326,7 +521,7 @@ file in `backend/admin/docs/` would have had nothing to diff against and would h
 *"mirror the source file rather than transcribing this table."* **Taking a mirror is this
 repository's job, not a favour to ask for.**
 
-**Nine source mirrors in total**, three of them jovi-mall's and therefore outside that diff:
+**Ten source mirrors in total**, three of them jovi-mall's and therefore outside that diff:
 `jovi-mall/error-codes.ts`, `jovi-mall/ticket-vocabularies.ts`, and
 [`jovi-mall/order-timeline-events.ts`](api-doc/jovi-mall/order-timeline-events.ts) — added
 2026-08-25, because `orders.md` calls the order-timeline `eventType` *"format-validated, not
@@ -633,12 +828,16 @@ a test rather than ageing in prose.
 
 🔴 **252 → 255 the same day, and the three that arrived were found by reading SOURCE, not a
 page.** `PATCH /auth/me/phone` and both `/auth/me/phone/verify/*` routes are served and audited
-by `admin-identity/routes/auth.routes.ts` and **the word "phone" appears nowhere in
-[auth.md](api-doc/admin/api/auth.md)**, upstream or mirrored. ⚠ **This is why the route-map test
-could not fire**: it pins the map against *itself*, so it catches a route the docs **gain** and is
-silent on one they **omit**. Only `routeManifest()` closes that gap. Asked for in
-[BR-025](api-doc/admin/dashboard/backend-requests/BR-025-admin-phone-verification.md); **no new
-route group** — all three hang off `/auth`, which is now 14.
+by `admin-identity/routes/auth.routes.ts` and the word "phone" appeared **nowhere** in
+[auth.md](api-doc/admin/api/auth.md), upstream or mirrored. ✅ **Documented on 2026-09-15** —
+BR-025 § 1 was granted, the page carries a *"The administrator's own phone number"* section and
+the `phone` / `phoneVerified` pair the profile object had always returned, and the route table is
+fourteen rows. ⚠ **The lesson is kept because the mechanism has not changed: the route-map test
+could not fire.** It pins the map against *itself*, so it catches a route the docs **gain** and is
+silent on one they **omit**. Only `routeManifest()` closes that gap — and the first run of it, the
+same day, found **four more** routes this map still lacks (see the banner in
+[ROUTE-MAP.md](api-doc/ROUTE-MAP.md)). **No new route group** — all three phone routes hang off
+`/auth`, which is now 14.
 
 ⚠ **239 → 252 on 2026-09-14**, and thirteen routes arrived at once: the three
 `GET /:id/verification` reads ([verification.md](api-doc/admin/api/verification.md) — **no new
@@ -824,6 +1023,20 @@ BR-012 and are kept here as settled precedent**; the rest are open.
    `src/` changed** — `SendCredentialLinkDialog` renders the server's message on both the 409 and
    the 429 and probes for nothing. One thing is now *more* true: its **"try another channel"**
    advice costs the party nothing, so following it cannot lock them out of the channel that works.
+
+7. ⏸ **`errors.md`'s `USER_CREDENTIAL_LINK_THROTTLED` row was made half-false by BR-025 § 2, in
+   the same round.** It says the `rate_limit` allowlist *"drops both `scope` and `platformCode`"*;
+   `detail-policy.ts:68` now allows `platformcode`. ⚠ **`scope` is still dropped, so the row's
+   advice — render the message, do not branch on a code here — is still right**, which is why
+   nothing in `src/` changed and why this is a doc fix rather than a client one. Found by grepping
+   for the claim after taking the re-copy, which is the only reason it did not become the next
+   thing this repository transcribed.
+
+8. ⏸ **`errors.md` links to `auth.md#why-verification-usually-fails-today`, and that section was
+   renamed in the same round** — it is now *"Delivery: fixed 2026-09-15"*, because the answer
+   reversed. The anchor resolves to the top of the page instead. ⚠ Recorded rather than patched:
+   these pages are **mirrors**, and a mirror is re-copied or it is wrong — never edited here to
+   make a link work.
 
 ### 🔴 One correction to a claim this file used to make
 

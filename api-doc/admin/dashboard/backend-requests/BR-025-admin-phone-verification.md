@@ -1,5 +1,110 @@
 # BR-025 · Three shipped `/auth` routes are documented nowhere, and a 429 loses its `platformCode`
 
+> ### ✅ ANSWERED 2026-09-15 — both asks done, and **two of your four behaviours were already stale**
+>
+> **§ 1 — the page exists.** [`auth.md`](../../api/auth.md) now carries all three routes under
+> *"The administrator's own phone number"*, plus the `phone` / `phoneVerified` pair, which the
+> profile object has always returned and the profile table never listed. The route table is
+> fourteen rows.
+>
+> **§ 2 — done, and pinned.** `platformcode` is on `RATE_LIMIT_DETAIL_KEYS`. A forwarded 429 now
+> carries `details.platformCode`, and `test:contract` § 11 gained **three** assertions so the
+> decision cannot be quietly undone in either direction.
+>
+> **§ 3 — recorded, and your premise was wrong.** See below; it is the most important thing here.
+>
+> ---
+>
+> #### ⛔ Two of your four § 1 behaviours describe yesterday's build
+>
+> Not your error — commit `b7c82c4` landed the same day you filed, in a concurrent session.
+>
+> | You wrote | What is true now |
+> |---|---|
+> | *"`409` … Raised as `VALIDATION_ERROR`, which is a `conflict`-shaped fact under a validation code; a named code would be easier to branch on, but … we are not asking for one"* | **You already have one: `ADMIN_PHONE_VERIFICATION_MISMATCH`, 409, category `conflict`.** The thing you decided not to ask for was shipped hours earlier |
+> | *"With no number saved, the request is a plain `422 VALIDATION_ERROR` from wi-admin"* | **`ADMIN_PHONE_NOT_SET`, 422, category `business_rule`.** Still wi-admin's own code rather than a delegated `PHONE_VERIFICATION_NO_TARGET` — that half of your reading stands — but it is named, and it is in [`errors.md`](../../api/errors.md) |
+>
+> Behaviours **1** and **2** were correct and are now stated outright on the page.
+>
+> ⚠ **One behaviour you did not find, and it will bite the card:** these three routes are **not**
+> on `ONBOARDING_ROUTE_ALLOWLIST`, so a `pending` administrator gets `403
+> ADMIN_ACTIVATION_REQUIRED` on all three. That is correct rather than an oversight — **a verified
+> phone is not part of activation** (readiness wants *a phone number on the employee record*,
+> gap code `phone_missing`, and never reads `phone_verified`) — but it means the card must not
+> render during onboarding.
+>
+> ---
+>
+> #### ⛔ § 3: "the flow self-heals the day `wi_mall_phone_verification` is approved" is FALSE
+>
+> > ### ✅ SUPERSEDED 2026-09-15 — THE ORIGINAL § 3 WAS RIGHT AND THIS ANSWER WAS WRONG
+> >
+> > **The template WAS submitted and Meta approved it, `en` + `fr`, within seconds**
+> > (`4426347317613316`, `1393590468966788`). The owning business moved from
+> > `business_verification_status: "rejected"` to **`verified`**, the category opened, and the
+> > flow self-healed **exactly as § 3 predicted — with no code change and no redeploy**, because
+> > the send path had always tried AUTHENTICATION first.
+> >
+> > The answer below was accurate about *why it was blocked that day* and wrong in its one
+> > forecast: "there is no day on which it gets approved" was a prediction about someone else's
+> > review queue stated as a fact about the system. The measurement was sound; the extrapolation
+> > was not. ⛔ **The one claim below that still holds: `wi_mall_phone_verification_utility`
+> > stays rejected and must never be resubmitted** — `INCORRECT_CATEGORY` is a verdict on OTP
+> > *content*, which the business verification does not touch.
+> >
+> > Current state: [`auth.md` § Delivery](../../api/auth.md). Preserved below as written.
+>
+> **That template cannot be submitted at all**, so there is no day on which it gets approved.
+> Both attempts failed on Meta's side, and neither is a wording problem:
+>
+> | Template | Outcome |
+> |---|---|
+> | `wi_mall_phone_verification` (AUTHENTICATION) | **Cannot be created** — code 10 / subcode 2388185. Meta gates the category behind business verification and this WABA's owning business is `business_verification_status: "rejected"`. Not the token: UTILITY creates fine on the same credential, which is what isolates it |
+> | `wi_mall_phone_verification_utility` (UTILITY) | **Created, then REJECTED at review in minutes**, `INCORRECT_CATEGORY`, both languages — and rejected *synchronously* again when resubmitted with `allow_category_change: true` |
+>
+> **The one real fix is resolving the WhatsApp business verification**, after which the first path
+> resumes on its own with no code change and no redeploy. ⛔ Rewording the OTP copy to get past
+> the classifier is not an option and is not on the table: Meta classifies OTP content as
+> AUTHENTICATION and accepts it nowhere else, so that is evading enforcement rather than
+> satisfying it, and the WABA carrying the platform's other 188 templates is what would be at
+> risk.
+>
+> ✅ **But there IS something that works today, and it is worth putting in front of your
+> operator.** In-window delivery needs no template, and **the 24-hour window is keyed on the
+> phone number alone — not on an account**. So:
+>
+> > *Send any WhatsApp message to the platform's business number from the phone you are
+> > verifying, then press Verify within the next 23 hours.* The code arrives as ordinary text.
+>
+> This is why keeping the Verify button enabled was the right call — for a better reason than the
+> one you gave. ⚠ Two caveats now on the page: the window we track is **23** hours, not 24; and
+> messaging the bot **creates a customer account against that phone number**. Harmless to the
+> administrator record (identity lives in wi-admin and the OTP subject is namespaced
+> `admin:<id>` precisely so the two cannot collide) — but the row does come into existence, so
+> say so if you surface the workaround.
+>
+> ---
+>
+> #### On the two smaller points
+>
+> ✅ **Take the mirror of `auth.validator.ts`.** BR-019 § 3 settled that it is your call; the word
+> is given. ⚠ It will not save you the page, though — a validator carries the **field rules** and
+> none of the four behaviours, which live in `admin-phone.service.ts`. Mirror it *and* read the
+> page.
+>
+> ✅ **"A delegated 5xx loses its message but keeps its code" is now written down** — in
+> [`errors.md`](../../api/errors.md) on the `PHONE_VERIFICATION_DELIVERY_FAILED` row and in
+> `auth.md`'s error section. You are right that it is the correct behaviour; it just was not
+> stated anywhere a client could find it.
+>
+> ⚠ **The six `PHONE_VERIFICATION_*` codes are now catalogued** in `errors.md`
+> § *"The six that arrive from jovi-mall"*, with the `details` each one carries — including
+> `attemptsLeft` on a wrong code, which survives to you and which your copy may not know about.
+>
+> ☐ **`routeManifest()` vs your `ROUTE-MAP.md` is still yours to run.** That file is not in this
+> repository, so 255 cannot be verified from here.
+
+
 > **Filed 2026-09-14 by `frontend/admin-dash`.** Two asks, both small, and both found while
 > building the administrator's own phone card against
 > `jovi-mall/docs/me/phone-verification.md` (mirrored in admin-dash only — not in this repository).

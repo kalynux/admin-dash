@@ -28,6 +28,7 @@
  */
 
 import { ApiError } from '@/types/api.types';
+import type { TriageStamp } from '@/types/triage.types';
 import type { ActorStamp } from '@/types/actor.types';
 
 /** `GET /cod/overview` · delegated. */
@@ -200,6 +201,20 @@ export interface Remittance {
     declaredAt: string | null;
     resolvedAt: string | null;
     rejectionReason: string | null;
+    /**
+     * The tier-3 endorsement, or `null` until somebody reviews it — ADR-024 D-5.
+     *
+     * ⛔ **Advisory, and NEVER a precondition.** An un-endorsed record is exactly
+     * as confirmable as an endorsed one. Nothing may gate confirm or reject on it.
+     *
+     * ⚠ **Unlike its payout sibling, `cod.triage` is NOT `financial`**, and the
+     * asymmetry is real: a payout request holds the owner's balance from the
+     * moment it opens, while a deposit or remittance in `declared` holds
+     * **nothing** — only a confirmed one moves cash. So endorsing moves nothing
+     * and rejecting moves nothing either, and the permission needed no tier-3
+     * exemption.
+     */
+    triage: TriageStamp | null;
 }
 
 /**
@@ -253,6 +268,20 @@ export interface Deposit {
     resolvedAt: string | null;
     rejectionReason: string | null;
     recordedAt: string | null;
+    /**
+     * The tier-3 endorsement, or `null` until somebody reviews it — ADR-024 D-5.
+     *
+     * ⛔ **Advisory, and NEVER a precondition.** An un-endorsed record is exactly
+     * as confirmable as an endorsed one. Nothing may gate confirm or reject on it.
+     *
+     * ⚠ **Unlike its payout sibling, `cod.triage` is NOT `financial`**, and the
+     * asymmetry is real: a payout request holds the owner's balance from the
+     * moment it opens, while a deposit or remittance in `declared` holds
+     * **nothing** — only a confirmed one moves cash. So endorsing moves nothing
+     * and rejecting moves nothing either, and the permission needed no tier-3
+     * exemption.
+     */
+    triage: TriageStamp | null;
 }
 
 export interface DepositDetail extends Deposit {
@@ -504,6 +533,30 @@ export function isUnresolved(record: { resolvedAt: string | null }): boolean {
  * explanation, and the error path stays only for the race.
  */
 export function isDepositResolvableHere(deposit: { recipient: string }): boolean {
+    return deposit.recipient === 'platform';
+}
+
+/**
+ * May an administrator **endorse** this deposit?
+ *
+ * ⚠ **The same `platform`-recipient rule, and for the same underlying reason** —
+ * `POST /cod/deposits/:id/triage` is refused on an agency-recipient deposit with
+ * `403 COD_DEPOSIT_WRONG_RECIPIENT`. An agency handover is confirmed by the
+ * agency itself, a counter-signature between two *organisations*, and the
+ * platform never saw that cash — so there is nothing here for an administrator to
+ * vouch for.
+ *
+ * Expressed as its own function rather than a second call to
+ * {@link isDepositResolvableHere}: the two happen to agree today because one
+ * refusal (`assertConfirmer`) produces both, and a caller reading
+ * "is resolvable" to decide whether to show *endorse* would be relying on a
+ * coincidence of names. If the backend ever separates them, this is the line that
+ * moves.
+ *
+ * ⛔ **Remittances are all reviewable** and have no equivalent — do not reach for
+ * a `recipient` on one, it has none.
+ */
+export function isDepositEndorsableHere(deposit: { recipient: string }): boolean {
     return deposit.recipient === 'platform';
 }
 

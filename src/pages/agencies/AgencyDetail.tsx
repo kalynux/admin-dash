@@ -180,24 +180,12 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
             actions={
                 <>
                     {/*
-                      Both verdicts sit behind the SAME permission and now behind
-                      the same button. `agencies.verify` is the review capability,
-                      named for its happy path; the audit action is what separates
-                      approving from refusing, so offering them as two toolbar
-                      buttons was offering one act twice — and asked the operator
-                      to pick an outcome before seeing anything to pick it from.
-
-                      Still gated on `canVerifyAgency`, because both verdicts are
-                      only reachable while the agency is still pending.
+                      ⚠ **No verification shortcut in this toolbar, deliberately** —
+                      the Verification tab is unconditional and carries the verdict
+                      beside the evidence. `canVerifyAgency` still gates the verdict
+                      itself on the tab, because both outcomes are only reachable
+                      while the agency is pending.
                     */}
-                    <Can permission="agencies.verify">
-                        {canVerifyAgency(record) ? (
-                            <Button variant="outline" size="sm" onClick={() => setTab('verification')}>
-                                <BadgeCheck className="size-4" />
-                                Review verification
-                            </Button>
-                        ) : null}
-                    </Can>
 
                     <Can permission="agencies.reactivate">
                         {canReactivateAgency(record) ? (

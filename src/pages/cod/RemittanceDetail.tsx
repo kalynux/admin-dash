@@ -5,6 +5,7 @@ import { ArrowLeft } from 'lucide-react';
 import { Can } from '@/components/auth/Can';
 import { CashMovementsPanel } from '@/components/cod/CashMovementsPanel';
 import { CodSettlementStatusBadge } from '@/components/cod/CodBadges';
+import { CodTriageDialog } from '@/components/cod/CodTriageDialog';
 import {
     ConfirmRemittanceDialog,
     RejectRemittanceDialog,
@@ -18,12 +19,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { useAsyncData } from '@/hooks/use-async-data';
+import { usePendingPermission } from '@/hooks/use-pending-permission';
 import { resolveTimeZone } from '@/lib/datetime';
 import { formatInstantInZone, formatMoney } from '@/lib/format';
 import { getRemittance } from '@/services/cod.service';
 import { useAdmin, useCan } from '@/store';
 import { isPlatformActor } from '@/types/actor.types';
 import { isUnresolved, type RemittanceDetail as Remittance } from '@/types/cod.types';
+import { PERMISSION_COD_TRIAGE } from '@/types/permissions.pending';
 
 /**
  * `GET /cod/remittances/:remittanceId` · `cod.remittances.read` · direct read.
@@ -49,6 +52,13 @@ export function RemittanceDetail() {
 
     const [confirming, setConfirming] = useState(false);
     const [rejecting, setRejecting] = useState(false);
+    const [endorsing, setEndorsing] = useState(false);
+    /*
+      ⚠ `cod.triage` is not in `permissions.md` yet, so it cannot go through
+      `can()` — see `types/permissions.pending.ts`. It is a real grant on the
+      live service; the catalogue is what is behind.
+    */
+    const canEndorse = usePendingPermission(PERMISSION_COD_TRIAGE);
 
     const remittance = useAsyncData(`/cod/remittances/${remittanceId}`, (signal) =>
         getRemittance(remittanceId, { signal }),
@@ -100,6 +110,17 @@ export function RemittanceDetail() {
             actions={
                 open ? (
                     <div className="flex flex-wrap gap-2">
+                        {/*
+                          ⛔ Endorsing gates nothing — the two controls beside it
+                          are keyed on `isUnresolved` alone and must stay that
+                          way. A reviewer who wants this refused presses Reject,
+                          which is why there is no "recommend rejection" here.
+                        */}
+                        {canEndorse && record.triage === null ? (
+                            <Button variant="outline" onClick={() => setEndorsing(true)}>
+                                Endorse
+                            </Button>
+                        ) : null}
                         <Can permission="cod.remittances.reject">
                             <Button variant="outline" onClick={() => setRejecting(true)}>
                                 Reject
@@ -143,6 +164,13 @@ export function RemittanceDetail() {
                         open={rejecting}
                         onOpenChange={setRejecting}
                         onDone={reconcile}
+                    />
+                    <CodTriageDialog
+                        kind="remittance"
+                        recordId={record.id}
+                        open={endorsing}
+                        onOpenChange={setEndorsing}
+                        onEndorsed={reconcile}
                     />
                 </>
             ) : null}

@@ -83,6 +83,19 @@ const codes = {
     ADMIN_ACTIVATION_SELF: 'Another Developer has to activate your account',
     ADMIN_ACTIVATION_CONFLICT: 'Somebody changed that account while you were looking',
 
+    /*
+      The administrator's own phone (ADR-023, named 2026-09-14).
+
+      Both are about the operator's *own* number, so both are written in the
+      second person and both name the next move rather than the fault. The
+      mismatch is not the person's mistake — they changed their number while a
+      code was in flight, which is a perfectly ordinary thing to do — so the
+      sentence says what to do next and blames nobody.
+    */
+    ADMIN_PHONE_NOT_SET: 'Save a phone number before asking for a code',
+    ADMIN_PHONE_VERIFICATION_MISMATCH:
+        'Your number changed while that code was in flight — ask for a new one',
+
     // ─── Employee records (ADR-023) ──────────────────────────────────────────
     EMPLOYEE_SLOT_FULL: 'That slot is full — remove a file before adding another',
     EMPLOYEE_DOCUMENT_NOT_FOUND: 'That slot does not hold that file',

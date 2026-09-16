@@ -1,7 +1,7 @@
 import { Definition, DefinitionList, NotApplicable, NotSet } from '@/components/common/DefinitionList';
 import { Badge } from '@/components/ui/badge';
 import { InfoHint } from '@/components/ui/info-hint';
-import { formatCount } from '@/lib/format';
+import { bytesToMegabytes, formatCount } from '@/lib/format';
 import type { Plan } from '@/types/billing.types';
 
 /**
@@ -74,7 +74,7 @@ export function PlanLimitsPanel({ plan }: { plan: Plan }) {
                 {limits.maxStorageBytes === null ? (
                     <NotSet>Platform default applies</NotSet>
                 ) : (
-                    `${formatCount(Math.round(limits.maxStorageBytes / 1_000_000))} MB`
+                    `${formatCount(bytesToMegabytes(limits.maxStorageBytes))} MB`
                 )}
             </Definition>
 

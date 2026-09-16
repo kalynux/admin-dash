@@ -1,14 +1,43 @@
 # Route map — all 255 wi-admin routes
 
+🔴 **The recipe was re-run on 2026-09-15 and the live service holds FOUR routes this table does
+not.** BR-025's last acceptance box asked for exactly this, so it is now a measurement rather
+than a reading: `dump-routes.js` prints **`TOTAL 260`**, which is 259 rows for this table (the
+260th is the excluded internal one) against the **255** below.
+
+| Missing route | Audit action | Documented in |
+|---|---|---|
+| `POST /cod/deposits/:depositId/triage` | `cod.triage` | [`cod.md`](admin/api/cod.md) |
+| `POST /cod/remittances/:remittanceId/triage` | `cod.triage` | [`cod.md`](admin/api/cod.md) |
+| `POST /money/payouts/:payoutId/triage` | `money.payouts.triage` | [`money.md`](admin/api/money.md) |
+| `POST /money/payouts/:payoutId/send` | `money.payouts.mark_paid` | [`money.md`](admin/api/money.md) |
+
+⚠ **They are deliberately NOT added as rows yet, and the reason is a second gap.** They require
+two permissions — **`cod.triage`** and **`money.payouts.triage`** — which are declared in
+`permission.catalog.ts` and named on those two endpoint pages, and **the word "triage" appears
+nowhere in [`permissions.md`](admin/api/permissions.md)**, upstream or here. So
+`permissions.types.ts` does not carry them, and `route-map.test.ts` § *names nothing absent from
+`PERMISSION_NAMES`* would fail on the first row added. **Adding the rows would mean weakening
+that guard to record an unfinished change** — the wrong trade. The permission catalogue is the
+fix, upstream.
+
+⚠ **This is a change still arriving**, which is the other reason to report rather than build:
+`cod.md`, `money.md` and `authorization.md` all changed upstream *during* the 2026-09-15
+BR-024/025 round and nothing in `src/` calls any of the four. Its design record is
+[ADR-024](docs/ADR-024-PAYOUT-EXECUTION-AND-TRIAGE.md) — payout *execution* plus **a review stage
+below the tier that pays**, which is what the four tier-3 grants are for: a Support administrator
+already saw the `PAYOUT_REQUEST` ticket and held no permission naming it. **Re-run the recipe
+before trusting 255 again**, and expect a navigation change here when it deploys.
+
 ⚠ **Three more found the same day by reading SOURCE — 252 → 255, and the way they were
 missed is the point.** `PATCH /auth/me/phone` and the two `/auth/me/phone/verify/*` routes are
-served by `admin-identity/routes/auth.routes.ts` and documented **nowhere**: the word "phone"
-does not appear in [`auth.md`](admin/api/auth.md), upstream or here. A file extended *from the
-contract* cannot see a route the contract omits, which is exactly what happened to the 252 below
-— so their permission and audit cells are read from the router source, and their "documented in"
-cell names that source rather than a page. Asked for in
-[BR-025](admin/dashboard/backend-requests/BR-025-admin-phone-verification.md). **Re-run the
-recipe against a live `routeManifest()` and this stops being a reading.**
+served by `admin-identity/routes/auth.routes.ts` and were documented **nowhere**: the word "phone"
+appeared in [`auth.md`](admin/api/auth.md) neither upstream nor here. A file extended *from the
+contract* cannot see a route the contract omits, which is exactly what happened to the 252 below,
+so their permission and audit cells were read from the router source. ✅ **Granted 2026-09-15
+(BR-025 § 1)** — `auth.md` now carries all three under *"The administrator's own phone number"*,
+so their *documented in* cells name the page like every other row, and the permission and audit
+cells were confirmed against the manifest run recorded above.
 
 ⚠ **Extended from the contract on 2026-09-14, NOT from a router dump — 239 → 252.** Thirteen
 routes arrived and each row below was transcribed from its own contract page rather than from
@@ -108,16 +137,30 @@ failure is not caught, so with the audit store down nothing is disclosed. See
 ```bash
 cd backend/admin
 node -r ts-node/register/transpile-only -r dotenv/config \
-    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 240
-npm run authz:matrix                                                      # 118 / 20 / 3
+    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 260 (2026-09-15)
+npm run authz:matrix                                                      # 123 / 103 / 37 (2026-09-15)
 ```
 
-⚠ **The tool prints 240, and this table holds 239.** That is not a discrepancy — the 240th is
-`POST /api/internal/automation/failures`, deliberately excluded below. Expect `TOTAL 240`;
-`TOTAL 241` or `238` means this file is stale. (This block said `# TOTAL 239` until 2026-09-08,
-which made a correct run of the recipe look like a failure.)
+🔴 **`authz:matrix` disagrees with the contract too, and by more than the two new names.** It
+printed **123 / 103 / 37** on 2026-09-15 where [`permissions.md`](admin/api/permissions.md) —
+and therefore `permissions.types.ts` — says **121 / 101 / 31**. Two of the six are `cod.triage`
+and `money.payouts.triage`; the other four are **existing permissions newly granted to tier 3**:
+`cod.overview.read`, `cod.remittances.read`, `cod.deposits.read`, `money.payouts.read`. Support
+is being given a COD and payout triage desk, and **nothing published says so yet**. ⚠ This
+dashboard builds its navigation from `GET /permissions/me`, so the screens would appear on their
+own the day it deploys — but the *catalogue* this repository types against would still not
+declare two of the names.
 
-If either number moves, this file is stale and so is everything built from it.
+⚠ **The tool prints one more than this table holds**, always: the extra is
+`POST /api/internal/automation/failures`, deliberately excluded below. So `TOTAL 256` is the
+number that would say *"this table is current"* — and the run on **2026-09-15 printed 260**,
+naming the four routes in the banner at the top of this file. It printed 240 against 239 rows on
+2026-09-08. (This block said `# TOTAL 239` until then, which made a correct run look like a
+failure.)
+
+**Run it before believing this file**, and if the number moves, this file is stale and so is
+everything built from it. ⚠ **The run needs no database** — `dump-routes.js` loads `src/app.ts`
+for its router tree and never connects, so a stopped `mongod` is not a reason to skip it.
 
 ---
 
@@ -302,9 +345,9 @@ If either number moves, this file is stale and so is everything built from it.
 | POST | `/auth/logout` | *mfa-enrolment* | ✅ administrators.auth.logout | [`auth.md`](admin/api/auth.md) |
 | POST | `/auth/logout-all` | *self* | ✅ administrators.auth.logout_all | [`auth.md`](admin/api/auth.md) |
 | GET | `/auth/me` | *mfa-enrolment* | — | [`auth.md`](admin/api/auth.md) |
-| PATCH | `/auth/me/phone` | *self* | ✅ administrators.profile.phone_set | ⚠ **undocumented** — [`auth.routes.ts`](../../backend/admin/src/modules/admin-identity/routes/auth.routes.ts) |
-| POST | `/auth/me/phone/verify/confirm` | *self* | ✅ administrators.profile.phone_verified | ⚠ **undocumented** — [`auth.routes.ts`](../../backend/admin/src/modules/admin-identity/routes/auth.routes.ts) |
-| POST | `/auth/me/phone/verify/request` | *self* | ◐ administrators.profile.phone_set | ⚠ **undocumented** — [`auth.routes.ts`](../../backend/admin/src/modules/admin-identity/routes/auth.routes.ts) |
+| PATCH | `/auth/me/phone` | *self* | ✅ administrators.profile.phone_set | [`auth.md`](admin/api/auth.md) |
+| POST | `/auth/me/phone/verify/confirm` | *self* | ✅ administrators.profile.phone_verified | [`auth.md`](admin/api/auth.md) |
+| POST | `/auth/me/phone/verify/request` | *self* | ◐ administrators.profile.phone_set | [`auth.md`](admin/api/auth.md) |
 | POST | `/auth/mfa/activate` | *mfa-enrolment* | ✅ administrators.auth.mfa_activated | [`auth.md`](admin/api/auth.md) |
 | POST | `/auth/mfa/enroll` | *mfa-enrolment* | ✅ administrators.auth.mfa_enrolled | [`auth.md`](admin/api/auth.md) |
 | POST | `/auth/mfa/verify` | *public* | ✅ administrators.auth.mfa_failed, administrators.auth.login_succeeded | [`auth.md`](admin/api/auth.md) |

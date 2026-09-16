@@ -82,7 +82,8 @@ const platform = {
 
     // ─── Agences ─────────────────────────────────────────────────────────────
     DELIVERY_AGENCY_NOT_FOUND: 'La plateforme n’a aucune agence de livraison de ce type.',
-    DELIVERY_AGENCY_STATUS_CONFLICT: 'Un autre administrateur a modifié cette agence avant vous.',
+    DELIVERY_AGENCY_VERIFICATION_CONFLICT:
+        'Un autre administrateur a déjà enregistré cette décision.',
 
     // ─── Vendeurs ────────────────────────────────────────────────────────────
     VENDOR_NOT_FOUND: 'La plateforme n’a aucun vendeur de ce type.',
@@ -101,7 +102,7 @@ const platform = {
     AUTH_PHONE_TAKEN: 'Ce numéro de téléphone appartient déjà à un autre compte',
 
     // ─── Téléphone d'un administrateur (code WhatsApp) ────────────────────────
-    /* Voir le fichier anglais : deux de ces six codes n'arrivent pas encore. */
+    /* Voir le fichier anglais : les six arrivent depuis le 2026-09-15 (BR-025 § 2). */
     PHONE_VERIFICATION_NO_TARGET:
         'Aucun numéro de téléphone n’est enregistré sur votre compte. Enregistrez-en un d’abord.',
     PHONE_VERIFICATION_CODE_INVALID:
@@ -113,7 +114,7 @@ const platform = {
     PHONE_VERIFICATION_RESEND_TOO_SOON:
         'Un code vient d’être envoyé. Patientez un instant avant d’en demander un autre.',
     PHONE_VERIFICATION_DELIVERY_FAILED:
-        'WhatsApp n’a pas pu délivrer le code. En général, cela signifie que personne n’a écrit à la plateforme depuis ce numéro au cours des dernières 24 heures.',
+        'WhatsApp n’a pas pu délivrer le code. Votre numéro n’est pas en cause — réessayez dans un instant.',
 
     // ─── Récupération d’accès ────────────────────────────────────────────────
     USER_CHANNEL_UNAVAILABLE:
@@ -139,6 +140,25 @@ const platform = {
 
     // ─── Finances ────────────────────────────────────────────────────────────
     EARNINGS_PAYOUT_REQUEST_NOT_PENDING: 'Ce versement n’est plus en attente.',
+
+    /*
+      ── Les refus de virement passerelle, ADR-024 ───────────────────────────
+
+      ⛔ **« Les fonds restent retenus » est la moitié porteuse** de
+      `TRANSFER_FAILED` : un virement échoué n’a rien rendu au titulaire, et la
+      demande reste ouverte. Une traduction qui laisse entendre le contraire est
+      pire que pas de traduction du tout — la clé manquante retomberait sur la
+      phrase du serveur, qui est exacte.
+    */
+    EARNINGS_PAYOUT_TRANSFER_IN_FLIGHT:
+        'Un virement est déjà en cours pour ce versement. Rechargez pour voir où il en est — il ne peut être ni renvoyé ni rejeté tant que le prestataire n’a pas confirmé.',
+    EARNINGS_PAYOUT_GATEWAY_UNSUPPORTED:
+        'Ce versement ne peut pas être envoyé automatiquement. Effectuez le transfert vous-même et enregistrez-le avec « Marquer payé ».',
+    EARNINGS_PAYOUT_TRANSFER_FAILED:
+        'La passerelle a refusé ce virement. Les fonds restent retenus — rien n’a été rendu au titulaire. Réessayez, ou rejetez la demande pour lui restituer la somme.',
+    EARNINGS_PAYOUT_NOT_SENDABLE: 'Ce versement a déjà été traité.',
+    EARNINGS_PAYOUT_ALREADY_TRIAGED:
+        'Quelqu’un a déjà examiné cette demande. Rechargez pour voir son avis.',
 
     // ─── Fichiers ────────────────────────────────────────────────────────────
     UPLOAD_POLICY_VIOLATION: 'La plateforme a refusé l’un de ces fichiers.',

@@ -97,6 +97,24 @@ export function payoutFixture(overrides: Partial<Payout> = {}): Payout {
         status: 'pending',
         origin: 'auto_threshold',
         destination: maskedDestinationFixture(),
+        /*
+          ⚠ **`pending`, not `verified`, is the honest default for a fixture.**
+          Vendor and agency default to `pending` on registration, so most rows in
+          a real queue are unvetted — a fixture that defaulted to verified would
+          make the safe path the one nothing is tested against.
+        */
+        verification: { verified: false, verdict: 'pending' },
+        /*
+          ⚠ **`null`, and this is the honest default for the same reason as
+          `verification` above.** Endorsement is advisory (ADR-024 D-2) — a payout
+          nobody has endorsed is exactly as payable as one that has been, and an
+          empty Support queue is the ordinary case. A fixture that arrived
+          pre-endorsed would test every pay control against the state where a
+          mistaken gate is invisible.
+        */
+        triage: null,
+        transferGatewayRef: null,
+        transferFailureReason: null,
         ticketId: null,
         requestedByUserId: null,
         resolvedAt: null,

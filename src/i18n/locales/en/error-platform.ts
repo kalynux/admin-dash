@@ -26,8 +26,8 @@
  * - `COD_DEPOSIT_WRONG_RECIPIENT` is a **403 no permission can fix** — only the
  *   party the cash was handed to may confirm, and `agency` is the normal route.
  *   The affordance is withheld up front; this copy is for the race.
- * - Agencies use a `DELIVERY_` prefix, so a branch on `AGENCY_STATUS_CONFLICT`
- *   never fires.
+ * - Agencies use a `DELIVERY_` prefix, so a branch on
+ *   `AGENCY_VERIFICATION_CONFLICT` never fires.
  *
  * A code absent from this map is not a failure: `resolveErrorMessage` falls
  * through to jovi-mall's own sentence, which is English but specific, and warns
@@ -124,7 +124,13 @@ const platform = {
 
     // ─── Agencies ────────────────────────────────────────────────────────────
     DELIVERY_AGENCY_NOT_FOUND: 'The platform has no such delivery agency.',
-    DELIVERY_AGENCY_STATUS_CONFLICT: 'Another administrator changed this agency first.',
+    // Renamed from `DELIVERY_AGENCY_STATUS_CONFLICT` on 2026-09-15 (BR-026 § 3) — the
+    // compare-and-set moved off `status` onto the verdict, so the old name named the
+    // wrong field. It now refuses only a repeat of the SAME verdict, so this sentence
+    // must not say "changed this agency": nothing changed, and the remedy is to re-read
+    // the verdict rather than to look for a deactivation.
+    DELIVERY_AGENCY_VERIFICATION_CONFLICT:
+        'Another administrator has already recorded this verdict.',
 
     // ─── Vendors ─────────────────────────────────────────────────────────────
     VENDOR_NOT_FOUND: 'The platform has no such vendor.',
@@ -144,22 +150,25 @@ const platform = {
 
     // ─── An administrator's own phone (WhatsApp OTP) ──────────────────────────
     /*
-      ⚠ **Two of these six cannot currently arrive, and it is worth knowing which.**
-      wi-admin's `projectDetails` runs a `rate_limit` refusal through an allowlist
-      of `retryAfterSeconds`/`limit`/`windowSeconds` — and `platformCode` is not on
-      it. So both 429s (`RESEND_TOO_SOON`, `TOO_MANY_ATTEMPTS`) reach us as a bare
-      `PLATFORM_OPERATION_REJECTED` with no code to key on, and never reach these
-      keys at all. Nor do they reach jovi-mall's own sentence: `rate_limit` is not
-      message-bearing in `lib/errors.ts`. They render as the category line, plus
-      the retry line where `retryAfterSeconds` survived — which is a fair landing
-      for the cooldown and a poor one for the spent attempt limit, whose remedy is
-      "that code is destroyed, send a new one" and cannot be said. The keys stay so
-      the copy is right the day the allowlist is widened; BR-025 asks for it.
+      ✅ **All six arrive now.** Two of them could not until 2026-09-15: wi-admin's
+      `projectDetails` ran a `rate_limit` refusal through an allowlist of
+      `retryAfterSeconds`/`limit`/`windowSeconds` with `platformCode` left off, so
+      both 429s (`RESEND_TOO_SOON`, `TOO_MANY_ATTEMPTS`) reached us as a bare
+      `PLATFORM_OPERATION_REJECTED` with nothing to key on, and these two keys
+      were dead copy kept for the day the allowlist widened. **BR-025 § 2 widened
+      it** (`detail-policy.ts:68`), and it is every delegated 429 on the service,
+      not just this flow.
 
-      `DELIVERY_FAILED` is the opposite case and does arrive: it is a 502, and the
-      5xx branch of the same function keeps `platformCode` on purpose. ⚠ Its
-      *message* is replaced with a registry default, so this sentence must carry
-      the explanation itself — do not write "the message below says which".
+      ⚠ **The keys earn their difference now, so keep the two sentences opposite.**
+      The cooldown leaves the code in the operator's hand working; the spent
+      attempt limit has **destroyed** it. Before the fix both rendered as the
+      category line plus a retry line — a fair landing for the first and a wrong
+      one for the second, which is the argument that carried the change.
+
+      `DELIVERY_FAILED` always arrived: it is a 502, and the 5xx branch of the same
+      function keeps `platformCode` on purpose. ⚠ Its *message* is replaced with a
+      registry default, so this sentence must carry the explanation itself — do not
+      write "the message below says which".
     */
     PHONE_VERIFICATION_NO_TARGET:
         'There is no phone number on your account to send a code to. Save one first.',
@@ -171,17 +180,30 @@ const platform = {
         'Too many wrong codes. That one has been destroyed — send a new one.',
     PHONE_VERIFICATION_RESEND_TOO_SOON:
         'A code was just sent. Wait a moment before asking for another.',
+    /*
+      ⚠ **This sentence used to name the ordinary cause and must not any more.**
+      It read "this usually means nobody has messaged the platform from that number
+      in the last 24 hours", which was true while the deployment had no approved
+      AUTHENTICATION template: every administrator was outside WhatsApp's window and
+      every send failed. Both faults closed on 2026-09-15 — the template was approved
+      in `en` and `fr`, and the window is now recorded on every inbound message — so
+      a failure here is the edge case it reads as, and telling somebody their own
+      silence caused it would send them chasing a remedy they do not need.
+    */
     PHONE_VERIFICATION_DELIVERY_FAILED:
-        'WhatsApp would not deliver the code. This usually means nobody has messaged the platform from that number in the last 24 hours.',
+        'WhatsApp would not deliver the code. Nothing is wrong with your number — try again in a moment.',
 
     // ─── Credential recovery ─────────────────────────────────────────────────
-    // ⚠ `USER_CREDENTIAL_LINK_THROTTLED` is kept for the record and is
-    // **unreachable**: it is forwarded at 429, and `rate_limit`'s closed
-    // `details` allowlist drops both `platformCode` and `scope`
-    // (`users.md:481-492`). `SendCredentialLinkDialog` matches the status and
-    // renders jovi-mall's own sentence, which is the only thing still saying
-    // *who* was throttled — the party, or the operator. This copy says nothing
-    // about that on purpose, and nothing should be added: it cannot know.
+    // ⚠ `USER_CREDENTIAL_LINK_THROTTLED` **became reachable on 2026-09-15** and
+    // is still not worth branching on. `rate_limit`'s allowlist gained
+    // `platformCode` (BR-025 § 2) but not `scope`, and `scope` — `party` versus
+    // `administrator` — is the whole distinction: *this person has been sent too
+    // many* versus *you have sent too many*, two different remedies.
+    // `SendCredentialLinkDialog` therefore still matches the status and renders
+    // jovi-mall's own sentence, which is the only thing that says which. This
+    // copy says nothing about that on purpose, and nothing should be added: it
+    // cannot know. ⚠ `errors.md`'s row still claims both keys are dropped;
+    // `detail-policy.ts:68` says otherwise and source wins.
     USER_CHANNEL_UNAVAILABLE:
         'This person has no address on that channel. Telegram only works once they have connected the bot themselves.',
     USER_CREDENTIAL_LINK_THROTTLED: 'Too many recovery links have been sent recently.',
@@ -209,6 +231,53 @@ const platform = {
 
     // ─── Money ───────────────────────────────────────────────────────────────
     EARNINGS_PAYOUT_REQUEST_NOT_PENDING: 'This payout is no longer pending.',
+
+    /*
+      ── The gateway-transfer refusals, ADR-024 ──────────────────────────────
+
+      ⚠ **These are the fallback, not the primary rendering.** `SendPayoutDialog`
+      branches on each of these codes and draws a notice with the right
+      affordances — a retry where one is safe, a route to the manual path where
+      it is not — because the difference between them is *what to do next*, which
+      a sentence alone cannot carry. What is here is what reaches a toast or a
+      generic form error if one of them ever surfaces somewhere else.
+
+      ⛔ **Every sentence below has to survive being read on its own.** The two
+      that must never imply the money came back are `TRANSFER_FAILED` and the
+      `failed` status it produces: a failed transfer has returned nothing.
+    */
+
+    /** `409`. ⛔ Never offer a retry beside this one — sending again risks a second transfer. */
+    EARNINGS_PAYOUT_TRANSFER_IN_FLIGHT:
+        'A transfer is already in progress for this payout. Reload to see where it got to — it cannot be sent again, or rejected, until the provider confirms.',
+
+    /*
+      ⚠ **One code, two situations, and this sentence has to cover both.** At
+      `422` it is the destination (a bank or card the gateway cannot reach); at
+      `503` it is the deployment (automatic payouts switched off). The dialog
+      separates them on the status; this fallback names the remedy they share,
+      which is the manual path.
+    */
+    EARNINGS_PAYOUT_GATEWAY_UNSUPPORTED:
+        'This payout cannot be sent automatically. Move the money yourself and record it with Mark paid.',
+
+    /*
+      ⚠ **"Still held" is the load-bearing half.** The gateway refused the
+      transfer and nothing was returned to the owner — the request is still open
+      and still needs a retry or a rejection.
+    */
+    EARNINGS_PAYOUT_TRANSFER_FAILED:
+        'The gateway refused this transfer. The funds are still held — nothing has been returned to the owner. Retry it, or reject the request to release the money back to them.',
+
+    /** `409` on the send path — the same fact `EARNINGS_PAYOUT_REQUEST_NOT_PENDING` reports on the others. */
+    EARNINGS_PAYOUT_NOT_SENDABLE: 'This payout has already been resolved.',
+
+    /*
+      `409`. A request carries one endorsement, and losing this race costs
+      nothing — hence "already", not "cannot".
+    */
+    EARNINGS_PAYOUT_ALREADY_TRIAGED:
+        'Somebody has already reviewed this request. Reload to see their endorsement.',
 
     // ─── Files ───────────────────────────────────────────────────────────────
     /**

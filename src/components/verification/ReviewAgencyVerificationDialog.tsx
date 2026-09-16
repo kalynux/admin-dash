@@ -1,8 +1,6 @@
-import { CopyableValue } from '@/components/common/CopyableValue';
-import { Definition, DefinitionList, NotSet } from '@/components/common/DefinitionList';
 import { notify } from '@/lib/notify';
 import {
-    PLATFORM_CODE_AGENCY_STATUS_CONFLICT,
+    PLATFORM_CODE_AGENCY_VERIFICATION_CONFLICT,
     rejectAgency,
     verifyAgency,
 } from '@/services/agencies.service';
@@ -29,12 +27,22 @@ import { VerificationReviewDialog } from './VerificationReviewDialog';
  * `textMode: 'none'` rather than an optional note — the dialog would otherwise
  * offer a field whose contents the route refuses.
  *
- * ── ⚠ Rejecting changes no status ────────────────────────────────────────────
- * jovi-mall leaves the agency at `pending_verification`; nothing is deactivated
- * and no cascade runs. A non-`active` agency is already refused by product
- * activation, pickup resolution, COD eligibility and vendor default-agency
- * selection, so this records a verdict rather than adding enforcement — and
- * `POST /verify` still accepts them once they fix what the reason named.
+ * ── ⚠ NEITHER verdict changes the agency's status any more ───────────────────
+ * Rejecting never did; **approving stopped on 2026-09-15**, when jovi-mall split
+ * *may this account operate* from *has a human vetted it*. Both writes now touch
+ * only `kyc_details`.
+ *
+ * ⚠ **So do not tell the operator either verdict unblocks or blocks anybody**, and
+ * do not lean on the old reasoning that a refused agency is "already refused by
+ * product activation, pickup resolution, COD eligibility and vendor
+ * default-agency selection" — **three of those four gate on `active`**, and a
+ * refused agency that proved its phone *is* `active`. What a refusal actually
+ * costs is **cash**: COD eligibility now tests the KYC flag explicitly, and the
+ * payout allowance reads the verdict.
+ *
+ * ✅ **Re-review works**: `POST /verify` accepts a refused agency once they fix
+ * what the reason named. That was briefly untrue — see BR-026 § 2, raised here
+ * and fixed upstream the same day.
  */
 export function ReviewAgencyVerificationDialog({
     agency,
@@ -63,7 +71,12 @@ export function ReviewAgencyVerificationDialog({
         try {
             if (verdict === 'verify') {
                 await verifyAgency(agency.id);
-                notify.success('Agency verified', { description: 'It may now operate.' });
+                // ⚠ NOT "it may now operate" — that was true only while `verify`
+                // also wrote `status`, which jovi-mall stopped doing on 2026-09-15.
+                // Whether the agency may operate is its own axis and its own act.
+                notify.success('Agency verified', {
+                    description: 'The verdict is recorded on the agency file.',
+                });
             } else {
                 await rejectAgency(agency.id, { reason: text });
                 notify.success('Verification rejected', {
@@ -76,17 +89,26 @@ export function ReviewAgencyVerificationDialog({
         } catch (error) {
             if (
                 error instanceof ApiError &&
-                error.platformCode === PLATFORM_CODE_AGENCY_STATUS_CONFLICT
+                error.platformCode === PLATFORM_CODE_AGENCY_VERIFICATION_CONFLICT
             ) {
-                // `details.currentStatus` is undocumented but always present here,
-                // and it is the only thing that distinguishes "a colleague already
-                // decided" from "somebody deactivated it while you were reading".
-                const current = error.details?.currentStatus;
-                notify.warning('This agency is no longer pending verification', {
+                /*
+                  ⚠ **`currentVerification`, NOT `currentStatus`** — BR-026 § 3.
+                  Both ride along and both are true, but only the verdict decided
+                  this refusal. Reporting the status instead told the operator
+                  "this agency is active" when the answer was "a colleague already
+                  reached a verdict", which sends them looking in the wrong place.
+
+                  The refusal also means something narrower than it used to: since
+                  the predicate refuses only a repeat of the *same* verdict, this
+                  is "that verdict is already recorded" — never a deactivation, and
+                  no longer a re-review, which is the case BR-026 § 2 fixed.
+                */
+                const current = error.details?.currentVerification;
+                notify.warning('This verdict is already recorded', {
                     description:
                         typeof current === 'string'
-                            ? `It is now "${current}". Another administrator changed it while this was open — reloading what it says now.`
-                            : 'Another administrator changed it while this was open. Reloading what it says now.',
+                            ? `Another administrator already marked this agency "${current}". Reloading what it says now.`
+                            : 'Another administrator reached a verdict while this was open. Reloading what it says now.',
                 });
                 onOpenChange(false);
                 onDone();
@@ -103,7 +125,15 @@ export function ReviewAgencyVerificationDialog({
             party="agency"
             subjectName={agencyDisplayName(agency)}
             title={`Review verification for ${agencyDisplayName(agency)}`}
-            description="Check what the agency supplied, then record a verdict. Verifying is the exit from pending verification; rejecting records a refusal and changes no status."
+            /*
+              ⚠ Said "Verifying is the exit from pending verification" until the
+              2026-09-15 activation change. It no longer is — an agency promotes
+              itself on a proved phone, and this dialog only records whether a
+              human vetted the business. The sentence now claims nothing about
+              `status` in either direction, which is the only phrasing that is
+              true both before and after jovi-mall ships that change.
+            */
+            description="Check what the agency supplied, then record a verdict. Rejecting records a refusal, and the agency is shown the reason you give."
             record={record}
             current={{
                 /*
@@ -133,9 +163,7 @@ export function ReviewAgencyVerificationDialog({
             options={VERDICTS}
             onSubmit={submit}
             timeZone={timeZone}
-        >
-            <AgencyRecordContext agency={agency} />
-        </VerificationReviewDialog>
+        />
     );
 }
 
@@ -144,7 +172,7 @@ const VERDICTS: VerdictOption[] = [
         value: 'verify',
         label: 'Verify agency',
         description:
-            'Approves the business verification and moves the agency out of pending verification. There is no un-verify afterwards — deactivating is the lever with teeth, and it is a separate action.',
+            'Records that a human has vetted this business. It does not decide whether the agency may operate — that is its own axis, and the agency earns it by verifying a phone number. There is no un-verify afterwards; deactivating is the lever with teeth, and it is a separate action.',
         textMode: 'none',
         estimates: 'approve',
     },
@@ -152,7 +180,7 @@ const VERDICTS: VerdictOption[] = [
         value: 'reject',
         label: 'Reject verification',
         description:
-            'Records a refusal and shows the agency your reason. It does not deactivate them and nothing cascades — they stay pending verification and can reapply.',
+            'Records a refusal and shows the agency your reason. It does not deactivate them and nothing cascades — and they can fix what you name and be verified afterwards.',
         textMode: 'required-reason',
         textLabel: 'Reason',
         textHint: 'Forwarded to jovi-mall and stored on the agency, so the applicant reads it — unlike the deactivation reason, which stays in the audit trail. Name what is wrong and what would fix it.',
@@ -170,81 +198,3 @@ const VERDICTS: VerdictOption[] = [
  * them and no registry this dashboard can query. They are shown because they
  * are what an operator has been deciding on, not because they settle anything.
  */
-function AgencyRecordContext({ agency }: { agency: AgencyDetail }) {
-    return (
-        <section className="space-y-2" aria-label="What the record carries">
-            <h3 className="text-sm font-medium">What the record already carries</h3>
-
-            <DefinitionList className="rounded-lg border p-3 text-xs sm:grid-cols-[10rem_1fr]">
-                <Definition label="Business name">{agency.businessName ?? <NotSet />}</Definition>
-                <Definition label="Contact person">{agency.contactName ?? <NotSet />}</Definition>
-                <Definition label="Registration number">
-                    {agency.kyc.registrationNumber ? (
-                        <CopyableValue
-                            value={agency.kyc.registrationNumber}
-                            variant="plain"
-                            label="registration number"
-                        />
-                    ) : (
-                        <NotSet />
-                    )}
-                </Definition>
-                <Definition label="Transport licence">
-                    {agency.kyc.transportLicenseId ? (
-                        <CopyableValue
-                            value={agency.kyc.transportLicenseId}
-                            variant="plain"
-                            label="transport licence id"
-                        />
-                    ) : (
-                        <NotSet />
-                    )}
-                </Definition>
-                <Definition label="Email">
-                    {agency.email ? (
-                        <span className="flex flex-wrap items-center gap-2">
-                            <CopyableValue value={agency.email} variant="email" label="email" />
-                            <VerifiedFlag verified={agency.emailVerified} />
-                        </span>
-                    ) : (
-                        <NotSet />
-                    )}
-                </Definition>
-                <Definition label="Phone">
-                    {agency.phone ? (
-                        <span className="flex flex-wrap items-center gap-2">
-                            <CopyableValue value={agency.phone} variant="phone" label="phone" />
-                            <VerifiedFlag verified={agency.phoneVerified} />
-                        </span>
-                    ) : (
-                        <NotSet />
-                    )}
-                </Definition>
-                <Definition label="Coverage">
-                    {agency.coverageAreas.length > 0 ? (
-                        agency.coverageAreas.join(', ')
-                    ) : (
-                        <NotSet>None declared</NotSet>
-                    )}
-                </Definition>
-                <Definition label="Onboarding">
-                    {agency.onboardingComplete ? 'Complete' : 'Incomplete'}
-                </Definition>
-            </DefinitionList>
-
-            <p className="text-muted-foreground text-xs leading-relaxed">
-                The registration number and the transport licence are strings the agency typed.
-                Nothing on this service holds a document behind either, and no registry is queried
-                — so they identify a claim rather than corroborate one.
-            </p>
-        </section>
-    );
-}
-
-function VerifiedFlag({ verified }: { verified: boolean }) {
-    return (
-        <span className={verified ? 'text-success' : 'text-muted-foreground'}>
-            {verified ? 'verified' : 'unverified'}
-        </span>
-    );
-}

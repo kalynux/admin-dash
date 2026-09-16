@@ -30,7 +30,7 @@ import { formatCount, formatRelative } from '@/lib/format';
 import { PAGE_SIZE_DEFAULT, withQuery } from '@/lib/query';
 import { listApprovals } from '@/services/approvals.service';
 import { useAdmin, usePermissions } from '@/store';
-import type { Approval, ApprovalListQuery } from '@/types/approvals.types';
+import { payoutApprovalMode, type Approval, type ApprovalListQuery } from '@/types/approvals.types';
 
 /**
  * The four-eyes queue — actions one administrator requested and a **different**
@@ -124,6 +124,28 @@ export function ApprovalsList() {
                         >
                             {row.description}
                         </Link>
+                        {/*
+                          ⚠ **The one place the server's own sentence is not
+                          enough** — ADR-024. `LARGE_PAYOUT.describe()` renders
+                          *"Mark payout request … PAID"* for **both** payout
+                          modes, because it was written before the gateway
+                          existed and reads only the amount and the owner. So a
+                          queued **gateway send** — an instruction to move money
+                          now — is described to the approver as a request to
+                          record a payment already made. They are different
+                          decisions, and the backend agrees: `mode` is hashed
+                          into the approval key so a signature for one cannot be
+                          spent on the other.
+
+                          Rendered beside the description rather than replacing
+                          it: the sentence is still the useful summary, and this
+                          is the half of it that is missing. Absent on every
+                          other queued action, and on an approval from a build
+                          that carried no `mode`.
+                        */}
+                        {payoutApprovalMode(row) === 'gateway' ? (
+                            <p className="text-xs">Sends the money through the payment gateway</p>
+                        ) : null}
                         <p className="text-muted-foreground truncate font-mono text-xs">
                             {row.action}
                         </p>

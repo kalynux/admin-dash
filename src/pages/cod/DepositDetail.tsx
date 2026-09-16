@@ -8,6 +8,7 @@ import {
     CodSettlementStatusBadge,
     DepositRecipientBadge,
 } from '@/components/cod/CodBadges';
+import { CodTriageDialog } from '@/components/cod/CodTriageDialog';
 import { ConfirmDepositDialog, RejectDepositDialog } from '@/components/cod/CodWriteDialogs';
 import { CopyableValue } from '@/components/common/CopyableValue';
 import { ErrorState } from '@/components/common/DataState';
@@ -18,16 +19,19 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { useAsyncData } from '@/hooks/use-async-data';
+import { usePendingPermission } from '@/hooks/use-pending-permission';
 import { resolveTimeZone } from '@/lib/datetime';
 import { formatInstantInZone, formatMoney } from '@/lib/format';
 import { getDeposit } from '@/services/cod.service';
 import { useAdmin, useCan } from '@/store';
 import { isPlatformActor } from '@/types/actor.types';
 import {
+    isDepositEndorsableHere,
     isDepositResolvableHere,
     isUnresolved,
     type DepositDetail as Deposit,
 } from '@/types/cod.types';
+import { PERMISSION_COD_TRIAGE } from '@/types/permissions.pending';
 
 /**
  * `GET /cod/deposits/:depositId` · `cod.deposits.read` · direct read.
@@ -54,6 +58,13 @@ export function DepositDetail() {
 
     const [confirming, setConfirming] = useState(false);
     const [rejecting, setRejecting] = useState(false);
+    const [endorsing, setEndorsing] = useState(false);
+    /*
+      ⚠ `cod.triage` is not in `permissions.md` yet, so it cannot go through
+      `can()` — see `types/permissions.pending.ts`. The grant is real on the
+      live service; the catalogue is what is behind.
+    */
+    const canEndorse = usePendingPermission(PERMISSION_COD_TRIAGE);
 
     const deposit = useAsyncData(`/cod/deposits/${depositId}`, (signal) =>
         getDeposit(depositId, { signal }),
@@ -99,6 +110,22 @@ export function DepositDetail() {
             actions={
                 open && ours ? (
                     <div className="flex flex-wrap gap-2">
+                        {/*
+                          ⚠ **Endorsing is withheld on an agency-recipient deposit
+                          too**, and by its own predicate rather than by reusing
+                          `ours`: `/deposits/:id/triage` is refused there with the
+                          same `403 COD_DEPOSIT_WRONG_RECIPIENT`. The two agree
+                          today because one refusal produces both — see
+                          `isDepositEndorsableHere`.
+
+                          ⛔ It gates nothing that follows it: confirm and reject
+                          are keyed on `open && ours` alone and must stay so.
+                        */}
+                        {canEndorse && isDepositEndorsableHere(record) && record.triage === null ? (
+                            <Button variant="outline" onClick={() => setEndorsing(true)}>
+                                Endorse
+                            </Button>
+                        ) : null}
                         <Can permission="cod.deposits.reject">
                             <Button variant="outline" onClick={() => setRejecting(true)}>
                                 Reject
@@ -161,6 +188,13 @@ export function DepositDetail() {
                         open={rejecting}
                         onOpenChange={setRejecting}
                         onDone={reconcile}
+                    />
+                    <CodTriageDialog
+                        kind="deposit"
+                        recordId={record.id}
+                        open={endorsing}
+                        onOpenChange={setEndorsing}
+                        onEndorsed={reconcile}
                     />
                 </>
             ) : null}

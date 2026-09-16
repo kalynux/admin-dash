@@ -32,7 +32,7 @@ import type {
 } from '@/types/verification.types';
 import { VERDICT_REASON_MAX, VERDICT_REASON_MIN } from '@/types/verification.types';
 
-import { VerificationChecklist } from './VerificationChecklist';
+import { VerdictEstimateBadge } from './VerdictEstimateBadge';
 
 /** Every field name the three verdict routes can report against the text box. */
 const TEXT_FIELD_NAMES = ['reason', 'rejectionReason', 'note', 'text'] as const;
@@ -115,7 +115,7 @@ export interface VerificationReviewDialogProps {
      * number, a licence id, an off-platform reference, the addresses on file.
      * Rendered under the checklist, because it is context and not evidence.
      */
-    children?: ReactNode;
+
 }
 
 export function VerificationReviewDialog(props: VerificationReviewDialogProps) {
@@ -123,7 +123,23 @@ export function VerificationReviewDialog(props: VerificationReviewDialogProps) {
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-2xl">
+            {/*
+              ⚠ **Bounded height, or this dialog runs off the top AND bottom of a
+              laptop screen.** `DialogContent` is centred with
+              `translate-y-[-50%]` and carries **no** max-height of its own, so a
+              tall child simply overflows the viewport in both directions with
+              nothing to scroll — the evidence checklist plus the verdict options
+              plus a reason field clears 100vh easily.
+
+              `grid-rows-[auto_minmax(0,1fr)]` is the load-bearing half:
+              `DialogContent` is already `grid`, and a `1fr` row without
+              `minmax(0, …)` takes its min-content height from the child, which
+              defeats the inner `overflow-y-auto` entirely.
+
+              `dvh` rather than `vh` so a mobile browser's retracting toolbar does
+              not clip the footer.
+            */}
+            <DialogContent className="grid-rows-[auto_minmax(0,1fr)] max-h-[calc(100dvh-2rem)] sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>{title}</DialogTitle>
                     <DialogDescription>{description}</DialogDescription>
@@ -147,7 +163,6 @@ function ReviewForm({
     onOpenChange,
     timeZone,
     extraFields,
-    children,
 }: VerificationReviewDialogProps) {
     const checks = useMemo(() => buildChecks(party, record), [party, record]);
     const estimate = useMemo(() => estimateVerdict(checks, record), [checks, record]);
@@ -224,13 +239,41 @@ function ReviewForm({
     const decidedAt = formatInstantInZone(current.decidedAt, timeZone);
 
     return (
-        <form onSubmit={submit} noValidate className="space-y-4">
-            <div className="max-h-[55vh] space-y-4 overflow-y-auto pr-1">
+        <form onSubmit={submit} noValidate className="flex min-h-0 flex-col gap-4">
+            {/*
+              Only the evidence scrolls. The verdict options and the footer stay
+              put, so the operator can always see what they are about to record —
+              a dialog that scrolls as a whole hides the buttons exactly when the
+              checklist is long, which is when the decision is hardest.
+
+              `min-h-0` is required on a flex child that scrolls; without it the
+              default `min-height: auto` refuses to shrink and the overflow moves
+              back out to the dialog.
+            */}
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
                 <CurrentVerdictLine current={current} decidedAt={decidedAt} />
 
-                <VerificationChecklist checks={checks} estimate={estimate} />
+                {/*
+                  ⚠ **The evidence is NOT repeated here, deliberately.** The
+                  checklist, the documents and the record context all sit on the
+                  Verification tab immediately behind this dialog — the operator
+                  has just read them, and reprinting them made the dialog taller
+                  than the viewport while answering a question nobody had.
 
-                {children}
+                  What stays is the **estimate**, because it is the one thing that
+                  is not on the tab in this form: it is what preselected the
+                  verdict below and drafted the text, so hiding it would leave
+                  both looking like they came from nowhere.
+
+                  ⚠ It still narrows nothing — every option below stays
+                  selectable whatever this says.
+                */}
+                <div className="bg-muted/40 flex flex-wrap items-center gap-2 rounded-lg border p-3">
+                    <VerdictEstimateBadge estimate={estimate} />
+                    <span className="text-muted-foreground text-xs">
+                        From the checklist on the Verification tab.
+                    </span>
+                </div>
             </div>
 
             <div className="space-y-2">

@@ -12,6 +12,8 @@ import {
     listPayouts,
     listRefunds,
     markPayoutPaid,
+    sendPayout,
+    triagePayout,
     rejectPayout,
     revealPayoutDestination,
 } from '@/services/money.service';
@@ -478,5 +480,139 @@ describe('listRefunds', () => {
         expect(calls[0].url).toContain('/money/refunds');
         expect(query.get('status')).toBe('completed');
         expect(query.get('gateway')).toBe('NOTCHPAY');
+    });
+});
+
+describe('sendPayout', () => {
+    it('sends no body at all', async () => {
+        /*
+         * ⚠ `SendPayoutSchema` is `z.object({}).strict()`, so ANY key is a 400 —
+         * the same guard `MarkPaidSchema` carries and for the same reason: a
+         * client that could name an `amount` could name 1,999,999 and slip under
+         * the four-eyes threshold. The amount is read off the row, always.
+         */
+        const calls = stubFetch(() => successResponse(payoutFixture({ status: 'processing' })));
+
+        await sendPayout('66a2aabbccddeeff00112233');
+
+        expect(calls[0].method).toBe('POST');
+        expect(calls[0].url).toContain('/money/payouts/66a2aabbccddeeff00112233/send');
+        expect(JSON.parse(calls[0].body ?? '{}')).toEqual({});
+    });
+
+    it('carries no idempotency key of its own', async () => {
+        /*
+         * ⛔ Retry is the same call, and the backend reuses the STORED provider
+         * reference so a transfer that succeeded and merely failed to report is
+         * deduplicated by the provider (ADR-024 D-8). A client-side key minted
+         * per attempt would defeat exactly that.
+         */
+        const calls = stubFetch(() => successResponse(payoutFixture({ status: 'processing' })));
+
+        await sendPayout('66a2aabbccddeeff00112233');
+
+        expect(calls[0].headers.has('Idempotency-Key')).toBe(false);
+        expect(calls[0].headers.has('X-Idempotency-Key')).toBe(false);
+        expect(JSON.parse(calls[0].body ?? '{}')).not.toHaveProperty('idempotencyKey');
+    });
+
+    it('reports a 200 as performed, with the status the gateway actually reached', async () => {
+        // ⛔ A 200 does not mean the money arrived. The usual answer is processing.
+        stubFetch(() => successResponse(payoutFixture({ status: 'processing' })));
+
+        const result = await sendPayout('66a2aabbccddeeff00112233');
+
+        expect(result.queued).toBe(false);
+        if (result.queued === false) expect(result.data.status).toBe('processing');
+    });
+
+    it('reports a failed transfer as a SUCCESSFUL call, not a thrown error', async () => {
+        /*
+         * The gateway refusing a transfer is a `200` carrying `status: 'failed'`,
+         * not an HTTP error — and the funds are still held. A caller that only
+         * handled the throw would report this as paid.
+         */
+        stubFetch(() =>
+            successResponse(
+                payoutFixture({
+                    status: 'failed',
+                    transferFailureReason: 'Beneficiary account is barred',
+                    transferGatewayRef: 'trf_123456789',
+                }),
+            ),
+        );
+
+        const result = await sendPayout('66a2aabbccddeeff00112233');
+
+        expect(result.queued).toBe(false);
+        if (result.queued === false) {
+            expect(result.data.status).toBe('failed');
+            expect(result.data.transferFailureReason).toBe('Beneficiary account is barred');
+        }
+    });
+
+    it('reports a 202 as queued, exactly like mark-paid', async () => {
+        /*
+         * ⚠ `/send` rides `money.payouts.mark_paid`, so the ≥ 2,000,000 XAF rule
+         * covers it unchanged. A client that treated 202 as success would show a
+         * payout as sent while it sits in a queue — **nothing was sent**.
+         */
+        stubFetch(() =>
+            successResponse(
+                approvalFixture({
+                    action: 'money.payouts.mark_paid',
+                    payload: { mode: 'gateway' },
+                }),
+                {
+                    status: 202,
+                    message:
+                        'This payout is above the four-eyes threshold — submitted for a second administrator’s approval',
+                },
+            ),
+        );
+
+        const result = await sendPayout('66a2aabbccddeeff00112233');
+
+        expect(result.queued).toBe(true);
+        if (result.queued) {
+            // The mode is what the approver is actually signing for, and the
+            // backend will not let an approval for one be spent on the other.
+            expect(result.approval.payload.mode).toBe('gateway');
+        }
+    });
+});
+
+describe('triagePayout', () => {
+    it('sends the note when there is one', async () => {
+        const calls = stubFetch(() => successResponse(payoutFixture()));
+
+        await triagePayout('66a2aabbccddeeff00112233', 'Checked against KYC docs');
+
+        expect(calls[0].method).toBe('POST');
+        expect(calls[0].url).toContain('/money/payouts/66a2aabbccddeeff00112233/triage');
+        expect(JSON.parse(calls[0].body ?? '{}')).toEqual({ note: 'Checked against KYC docs' });
+    });
+
+    it('omits an empty note rather than sending an empty string', async () => {
+        // `note` is `.min(1)` when present, so an empty string is a 400 where an
+        // absent key is the documented "no note".
+        const calls = stubFetch(() => successResponse(payoutFixture()));
+
+        await triagePayout('66a2aabbccddeeff00112233', '   ');
+
+        expect(JSON.parse(calls[0].body ?? '{}')).toEqual({});
+    });
+
+    it('never names a verdict', async () => {
+        /*
+         * ⛔ `TriagePayoutSchema` accepts `note` and nothing else, `.strict()`,
+         * and the validator says why: a body that could name a verdict could name
+         * "approve", and this route must never be a second way to release money.
+         */
+        const calls = stubFetch(() => successResponse(payoutFixture()));
+
+        await triagePayout('66a2aabbccddeeff00112233', 'fine');
+
+        expect(JSON.parse(calls[0].body ?? '{}')).not.toHaveProperty('verdict');
     });
 });

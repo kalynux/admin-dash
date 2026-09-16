@@ -55,24 +55,40 @@ describe('what the reviewer is shown before they decide', () => {
      * The complaint this dialog answers, asserted directly: the operator used to
      * pick a verdict from the toolbar with nothing on the screen to pick it from.
      */
-    it('renders the checklist and the estimate before any verdict is chosen', async () => {
+    /**
+     * ⚠ **The estimate is shown and the evidence is NOT repeated.** The checklist,
+     * the documents and the record context sit on the Verification tab behind
+     * this dialog; reprinting them made it taller than the viewport to answer a
+     * question the operator had just answered.
+     *
+     * The estimate stays because it is the one thing not on the tab in this
+     * form — it is what preselects the verdict and drafts the text, so without it
+     * both would look like they came from nowhere.
+     */
+    it('shows the estimate without repeating the evidence', async () => {
         open(vendorVerificationFixture());
 
-        expect(await screen.findByText('What the applicant was asked for')).toBeInTheDocument();
-        expect(screen.getByText(/evidence complete/i)).toBeInTheDocument();
-        expect(screen.getByText('Selfie holding the ID card')).toBeInTheDocument();
+        expect(await screen.findByText(/evidence complete/i)).toBeInTheDocument();
+
+        // The tab's content, which must not be duplicated here.
+        expect(screen.queryByText('What the applicant was asked for')).not.toBeInTheDocument();
+        expect(screen.queryByText('Selfie holding the ID card')).not.toBeInTheDocument();
     });
 
     /**
      * ⚠ `null` is "this screen could not read the record" — not loaded, refused,
      * or the request failed. It must read as a reason not to estimate, never as a
      * reason to refuse: the drafted rejection goes to the applicant.
+     *
+     * ⚠ **The per-row "Not readable" wording moved with the checklist** and is
+     * asserted in `VerificationChecklist.test.tsx`. What this dialog still owes
+     * is the refusal to GUESS — the estimate must decline rather than read an
+     * unreadable record as an empty one.
      */
-    it('says the record was not readable rather than not supplied, when the read failed', async () => {
+    it('declines to estimate when the record could not be read', async () => {
         open(null);
 
         expect(await screen.findByText(/cannot be estimated/i)).toBeInTheDocument();
-        expect(screen.getAllByText('Not readable').length).toBeGreaterThan(0);
         expect(screen.queryByText('Not supplied')).not.toBeInTheDocument();
     });
 

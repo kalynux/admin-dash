@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { useAsyncData } from '@/hooks/use-async-data';
-import { formatCount, formatInstantInZone, formatMoney } from '@/lib/format';
+import { bytesToMegabytes, formatCount, formatInstantInZone, formatMoney } from '@/lib/format';
 import { getOwnerAccount } from '@/services/accounts.service';
 import type { AccountOwnerType, OwnerAccount } from '@/types/accounts.types';
 
@@ -264,7 +264,7 @@ function PlanCard({
                             {entitlements.maxStorageBytes === null ? (
                                 <NotSet>Not limited by this plan</NotSet>
                             ) : (
-                                `${formatCount(Math.round(entitlements.maxStorageBytes / 1_000_000))} MB`
+                                `${formatCount(bytesToMegabytes(entitlements.maxStorageBytes))} MB`
                             )}
                         </Definition>
 

@@ -1,10 +1,19 @@
 import { useCallback, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { CheckCircle2, MessageCircleWarning, Phone, ShieldAlert } from 'lucide-react';
 
 import { AuthFormError } from '@/components/auth/AuthFormError';
+import {
+    CODE_PHONE_VERIFICATION_MISMATCH,
+    PLATFORM_CODE_DELIVERY_FAILED,
+    PLATFORM_CODE_RESEND_TOO_SOON,
+    PLATFORM_CODE_TOO_MANY_ATTEMPTS,
+    attemptsLeftOf,
+    confirmSchema,
+    setPhoneSchema,
+} from '@/components/auth/phone-contract';
+import type { ConfirmValues, SetPhoneValues } from '@/components/auth/phone-contract';
 import { CopyableValue } from '@/components/common/CopyableValue';
 import { FormField } from '@/components/common/FormField';
 import { InlineLoader } from '@/components/common/Loading';
@@ -20,6 +29,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { formatRelative } from '@/lib/format';
 import { notify } from '@/lib/notify';
 import * as authService from '@/services/auth.service';
 import { ApiError } from '@/types/api.types';
@@ -40,19 +50,35 @@ import type { AdminProfile, PhoneCodeSent } from '@/types/auth.types';
  * "secure your account" will believe they have hardened a login that has not
  * changed. Two-factor is the card above this one, and it is the stronger proof.
  *
- * ── ⚠ The send fails for most administrators today, and that is not a bug ─────
+ * ── ✅ The send works, since 2026-09-15 — build the ordinary flow ─────────────
+ * This block said the opposite for a day, and the correction is worth keeping.
  * WhatsApp permits a free-form message only inside Meta's 24-hour service window,
- * which opens when the *person* messages the platform. Outside it an approved
- * AUTHENTICATION template is required and this deployment has none approved
- * (measured 2026-09-14). An administrator who has never messaged the platform is
- * therefore always outside the window, and the send answers
- * `PHONE_VERIFICATION_DELIVERY_FAILED`.
+ * which opens when the *person* messages the platform; outside it an approved
+ * AUTHENTICATION template is required, and this deployment had **none approved**
+ * (measured 2026-09-14). An administrator who had never messaged the platform was
+ * therefore always outside the window, and every send answered
+ * `PHONE_VERIFICATION_DELIVERY_FAILED`. Two faults closed within a day of each
+ * other: the WABA's owning business reached `verified`, so Meta approved
+ * `wi_mall_phone_verification` in `en` and `fr`, and the 24-hour window is now
+ * recorded on every inbound message rather than never. **No code changed on
+ * either side** — the send path had always tried the template first.
  *
- * So the button ships enabled and the explanation is attached to the failure
- * rather than standing in front of every operator: it is a real remedy the person
- * can act on — message the platform, then retry — and it costs nothing to the
- * ones for whom the send simply works. It also self-heals the day a template is
- * approved, with no change here.
+ * ⚠ **So a delivery failure is the edge case it reads as, and the notice below
+ * must not say otherwise.** Telling somebody their own silence caused it sends
+ * them chasing a remedy they do not need. The in-window trick survives as a
+ * *fallback* in {@link DeliveryFailedNotice}, not as the primary path.
+ *
+ * ── ⚠ Why this card never renders during onboarding ──────────────────────────
+ * None of the three routes is on `ONBOARDING_ROUTE_ALLOWLIST`, so a `pending`
+ * administrator gets `403 ADMIN_ACTIVATION_REQUIRED` on all three — **and that is
+ * correct rather than an oversight: a verified phone is not part of activation.**
+ * Readiness wants *a phone number on the employee record* (gap code
+ * `phone_missing`) and never consults `phone_verified`.
+ *
+ * Nothing here enforces that, and nothing should: `AccountSecurity` sits inside
+ * `RequireActivated`, which sends a pending session to `/onboarding` before this
+ * component can mount. The structure is the guard — an `if (admin.status ===
+ * 'pending')` here would be a second rule that can disagree with the first.
  */
 export function PhoneNumberCard({
     admin,
@@ -135,24 +161,6 @@ export function PhoneNumberCard({
 }
 
 // ─── Saving the number ────────────────────────────────────────────────────────
-
-/**
- * Length only, 6–20, matching `SetAdminPhoneSchema`.
- *
- * **No format rule**, the same division `EditIdentifiersDialog` draws and for the
- * same reason: jovi-mall owns E.164 and judges it when the code is sent. A second
- * definition here would drift silently in the worst direction — a number accepted
- * at this door that no send can ever reach.
- */
-const setPhoneSchema = z.object({
-    phone: z
-        .string()
-        .trim()
-        .min(6, 'Use at least 6 characters')
-        .max(20, 'Use at most 20 characters'),
-});
-
-type SetPhoneValues = z.infer<typeof setPhoneSchema>;
 
 function SetPhoneDialog({
     open,
@@ -258,19 +266,6 @@ function SetPhoneDialog({
 
 // ─── Proving it ───────────────────────────────────────────────────────────────
 
-const confirmSchema = z.object({
-    code: z
-        .string()
-        .trim()
-        .min(4, 'Enter the code from the message')
-        .max(12, 'Use at most 12 characters'),
-});
-
-type ConfirmValues = z.infer<typeof confirmSchema>;
-
-/** The delegated refusal that is the ordinary case on this deployment. */
-export const PLATFORM_CODE_DELIVERY_FAILED = 'PHONE_VERIFICATION_DELIVERY_FAILED';
-
 /**
  * Proving the number.
  *
@@ -333,6 +328,23 @@ function VerifyPhoneDialog({
         } catch (caught) {
             setError(caught);
             form.reset({ code: '' });
+
+            /*
+              ⚠ Two refusals leave **no code in flight**, so the form they were
+              typed into cannot succeed and must not stay in front of them:
+              `ADMIN_PHONE_VERIFICATION_MISMATCH` (the number changed under the
+              code — wi-admin writes nothing) and `TOO_MANY_ATTEMPTS` (jovi-mall
+              destroyed it). Dropping `sent` puts the **Send code** button back,
+              which is the remedy in both cases. Every other refusal leaves the
+              code alive and the form is still the right thing to show.
+            */
+            if (
+                caught instanceof ApiError &&
+                (caught.code === CODE_PHONE_VERIFICATION_MISMATCH ||
+                    caught.platformCode === PLATFORM_CODE_TOO_MANY_ATTEMPTS)
+            ) {
+                setSent(null);
+            }
         }
     });
 
@@ -348,20 +360,30 @@ function VerifyPhoneDialog({
         error instanceof ApiError && error.platformCode === PLATFORM_CODE_DELIVERY_FAILED;
 
     /*
-      ⚠ A 429 here is ONE of two refusals and we cannot tell which. wi-admin's
-      `rate_limit` branch allowlists `retryAfterSeconds`/`limit`/`windowSeconds`
-      and drops `platformCode`, so `RESEND_TOO_SOON` (wait, the code still lives)
-      and `TOO_MANY_ATTEMPTS` (the code is destroyed, send another) arrive
-      identical. `rate_limit` is not message-bearing either, so jovi-mall's own
-      sentence is dropped and the generic resolver lands on "The platform refused
-      this" — the floor, with no remedy in it.
+      ✅ **The day arrived.** This branch used to state BOTH remedies at once,
+      because a 429 was indistinguishable: wi-admin's `rate_limit` allowlist was
+      `retryAfterSeconds`/`limit`/`windowSeconds` and dropped `platformCode`, so
+      `RESEND_TOO_SOON` (wait — the code still lives) and `TOO_MANY_ATTEMPTS`
+      (the code is destroyed, send another) arrived identical, with `rate_limit`
+      not message-bearing either. BR-025 § 2 put `platformcode` on that allowlist
+      on 2026-09-15, so the two are finally separable and each gets its own
+      sentence.
 
-      So the notice states BOTH remedies rather than guessing one. Guessing wrong
-      is not symmetric: telling somebody to wait when their code is already
-      destroyed leaves them staring at a dead form. BR-025 asks for the code, and
-      this branch collapses to a single sentence the day it arrives.
+      ⚠ **The unnamed arm stays, and it is not dead code.** wi-admin applies its
+      own per-identity ceiling on these routes, which is a plain
+      `RATE_LIMIT_EXCEEDED` and carries no platform code at all — a different
+      fact from either of jovi-mall's, with "wait" as its only honest remedy. A
+      *delegated* 429 with no code should no longer happen; if one does, the
+      both-remedies floor is still the only truthful thing to say, so it is kept
+      for that case rather than assumed away.
     */
+    const platformCode = error instanceof ApiError ? error.platformCode : undefined;
+    const cooldown = platformCode === PLATFORM_CODE_RESEND_TOO_SOON;
+    const codeDestroyed = platformCode === PLATFORM_CODE_TOO_MANY_ATTEMPTS;
     const rateLimited = error instanceof ApiError && error.isRateLimit;
+    /** wi-admin's own ceiling — ours, not the platform's, so "wait" is the whole story. */
+    const ourCeiling = rateLimited && !(error as ApiError).isPlatformRejection;
+    const attemptsLeft = attemptsLeftOf(error);
 
     return (
         <Dialog
@@ -374,9 +396,21 @@ function VerifyPhoneDialog({
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>Verify your phone number</DialogTitle>
+                    {/*
+                      ⚠ The expiry is read from `expiresAt`, never from the
+                      WhatsApp message. Meta writes and localises that body
+                      itself, and its *"Expires in 10 minutes"* footer is frozen
+                      inside the approved template — lower `PHONE_VERIFY_TTL_SECONDS`
+                      and the message keeps saying ten. `auth.md` says outright
+                      not to build a countdown from the template text.
+                    */}
                     <DialogDescription>
                         {sent
-                            ? `We sent a six-digit code to ${sent.phoneMasked} on WhatsApp. It is good for about ten minutes.`
+                            ? `We sent a six-digit code to ${sent.phoneMasked} on WhatsApp${
+                                  formatRelative(sent.expiresAt)
+                                      ? `. It expires ${formatRelative(sent.expiresAt)}.`
+                                      : '.'
+                              }`
                             : 'We will send a six-digit code to the number on your account, over WhatsApp.'}
                     </DialogDescription>
                 </DialogHeader>
@@ -384,10 +418,34 @@ function VerifyPhoneDialog({
                 {deliveryFailed ? <DeliveryFailedNotice /> : null}
                 {!deliveryFailed && rateLimited ? (
                     <RateLimitedNotice
+                        kind={
+                            cooldown
+                                ? 'cooldown'
+                                : codeDestroyed
+                                  ? 'spent'
+                                  : ourCeiling
+                                    ? 'ours'
+                                    : 'unknown'
+                        }
                         retryAfterSeconds={(error as ApiError).retryAfterSeconds}
                     />
                 ) : null}
-                {!deliveryFailed && !rateLimited ? <AuthFormError error={error} /> : null}
+                {!deliveryFailed && !rateLimited ? (
+                    <AuthFormError error={error} />
+                ) : null}
+                {/*
+                  ⚠ Beside the catalogued sentence, never instead of it. "That
+                  code is not right" is the remedy; the counter is the thing the
+                  operator cannot work out for themselves, and it only exists on
+                  this one verdict.
+                */}
+                {attemptsLeft !== undefined ? (
+                    <p className="text-muted-foreground -mt-2 text-xs">
+                        {attemptsLeft === 0
+                            ? 'That was the last try on this code — send a new one.'
+                            : `${attemptsLeft} ${attemptsLeft === 1 ? 'try' : 'tries'} left on this code.`}
+                    </p>
+                ) : null}
 
                 {sent ? (
                     <form onSubmit={submit} className="space-y-4">
@@ -448,11 +506,17 @@ function VerifyPhoneDialog({
 /**
  * What to do when WhatsApp refused the send.
  *
- * Written as a remedy rather than a fault, because it usually is one: the window
- * is opened by the person, not by us. It deliberately does not name the missing
- * template — that is our deployment's problem, not something an administrator can
- * act on — but it does say the send may be impossible today, so nobody retries in
- * a loop believing they mistyped something.
+ * ⚠ **Retuned on 2026-09-15, and the direction matters.** It used to lead with
+ * *"WhatsApp only lets us message you freely for 24 hours after you message
+ * us"*, because at the time that was the cause of every failure on this
+ * deployment — there was no approved template, so nobody outside the window
+ * could be reached. There is one now, so a failure here is genuinely unusual,
+ * and leading with the window would tell an operator their own silence caused
+ * something it did not.
+ *
+ * So: a retry first, the in-window trick second and explicitly as a fallback,
+ * and the account reassurance kept — a person who cannot prove a number should
+ * not be left wondering whether they are locked out of anything.
  */
 function DeliveryFailedNotice() {
     return (
@@ -464,14 +528,16 @@ function DeliveryFailedNotice() {
             <div className="min-w-0 space-y-1.5">
                 <p className="font-medium">WhatsApp would not deliver the code</p>
                 <p className="text-destructive/85 text-xs">
-                    WhatsApp only lets us message you freely for 24 hours after you message us. Send
-                    anything to the platform&rsquo;s WhatsApp number from this phone, then come back
-                    and try again.
+                    This is unusual — nothing is wrong with your number. Try again in a moment.
                 </p>
                 <p className="text-destructive/85 text-xs">
-                    If that does not help, the code cannot be sent on this deployment yet. Nothing
-                    is wrong with your number, and your account is unaffected — a verified number is
-                    a contact detail, not a sign-in requirement.
+                    If it keeps failing: send any WhatsApp message to the platform&rsquo;s business
+                    number from this phone, then press Verify again within the day. That opens a
+                    direct channel and the code arrives as an ordinary message.
+                </p>
+                <p className="text-destructive/85 text-xs">
+                    Your account is unaffected either way — a verified number is a contact detail,
+                    not a sign-in requirement.
                 </p>
             </div>
         </div>
@@ -479,13 +545,52 @@ function DeliveryFailedNotice() {
 }
 
 /**
- * The cooldown and the spent attempt limit, which arrive indistinguishable.
+ * The four ways a 429 can land here, which are **not** one fact.
  *
- * Both remedies are given because the client cannot choose between them — see
- * the branch that renders this. `retryAfterSeconds` is the one field that does
- * survive, so the wait is named whenever the service sent it.
+ * ⚠ **`cooldown` and `spent` are opposite remedies**, and telling somebody the
+ * wrong one is not symmetric: *wait* in front of a destroyed code leaves them at
+ * a form that cannot succeed, however long they wait. They arrived
+ * indistinguishable until BR-025 § 2 put `platformCode` on the `rate_limit`
+ * allowlist (2026-09-15); before that this notice had to state both.
+ *
+ * `ours` is wi-admin's own per-identity ceiling — not a verdict on the code at
+ * all, so it says nothing about one. `unknown` is the floor kept for a delegated
+ * 429 that somehow carries no code: both remedies, because that is all that can
+ * honestly be said.
  */
-function RateLimitedNotice({ retryAfterSeconds }: { retryAfterSeconds?: number }) {
+function RateLimitedNotice({
+    kind,
+    retryAfterSeconds,
+}: {
+    kind: 'cooldown' | 'spent' | 'ours' | 'unknown';
+    retryAfterSeconds?: number;
+}) {
+    const wait = retryAfterSeconds === undefined ? '' : ` — try again in ${retryAfterSeconds}s`;
+
+    const title =
+        kind === 'cooldown'
+            ? `A code was just sent${wait}`
+            : kind === 'spent'
+              ? 'That code has been destroyed'
+              : `Too many requests${wait}`;
+
+    const body =
+        kind === 'cooldown' ? (
+            <>
+                The code already in your message still works — type it in rather than asking for
+                another.
+            </>
+        ) : kind === 'spent' ? (
+            <>Too many wrong codes were entered. Send a new one and use that.</>
+        ) : kind === 'ours' ? (
+            <>You have made a lot of requests in a short time. Wait a moment and try again.</>
+        ) : (
+            <>
+                If you just asked for a code, wait a moment and ask again. If you typed several
+                wrong ones, that code has been destroyed — send a new one.
+            </>
+        );
+
     return (
         <div
             role="alert"
@@ -493,15 +598,8 @@ function RateLimitedNotice({ retryAfterSeconds }: { retryAfterSeconds?: number }
         >
             <MessageCircleWarning className="mt-0.5 size-4 shrink-0" aria-hidden />
             <div className="min-w-0 space-y-1.5">
-                <p className="font-medium">
-                    {retryAfterSeconds === undefined
-                        ? 'Too many attempts'
-                        : `Too many attempts — try again in ${retryAfterSeconds}s`}
-                </p>
-                <p className="text-muted-foreground text-xs">
-                    If you just asked for a code, wait a moment and ask again. If you typed several
-                    wrong ones, that code has been destroyed — send a new one.
-                </p>
+                <p className="font-medium">{title}</p>
+                <p className="text-muted-foreground text-xs">{body}</p>
             </div>
         </div>
     );

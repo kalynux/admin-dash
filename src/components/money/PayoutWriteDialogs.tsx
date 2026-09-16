@@ -24,7 +24,7 @@ import { pickFieldErrors } from '@/lib/field-errors';
 import { notify } from '@/lib/notify';
 import { markPayoutPaid, rejectPayout } from '@/services/money.service';
 import { ApiError } from '@/types/api.types';
-import type { Approval } from '@/types/approvals.types';
+import { payoutApprovalMode, type Approval } from '@/types/approvals.types';
 import {
     isPayoutNotPending,
     PAYOUT_DUAL_CONTROL_THRESHOLD,
@@ -32,8 +32,11 @@ import {
     type Payout,
 } from '@/types/money.types';
 
-/** The banner both dialogs show when the payout moved underneath the operator. */
-function AlreadyResolvedNotice({ status, onReload }: { status: string | null; onReload: () => void }) {
+/**
+ * The banner every payout write shows when the record moved underneath the
+ * operator. Exported because the transfer dialogs next door hit the same race.
+ */
+export function AlreadyResolvedNotice({ status, onReload }: { status: string | null; onReload: () => void }) {
     return (
         <div className="border-warning/40 bg-warning/10 space-y-2 rounded-md border p-3 text-sm">
             <p className="font-medium">This payout has already been resolved.</p>
@@ -248,7 +251,7 @@ function MarkPaidForm({
 }
 
 /**
- * What a `202` left behind.
+ * What a `202` left behind — from **either** `/mark-paid` or `/send`.
  *
  * ⚠ **The line about the Activity tab is load-bearing, not decoration.**
  * `queuedIntent` re-targets the audit row at the `approval_request` and the
@@ -256,8 +259,16 @@ function MarkPaidForm({
  * consult — so this feed shows **nothing new** after a queued submission. Without
  * this sentence an operator submits, sees a toast, opens Activity, finds nothing,
  * and reasonably concludes the request was lost.
+ *
+ * ⚠ **`mode` is named out loud, because the two are different decisions.** The
+ * second administrator is agreeing either to *instruct a live transfer* or to
+ * *record that a human already paid*, and the backend will not let an approval
+ * for one be spent on the other — `mode` is hashed into the idempotency key
+ * (ADR-024 D-8's sibling reasoning in `markPaidPayload`). An approver who cannot
+ * see which one they are signing has to guess at the only thing that
+ * distinguishes them.
  */
-export function MarkPaidQueuedNotice({
+export function PayoutQueuedNotice({
     approval,
     message,
     timeZone,
@@ -268,6 +279,7 @@ export function MarkPaidQueuedNotice({
 }) {
     const expires = formatInstantInZone(approval.expiresAt, timeZone);
     const relative = formatRelative(approval.expiresAt);
+    const mode = payoutApprovalMode(approval);
 
     return (
         <div className="border-warning/40 bg-warning/10 space-y-3 rounded-lg border p-4">
@@ -279,6 +291,23 @@ export function MarkPaidQueuedNotice({
                 */}
                 <p className="text-sm">{approval.description}</p>
             </div>
+
+            {/*
+              Above the amount and the expiry, because it changes what the
+              approver is being asked, not merely the detail of it.
+            */}
+            {mode ? (
+                <p className="text-sm">
+                    <strong className="font-medium">
+                        {mode === 'gateway'
+                            ? 'They will be approving a live transfer.'
+                            : 'They will be approving a record of a payment already made.'}
+                    </strong>{' '}
+                    {mode === 'gateway'
+                        ? 'Approving instructs the platform to send the money through the payment gateway.'
+                        : 'Approving records that a human moved this money out of band — it sends nothing.'}
+                </p>
+            ) : null}
 
             <p className="text-sm">
                 <strong className="font-medium">Nothing has been paid.</strong>{' '}

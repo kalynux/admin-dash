@@ -114,3 +114,27 @@ export const APPROVAL_STALE_CODES: readonly string[] = [
     CODE_APPROVAL_ALREADY_RESOLVED,
     CODE_APPROVAL_EXPIRED,
 ];
+
+/**
+ * Which act a queued **payout** approval is a signature on — ADR-024.
+ *
+ * ⚠ **The approver is agreeing to one of two different things.** `gateway`
+ * instructs the platform to move money now; `manual` records that a human
+ * already moved it. The backend treats them as distinct — `mode` is hashed into
+ * the approval's idempotency key, so a signature given for one cannot be spent on
+ * the other — and an approver who cannot see which one they are signing has to
+ * read the raw payload to find out.
+ *
+ * ⚠ **A narrowing, not a cast.** `payload` is `Record<string, unknown>`: the
+ * DTO forwards the stored payload verbatim, so nothing guarantees the key is
+ * there. An approval queued by an older build carries no `mode`, and every
+ * caller drops its sentence rather than asserting one of the two.
+ *
+ * Lives here rather than in either screen that renders it, because both do — the
+ * `202` notice on the payout screens and the approval card itself — and two
+ * readings of one field are two things to keep in step.
+ */
+export function payoutApprovalMode(approval: Approval): 'gateway' | 'manual' | null {
+    const mode = approval.payload?.mode;
+    return mode === 'gateway' || mode === 'manual' ? mode : null;
+}

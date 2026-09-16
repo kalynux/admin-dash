@@ -108,13 +108,15 @@ const COPY: Record<
  * `PLATFORM_OPERATION_REJECTED` at 409 or 502, so branching on `error.code`
  * would collapse them into one unhelpful message.
  *
- * ⚠ **The fifth — the throttle — arrives with no code and no `scope`, and is
- * matched on its status instead.** `USER_CREDENTIAL_LINK_THROTTLED` is
- * forwarded at 429, whose category `rate_limit` carries a closed `details`
- * allowlist of `retryAfterSeconds` · `limit` · `windowSeconds`. Both
- * `platformCode` and `scope` are dropped at the boundary
- * (`users.md:481-492`), so the two remedies — *wait*, versus *ask a colleague*
- * — survive **only inside jovi-mall's own message**. See the note at the branch.
+ * ⚠ **The fifth — the throttle — arrives with no `scope`, and is matched on its
+ * status instead.** `USER_CREDENTIAL_LINK_THROTTLED` is forwarded at 429, whose
+ * category `rate_limit` carries a closed `details` allowlist: `retryAfterSeconds`
+ * · `limit` · `windowSeconds`, and — **since 2026-09-15 (BR-025 § 2)** —
+ * `platformCode`. **`scope` is not on it and was never the thing that changed**,
+ * so the two remedies — *wait*, versus *ask a colleague* — still survive **only
+ * inside jovi-mall's own message**. The code now arriving tells us which refusal
+ * it is, which the status already did; it does not tell us whose allowance ran
+ * out. Nothing here changes. See the note at the branch.
  */
 export function SendCredentialLinkDialog({
     user,
@@ -169,11 +171,19 @@ export function SendCredentialLinkDialog({
                   `{ retryAfterSeconds, scope }`, where `scope` is `party`
                   ("this person has been sent too many") or `administrator`
                   ("you have sent too many") — two different remedies, *wait*
-                  versus *ask a colleague*. **Neither `scope` nor
-                  `platformCode` survives the boundary**: `details` is filtered
-                  by category and `rate_limit`'s allowlist is closed at
-                  `retryAfterSeconds` · `limit` · `windowSeconds`
-                  (`users.md:481-492`).
+                  versus *ask a colleague*. **`scope` does not survive the
+                  boundary**: `details` is filtered by category and
+                  `rate_limit`'s allowlist is closed at `retryAfterSeconds` ·
+                  `limit` · `windowSeconds` · `platformCode`.
+
+                  ⚠ **`platformCode` joined that list on 2026-09-15 and it does
+                  not help here.** It names the refusal — which the status
+                  already did — and `scope`, the half that decides the remedy,
+                  is still dropped. Matching on the status therefore stays
+                  correct; swapping it for a `platformCode` branch would be
+                  churn that reads like a fix. (`users.md` still says both keys
+                  are dropped, which is now half stale: source is
+                  `detail-policy.ts:68`.)
 
                   This read `details.scope` and keyed the remedy off it until
                   2026-09-09. The value was never there, so every throttle was

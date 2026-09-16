@@ -21,6 +21,7 @@ import { formatInstantInZone, formatRelative } from '@/lib/format';
 import { getApproval } from '@/services/approvals.service';
 import { useAdmin, usePermissions } from '@/store';
 import { ApiError, CODE_CLIENT_INVALID_ID } from '@/types/api.types';
+import { payoutApprovalMode, type Approval } from '@/types/approvals.types';
 import { CopyableId } from '@/components/common/CopyableId';
 import { CopyableValue } from '@/components/common/CopyableValue';
 
@@ -291,6 +292,7 @@ function ApprovalDetailScreen({ approvalId }: { approvalId: string }) {
                     <CardTitle>What will be performed</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
+                    <PayoutModeNotice approval={approval} />
                     <p className="text-muted-foreground text-sm">
                         The validated payload the action runs with. It was fixed when the request was
                         made — approving does not re-read it from the screen that submitted it.
@@ -323,6 +325,40 @@ function ApprovalDetailScreen({ approvalId }: { approvalId: string }) {
                 onStale={request.reload}
             />
         </PageContainer>
+    );
+}
+
+/**
+ * Which act a queued payout approval is a signature on — ADR-024.
+ *
+ * ⚠ **The approver is agreeing to one of two different things**, and the payload
+ * blob below is the only other place it appears. `gateway` instructs the platform
+ * to *move money now*; `manual` records that a human *already moved it*. The
+ * backend treats them as distinct — `mode` is hashed into the approval key, so a
+ * signature given for one cannot be spent on the other — and an approver who
+ * cannot see which one they are signing has to read JSON to find out.
+ *
+ * Renders nothing for every other queued action, and nothing when `mode` is
+ * absent: it is read defensively off an untyped payload, and an approval queued
+ * by an older build carries none.
+ */
+function PayoutModeNotice({ approval }: { approval: Approval }) {
+    const mode = payoutApprovalMode(approval);
+    if (!mode) return null;
+
+    return (
+        <div className="bg-muted/50 space-y-1 rounded-md border p-3 text-sm">
+            <p className="font-medium">
+                {mode === 'gateway'
+                    ? 'This approves a live transfer.'
+                    : 'This approves a record of a payment already made.'}
+            </p>
+            <p className="text-muted-foreground">
+                {mode === 'gateway'
+                    ? 'Approving instructs the platform to send the money through the payment gateway. It is not settled until the gateway confirms.'
+                    : 'Approving records that an administrator moved this money out of band. It sends nothing.'}
+            </p>
+        </div>
     );
 }
 

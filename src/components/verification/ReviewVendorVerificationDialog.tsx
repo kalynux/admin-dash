@@ -1,5 +1,3 @@
-import { CopyableValue } from '@/components/common/CopyableValue';
-import { Definition, DefinitionList, NotSet } from '@/components/common/DefinitionList';
 import { notify } from '@/lib/notify';
 import { PLATFORM_CODE_KYC_STATUS_CONFLICT, approveVendorKyc, rejectVendorKyc } from '@/services/vendors.service';
 import { ApiError } from '@/types/api.types';
@@ -106,9 +104,7 @@ export function ReviewVendorVerificationDialog({
             options={options}
             onSubmit={submit}
             timeZone={timeZone}
-        >
-            <VendorRecordContext vendor={vendor} />
-        </VerificationReviewDialog>
+        />
     );
 }
 
@@ -149,75 +145,3 @@ const VERDICTS: VerdictOption[] = [
  * (`business_addresses[].geo`); wi-admin does not forward it. That is the first
  * ask in BR-024.
  */
-function VendorRecordContext({ vendor }: { vendor: VendorDetail }) {
-    return (
-        <section className="space-y-2" aria-label="What the record carries">
-            <h3 className="text-sm font-medium">What the record already carries</h3>
-
-            <DefinitionList className="rounded-lg border p-3 text-xs sm:grid-cols-[10rem_1fr]">
-                <Definition label="Business name">
-                    {vendor.businessName ?? <NotSet />}
-                </Definition>
-                <Definition label="Shop front">
-                    {vendor.store ? (vendor.store.name ?? 'Created, unnamed') : <NotSet>No store created</NotSet>}
-                </Definition>
-                <Definition label="Email">
-                    {vendor.email ? (
-                        <span className="flex flex-wrap items-center gap-2">
-                            <CopyableValue value={vendor.email} variant="email" label="email" />
-                            <VerifiedFlag verified={vendor.contact.emailVerified} />
-                        </span>
-                    ) : (
-                        <NotSet />
-                    )}
-                </Definition>
-                <Definition label="Phone">
-                    {vendor.phone ? (
-                        <span className="flex flex-wrap items-center gap-2">
-                            <CopyableValue value={vendor.phone} variant="phone" label="phone" />
-                            <VerifiedFlag verified={vendor.contact.phoneVerified} />
-                        </span>
-                    ) : (
-                        <NotSet />
-                    )}
-                </Definition>
-                <Definition label="Onboarding">
-                    {vendor.onboardingComplete ? 'Complete' : `Incomplete — at step ${vendor.onboardingStep}`}
-                </Definition>
-                <Definition label="Addresses on file">
-                    {vendor.addresses.length === 0 ? (
-                        <NotSet>None</NotSet>
-                    ) : (
-                        <ul className="space-y-1">
-                            {vendor.addresses.map((address) => (
-                                <li key={address.id}>
-                                    {address.label ? (
-                                        <span className="font-medium">{address.label}: </span>
-                                    ) : null}
-                                    {[address.addressLine1, address.addressLine2, address.city, address.state]
-                                        .filter(Boolean)
-                                        .join(', ') || <NotSet>Empty</NotSet>}
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </Definition>
-            </DefinitionList>
-
-            <p className="text-muted-foreground text-xs leading-relaxed">
-                These addresses carry no coordinates. wi-admin&apos;s projection drops the geocode
-                jovi-mall stores beside each one, so nothing here can be checked against a map —
-                which is why the geocode rows above read <em>not reported</em> rather than{' '}
-                <em>not supplied</em>.
-            </p>
-        </section>
-    );
-}
-
-function VerifiedFlag({ verified }: { verified: boolean }) {
-    return (
-        <span className={verified ? 'text-success' : 'text-muted-foreground'}>
-            {verified ? 'verified' : 'unverified'}
-        </span>
-    );
-}

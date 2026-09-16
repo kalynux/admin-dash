@@ -129,7 +129,9 @@ function detailCalls(options: StubOptions & { tier?: 1 | 2 | 3; id?: string } = 
  * passing the checklist.
  */
 async function openVerdict(user: ReturnType<typeof userEvent.setup>) {
-    await user.click(await screen.findByRole('button', { name: /review verification/i }));
+    // Through the TAB, which is the only route in since the toolbar shortcut
+    // was removed — and the route an operator actually takes.
+    await user.click(await screen.findByRole('tab', { name: 'Verification' }));
     await user.click(await screen.findByRole('button', { name: /record a verdict/i }));
     return screen.findByRole('radiogroup', { name: 'Verdict' });
 }
@@ -351,15 +353,26 @@ describe('the write affordances follow the record', () => {
 
     /**
      * ⚠ **The evidence comes first, and this is the path that proves it.** The
-     * toolbar no longer opens a form — it opens the **Verification tab**, and the
-     * verdict is an affordance beside the documents. An operator cannot reach the
-     * radio group without passing the checklist.
+     * only way to a verdict is through the **Verification tab**, where the radio
+     * group sits beside the documents — an operator cannot reach it without
+     * passing the checklist.
+     *
+     * ⚠ **The toolbar must carry no verification shortcut.** It used to, pointing
+     * at this same tab, and it read as a verdict affordance while being a second
+     * door onto a room already in view. The negative assertion is the point of
+     * this test: without it nothing stops the button being reintroduced.
      */
-    it('routes the toolbar button to the evidence, not to a verdict form', async () => {
+    it('reaches the verdict only through the tab, and offers no toolbar shortcut', async () => {
         const user = userEvent.setup();
         detail();
 
-        await user.click(await screen.findByRole('button', { name: /review verification/i }));
+        await screen.findByRole('tab', { name: 'Verification' });
+        expect(
+            screen.queryByRole('button', { name: /review verification/i }),
+            'the toolbar verification shortcut, which was removed',
+        ).not.toBeInTheDocument();
+
+        await user.click(screen.getByRole('tab', { name: 'Verification' }));
 
         expect(await screen.findByText('What the applicant was asked for')).toBeInTheDocument();
         // No verdict form yet — it is a second, deliberate click.

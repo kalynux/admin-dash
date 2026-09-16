@@ -26,6 +26,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { InfoHint } from '@/components/ui/info-hint';
 import { pickFieldErrors } from '@/lib/field-errors';
+import { bytesToMegabytes, megabytesToBytes } from '@/lib/format';
 import { resolveErrorMessage } from '@/lib/errors';
 import { notify } from '@/lib/notify';
 import { createPlan, updatePlan } from '@/services/billing.service';
@@ -193,7 +194,7 @@ function PlanForm({
             maxStorageMb: numberField(
                 plan?.limits.maxStorageBytes == null
                     ? null
-                    : Math.round(plan.limits.maxStorageBytes / 1_000_000),
+                    : bytesToMegabytes(plan.limits.maxStorageBytes),
             ),
             commissionPercent: numberField(plan?.limits.commissionPercent),
             maxUnterminatedShipments: numberField(plan?.limits.maxUnterminatedShipments),
@@ -221,7 +222,7 @@ function PlanForm({
         const limits = {
             maxActiveProducts: values.maxActiveProducts,
             maxStorageBytes:
-                values.maxStorageMb === null ? null : Math.round(values.maxStorageMb * 1_000_000),
+                values.maxStorageMb === null ? null : megabytesToBytes(values.maxStorageMb),
             commissionPercent: values.commissionPercent,
             maxUnterminatedShipments: values.maxUnterminatedShipments,
             liveTrackingEnabled: values.liveTrackingEnabled,

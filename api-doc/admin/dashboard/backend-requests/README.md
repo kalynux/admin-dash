@@ -1,6 +1,8 @@
 # Backend requests
 
-**Verified against source on 2026-09-08** — the three-round index and its close-out links; the platform-rules list, whose `details.platformCode` bullet was corrected for the 403/429 allowlist against `admin/src/core/errors/detail-policy.ts:132-176`; the multipart narrowing and the four `†` permissions, both re-derived from source; and every route the folder names, checked against the live route manifest.
+**Amended 2026-09-15** — **round six** added (BR-024 · BR-025 answered, BR-026 open), and the `details.platformCode` bullet below reversed for **429**: it now arrives on a forwarded rate-limit refusal. 403 is unchanged and that asymmetry is now deliberate — see [`RESPONSE-2026-09-15.md`](RESPONSE-2026-09-15.md).
+
+**Verified against source on 2026-09-09** — the four-round index and its close-out links; the platform-rules list, whose `details.platformCode` bullet was corrected for the 403/429 allowlist against `admin/src/core/errors/detail-policy.ts:132-176`; the multipart narrowing and the four `†` permissions, both re-derived from source; and every route the folder names, checked against the live route manifest.
 
 **For the `wi-admin` backend team.** One document per thing the dashboard was asked to build and
 cannot, or can only build half of, against the contract as it stands today.
@@ -13,8 +15,11 @@ Companion to the two registers already in this folder:
 | [`DATA-EXPOSURE-REGISTER.md`](../DATA-EXPOSURE-REGISTER.md) | What the API provides that perhaps it should not, or should provide differently |
 | **this folder** | What the API does **not** provide that an operator has asked for |
 
-Opened 2026-08-17, from a round of operator requests across eleven screens. **Three rounds have run
-since**, and every one of them is closed — see the index below.
+Opened 2026-08-17, from a round of operator requests across eleven screens. **Five more rounds
+have run since**, and every request in them is closed **except BR-026**, which is open — see the
+index below. ⚠ This sentence read *“three more rounds … every one of them is closed”* until
+2026-09-15, when it was two rounds behind and about to be three: a count in prose beside the list
+it counts is exactly the drift this folder exists to catch elsewhere.
 
 The dashboard keeps a **verbatim copy** of this folder and is read-only on that side. Nothing there
 edits it; corrections to the contract belong upstream and get re-copied. ⚠ **The copy was
@@ -75,38 +80,70 @@ set of two; `quota_blocked` is a third value and is live in both services. The c
 | [BR-018](BR-018-vendor-agency-connections.md) | A vendor's delivery-agency connections, as rows rather than counts | [`RESPONSE-2026-08-26.md`](RESPONSE-2026-08-26.md) |
 | [BR-019](BR-019-contract-clarifications.md) | Four things the contract leaves undecided that a client now has to decide | [`RESPONSE-2026-08-26.md`](RESPONSE-2026-08-26.md) |
 
-### Round four — opened 2026-09-14, from an operator pass over the three verification verdicts
+### Round four — opened 2026-09-09, from building the `/automation` module
 
-| # | Request | Blocking screen | Frontend state |
-|---|---|---|---|
-| [BR-024](BR-024-party-verification-evidence.md) | The evidence behind a verification verdict — identity documents, geocoded addresses and location sketches for vendors, agencies and agents | Vendors · Agencies · Agents → **Verification** tab | ✅ **Answered the same day it was written** — and it was already being built. Live contract [`verification.md`](../../api/verification.md) |
+| # | Request | Answered in |
+|---|---|---|
+| [BR-020](BR-020-automation-summary-tier-projection.md) | `/automation/summary` discloses to Support exactly what `/automation/failures` withholds from them | [`RESPONSE-2026-09-09.md`](RESPONSE-2026-09-09.md) |
 
-⚠ **This one was not a contract disagreement — it was an input a shipped decision never had.**
+**The answer is (a): the asymmetry is intended and the sentence justifying it was false.** No wire
+change — re-copy [`automation.md`](../../api/automation.md) and keep the nav decision. Of the four
+rounds this is the first where a request found **two contract pages disagreeing with each other**
+rather than a page disagreeing with the service, and the first raised *before* anything was
+rendered on the strength of it.
 
-### Round five — opened 2026-09-14, from building the administrator's own phone card
+### Round five — opened 2026-09-09, from Phase 6 **live verification** against a running `:8033`
 
-| # | Request | Blocking screen | Frontend state |
-|---|---|---|---|
-| [BR-025](BR-025-admin-phone-verification.md) | Three shipped `/auth/me/phone*` routes are in no contract page, and a delegated `429` drops its `platformCode` | None — **Account & security** → **Phone number** shipped the same day | ⏸ **Open.** Built from backend *source*; the ask is the page that should have made that unnecessary |
+| # | Request | Answered in |
+|---|---|---|
+| [BR-021](BR-021-credential-link-throttle-ordering.md) | The credential-link throttle is not counted on the attempt, and `users.md` says it is | [`RESPONSE-2026-09-12.md`](RESPONSE-2026-09-12.md) |
+| [BR-022](BR-022-list-query-strictness-is-not-uniform.md) | "Every list endpoint silently drops an unrecognised query parameter" is not true of all of them | [`RESPONSE-2026-09-12.md`](RESPONSE-2026-09-12.md) |
+| [BR-023](BR-023-quota-blocked-content-route.md) | `files.md` says the content route will not serve a `quota_blocked` file. It serves it | [`RESPONSE-2026-09-12.md`](RESPONSE-2026-09-12.md) |
 
-⚠ **Neither half of this is blocking, and that is why it is worth reading.** The first is a
-documentation gap that a test could not catch: `route-map.test.ts` pins the route total by parsing
-the route map, so it fires when the docs *gain* a route and is silent when they *omit* one. Three
-routes were served, audited and invisible. The second is a one-key allowlist omission that makes
-two refusals with opposite remedies indistinguishable to every client, on every delegated `429` —
-not only this flow.
-Three write endpoints record a verdict, forward a reason to the party and (on `/agents`) enforce
-it, and between them they showed the reviewer one free-text reference number and two registration
-strings.
+**All three were right, and all three are the same bug: a sentence that was checkable, false and
+load-bearing.** This is the first round found by **measuring against a running service** rather than
+by reading, and it is the round that justifies the method — BR-023 had already been implemented six
+surfaces deep and shipped before the wire contradicted it.
 
-✅ **Closed by `verification.md`, 2026-09-14.** The half the request got right is the division of
-labour — *"The response is **facts**; the badge is **yours**"* — and its per-role checklist is the
-shipped rule. **Five of its design choices were decided the other way, each for a stated reason**
-(the permission is `*.read` so Support can use it, the read is *not* audited because the audited
-act is opening the picture, documents arrive as embedded `FileDetail`s, the sketches are arrays,
-and "has premises" is derived from `storeAddresses` rather than flagged). The banner on the
-document lays out all five — worth reading before the next request, because four of the five were
-about **over-restricting** a read.
+- **BR-021 → (c), neither option offered.** The two rate-limit counters bound different things and
+  wanted opposite orderings, so they are now spent at different points. A **behaviour change**, and
+  the only one in this round: a refused channel now costs the *administrator's* allowance and not
+  the *party's*.
+- **BR-022 → scoped, and the strict set is 12 routes, not the 2 they measured.** Stated now in
+  [`api/README.md` § Filtering](../../api/README.md) and pinned by a new suite,
+  `test:list-strictness`.
+- **BR-023 → corrected, wording adopted nearly verbatim.** `quota_blocked` is a *publishing* state:
+  the cap withholds the address, not the bytes.
+
+---
+
+### Round six — opened 2026-09-14, from building two screens against backend *source*
+
+| # | Request | Answered in |
+|---|---|---|
+| [BR-024](BR-024-party-verification-evidence.md) | Three shipped verdict endpoints show a reviewer nothing to reach a verdict from | [`RESPONSE-2026-09-15.md`](RESPONSE-2026-09-15.md) |
+| [BR-025](BR-025-admin-phone-verification.md) | Three shipped `/auth` routes are on no contract page, and a 429 loses its `platformCode` | [`RESPONSE-2026-09-15.md`](RESPONSE-2026-09-15.md) |
+| [BR-026](BR-026-activation-split-reaches-wi-admin.md) | The 2026-09-15 activation split has to reach wi-admin before the dashboard can act on it | [`RESPONSE-2026-09-15-BR-026.md`](RESPONSE-2026-09-15-BR-026.md) |
+
+**Both answered requests were right about the gap, and both were partly stale by the time they
+were read** — BR-024 was shipped the same day it was written, and two of BR-025's four behaviours
+were fixed hours before it was filed, by a concurrent session neither side knew about. That is new,
+and it is the cost of a fast channel rather than an argument against one.
+
+- **BR-024 → already shipped**, and the half it got right is the half that was kept: *the backend
+  grades nothing.* ⚠ **Two of its acceptance boxes sat unticked for a day** because the answer was
+  written about the routes and stood in for the whole document — both were page defects, both are
+  now closed (`verification.md`'s error table, `agencies.md`'s two missing `kyc` members).
+- **BR-025 → both asks done.** § 1 is a new section in [`auth.md`](../../api/auth.md); § 2 is the
+  one **behaviour change** in this round.
+- ⚠ **`platformCode` now survives a forwarded 429** — reversing what this README and
+  [`errors.md`](../../api/errors.md) both said, verified, on 2026-09-08. **403 was deliberately not
+  changed**, and the asymmetry is now the decision: pinned by `test:contract` § 11 in *both*
+  directions.
+- ⛔ **BR-025 § 3 rested on a false premise**, and it is worth knowing outside the phone flow:
+  administrator phone verification does **not** "self-heal when the template is approved" — Meta
+  will not let that template be created at all. The fix is an account matter, not a code one, and
+  there is a manual in-window workaround that works today.
 
 ---
 
@@ -122,12 +159,17 @@ Stated once here so no document repeats them. All from
 - **Envelope.** Success `{ success: true, data, meta?, message? }` with `data` always present. Error
   `{ success: false, requestId, error: { code, message, statusCode, category, details? } }`. The
   client branches on `error.code`, never on `message`. `details` is *omitted* when absent.
-- **Delegated failures carry a second code — except at 403 and 429.** A refusal from jovi-mall is
+- **Delegated failures carry a second code — except at 403.** A refusal from jovi-mall is
   `PLATFORM_OPERATION_REJECTED` at jovi-mall's original status, with jovi-mall's own code in
-  `details.platformCode`. ⚠ **Corrected 2026-09-08:** the boundary filters `details` by **category**,
-  and `authorization` (403) and `rate_limit` (429) are the two categories with a closed key
-  allowlist — `platformCode` is on neither, so it does **not** arrive on a forwarded 403 or 429.
-  Everywhere else it does. See [`errors.md`](../../api/errors.md) § What travels in `details`.
+  `details.platformCode`. The boundary filters `details` by **category**, and `authorization` (403)
+  is the one category with a closed key allowlist that `platformCode` is not on — so it does
+  **not** arrive on a forwarded 403. Everywhere else it does.
+  ⚠ **This bullet said "403 and 429" from 2026-09-08 until 2026-09-15**, when BR-025 § 2 argued
+  that a published error code is no more sensitive at 429 than at 502 and `platformcode` was added
+  to the `rate_limit` allowlist. **403 was deliberately left as it was** — a 403 is the one place
+  where naming what refused tells a caller what to go after next — so the asymmetry between the two
+  is now a decision rather than a leftover, and `test:contract` § 11 pins it in **both** directions.
+  See [`errors.md`](../../api/errors.md) § What travels in `details`.
   Every request below states whether it expects to be delegated.
 - **Every mutation is audited before it answers**, in the same transaction. Any new write needs a
   catalogued action name, and it must appear in `GET /audit/actions`.

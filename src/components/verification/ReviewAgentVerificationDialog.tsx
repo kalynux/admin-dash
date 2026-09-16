@@ -1,11 +1,7 @@
 import { useState } from 'react';
 
-import { CopyableValue } from '@/components/common/CopyableValue';
-import { Definition, DefinitionList, NotSet } from '@/components/common/DefinitionList';
 import { FormField } from '@/components/common/FormField';
-import { ResolvedImageBox } from '@/components/files/ResolvedImageBox';
 import { Input } from '@/components/ui/input';
-import { humaniseEnum } from '@/lib/format';
 import { notify } from '@/lib/notify';
 import { reviewAgentKyc } from '@/services/agents.service';
 import { agentDisplayName, type AgentDetail, type AgentKycStatus } from '@/types/agents.types';
@@ -115,9 +111,7 @@ export function ReviewAgentVerificationDialog({
                     )}
                 </FormField>
             }
-        >
-            <AgentRecordContext agent={agent} />
-        </VerificationReviewDialog>
+        />
     );
 }
 
@@ -167,98 +161,3 @@ const VERDICTS: VerdictOption[] = [
  * They are rendered in different sections on purpose, so nobody ticks the second
  * by looking at the first.
  */
-function AgentRecordContext({ agent }: { agent: AgentDetail }) {
-    const vehicle = agent.vehicle;
-
-    return (
-        <section className="space-y-2" aria-label="What the record carries">
-            <h3 className="text-sm font-medium">What the record already carries</h3>
-
-            <DefinitionList className="rounded-lg border p-3 text-xs sm:grid-cols-[10rem_1fr]">
-                <Definition label="Name">{agent.name ?? <NotSet />}</Definition>
-                <Definition label="Off-platform reference">
-                    {agent.kyc.reference ? (
-                        <CopyableValue
-                            value={agent.kyc.reference}
-                            variant="plain"
-                            label="KYC reference"
-                        />
-                    ) : (
-                        <NotSet />
-                    )}
-                </Definition>
-                <Definition label="Email">
-                    {agent.email ? (
-                        <span className="flex flex-wrap items-center gap-2">
-                            <CopyableValue value={agent.email} variant="email" label="email" />
-                            <VerifiedFlag verified={agent.emailVerified} />
-                        </span>
-                    ) : (
-                        <NotSet />
-                    )}
-                </Definition>
-                <Definition label="Phone">
-                    {agent.phone ? (
-                        <span className="flex flex-wrap items-center gap-2">
-                            <CopyableValue value={agent.phone} variant="phone" label="phone" />
-                            <VerifiedFlag verified={agent.phoneVerified} />
-                        </span>
-                    ) : (
-                        <NotSet />
-                    )}
-                </Definition>
-                <Definition
-                    label="Home base"
-                    hint={undefined}
-                >
-                    {agent.homeBase.label ?? <NotSet>No label</NotSet>}
-                    {agent.homeBase.serviceRadiusKm !== null
-                        ? ` · works within ${agent.homeBase.serviceRadiusKm} km`
-                        : ''}
-                </Definition>
-                <Definition label="Vehicle">
-                    {vehicle ? (
-                        [humaniseEnum(vehicle.type), vehicle.color, vehicle.plateNumber]
-                            .filter(Boolean)
-                            .join(' · ') || <NotSet>Recorded, no detail</NotSet>
-                    ) : (
-                        <NotSet>None recorded</NotSet>
-                    )}
-                </Definition>
-                <Definition label="Onboarding">
-                    {agent.onboardingComplete ? 'Complete' : 'Incomplete'}
-                </Definition>
-            </DefinitionList>
-
-            {vehicle?.photoFileId ? (
-                <div className="space-y-1">
-                    <p className="text-muted-foreground text-xs">
-                        The vehicle photograph already on the record. It shows the vehicle; the
-                        checklist above asks for one with the agent in the frame, which is a
-                        different claim.
-                    </p>
-                    <ResolvedImageBox
-                        fileId={vehicle.photoFileId}
-                        alt="Vehicle photograph on the agent record"
-                        className="max-w-[16rem]"
-                        caption="Vehicle photograph"
-                    />
-                </div>
-            ) : null}
-
-            <p className="text-muted-foreground text-xs leading-relaxed">
-                The home base is a label and a radius. wi-admin projects no coordinates for it, so
-                it cannot be checked against a map here — which is why the geocode row above reads{' '}
-                <em>not reported</em> rather than <em>not supplied</em>.
-            </p>
-        </section>
-    );
-}
-
-function VerifiedFlag({ verified }: { verified: boolean }) {
-    return (
-        <span className={verified ? 'text-success' : 'text-muted-foreground'}>
-            {verified ? 'verified' : 'unverified'}
-        </span>
-    );
-}

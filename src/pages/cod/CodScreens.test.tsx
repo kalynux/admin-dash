@@ -844,3 +844,129 @@ describe('acting from a COD queue', () => {
         expect(await screen.findByRole('dialog')).toBeInTheDocument();
     });
 });
+
+/*
+ * ── The COD pre-screen, ADR-024 D-5 ──────────────────────────────────────────
+ *
+ * The same endorsement step as on payouts, on a family where it is **not**
+ * `financial` — a deposit or remittance in `declared` holds nothing, so
+ * endorsing moves nothing and rejecting moves nothing either.
+ *
+ * ⚠ Tier 3 also gained `cod.overview.read`, `cod.remittances.read` and
+ * `cod.deposits.read`, so these screens are reachable by Support for the first
+ * time. Nothing was needed for that: the tier→permission matrix is never
+ * hard-coded here, it comes from `GET /permissions/me`.
+ */
+describe('the COD pre-screen', () => {
+    /** What Support holds on COD: the reads, plus triage. No confirm, no reject. */
+    const SUPPORT_COD = new Set([
+        'cod.overview.read',
+        'cod.remittances.read',
+        'cod.deposits.read',
+        'cod.triage',
+    ]);
+
+    function stubRemittance(remittance = remittanceDetailFixture()) {
+        return stubFetch((call: FetchCall) => {
+            if (call.method === 'POST' && call.url.includes('/triage')) {
+                return successResponse(null, { message: 'Remittance endorsed' });
+            }
+            if (call.method === 'GET' && call.url.includes(`/cod/remittances/${REMITTANCE_ID}`)) {
+                return successResponse(remittance);
+            }
+            throw new Error(`unexpected request: ${call.method} ${call.url}`);
+        });
+    }
+
+    function remittanceDetail(held: ReadonlySet<string>) {
+        return render(
+            <Routes>
+                <Route
+                    path="/dashboard/cod/remittances/:remittanceId"
+                    element={<RemittanceDetail />}
+                />
+            </Routes>,
+            `/dashboard/cod/remittances/${REMITTANCE_ID}`,
+            held,
+        );
+    }
+
+    function depositDetail(deposit: ReturnType<typeof depositDetailFixture>, held: ReadonlySet<string>) {
+        stubFetch((call: FetchCall) => {
+            if (call.method === 'POST' && call.url.includes('/triage')) {
+                return successResponse(null, { message: 'Deposit endorsed' });
+            }
+            if (call.method === 'GET' && call.url.includes(`/cod/deposits/${DEPOSIT_ID}`)) {
+                return successResponse(deposit);
+            }
+            throw new Error(`unexpected request: ${call.method} ${call.url}`);
+        });
+
+        return render(
+            <Routes>
+                <Route path="/dashboard/cod/deposits/:depositId" element={<DepositDetail />} />
+            </Routes>,
+            `/dashboard/cod/deposits/${DEPOSIT_ID}`,
+            held,
+        );
+    }
+
+    it('offers Endorse on an unanswered remittance, and posts the note', async () => {
+        const calls = stubRemittance();
+
+        remittanceDetail(SUPPORT_COD);
+
+        await userEvent.click(await screen.findByRole('button', { name: 'Endorse' }));
+        await userEvent.type(await screen.findByLabelText(/note/i), 'Counted against the sheet');
+        await userEvent.click(screen.getByRole('button', { name: 'Endorse' }));
+
+        const triage = calls.find((call) => call.url.includes('/triage'));
+        expect(triage?.method).toBe('POST');
+        expect(triage?.url).toContain(`/cod/remittances/${REMITTANCE_ID}/triage`);
+        expect(JSON.parse(triage?.body ?? '{}')).toEqual({ note: 'Counted against the sheet' });
+    });
+
+    it('withholds Endorse from an administrator without cod.triage', async () => {
+        stubRemittance();
+
+        remittanceDetail(new Set(['cod.remittances.read', 'cod.remittances.confirm']));
+
+        // The confirm control proves the screen rendered its action bar at all.
+        expect(await screen.findByRole('button', { name: /confirm receipt/i })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Endorse' })).not.toBeInTheDocument();
+    });
+
+    it('never gates confirm on an endorsement', async () => {
+        /*
+         * ⛔ D-2 again, on this family. An un-endorsed remittance is exactly as
+         * confirmable — the pre-screen saves the confirming administrator work
+         * rather than being a step they wait on.
+         */
+        stubRemittance(remittanceDetailFixture({ triage: null }));
+
+        remittanceDetail(new Set(['cod.remittances.read', 'cod.remittances.confirm']));
+
+        expect(await screen.findByRole('button', { name: /confirm receipt/i })).toBeEnabled();
+    });
+
+    it('offers Endorse on a deposit paid to the platform', async () => {
+        depositDetail(depositDetailFixture(), SUPPORT_COD);
+
+        expect(await screen.findByRole('button', { name: 'Endorse' })).toBeEnabled();
+    });
+
+    it('withholds Endorse on an agency-recipient deposit, whatever is held', async () => {
+        /*
+         * ⚠⚠ `/deposits/:id/triage` is refused on an agency deposit with `403
+         * COD_DEPOSIT_WRONG_RECIPIENT` and **no permission fixes it** — that
+         * handover is counter-signed between two organisations and the platform
+         * never saw the cash. `agency` is the NORMAL route, so most rows are not
+         * endorsable here; letting the 403 happen would be a permission-shaped
+         * failure on the majority of the screen.
+         */
+        depositDetail(agencyDepositDetailFixture(), SUPPORT_COD);
+
+        await screen.findByText(/declared by/i);
+        expect(screen.queryByRole('button', { name: 'Endorse' })).not.toBeInTheDocument();
+    });
+});

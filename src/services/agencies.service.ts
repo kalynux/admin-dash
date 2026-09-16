@@ -227,19 +227,29 @@ export async function countAgencies(options?: RequestOptions): Promise<number> {
 /**
  * `POST /agencies/:agencyId/verify` · `agencies.verify`.
  *
- * **The exit from `pending_verification`**, and the domain had none before: the
- * only writers of `status` were deactivate/reactivate, so approval was being done
- * by calling `reactivate` on an agency that had never been active — which also
- * ran the whole product-restore cascade over products that were never suspended.
+ * Records the **business-verification verdict**. Takes **no body**, and the schema
+ * is strict, so `api.post` is called with `undefined` rather than `{}`.
  *
- * Takes **no body**, and the schema is strict, so `api.post` is called with
- * `undefined` rather than `{}`.
+ * ⚠ **It was "the exit from `pending_verification`" and stopped being one on
+ * 2026-09-15.** jovi-mall's activation change split the two questions: an agency
+ * promotes itself to `active` on a proved phone plus a name, and this route now
+ * writes only `kyc_details` — `status` is deliberately not written here any more.
+ * Do not describe this button as the thing that lets an agency trade.
  *
- * ⚠ **This is the one agency write that can conflict.** jovi-mall performs it as a
- * compare-and-set, and a miss is deliberately `409`, never `404`: the agency
- * exists — we would not know its status otherwise — it is simply no longer
- * pending, because a colleague approved it or it was deactivated in between.
- * Those are different remedies. See `PLATFORM_CODE_AGENCY_STATUS_CONFLICT`.
+ * ⚠ **It can conflict, and the axis it conflicts on MOVED twice in one week.**
+ * jovi-mall performs it as a compare-and-set, and a miss is deliberately `409`,
+ * never `404` — the agency exists, we would not know its state otherwise. What
+ * changed is *why* it can miss:
+ *
+ * | | Predicate | A `409` means |
+ * |---|---|---|
+ * | before 09-15 | `status: 'pending_verification'` | a colleague approved it, **or it was deactivated** in between |
+ * | the 09-15 change | `kyc_details.status: 'pending'` | 🔴 also a **re-review** — the BR-026 § 2 bug |
+ * | now | `kyc_details.status: { $ne: 'verified' }` | **this agency is already verified**, and nothing else |
+ *
+ * So the remedy narrowed to one: re-read the verdict. Deactivation is irrelevant
+ * to this write, and a **refused** agency is approvable again — which is what
+ * makes re-review work. See `PLATFORM_CODE_AGENCY_VERIFICATION_CONFLICT`.
  */
 export function verifyAgency(
     agencyId: string,
@@ -265,15 +275,31 @@ export function verifyAgency(
  * `pending_verification` — not deactivated, no cascade. A non-`active` agency is
  * already refused by product activation, pickup resolution, COD eligibility and
  * vendor default-agency selection, so this records a verdict rather than adding
- * enforcement. There is deliberately **no un-reject**: `POST /verify` still
- * accepts them once they fix what the reason named.
+ * enforcement. There is deliberately **no un-reject**: `POST /verify` accepts a
+ * refused agency again once they fix what the reason named.
+ *
+ * ✅ **That sentence was briefly false and is true again.** The 2026-09-15 axis
+ * move gated both verdict writers on `kyc_details.status: 'pending'`, and since
+ * they are its only two writers and nothing reset it, the first verdict of either
+ * kind was final — a re-applying agency, the commonest row in this queue, could
+ * not be approved. Raised as BR-026 § 2, **confirmed a real bug and fixed the
+ * same day**: each predicate now refuses only a *repeat of its own* verdict
+ * (`$ne`) and admits every other state, which also fixed the first review of a
+ * document carrying no `kyc_details` at all. **We did not invert this copy to
+ * match the bug**, and that was the right call — the stated intent was correct
+ * and the predicate was wrong.
+ *
+ * ⚠ **What the fix gives up**, so it is not a surprise later: two administrators
+ * submitting *opposite* verdicts in the same instant now both succeed and the
+ * later one wins. The equality form refused one of them, but only by making
+ * re-review impossible. Both still write audit rows on our side.
  *
  * ⚠ **`reason` reaches the agency.** It is forwarded to jovi-mall and stored on
  * the agency record, unlike the deactivation reason, which lives only in the
  * audit payload. The dialog must say so.
  *
- * Conflicts the same way `verify` does — a `409` means a colleague reached a
- * verdict first, not that the agency is missing.
+ * Conflicts the same way `verify` does, on its own axis — a `409` here means this
+ * agency is **already rejected**, not that it is missing.
  */
 export function rejectAgency(
     agencyId: string,
@@ -391,12 +417,26 @@ export async function reactivateAgency(
 export const PLATFORM_CODE_AGENCY_NOT_FOUND = 'DELIVERY_AGENCY_NOT_FOUND';
 
 /**
- * `409` on `verify`, and **only** on `verify` — the other two writes are
- * idempotent no-ops.
+ * `409` on **both** verdict writes — `verify` and `reject`.
  *
- * ⚠ **Carries `details.currentStatus`**, which is undocumented and is the whole
- * value of the code: it distinguishes "a colleague already approved this" from
- * "somebody deactivated it while this screen was open", which have different
- * remedies. The dialog reads it and says which.
+ * ⚠ **Renamed `DELIVERY_AGENCY_STATUS_CONFLICT` → `DELIVERY_AGENCY_VERIFICATION_CONFLICT`
+ * on 2026-09-15 (BR-026 § 3).** We asked for it: the compare-and-set no longer
+ * touches `status`, so the old name pointed at the wrong field. It is a jovi-mall
+ * code reaching us in `details.platformCode`, so it is in neither wi-admin
+ * registry and `error-catalog.test.ts` does not see it — **nothing but this
+ * constant and its two copy entries pins the string.**
+ *
+ * ⚠ **Read `details.currentVerification`, not `details.currentStatus`.** Both are
+ * sent and both are true, but only the first decided the refusal. `currentStatus`
+ * rides along because clients already read it — and telling an administrator
+ * "this agency is active" when the real answer is "a colleague already reached a
+ * verdict" sends them looking in the wrong place.
+ *
+ * ⚠ **What a `409` means narrowed with the rename**, because the predicate now
+ * refuses only a *repeat of the same verdict*: it means this exact verdict is
+ * already recorded. It no longer means "somebody deactivated it while this screen
+ * was open" — deactivation is irrelevant to this write now — and, since BR-026
+ * § 2, it no longer fires on a **re-review**, which is the case that was broken.
  */
-export const PLATFORM_CODE_AGENCY_STATUS_CONFLICT = 'DELIVERY_AGENCY_STATUS_CONFLICT';
+export const PLATFORM_CODE_AGENCY_VERIFICATION_CONFLICT =
+    'DELIVERY_AGENCY_VERIFICATION_CONFLICT';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 
@@ -283,5 +283,178 @@ describe('rejecting a payout', () => {
         await user.click(screen.getByRole('button', { name: /reject request/i }));
 
         expect(await screen.findByText(/already been resolved/i)).toBeInTheDocument();
+    });
+});
+
+/*
+ * ── The payout detail screen under ADR-024 ───────────────────────────────────
+ */
+describe('the transfer state on the detail screen', () => {
+    it('says the funds are still held on a failed payout, above everything else', async () => {
+        /*
+         * ⛔ The sentence an administrator must not have to infer. A red "failed"
+         * badge reads as *closed, money returned* unless the screen says
+         * otherwise — and the opposite is true: the gateway refused it, the hold
+         * stayed put, and this is still open work.
+         */
+        stubDetail(
+            payoutFixture({
+                status: 'failed',
+                transferFailureReason: 'Beneficiary account is barred',
+                transferGatewayRef: 'trf_123456789',
+            }),
+        );
+
+        detail();
+
+        expect(await screen.findByText(/funds are still held/i)).toBeInTheDocument();
+        expect(screen.getByText(/beneficiary account is barred/i)).toBeInTheDocument();
+        expect(screen.getByText(/trf_123456789/)).toBeInTheDocument();
+    });
+
+    it('says processing is not settled, and never shows it as paid', async () => {
+        stubDetail(payoutFixture({ status: 'processing' }));
+
+        detail();
+
+        expect(await screen.findByText(/awaiting confirmation/i)).toBeInTheDocument();
+        expect(screen.getByText(/not settled yet/i)).toBeInTheDocument();
+    });
+
+    it('shows no transfer notice at all on an ordinary pending payout', async () => {
+        // A notice that appears on every payout stops being read on the two where
+        // it matters.
+        stubDetail(payoutFixture());
+
+        detail();
+
+        // Anchored on a control rather than the owner's name, which this screen
+        // prints twice — in the page description and again as the beneficiary.
+        await screen.findByRole('button', { name: 'Send' });
+        expect(screen.queryByText(/funds are still held/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/awaiting confirmation/i)).not.toBeInTheDocument();
+    });
+});
+
+describe('the controls on the detail screen', () => {
+    it('disables Reject while processing and explains why', async () => {
+        stubDetail(payoutFixture({ status: 'processing' }));
+
+        detail();
+
+        const reject = await screen.findByRole('button', { name: 'Reject' });
+        expect(reject).toBeDisabled();
+        expect(reject).toHaveAttribute('title', expect.stringMatching(/confirm/i));
+    });
+
+    it('labels the send control Retry on a failed payout, and withholds Mark paid', async () => {
+        stubDetail(payoutFixture({ status: 'failed' }));
+
+        detail();
+
+        expect(await screen.findByRole('button', { name: /retry transfer/i })).toBeEnabled();
+        expect(screen.queryByRole('button', { name: 'Mark paid' })).not.toBeInTheDocument();
+    });
+
+    it('offers Send and Mark paid on a payout nobody has endorsed', async () => {
+        // ⛔ ADR-024 D-2. Endorsement is advisory and gates nothing.
+        stubDetail(payoutFixture({ triage: null }));
+
+        detail();
+
+        expect(await screen.findByRole('button', { name: 'Send' })).toBeEnabled();
+        expect(screen.getByRole('button', { name: 'Mark paid' })).toBeEnabled();
+    });
+
+    it('withholds Send from a bank destination, leaving the manual path', async () => {
+        // The gateway reaches mobile money only; a bank is settled by hand.
+        stubDetail(
+            payoutFixture({
+                destination: {
+                    method: 'bank',
+                    isPreferred: true,
+                    masked: { mobileMoney: null, bank: null, card: null },
+                    full: null,
+                    revealed: false,
+                },
+            }),
+        );
+
+        detail();
+
+        expect(await screen.findByRole('button', { name: 'Mark paid' })).toBeEnabled();
+        expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument();
+    });
+
+    it('shows an endorsement, with its note and who left it', async () => {
+        stubDetail(
+            payoutFixture({
+                triage: {
+                    verdict: 'endorsed',
+                    note: 'Checked against KYC docs',
+                    by: { id: '665f1c2a9b3e4a91c7d2e5f0', name: 'Ama Nkeng' },
+                    at: '2026-09-15T10:04:00.000Z',
+                },
+            }),
+        );
+
+        detail();
+
+        expect(await screen.findByText(/checked against KYC docs/i)).toBeInTheDocument();
+        expect(screen.getByText(/Ama Nkeng/)).toBeInTheDocument();
+    });
+});
+
+describe('sending from the detail screen', () => {
+    it('keeps the outcome on screen after the status moves underneath it', async () => {
+        /*
+         * ⚠ The regression this exists for. `showSend` is derived from
+         * `record.status`, and the send dialog reconciles the record as soon as
+         * the transfer resolves — so a payout going `pending → processing` stops
+         * being sendable the instant it is accepted. Mounting the dialog on
+         * `showSend` alone tore it down exactly while it was reporting "awaiting
+         * confirmation", leaving the operator with a dialog that vanished and no
+         * answer at all.
+         */
+        let status = 'pending';
+        stubFetch((call: FetchCall) => {
+            if (call.method === 'POST' && call.url.includes('/send')) {
+                status = 'processing';
+                return successResponse(
+                    payoutFixture({ status: 'processing', transferGatewayRef: 'trf_123456789' }),
+                );
+            }
+            if (call.url.includes(`/money/payouts/${PAYOUT_ID}`) && call.method === 'GET') {
+                return successResponse(payoutFixture({ status }));
+            }
+            throw new Error(`unexpected request: ${call.method} ${call.url}`);
+        });
+
+        detail();
+
+        await userEvent.click(await screen.findByRole('button', { name: 'Send' }));
+        await userEvent.click(await screen.findByRole('button', { name: 'Send now' }));
+
+        /*
+          The record behind the dialog has moved on — `Send` is derived from
+          `record.status` and a `processing` payout is not sendable, so the
+          header control going away IS the reload landing. Asserted this way
+          rather than on the word "processing", which the screen now prints in
+          both the status badge and the dialog's own sentence.
+        */
+        await waitFor(() => {
+            expect(screen.queryByRole('button', { name: 'Send' })).not.toBeInTheDocument();
+        });
+
+        /*
+          … and the answer is still in front of the operator. Scoped to the
+          dialog on purpose: the page behind it now carries its own
+          `TransferStateNotice` saying the same thing, which is correct and is
+          exactly why an unscoped query matches twice. What this test is about is
+          the dialog surviving, so it asks the dialog.
+        */
+        const dialog = within(screen.getByRole('dialog'));
+        expect(dialog.getByText(/awaiting confirmation/i)).toBeInTheDocument();
+        expect(dialog.getByText(/trf_123456789/)).toBeInTheDocument();
     });
 });

@@ -207,30 +207,15 @@ function VendorDetailScreen({ vendorId }: { vendorId: string }) {
                     </Button>
 
                     {/*
-                      ⚠ **This opens the tab, it does not open the dialog**, and
-                      that is the whole of the redesign.
-
-                      It used to be two buttons — *Approve verification* and
-                      *Reject verification* — so the operator picked an outcome and
-                      was then shown a form about it, with nothing anywhere on the
-                      screen to pick it from. Now the button goes to the evidence,
-                      and the verdict is an affordance beside the documents.
-
-                      Gated on the **review** permission because it is a shortcut
-                      to an act; the tab itself is not gated, since its read is
-                      `vendors.read` and Support needs it.
-
-                      The conflict rule did not go away, it moved: asking for the
-                      verdict a vendor already holds is
-                      `409 VENDOR_KYC_STATUS_CONFLICT`, so the dialog offers only
-                      the verdicts that would change something.
+                      ⚠ **No verification shortcut in this toolbar, deliberately.**
+                      The Verification tab is unconditional and sits second in the
+                      list, so a button pointing at it was a second door onto a
+                      room already in view — and it still read as a *verdict*
+                      affordance, which it had stopped being. The verdict lives on
+                      the tab, beside the evidence, where the conflict rule
+                      (`409 VENDOR_KYC_STATUS_CONFLICT`) can narrow it to the
+                      outcomes that would change something.
                     */}
-                    <Can permission="vendors.kyc.review">
-                        <Button variant="outline" size="sm" onClick={() => setTab('verification')}>
-                            <BadgeCheck className="size-4" />
-                            Review verification
-                        </Button>
-                    </Can>
 
                     <Can permission="vendors.settings.manage">
                         <Button

@@ -11,11 +11,16 @@ import { RowActions } from '@/components/common/RowActions';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { payoutColumns } from '@/components/money/payoutColumns';
 import {
+    SendPayoutDialog,
+    TriagePayoutDialog,
+} from '@/components/money/PayoutTransferDialogs';
+import {
     MarkPaidDialog,
-    MarkPaidQueuedNotice,
+    PayoutQueuedNotice,
     RejectPayoutDialog,
 } from '@/components/money/PayoutWriteDialogs';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { InfoHint } from '@/components/ui/info-hint';
 import {
@@ -27,6 +32,7 @@ import {
 } from '@/components/ui/select';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { useListQueryState } from '@/hooks/use-list-query-state';
+import { usePendingPermission } from '@/hooks/use-pending-permission';
 import {
     dayStringRangeToInstants,
     rangeExceedsMaxDays,
@@ -38,8 +44,13 @@ import { withQuery } from '@/lib/query';
 import { listPayouts } from '@/services/money.service';
 import { useAdmin, useCan } from '@/store';
 import {
+    canMarkPayoutPaid,
+    canRejectPayout,
     EARNINGS_ACCOUNT_OWNER_TYPES,
+    isGatewaySendableDestination,
+    isPayoutSendable,
     MONEY_MAX_RANGE_DAYS,
+    payoutHoldsFunds,
     PAYOUT_ORIGINS,
     PAYOUT_ORIGIN_LABELS,
     PAYOUT_SORT_DEFAULT,
@@ -48,6 +59,7 @@ import {
     type PayoutListQuery,
 } from '@/types/money.types';
 import type { Approval } from '@/types/approvals.types';
+import { PERMISSION_MONEY_PAYOUTS_TRIAGE } from '@/types/permissions.pending';
 
 /**
  * `GET /money/payouts` · `money.payouts.read` — where money leaves the platform.
@@ -129,12 +141,27 @@ export function PayoutsQueue() {
     const path = withQuery('/money/payouts', { ...query });
     const payouts = useAsyncData(path, (signal) => listPayouts(query, { signal }));
 
-    const canMarkPaid = can('money.payouts.mark_paid');
-    const canReject = can('money.payouts.reject');
+    /*
+      ── Who may do what, ADR-024 § 4 ──────────────────────────────────────────
+
+      ⚠ **Reject reaches Support.** `/reject` takes
+      `anyPermission('money.payouts.reject', 'money.payouts.triage')` — it is the
+      half of triage that actually closes a request, and a reviewer's rejection is
+      final. **One Reject control, shown to both tiers**; there is deliberately no
+      separate "recommend rejection" flow.
+
+      ⛔ **Send, Mark-paid and the destination reveal are hidden from Support**
+      rather than left to answer `403`. They hold `money.payouts.triage` and none
+      of the three, and a control that only ever refuses teaches an operator that
+      this screen is unreliable.
+    */
+    const canEndorse = usePendingPermission(PERMISSION_MONEY_PAYOUTS_TRIAGE);
+    const canPay = can('money.payouts.mark_paid');
+    const canReject = can('money.payouts.reject') || canEndorse;
 
     const [acting, setActing] = useState<{
         payout: Payout;
-        kind: 'mark-paid' | 'reject';
+        kind: 'mark-paid' | 'reject' | 'send' | 'endorse';
     } | null>(null);
 
     /**
@@ -165,11 +192,46 @@ export function PayoutsQueue() {
                   decides.
                 */
                 rowAction: (payout) => {
-                    if (payout.status !== 'pending') return null;
+                    /*
+                      ⛔ **Keyed on `status`, and `triage` is not consulted.**
+                      Endorsement is advisory (ADR-024 D-2): a payout nobody has
+                      endorsed is exactly as payable as one that has been, so the
+                      pre-screen must never decide whether a pay control appears.
+                    */
+                    const showEndorse =
+                        canEndorse && payout.status === 'pending' && payout.triage === null;
+                    const showSend =
+                        canPay &&
+                        isPayoutSendable(payout.status) &&
+                        isGatewaySendableDestination(payout.destination);
+                    const showMarkPaid = canPay && canMarkPayoutPaid(payout.status);
+                    const showReject = canReject && payoutHoldsFunds(payout.status);
+
+                    if (!showEndorse && !showSend && !showMarkPaid && !showReject) return null;
+
+                    const rejectAllowed = canRejectPayout(payout.status);
 
                     return (
                         <RowActions>
-                            {canMarkPaid ? (
+                            {showEndorse ? (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setActing({ payout, kind: 'endorse' })}
+                                >
+                                    Endorse
+                                </Button>
+                            ) : null}
+                            {showSend ? (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setActing({ payout, kind: 'send' })}
+                                >
+                                    {payout.status === 'failed' ? 'Retry' : 'Send'}
+                                </Button>
+                            ) : null}
+                            {showMarkPaid ? (
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -178,11 +240,20 @@ export function PayoutsQueue() {
                                     Mark paid
                                 </Button>
                             ) : null}
-                            {canReject ? (
+                            {showReject ? (
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => setActing({ payout, kind: 'reject' })}
+                                    // ⛔ Disabled, never hidden, while a transfer
+                                    // may still be in flight — releasing the hold
+                                    // then is how an owner gets paid twice (D-7).
+                                    disabled={!rejectAllowed}
+                                    title={
+                                        rejectAllowed
+                                            ? undefined
+                                            : 'Waiting for the provider to confirm this transfer'
+                                    }
                                 >
                                     Reject
                                 </Button>
@@ -191,10 +262,34 @@ export function PayoutsQueue() {
                     );
                 },
             }),
-        [timeZone, can, canMarkPaid, canReject],
+        [timeZone, can, canEndorse, canPay, canReject],
     );
 
     const meta = payouts.data?.meta;
+
+    /*
+      ── The one filter on this screen that the SERVER does not apply ───────────
+
+      ⚠ **Client-side, and deliberately not offered as a server filter** — BR-026
+      § 1 asked for one and the backend refused with a reason worth keeping: the
+      verdict lives in `vendors` / `delivery_agencies` / `delivery_agents` while
+      this queue pages over `payout_requests`, so filtering across them means a
+      three-way `$lookup` keyed on `owner_type` that would widen the one narrow
+      projection keeping the beneficiary's account number off this path. A real
+      guarantee for a convenience is the wrong trade. Their instruction was
+      "filter in the client", and this is it.
+
+      ⚠ **It therefore sees ONE PAGE, and the UI has to say so.** It sits outside
+      `FilterBar` and outside `values` for that reason: dropped in among the four
+      server filters it would read as another one, and an operator who ticked it
+      and saw three rows would reasonably conclude the queue holds three unvetted
+      requests. `meta.total` still counts the whole filtered queue, so the count
+      line below states both numbers whenever this is hiding anything.
+    */
+    const [unvettedOnly, setUnvettedOnly] = useState(false);
+    const rows = payouts.data?.data ?? [];
+    const visibleRows = unvettedOnly ? rows.filter((row) => !row.verification.verified) : rows;
+    const hiddenByVetting = rows.length - visibleRows.length;
 
     return (
         <PageContainer
@@ -209,7 +304,7 @@ export function PayoutsQueue() {
                 */}
                 {queued ? (
                     <div className="space-y-2">
-                        <MarkPaidQueuedNotice
+                        <PayoutQueuedNotice
                             approval={queued.approval}
                             message={queued.message}
                             timeZone={timeZone}
@@ -220,7 +315,20 @@ export function PayoutsQueue() {
                     </div>
                 ) : null}
 
-                <FilterBar isFiltered={isFiltered} onClear={reset}>
+                {/*
+                  `Clear` clears the vetting checkbox too, even though it lives
+                  outside this bar and outside the URL. An operator who presses
+                  "Clear filters" and still sees rows missing would be right to
+                  call that a bug, and the alternative — a second clear control —
+                  is worse than folding it in here.
+                */}
+                <FilterBar
+                    isFiltered={isFiltered || unvettedOnly}
+                    onClear={() => {
+                        reset();
+                        setUnvettedOnly(false);
+                    }}
+                >
                     <FilterField label="Status" htmlFor="payout-status">
                         <Select
                             value={values.status || ANY}
@@ -332,16 +440,46 @@ export function PayoutsQueue() {
                     </div>
                 ) : null}
 
-                {meta ? (
-                    <p className="text-muted-foreground text-sm">
-                        {formatCount(meta.total)} payout requests
-                    </p>
-                ) : null}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                    {meta ? (
+                        <p className="text-muted-foreground text-sm">
+                            {formatCount(meta.total)} payout requests
+                            {/*
+                              Both numbers, never just the filtered one — the
+                              filter below sees this page and `meta.total` counts
+                              the queue, so reporting one alone would let an
+                              operator read a page as a queue.
+                            */}
+                            {hiddenByVetting > 0
+                                ? ` · showing ${visibleRows.length} of ${rows.length} on this page`
+                                : null}
+                        </p>
+                    ) : (
+                        <span />
+                    )}
+
+                    <label className="flex cursor-pointer items-center gap-2 text-sm">
+                        <Checkbox
+                            // Named explicitly rather than relying on the wrapping
+                            // label: the primitive is a Radix button, so the
+                            // implicit label association a real `<input>` would
+                            // get does not apply.
+                            aria-label="Only owners nobody has vetted"
+                            checked={unvettedOnly}
+                            onCheckedChange={(next) => setUnvettedOnly(next === true)}
+                        />
+                        Only owners nobody has vetted
+                        <InfoHint label="About this filter">
+                            Applies to the requests on this page only. The verdict is not something
+                            the server can filter on here, so paging may reveal more.
+                        </InfoHint>
+                    </label>
+                </div>
 
                 <DataTable
                     caption="Payout requests"
                     columns={columns}
-                    rows={payouts.data?.data ?? []}
+                    rows={visibleRows}
                     rowKey={(payout) => payout.id}
                     sort={values.sort}
                     onSortChange={(next) => set({ sort: next })}
@@ -354,9 +492,21 @@ export function PayoutsQueue() {
                             icon={Banknote}
                             title="No payout requests match"
                             description={
-                                isFiltered
-                                    ? 'No request matches these filters.'
-                                    : 'Nothing is waiting to leave the platform.'
+                                /*
+                                  The vetting case is named first and separately.
+                                  It is the one where the server DID return rows,
+                                  so "nothing is waiting to leave the platform"
+                                  would be flatly untrue — and on a queue this is
+                                  the reading that matters: an operator must never
+                                  come away thinking there is no money to review
+                                  because every request on the page happened to
+                                  be from a vetted owner.
+                                */
+                                unvettedOnly && rows.length > 0
+                                    ? 'Every request on this page is from an owner somebody has vetted. Untick the filter, or try the next page.'
+                                    : isFiltered
+                                      ? 'No request matches these filters.'
+                                      : 'Nothing is waiting to leave the platform.'
                             }
                         />
                     }
@@ -397,6 +547,48 @@ export function PayoutsQueue() {
                     open
                     onOpenChange={(open) => !open && setActing(null)}
                     onRejected={() => {
+                        setActing(null);
+                        payouts.reload();
+                    }}
+                />
+            ) : null}
+
+            {acting?.kind === 'send' ? (
+                <SendPayoutDialog
+                    payout={acting.payout}
+                    open
+                    onOpenChange={(open) => !open && setActing(null)}
+                    /*
+                      ⚠ The dialog is NOT closed here. It reconciles the list as
+                      soon as the transfer resolves and then keeps showing its own
+                      outcome — "awaiting confirmation", or "the gateway refused
+                      it and the funds are still held". Closing on settle would
+                      throw away the sentence the operator most needs.
+                    */
+                    onSettled={() => payouts.reload()}
+                    onQueued={(approval, message) => {
+                        setActing(null);
+                        setQueued({ approval, message });
+                        // Nothing was sent — the row must re-read as pending
+                        // rather than look dispatched.
+                        payouts.reload();
+                    }}
+                    onMarkPaidInstead={
+                        // Only where it can succeed: the manual pre-flight takes
+                        // `pending` alone, so a `failed` row has no manual path.
+                        canPay && canMarkPayoutPaid(acting.payout.status)
+                            ? () => setActing({ payout: acting.payout, kind: 'mark-paid' })
+                            : undefined
+                    }
+                />
+            ) : null}
+
+            {acting?.kind === 'endorse' ? (
+                <TriagePayoutDialog
+                    payout={acting.payout}
+                    open
+                    onOpenChange={(open) => !open && setActing(null)}
+                    onEndorsed={() => {
                         setActing(null);
                         payouts.reload();
                     }}

@@ -339,9 +339,12 @@ export const CLIENT_CODE_PREFIX = 'CLIENT_';
  *
  * Read from **two** registries, because they have disagreed in both directions
  * and the guard is what keeps them honest: `api-doc/admin/api/errors.md` publishes
- * **95** distinct codes, and `api-doc/admin/error-codes.ts` — a copy of the
- * backend's own source — declares **88**. The seven in the doc alone are
+ * **110** distinct codes, and `api-doc/admin/error-codes.ts` — a copy of the
+ * backend's own source — declares **97**. The thirteen in the doc alone are
  * jovi-mall's verdicts, which wi-admin's registry correctly never declares.
+ * ⚠ **Both figures are measured by `error-catalog.test.ts`, not asserted here** —
+ * they were 95 and 88 until the 2026-09-14 activation round and the 2026-09-15
+ * phone round, and a count written in prose ages the day somebody ships a code.
  *
  * ⚠ **The mirror-staleness this note used to describe is fixed.** It read that
  * `FILE_UPLOAD_NOT_MULTIPART` and `FILE_UPLOAD_TOO_LARGE` were in the backend's
@@ -360,15 +363,19 @@ export const CLIENT_CODE_PREFIX = 'CLIENT_';
  *   `SYSTEM_CONFIG_EXPOSURE_UNSAFE`, `SYSTEM_FEATURE_FLAG_CATALOG_INVALID`,
  *   `CONFIG_INVALID_ENV`, `CONFIG_MISSING_SECRET`,
  *   `CONFIG_NOTIFICATION_COVERAGE_INCOMPLETE`).
- * - **Eleven are never `error.code` at all.** They are jovi-mall's verdicts and
- *   arrive as `details.platformCode` on a `PLATFORM_OPERATION_REJECTED`, so they
- *   belong to the platform catalog (`error-platform.ts`, in each locale), not
- *   this one: `DEV_TOOLS_WORKER_UNKNOWN`, `DEV_TOOLS_WORKER_BUSY`,
+ * - **Seventeen are never `error.code` at all.** They are jovi-mall's verdicts
+ *   and arrive as `details.platformCode` on a `PLATFORM_OPERATION_REJECTED`, so
+ *   they belong to the platform catalog (`error-platform.ts`, in each locale),
+ *   not this one: `DEV_TOOLS_WORKER_UNKNOWN`, `DEV_TOOLS_WORKER_BUSY`,
  *   `CONTRACT_INVALID_TRANSITION`,
  *   `BILLING_PENDING_PLAN_EXISTS`, `BILLING_PLAN_INACTIVE`,
  *   `BILLING_PLAN_ROLE_MISMATCH`, `MESSAGING_DELIVERY_FAILED`,
  *   `AUTH_ACCOUNT_SUSPENDED`, `USER_CHANNEL_UNAVAILABLE`,
- *   `USER_CREDENTIAL_LINK_THROTTLED`, `USER_LOGIN_LINK_ROLE_UNSUPPORTED`.
+ *   `USER_CREDENTIAL_LINK_THROTTLED`, `USER_LOGIN_LINK_ROLE_UNSUPPORTED`, and
+ *   the six `PHONE_VERIFICATION_*` verdicts catalogued on 2026-09-15.
+ *   ⚠ **The two `ADMIN_PHONE_*` codes beside them are wi-admin's own** and are
+ *   in the list below: the split is *where the refusal happens*, not which
+ *   feature it belongs to.
  * - **One reaches a client in no form whatsoever**, which is a third case and
  *   not a variety of the second: `CONTRACT_TRANSITION_NOT_PERMITTED` is
  *   forwarded at **403**, and `authorization` is one of the two categories whose
@@ -376,9 +383,15 @@ export const CLIENT_CODE_PREFIX = 'CLIENT_';
  *   `403 PLATFORM_OPERATION_REJECTED` carrying jovi-mall's message and no code
  *   at any level. ⚠ **A branch on it can never fire** — see
  *   `components/contracts/ContractWriteDialogs.tsx`. The same is true of
- *   `USER_CREDENTIAL_LINK_THROTTLED` at **429** (`rate_limit`, whose allowlist
- *   is `retryAfterSeconds` · `limit` · `windowSeconds`), which is listed above
- *   because its section also declares it platform-only; both are counted once.
+ *   `USER_CREDENTIAL_LINK_THROTTLED` at **429**, which is listed above because
+ *   its section also declares it platform-only; both are counted once.
+ *   ⚠ **Half of that second case changed on 2026-09-15**: `platformCode` is now
+ *   on the `rate_limit` allowlist (BR-025 § 2), so the code *does* survive a
+ *   429. `scope` — `party` versus `administrator`, the two different remedies —
+ *   does **not**, so the row's advice stands unchanged: at that status the
+ *   distinction lives only in the message, and there is still nothing useful to
+ *   branch on. ⚠ `errors.md`'s row still says the allowlist drops both; source
+ *   (`detail-policy.ts:68`) says otherwise and source wins.
  *   The last three are declared once in their section's prose rather than on
  *   every row, which is why the parser reads section preambles too.
  *
@@ -448,6 +461,27 @@ export const KNOWN_ERROR_CODES = [
     'ADMIN_ACTIVATION_SUSPENDED',
     'ADMIN_ACTIVATION_SELF',
     'ADMIN_ACTIVATION_CONFLICT',
+    /*
+      The administrator's own phone (ADR-023, named 2026-09-14).
+
+      ⚠ **Both were `VALIDATION_ERROR` when BR-025 was filed**, and the request
+      said outright that a named code was not being asked for. They had shipped
+      hours earlier. That is the second half of the same lesson the rest of this
+      file carries: a reading of source ages the moment somebody commits, and
+      only re-taking the mirror notices.
+
+      `ADMIN_PHONE_NOT_SET` is 422 `business_rule` rather than a validation
+      failure on purpose — the body was valid, there is no field to point at and
+      no `details.fields` to carry, so a code saying "validation" would sit
+      inside an envelope whose category says otherwise.
+
+      ⚠ **Neither is delegated.** Both are refused here, before the call to
+      jovi-mall is made, which is why they are `error.code` and the six
+      `PHONE_VERIFICATION_*` verdicts are not — those arrive only as
+      `details.platformCode` and live in `error-platform.ts`.
+    */
+    'ADMIN_PHONE_NOT_SET',
+    'ADMIN_PHONE_VERIFICATION_MISMATCH',
     // Employee records (ADR-023)
     'EMPLOYEE_SLOT_FULL',
     /*
@@ -714,20 +748,29 @@ export class ApiError extends Error {
      * `internal` / `external_service`, because without it a dashboard cannot
      * tell "jovi-mall is down" from "wi-admin is down" when both present as 502.
      *
-     * ⚠ **On a forwarded 403 or 429 it is `undefined`, and that is the
-     * contract rather than a fault.** The boundary filters `details` by
-     * **category**, and `authorization` and `rate_limit` are the only two with a
-     * closed key allowlist — `required` · `requiredAny` · `mode` · `resource` ·
-     * `action` · `hint` for the first, `retryAfterSeconds` · `limit` ·
-     * `windowSeconds` for the second. `platformCode` is on neither, so it is
-     * dropped. Two real branches were written against it before this was
-     * documented (2026-09-08) and neither could ever fire:
-     * `CONTRACT_TRANSITION_NOT_PERMITTED` at 403 and
-     * `USER_CREDENTIAL_LINK_THROTTLED` at 429.
+     * ⚠ **On a forwarded 403 it is `undefined`, and that is the contract rather
+     * than a fault.** The boundary filters `details` by **category**, and
+     * `authorization` keeps a closed allowlist — `required` · `requiredAny` ·
+     * `mode` · `resource` · `action` · `hint` — that `platformCode` is not on.
+     * A real branch was written against it before this was documented
+     * (2026-09-08) and could never fire:
+     * `CONTRACT_TRANSITION_NOT_PERMITTED` at 403.
      *
-     * **At those two statuses, branch on `status` and render `message`.** The
-     * distinction the code used to carry survives only in jovi-mall's own
-     * sentence.
+     * **At 403, branch on `status` and render `message`.** The distinction the
+     * code used to carry survives only in jovi-mall's own sentence.
+     *
+     * ✅ **429 was the same case until 2026-09-15 and no longer is** (BR-025
+     * § 2). `platformcode` is on `RATE_LIMIT_DETAIL_KEYS`, so a forwarded
+     * rate-limit refusal now carries the code beside `retryAfterSeconds` ·
+     * `limit` · `windowSeconds`. It was added because two of jovi-mall's 429s
+     * want **opposite** remedies — `PHONE_VERIFICATION_RESEND_TOO_SOON` (wait;
+     * the code in their hand still works) and
+     * `PHONE_VERIFICATION_TOO_MANY_ATTEMPTS` (that code is destroyed; ask for a
+     * new one) — and the second carries no other `details` at all.
+     *
+     * ⚠ **The asymmetry with 403 is now a decision, not a leftover**, pinned by
+     * `test:contract` § 11 on the backend in both directions. Do not "tidy" it
+     * either way.
      */
     get platformCode(): string | undefined {
         const value = this.details?.platformCode;
@@ -772,11 +815,14 @@ export class ApiError extends Error {
      * first arm **always**, and shows an operator a status line where the
      * fallback had the useful sentence.
      *
-     * That matters at exactly two statuses. On a forwarded **403** and **429**
-     * the `details` allowlist drops `platformCode`, so the server's message is
-     * the only thing left carrying *why* — and a call site that renders it must
-     * be able to tell a real sentence from a placeholder. Everywhere else,
-     * prefer `resolveErrorMessage`, which is translated.
+     * That matters most at a forwarded **403**, where the `details` allowlist
+     * drops `platformCode` and the server's message is the only thing left
+     * carrying *why* — so a call site that renders it must be able to tell a
+     * real sentence from a placeholder. ⚠ **429 was the second such status
+     * until 2026-09-15**; it now keeps `platformCode` (BR-025 § 2), so prefer
+     * the code there and keep the message for what the code cannot say — the
+     * credential-link throttle's `scope` is still dropped, for instance.
+     * Everywhere else, prefer `resolveErrorMessage`, which is translated.
      */
     get serverMessage(): string | undefined {
         const value = this.message;

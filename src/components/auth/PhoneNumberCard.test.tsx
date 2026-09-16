@@ -185,10 +185,37 @@ describe('proving it', () => {
         await userEvent.click(await screen.findByRole('button', { name: 'Send code' }));
 
         expect(await screen.findByText(/would not deliver the code/i)).toBeInTheDocument();
-        // The remedy the person can actually act on.
-        expect(screen.getByText(/after you message us/i)).toBeInTheDocument();
+        // The remedy that costs nothing first — a delivery failure is unusual
+        // again now that the AUTHENTICATION template is approved (2026-09-15).
+        expect(screen.getByText(/try again in a moment/i)).toBeInTheDocument();
+        // The in-window trick survives as a FALLBACK, and only as one.
+        expect(screen.getByText(/if it keeps failing/i)).toBeInTheDocument();
         // And the reassurance, because the account is genuinely unaffected.
         expect(screen.getByText(/not a sign-in requirement/i)).toBeInTheDocument();
+    });
+
+    /**
+     * ⚠ **The copy must not blame the operator's own silence.** It read *"this
+     * usually means nobody has messaged the platform from that number in the
+     * last 24 hours"*, which was true while the deployment had no approved
+     * template and every send failed. It has one now, so leading with that sends
+     * somebody chasing a remedy they do not need.
+     */
+    it('does not present the 24-hour window as the usual cause', async () => {
+        stubFetch(() =>
+            errorResponse(502, 'SERVICE_DEPENDENCY_UNAVAILABLE', {
+                message: 'A service we depend on did not respond',
+                category: 'external_service',
+                details: { platformCode: 'PHONE_VERIFICATION_DELIVERY_FAILED' },
+            }),
+        );
+        renderCard({ phone: '+237600123456' });
+
+        await userEvent.click(screen.getByRole('button', { name: /verify this number/i }));
+        await userEvent.click(await screen.findByRole('button', { name: 'Send code' }));
+
+        await screen.findByText(/would not deliver the code/i);
+        expect(screen.queryByText(/usually means/i)).not.toBeInTheDocument();
     });
 
     /**
@@ -221,27 +248,57 @@ describe('proving it', () => {
     });
 
     /**
-     * ⚠ Both 429s reach us with **no `platformCode`** — wi-admin's `rate_limit`
-     * branch allowlists `retryAfterSeconds`/`limit`/`windowSeconds` and drops it
-     * — so `RESEND_TOO_SOON` and `TOO_MANY_ATTEMPTS` are indistinguishable here,
-     * and `errors.platform` is never consulted.
-     *
-     * `rate_limit` is also **not** message-bearing (`lib/errors.ts`: the catalog
-     * names the remedy where the server names the rule), so jovi-mall's own
-     * sentence is dropped too and the generic resolver lands on "The platform
-     * refused this" — the floor, carrying no remedy at all.
-     *
-     * So the dialog renders its own notice naming BOTH remedies, and this pins
-     * that it does. `retryAfterSeconds` is the one field the allowlist keeps, so
-     * the wait is named when it is sent. That is the client half of BR-025.
+     * `attemptsLeft` is the one counter jovi-mall discloses, and only on
+     * `CODE_INVALID`. `errors.md` states the reasoning outright: it tells the
+     * holder of the real code that they mistyped and how much room is left, and
+     * it tells an attacker something they could count themselves. **The secret
+     * is the code, not the counter.**
      */
-    it('names both remedies on a 429, having no code to tell them apart', async () => {
+    it('says how many tries are left, beside the catalogued sentence', async () => {
+        stubFetch((call) =>
+            call.url.includes('/verify/confirm')
+                ? errorResponse(422, 'PLATFORM_OPERATION_REJECTED', {
+                      message: 'That code is not right',
+                      category: 'business_rule',
+                      details: {
+                          platformCode: 'PHONE_VERIFICATION_CODE_INVALID',
+                          attemptsLeft: 2,
+                      },
+                  })
+                : codeSent(),
+        );
+        renderCard({ phone: '+237600123456' });
+
+        await userEvent.click(screen.getByRole('button', { name: /verify this number/i }));
+        await userEvent.click(await screen.findByRole('button', { name: 'Send code' }));
+        await userEvent.type(await screen.findByLabelText('Code'), '000000');
+        await userEvent.click(screen.getByRole('button', { name: 'Verify' }));
+
+        expect(await screen.findByText(/2 tries left on this code/i)).toBeInTheDocument();
+        // Beside, never instead of — the remedy is still the catalogued line.
+        expect(screen.getByText(/that code is not right/i)).toBeInTheDocument();
+    });
+
+    /**
+     * 🔴 **The two 429s want OPPOSITE remedies**, and until 2026-09-15 they
+     * arrived indistinguishable: wi-admin's `rate_limit` allowlist was
+     * `retryAfterSeconds`/`limit`/`windowSeconds` and dropped `platformCode`, so
+     * this dialog had to name both at once. BR-025 § 2 added the key.
+     *
+     * The cooldown is the half where guessing wrong is *cheap* — but its true
+     * statement is what the operator needs, because the code in their hand still
+     * works and asking for another only restarts the wait.
+     */
+    it('tells a cooled-down resend that the code in hand still works', async () => {
         stubFetch((call) =>
             call.url.includes('/verify/request') && call.method === 'POST'
                 ? errorResponse(429, 'PLATFORM_OPERATION_REJECTED', {
                       message: 'Another code can be requested in 45s',
                       category: 'rate_limit',
-                      details: { retryAfterSeconds: 45 },
+                      details: {
+                          retryAfterSeconds: 45,
+                          platformCode: 'PHONE_VERIFICATION_RESEND_TOO_SOON',
+                      },
                   })
                 : codeSent(),
         );
@@ -250,12 +307,97 @@ describe('proving it', () => {
         await userEvent.click(screen.getByRole('button', { name: /verify this number/i }));
         await userEvent.click(await screen.findByRole('button', { name: 'Send code' }));
 
-        expect(await screen.findByText(/too many attempts — try again in 45s/i)).toBeInTheDocument();
-        expect(screen.getByText(/wait a moment and ask again/i)).toBeInTheDocument();
-        expect(screen.getByText(/that code has been destroyed/i)).toBeInTheDocument();
-        // Never the bare floor, which is what the generic resolver would have given.
-        expect(screen.queryByText('The platform refused this')).not.toBeInTheDocument();
-        // Not mistaken for the delivery failure, which has its own remedy.
-        expect(screen.queryByText(/would not deliver the code/i)).not.toBeInTheDocument();
+        expect(await screen.findByText(/a code was just sent — try again in 45s/i)).toBeInTheDocument();
+        expect(screen.getByText(/still works/i)).toBeInTheDocument();
+        // ⚠ The opposite remedy must be GONE, not merely accompanied. Telling
+        // somebody their code was destroyed when it was not sends them back for
+        // another and restarts the cooldown they are already inside.
+        expect(screen.queryByText(/has been destroyed/i)).not.toBeInTheDocument();
+    });
+
+    /**
+     * 🔴 The half where guessing wrong is **not** recoverable: the code is gone,
+     * so "wait a moment" leaves the operator at a form that cannot succeed
+     * however long they wait. The dialog drops back to **Send code** for the
+     * same reason — the form in front of them is dead.
+     */
+    it('tells a spent code that it is destroyed, and puts the send button back', async () => {
+        stubFetch((call) =>
+            call.url.includes('/verify/confirm')
+                ? errorResponse(429, 'PLATFORM_OPERATION_REJECTED', {
+                      message: 'Too many attempts',
+                      category: 'rate_limit',
+                      details: { platformCode: 'PHONE_VERIFICATION_TOO_MANY_ATTEMPTS' },
+                  })
+                : codeSent(),
+        );
+        renderCard({ phone: '+237600123456' });
+
+        await userEvent.click(screen.getByRole('button', { name: /verify this number/i }));
+        await userEvent.click(await screen.findByRole('button', { name: 'Send code' }));
+        await userEvent.type(await screen.findByLabelText('Code'), '000000');
+        await userEvent.click(screen.getByRole('button', { name: 'Verify' }));
+
+        expect(await screen.findByText(/that code has been destroyed/i)).toBeInTheDocument();
+        expect(screen.getByText(/send a new one and use that/i)).toBeInTheDocument();
+        expect(screen.queryByText(/still works/i)).not.toBeInTheDocument();
+        expect(await screen.findByRole('button', { name: 'Send code' })).toBeInTheDocument();
+    });
+
+    /**
+     * ⚠ **wi-admin's own per-identity ceiling is not a verdict on the code**, so
+     * it must not say anything about one. It arrives as a plain
+     * `RATE_LIMIT_EXCEEDED` with no `platformCode` — which is exactly what the
+     * delegated refusals looked like before the allowlist widened, so this is
+     * also the case that stops the unnamed arm being deleted as dead.
+     */
+    it('treats our own rate ceiling as a plain wait', async () => {
+        stubFetch((call) =>
+            call.url.includes('/verify/request') && call.method === 'POST'
+                ? errorResponse(429, 'RATE_LIMIT_EXCEEDED', {
+                      message: 'Too many requests',
+                      category: 'rate_limit',
+                      details: { retryAfterSeconds: 30 },
+                  })
+                : codeSent(),
+        );
+        renderCard({ phone: '+237600123456' });
+
+        await userEvent.click(screen.getByRole('button', { name: /verify this number/i }));
+        await userEvent.click(await screen.findByRole('button', { name: 'Send code' }));
+
+        expect(await screen.findByText(/too many requests — try again in 30s/i)).toBeInTheDocument();
+        expect(screen.getByText(/wait a moment and try again/i)).toBeInTheDocument();
+        expect(screen.queryByText(/has been destroyed/i)).not.toBeInTheDocument();
+    });
+
+    /**
+     * ⚠ **`ADMIN_PHONE_VERIFICATION_MISMATCH` is wi-admin's own code**, named on
+     * 2026-09-14 — BR-025 read it as a `VALIDATION_ERROR` and said it was not
+     * asking for a named one, hours after one shipped.
+     *
+     * Nothing is written on the mismatch, and the code proved a number that is
+     * no longer the account's, so the only way forward is a fresh code against
+     * the current number: the dialog goes back to **Send code**.
+     */
+    it('sends an administrator back for a new code when the number moved under it', async () => {
+        stubFetch((call) =>
+            call.url.includes('/verify/confirm')
+                ? errorResponse(409, 'ADMIN_PHONE_VERIFICATION_MISMATCH', {
+                      message: 'The verified number no longer matches this account',
+                      category: 'conflict',
+                  })
+                : codeSent(),
+        );
+        renderCard({ phone: '+237600123456' });
+
+        await userEvent.click(screen.getByRole('button', { name: /verify this number/i }));
+        await userEvent.click(await screen.findByRole('button', { name: 'Send code' }));
+        await userEvent.type(await screen.findByLabelText('Code'), '123456');
+        await userEvent.click(screen.getByRole('button', { name: 'Verify' }));
+
+        // The catalogued sentence, not the server's — this code has copy.
+        expect(await screen.findByText(/ask for a new one/i)).toBeInTheDocument();
+        expect(await screen.findByRole('button', { name: 'Send code' })).toBeInTheDocument();
     });
 });

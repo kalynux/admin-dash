@@ -63,6 +63,34 @@ export function formatBytes(value: number | null | undefined): string {
 }
 
 /**
+ * One megabyte, binary — 1024 x 1024.
+ *
+ * **Every other party to this number counts in binary**, so a decimal megabyte
+ * here is wrong rather than merely a different convention: `formatBytes` above
+ * divides by 1024, jovi-mall's quota validator both formats and enforces in
+ * 1024s (`core/uploads/validators/user-quota.validator.ts`), its own defaults
+ * are written `5 * 1024 * 1024 * 1024`, and `billing.md`'s worked plan carries
+ * `maxStorageBytes: 5368709120` — 5 GiB to the byte, not 5,000,000,000.
+ *
+ * This constant exists because the plan form used `1_000_000` and was wrong in
+ * both directions: an operator asking for 10240 MB stored 10,240,000,000 bytes
+ * (9.5 GB of the 10 GB they meant), and the round trip *rewrote a correct plan
+ * on every edit* — 5368709120 read back as "5369 MB" and saved back as
+ * 5,369,000,000. Convert through the two functions below, never by hand.
+ */
+export const BYTES_PER_MEGABYTE = 1024 * 1024;
+
+/** Bytes as whole megabytes, for a form field or a limits row. */
+export function bytesToMegabytes(bytes: number): number {
+    return Math.round(bytes / BYTES_PER_MEGABYTE);
+}
+
+/** Whole megabytes as bytes, for the wire. */
+export function megabytesToBytes(megabytes: number): number {
+    return Math.round(megabytes * BYTES_PER_MEGABYTE);
+}
+
+/**
  * A wire enum as prose. `cash_on_delivery` → `cash on delivery`.
  *
  * **Null-safe on purpose, because the contract over-promises.** Several fields

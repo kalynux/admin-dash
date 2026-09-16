@@ -248,6 +248,88 @@ export function rejectPayout(
 }
 
 /**
+ * `POST /money/payouts/:payoutId/send` · **`money.payouts.mark_paid`** ·
+ * **delegated** · **dual-controlled**. The platform sends the money itself,
+ * through the payment gateway.
+ *
+ * ── ⛔ A 200 here does not mean the money arrived ─────────────────────────────
+ * The usual answer is the payout in **`processing`** — accepted by the gateway,
+ * confirmed later by callback. Only `paid` is settled, and `failed` means the
+ * transfer was refused **with the funds still held**. Read `data.status`; never
+ * report this as paid on the strength of the status code.
+ *
+ * ── Why there is no body, and no idempotency key ──────────────────────────────
+ * `SendPayoutSchema` is `z.object({}).strict()`, so **any** key is a `400` —
+ * the same guard `MarkPaidSchema` carries, for the same reason: a client that
+ * could name an `amount` could name `1999999` and slip under the four-eyes
+ * threshold. The amount is read off the row, always.
+ *
+ * ⚠ **Retry is this same call.** `POST /send` on a `failed` payout re-sends it,
+ * and the backend **reuses the stored provider reference** (ADR-024 D-8) so a
+ * transfer that actually succeeded and merely failed to report is deduplicated by
+ * the provider instead of paying the owner twice. **Do not add a client-side
+ * idempotency key** — minting one per attempt is precisely what would defeat
+ * that.
+ *
+ * ── The same permission, so the same threshold ────────────────────────────────
+ * It rides `money.payouts.mark_paid` rather than taking a permission of its own
+ * (ADR-024 D-3), which is what makes the ≥ 2,000,000 XAF rule cover it unchanged.
+ * So this returns a `DualControlResult` exactly like {@link markPayoutPaid}, and
+ * a `202` means **nothing was sent**. The queued approval's payload carries
+ * `mode: 'gateway'`, and an approval signed for one mode cannot be spent on the
+ * other.
+ */
+export function sendPayout(
+    payoutId: string,
+    options?: RequestOptions,
+): Promise<DualControlResult<Payout, Approval>> {
+    return api.dualControl<Payout, Approval>(
+        'POST',
+        `/money/payouts/${encodeURIComponent(payoutId)}/send`,
+        // An empty literal, never a caller-supplied object: the schema is
+        // `.strict()` and there is nothing this route accepts.
+        {},
+        options,
+    );
+}
+
+/**
+ * `POST /money/payouts/:payoutId/triage` · **`money.payouts.triage`** ·
+ * **delegated**. A reviewer vouches for the request.
+ *
+ * ── ⛔ This gates nothing, and that is the point ──────────────────────────────
+ * It moves no money, changes no status and is **never** a precondition: a payout
+ * nobody has endorsed is exactly as payable as one that has been (ADR-024 D-2).
+ * The pre-screen exists to save the approving administrator work, not to gate
+ * them — an empty Support queue must never stall payments. Nothing in this
+ * dashboard may key an approve control on the resulting `triage` object.
+ *
+ * ── There is no reject verdict here ──────────────────────────────────────────
+ * `TriagePayoutSchema` accepts `note` and nothing else, `.strict()`, and the
+ * validator says why: *a body that could name a verdict could name "approve",
+ * and this route must never be a second way to release money*. A reviewer who
+ * rejects calls {@link rejectPayout} — the same terminal write anyone else makes,
+ * which they reach because `/reject` takes
+ * `anyPermission('money.payouts.reject', 'money.payouts.triage')`.
+ *
+ * **Never queued for a second administrator at any amount.** There is nothing to
+ * have a quorum about: the act being recorded is an opinion, and the irreversible
+ * step it precedes has its own.
+ */
+export function triagePayout(payoutId: string, note?: string, options?: RequestOptions) {
+    const trimmed = note?.trim();
+    return api.mutate<Payout>(
+        'POST',
+        `/money/payouts/${encodeURIComponent(payoutId)}/triage`,
+        // Omitted rather than sent empty: `note` is `.min(1)` when present, so
+        // an empty string is a 400 where an absent key is the documented "no
+        // note". Built as a literal — the schema is `.strict()`.
+        trimmed ? { note: trimmed } : {},
+        options,
+    );
+}
+
+/**
  * The pair `GET /money/payouts/:payoutId/activity` needs, in `all` mode.
  *
  * Named once so the gate on the tab and the requirement in the docstring cannot

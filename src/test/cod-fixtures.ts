@@ -82,6 +82,13 @@ export function remittanceFixture(overrides: Partial<Remittance> = {}): Remittan
         declaredAt: '2026-08-13T06:00:00.000Z',
         resolvedAt: null,
         rejectionReason: null,
+        /*
+          ⚠ **`null` is the honest default.** Endorsement is advisory (ADR-024
+          D-2/D-5) — an un-endorsed record is exactly as confirmable — so a
+          fixture that arrived pre-endorsed would test every confirm control
+          against the one state where a mistaken gate is invisible.
+        */
+        triage: null,
         ...overrides,
     };
 }
@@ -135,6 +142,7 @@ export function platformDepositFixture(overrides: Partial<Deposit> = {}): Deposi
         declaredAt: '2026-08-13T09:00:00.000Z',
         resolvedAt: null,
         rejectionReason: null,
+        triage: null,
         recordedAt: '2026-08-13T09:00:00.000Z',
         ...overrides,
     };

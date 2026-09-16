@@ -296,6 +296,69 @@ export async function rejectRemittance(
 }
 
 /**
+ * `POST /cod/remittances/:remittanceId/triage` · **`cod.triage`** · delegated.
+ * A reviewer vouches for a declared remittance.
+ *
+ * ── ⛔ This gates nothing ─────────────────────────────────────────────────────
+ * Endorsement is advisory (ADR-024 D-2 and D-5): an un-endorsed remittance is
+ * exactly as confirmable as an endorsed one, and nothing on this dashboard may
+ * key a confirm or reject control on it. The pre-screen saves the confirming
+ * administrator work; it is not a step they wait on.
+ *
+ * ⚠ **`cod.triage` is NOT `financial`, unlike `money.payouts.triage`.** A
+ * remittance in `declared` holds nothing — only a confirmed one moves cash — so
+ * endorsing moves nothing and rejecting moves nothing either. It needed no tier-3
+ * exemption.
+ *
+ * Returns the server's sentence and no record, like every other write on this
+ * file — see the block comment above.
+ */
+export async function triageRemittance(
+    remittanceId: string,
+    note?: string,
+    options?: RequestOptions,
+): Promise<{ message: string | undefined }> {
+    const trimmed = note?.trim();
+    const result = await api.mutate<unknown>(
+        'POST',
+        `/cod/remittances/${encodeURIComponent(remittanceId)}/triage`,
+        // Omitted rather than sent empty: `note` is `.min(1)` when present, so
+        // an empty string is a 400 where an absent key is the documented "no note".
+        trimmed ? { note: trimmed } : {},
+        options,
+    );
+    return { message: result.message };
+}
+
+/**
+ * `POST /cod/deposits/:depositId/triage` · **`cod.triage`** · delegated.
+ *
+ * ⚠⚠ **Refused on an AGENCY-recipient deposit** — `403` with
+ * `details.platformCode: 'COD_DEPOSIT_WRONG_RECIPIENT'`, and **no permission
+ * fixes it**. That handover is counter-signed between two organisations and the
+ * platform never saw the cash, so there is nothing for an administrator to vouch
+ * for. `agency` is the *normal* route, so most rows in the deposits list are not
+ * endorsable here: the affordance is withheld up front via
+ * `isDepositEndorsableHere`, and the error path stays only for the race.
+ *
+ * Endorsement gates nothing here either — see {@link triageRemittance}.
+ */
+export async function triageDeposit(
+    depositId: string,
+    note?: string,
+    options?: RequestOptions,
+): Promise<{ message: string | undefined }> {
+    const trimmed = note?.trim();
+    const result = await api.mutate<unknown>(
+        'POST',
+        `/cod/deposits/${encodeURIComponent(depositId)}/triage`,
+        trimmed ? { note: trimmed } : {},
+        options,
+    );
+    return { message: result.message };
+}
+
+/**
  * `POST /cod/deposits` · `cod.deposits.create` (`financial`) · **`201`**.
  *
  * ⚠ **The one route on this surface that asserts money arrived**, and it settles

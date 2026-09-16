@@ -145,8 +145,24 @@ const isBootTime = (entry: DocEntry) => entry.meaning.includes('**Boot-time.**')
  * — the phrasing every genuine row and both genuine preambles use — reproduces
  * the same twelve and nothing else. `\s` spans newlines because both preambles
  * wrap the phrase across a line break.
+ *
+ * ── ⚠ A third phrasing arrived on 2026-09-15, and it was NOT a loosening ─────
+ * `#### The six that arrive from jovi-mall` declares the phone-verification
+ * verdicts in its preamble as *"every one of them **reaches a client** as
+ * `details.platformCode` on a `PLATFORM_OPERATION_REJECTED` — never as
+ * `error.code`"*. Same claim, different verb, and the six fell into
+ * `clientReachable`: the suite demanded `codes` copy for six jovi-mall verdicts
+ * and went red against the source mirror for not declaring codes wi-admin does
+ * not own.
+ *
+ * ⚠ **The fix is another verb, not a weaker predicate.** The bold markers are
+ * optional because this preamble emphasises the field name; everything else is
+ * unchanged, so both regression traps below still fire — a denial ("none of
+ * these is a `details.platformCode`") and a carrier ("its `details.platformCode`
+ * **is** …") are still read correctly.
  */
-const ARRIVES_AS_PLATFORM_CODE = /arrives?\s+(?:only\s+)?as\s+`details\.platformCode`/i;
+const ARRIVES_AS_PLATFORM_CODE =
+    /(?:arrives?|reach(?:es)?\s+(?:a\s+)?client)\s+(?:only\s+)?as\s+\*{0,2}`details\.platformCode`/i;
 
 const isPlatformCodeOnly = (entry: DocEntry) =>
     ARRIVES_AS_PLATFORM_CODE.test(entry.meaning) ||
@@ -198,7 +214,7 @@ describe('the registry parses', () => {
         expect(registry.length).toBeGreaterThanOrEqual(70);
     });
 
-    it('finds exactly ten boot-time codes and eleven platform-code-only ones', () => {
+    it('finds exactly ten boot-time codes and seventeen platform-code-only ones', () => {
         expect(registry.filter(isBootTime).map((e) => e.code).sort()).toEqual([
             'AUDIT_CATALOG_INVALID',
             'AUDIT_COVERAGE_INCOMPLETE',
@@ -221,10 +237,31 @@ describe('the registry parses', () => {
             'DEV_TOOLS_WORKER_BUSY',
             'DEV_TOOLS_WORKER_UNKNOWN',
             'MESSAGING_DELIVERY_FAILED',
+            // The phone-verification six (2026-09-15). jovi-mall owns the
+            // WhatsApp credentials, the window and the templates, so it owns
+            // every verdict on a code — wi-admin only holds the record.
+            'PHONE_VERIFICATION_CODE_EXPIRED',
+            'PHONE_VERIFICATION_CODE_INVALID',
+            'PHONE_VERIFICATION_DELIVERY_FAILED',
+            'PHONE_VERIFICATION_NO_TARGET',
+            'PHONE_VERIFICATION_RESEND_TOO_SOON',
+            'PHONE_VERIFICATION_TOO_MANY_ATTEMPTS',
             'USER_CHANNEL_UNAVAILABLE',
             'USER_CREDENTIAL_LINK_THROTTLED',
             'USER_LOGIN_LINK_ROLE_UNSUPPORTED',
         ]);
+    });
+
+    it('reads the third phrasing of the platform-only claim', () => {
+        // The narrow regression for the 2026-09-15 preamble. It says "reaches a
+        // client as" where every earlier one says "arrives as", and the six it
+        // covers say nothing about `details.platformCode` in their own rows — so
+        // a revert of the verb drops all six into `clientReachable` at once.
+        const entry = registry.find((e) => e.code === 'PHONE_VERIFICATION_TOO_MANY_ATTEMPTS');
+        expect(entry, 'PHONE_VERIFICATION_TOO_MANY_ATTEMPTS is missing from the registry').toBeDefined();
+        expect(entry!.meaning).not.toContain('`details.platformCode`');
+        expect(entry!.sectionPreamble).toContain('reaches a client as');
+        expect(isPlatformCodeOnly(entry!)).toBe(true);
     });
 
     it('finds the two codes that reach a client in no form at all', () => {

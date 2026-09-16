@@ -15,14 +15,20 @@ import { errorResponse, renderWithProviders, stubFetch } from '@/test/utils';
  * ── Why the throttle has its own describe ────────────────────────────────────
  * It read `details.scope` to choose between *wait* and *ask a colleague* until
  * 2026-09-09. **That key never arrives**: the refusal is forwarded at 429, and
- * `rate_limit` is one of the two categories with a closed `details` allowlist —
- * `retryAfterSeconds` · `limit` · `windowSeconds`. So every throttle was
- * reported as the party's, including the half where the operator was the one
- * being limited and a colleague could have sent it immediately.
+ * `rate_limit` carries a closed `details` allowlist — `retryAfterSeconds` ·
+ * `limit` · `windowSeconds`, plus `platformCode` since 2026-09-15. So every
+ * throttle was reported as the party's, including the half where the operator
+ * was the one being limited and a colleague could have sent it immediately.
  *
- * ⚠ The stubs below therefore send **exactly** the allowlisted keys. A stub
- * that helpfully included `scope` or `platformCode` would pass against the old
- * broken branch too, which is the whole reason nothing caught this.
+ * ⚠ The stubs below therefore send **exactly** the allowlisted keys, and none of
+ * them sends `scope`. A stub that helpfully included it would pass against the
+ * old broken branch too, which is the whole reason nothing caught this.
+ *
+ * ⚠ **`platformCode` arriving changed nothing here, and the last case pins
+ * that.** BR-025 § 2 put it on the allowlist for a flow where two 429s wanted
+ * opposite remedies; this refusal is one 429 whose remedy turns on `scope`,
+ * which is still dropped. The branch matches the status, and it should stay
+ * that way.
  */
 
 /** Toasts are asserted at the seam: `<Toaster>` lives in `App`, not here. */
@@ -124,6 +130,39 @@ describe('the throttle', () => {
         const description = warning.mock.calls[0][1]?.description as string;
         expect(description).toMatch(/either on this party or on your own account/i);
         expect(description).toMatch(/about 1 minute\b/i);
+    });
+
+    /**
+     * The wire as it is since 2026-09-15: `platformCode` survives a forwarded
+     * 429 (BR-025 § 2) and `scope` still does not.
+     *
+     * ⚠ **The assertion is that nothing moved.** The code names the refusal,
+     * which the status already did; the server's sentence is still the only
+     * thing saying *whose* allowance ran out, so it is still what gets rendered.
+     * If somebody re-points this branch at `platformCode` and drops the message,
+     * this goes red — which is the point, because the screen would look correct
+     * and tell half the operators to wait for no reason.
+     */
+    it('still renders the sentence now that platformCode survives a 429', async () => {
+        stubFetch(() =>
+            errorResponse(429, 'PLATFORM_OPERATION_REJECTED', {
+                category: 'rate_limit',
+                message: 'You have sent too many credential links recently.',
+                details: {
+                    retryAfterSeconds: 240,
+                    platformCode: 'USER_CREDENTIAL_LINK_THROTTLED',
+                },
+            }),
+        );
+        const warning = watchWarnings();
+        open();
+
+        await submit();
+
+        await waitFor(() => expect(warning).toHaveBeenCalled());
+        expect(warning.mock.calls[0][1]?.description).toMatch(
+            /you have sent too many credential links recently/i,
+        );
     });
 });
 
