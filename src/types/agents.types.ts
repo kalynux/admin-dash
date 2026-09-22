@@ -352,12 +352,89 @@ export interface AgentHomeBase {
     serviceRadiusKm: number | null;
 }
 
+/**
+ * The person the agent named to be called if something happens to them, entered
+ * in the agent app. **New on 2026-09-21** (ADR-009 § Amendment 2026-09-21).
+ *
+ * ⚠ **Detail only — never on a list row, and never will be** (`test:agents`
+ * pins it upstream). It was withheld on purpose as a third party's personal data
+ * until the owner reversed that; it is still the one field on the record whose
+ * subject never joined the platform, which is why the directory does not carry
+ * it. It is under `agents.read`, so **Support sees it** — deliberately: Support
+ * takes the call.
+ *
+ * The object is `null` when the agent has given none — never
+ * `{ name: null, phone: null }`. Either member can still be `null` alone, since
+ * wi-admin emits the block when *either* is present. There is no admin write:
+ * the agent owns it.
+ */
+export interface AgentEmergencyContact {
+    name: string | null;
+    /** E.164, as the agent typed it. */
+    phone: string | null;
+}
+
+/**
+ * Which rule produced the agent's COD pool ceiling (2026-09-21).
+ *
+ * ⛔ **A label, never a branch.** The rule lives in jovi-mall
+ * (`agent-cod-pool.ts`) and every client is told not to re-derive it — a screen
+ * may *say* where the number came from and must decide nothing from it. Open,
+ * per the standing enum rule.
+ */
+export type CodPoolSource = 'not_verified' | 'override' | 'plan' | (string & {});
+
+/**
+ * Where `maxThreshold` comes from — `cod.pool` on the detail, `pool` on the
+ * allocation, and the same block in both.
+ *
+ * ```
+ * ceiling = 0                       while KYC is not `verified` (wins even over a pin)
+ *         = an administrator's pin  when one is set, above OR below the plan
+ *         = plan.max_cod_pool       otherwise
+ * ```
+ */
+export interface CodPool {
+    /** The most `maxThreshold` can be right now. */
+    ceiling: number;
+    source: CodPoolSource;
+    /** The plan read, when `source` is `plan`; `null` otherwise. */
+    planCode: string | null;
+    /** The agent chose to carry **less** than the ceiling, from the agent app. */
+    selfLimited: boolean;
+    /**
+     * When jovi-mall last wrote the pool. ⚠ **`null` = never synced** — an agent
+     * from before 2026-09-21 still showing the OLD number until the
+     * `agent-cod-pool-reconcile` worker runs.
+     */
+    syncedAt: string | null;
+}
+
+/**
+ * An administrator's pin on the pool. It outranks the plan in both directions,
+ * survives plan changes and an unverified spell, and never outranks KYC.
+ *
+ * ⚠ `amount` is `number | null` on the **detail** (wi-admin maps it with
+ * `?? null`) and always a number on the **allocation**, which drops a pin with
+ * no amount rather than rendering it. One type covers both.
+ */
+export interface CodPoolOverride {
+    amount: number | null;
+    reason: string | null;
+    setAt: string | null;
+    setByName: string | null;
+    /** `admin` · `platform`. Open. */
+    setBySource: string | null;
+}
+
 /** `GET /agents/:agentId` — every list field, plus these. */
 export interface AgentDetail extends Agent {
     emailVerified: boolean;
     phoneVerified: boolean;
     vehicle: AgentVehicle | null;
     homeBase: AgentHomeBase;
+    /** Detail only. See `AgentEmergencyContact`. */
+    emergencyContact: AgentEmergencyContact | null;
     kyc: AgentKyc;
     ban: AgentBan;
     tracking: AgentTracking;
@@ -371,10 +448,16 @@ export interface AgentDetail extends Agent {
         trustScore: number | null;
         /**
          * The agent's **whole COD pool** — the ceiling every contract
-         * sub-allocates from. No `currency` field accompanies it anywhere; see
-         * `contracts.types.ts`.
+         * sub-allocates from, and **what every gate acts on**. No `currency` field
+         * accompanies it anywhere; see `contracts.types.ts`.
+         *
+         * ⚠ **Automatic since 2026-09-21** — nobody types it in. It is at most
+         * `pool.ceiling`, and lower when the agent chose to carry less.
          */
         maxThreshold: number | null;
+        pool: CodPool;
+        /** The pin, or `null`. Its presence is what offers **Release**. */
+        poolOverride: CodPoolOverride | null;
     };
     trustSignals: AgentTrustSignals | null;
     settings: {
@@ -521,13 +604,57 @@ export interface CodAllocationSlice {
  * on the Agencies tab. `headroom` is `max(0, maxThreshold - allocated)`, computed
  * server-side; do not recompute it, because lowering the pool below what the
  * contracts already hold is a rule jovi-mall owns and only it can refuse.
+ *
+ * Shape: `backend/admin/src/modules/agents/read-models/cod-allocation.dto.ts`,
+ * which maps every field by name — so `pool` and `override` are always present.
  */
 export interface CodAllocation {
     agentId: string;
     maxThreshold: number;
     allocated: number;
     headroom: number;
+    /**
+     * `allocated - maxThreshold` when contracts hold **more** than the pool, else
+     * `0` (2026-09-21). Only an automatic change produces it — a plan downgrade,
+     * or KYC withdrawn — because the platform cannot rewrite what agencies agreed.
+     * While it is above 0 no slice can be raised, and jovi-mall caps every
+     * dispatch at the pool. **It is what explains a `headroom` of 0** that
+     * otherwise reads as a bug.
+     */
+    overAllocatedBy: number;
+    pool: CodPool;
+    override: CodPoolOverride | null;
     contracts: CodAllocationSlice[];
+}
+
+/**
+ * `codPool` on the answer to `PUT /agents/:agentId/kyc` — the pool the verdict
+ * just produced (2026-09-21): `verified` opens it from the plan, any other
+ * verdict closes it to 0.
+ *
+ * jovi-mall's `describeCodPool`, forwarded **untyped** by wi-admin — which is
+ * why every member is optional here. ⚠ The sync is in-line but best-effort: if it
+ * fails the verdict still stands and the nightly reconcile converges the pool,
+ * so this can briefly show the old value.
+ */
+export interface KycCodPoolView {
+    maxThreshold?: number;
+    ceiling?: number;
+    source?: CodPoolSource;
+    planCode?: string | null;
+    selfLimited?: boolean;
+    syncedAt?: string | null;
+}
+
+/**
+ * What `PUT /agents/:agentId/kyc` answers: jovi-mall's `{ agentId, kyc, codPool }`
+ * passed through. Read for `codPool` alone — the screen refetches the agent.
+ */
+export interface AgentKycReviewResult {
+    agentId?: string;
+    kyc?: unknown;
+    codPool?: KycCodPoolView | null;
+    [key: string]: unknown;
 }
 
 /**
@@ -581,6 +708,213 @@ export interface AgentEligibility {
     rules: EligibilityRule[];
     activeShipmentCount: number;
     maxConcurrentShipments: number;
+}
+
+// ─── Assignability — the whole "why can this agent not take this work?" ───────
+
+/**
+ * Four outcomes, not two. `skipped` = the gate **could not run** (no
+ * `shipmentId`, or no active contract to read terms from); `not_applicable` = it
+ * does not apply (the cash gate on a prepaid shipment). Neither makes
+ * `assignable` false — only `failed` does. Collapsing them tells an operator a
+ * rule passed when it never ran.
+ */
+export type AssignabilityGateStatus =
+    | 'passed'
+    | 'failed'
+    | 'skipped'
+    | 'not_applicable'
+    | (string & {});
+
+/**
+ * Something an operator can act on, as a code plus its numbers — e.g.
+ * `deposit_cash { amount }`, `raise_trust_score { to, from, wouldRaiseLimitTo,
+ * sufficientOnItsOwn }`, `raise_contract_threshold { current,
+ * requiredForCurrentExposure }`, `wait_for_deliveries`. Open: an action this
+ * build does not know still renders, humanised.
+ */
+export interface AssignabilityRemedy {
+    action: string;
+    params?: Record<string, unknown>;
+}
+
+/**
+ * One gate, from either family, in the one shape jovi-mall normalises both to.
+ *
+ * Source: `jovi-mall/src/modules/shipment-assignment/domain/services/
+ * agent-assignability.service.ts` (`AssignabilityGate`). wi-admin passes the
+ * payload through unmodified and documents it only by reference, so this is read
+ * from source, not from either page — jovi-mall's worked example already lags
+ * its own `CodLimitBreakdown` by two fields.
+ */
+export interface AssignabilityGate {
+    /** `platform` = the `/eligibility` rules; `contract` = the terms. */
+    family: 'platform' | 'contract' | (string & {});
+    gate: string;
+    status: AssignabilityGateStatus;
+    /** The stable code the dispatch path would throw. `null` unless `failed`. */
+    reason: string | null;
+    /** What the rule saw. Shape varies by gate — see `readCodExposure`. */
+    observed: Record<string, unknown>;
+    /**
+     * One English line written by the platform for an admin console. Rendered
+     * as given. ⚠ On the cash gate it says *"the limit is the contract threshold
+     * of {base}"* even when the agent's pool set `base` — `limit.poolBinds` is
+     * what says so, and the screen must.
+     */
+    summary: string;
+    remedies: AssignabilityRemedy[];
+}
+
+/**
+ * How the cash gate's limit was reached, term by term — jovi-mall's
+ * `CodLimitBreakdown` (`cod/services/cod-exposure.service.ts`).
+ *
+ * ```
+ * base           = min(contractThreshold, agentPool)
+ * effectiveLimit = base × multiplier   (multiplier from the trust tier)
+ * ```
+ */
+export interface CodLimitBreakdown {
+    /** This agency's slice. `null` when the platform default applied. */
+    contractThreshold: number | null;
+    /** The agent's own pool — a second cap on `base`, since 2026-09-21. */
+    agentPool: number | null;
+    /**
+     * `true` when the agent's **pool**, not this agency's slice, set `base`.
+     * Normally false (slices sum to at most the pool); true after a plan
+     * downgrade or a withdrawn KYC verdict left contracts holding more than the
+     * pool. Then raising the slice cannot help.
+     */
+    poolBinds: boolean;
+    base: number;
+    /** The EFFECTIVE score — an administrator's pinned override when there is one. */
+    trustScore: number;
+    trustSource: string;
+    computedTrustScore: number;
+    overrideReason: string | null;
+    tier: 'full' | 'reduced' | 'blocked' | (string & {});
+    multiplier: number;
+    fullThreshold: number;
+    reducedThreshold: number;
+    /** **The limit.** Not `contractThreshold`, which is only its starting point. */
+    effectiveLimit: number;
+}
+
+/**
+ * Where the agent's exposure comes from. ⚠ **Agent-WIDE, across every agency** —
+ * the cash is one physical pot — while the limit it is compared against belongs
+ * to ONE contract. The single most misread thing about the refusal.
+ */
+export interface CodExposureBreakdown {
+    currency: string;
+    cashHeld: number;
+    pendingCollections: {
+        total: number;
+        count: number;
+        items: {
+            collectionId: string;
+            shipmentId: string;
+            agencyId: string | null;
+            expectedAmount: number;
+        }[];
+    };
+    total: number;
+}
+
+/** The cash gate's `observed` when it ran (`passed` or `failed`). */
+export interface CodExposureObserved {
+    blocker: 'trust_too_low' | 'open_cash_shortfall' | 'exposure_exceeded' | (string & {}) | null;
+    additionalAmount: number;
+    exposure: CodExposureBreakdown | null;
+    limit: CodLimitBreakdown;
+    headroom: number | null;
+    depositNeeded: number | null;
+    openCashShortfall: boolean;
+}
+
+/**
+ * `GET /agents/:agentId/assignability?agencyId=&shipmentId=` — every gate the
+ * assignment path applies, **both** families, with the numbers behind each.
+ *
+ * A superset of `/eligibility`: that one answers the platform half only, and the
+ * contract half — coverage, value ceiling, **COD exposure** — was reachable
+ * nowhere before this route. Pairwise, like eligibility; `shipmentId` is optional
+ * by design, because Support arrives holding an agency and an agent and no
+ * shipment id.
+ */
+export interface AgentAssignability {
+    agentId: string;
+    agencyId: string;
+    shipmentId: string | null;
+    /** `false` only when some gate `failed`. */
+    assignable: boolean;
+    /** Every failed gate's name, in evaluation order. */
+    blockers: string[];
+    gates: AssignabilityGate[];
+    context: {
+        shipment: {
+            shipmentId: string;
+            status: string;
+            agencyId: string;
+            currentAgentId: string | null;
+            orderId: string;
+            paymentMethod: string | null;
+            currency: string | null;
+            value: number | null;
+            deliveryRegion: string | null;
+        } | null;
+        /** `null` when the agent holds no active contract with this agency. */
+        contract: {
+            contractId: string;
+            status: string;
+            codThreshold: number;
+            outstandingBalance: number;
+            shipmentValueCeiling: number | null;
+            coverageRegions: string[];
+        } | null;
+    };
+    /** The `/eligibility` payload, unmodified. */
+    eligibility: AgentEligibility | null;
+    /** The raw contract-gate result. The record; `gates` is its projection. */
+    contractPolicy: unknown;
+}
+
+/** Query for `GET /agents/:agentId/assignability`. **Strict** — nothing else is accepted. */
+export interface AssignabilityQuery {
+    agencyId: string;
+    shipmentId?: string;
+}
+
+/**
+ * The cash gate's numbers, or `null` when they are not there to read.
+ *
+ * `observed` is `Record<string, unknown>` on the wire because each gate reports
+ * something different, so this narrows the one shape a screen needs rather than
+ * casting — a skipped or not-applicable cash gate carries `{}` or
+ * `{ paymentMethod }`, and must fall back to the generic rendering, not throw.
+ */
+export function readCodExposure(gate: AssignabilityGate): CodExposureObserved | null {
+    if (gate.gate !== 'cod_exposure') return null;
+    const observed = gate.observed as Partial<CodExposureObserved> | null | undefined;
+    const limit = observed?.limit;
+    if (!limit || typeof limit !== 'object' || typeof limit.effectiveLimit !== 'number') {
+        return null;
+    }
+    return {
+        blocker: observed.blocker ?? null,
+        additionalAmount: typeof observed.additionalAmount === 'number' ? observed.additionalAmount : 0,
+        exposure: observed.exposure ?? null,
+        limit: {
+            ...limit,
+            // Older builds predate the pool cap; absent reads as "did not bind".
+            agentPool: typeof limit.agentPool === 'number' ? limit.agentPool : null,
+            poolBinds: limit.poolBinds === true,
+        },
+        headroom: typeof observed.headroom === 'number' ? observed.headroom : null,
+        depositNeeded: typeof observed.depositNeeded === 'number' ? observed.depositNeeded : null,
+        openCashShortfall: observed.openCashShortfall === true,
+    };
 }
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -687,19 +1021,39 @@ export interface SetAgentTrackingBody {
 }
 
 /**
- * `PUT /agents/:agentId/cod-threshold` — the agent's **whole COD pool**.
+ * `PUT /agents/:agentId/cod-threshold` — **PIN** the agent's whole COD pool.
  *
- * Bounds beyond finite-and-non-negative are **not** checked client-side or by
- * wi-admin: jovi-mall owns the min/max and, more importantly, owns the rule this
- * write can actually fail — **lowering the pool below what its contracts have
- * already allocated is refused there**, and that check needs the contracts. A
- * client-side copy would be a second definition of a limit we do not own.
+ * ⚠ **BREAKING on 2026-09-21: `reason` is required, and this no longer SETS the
+ * pool.** The pool is derived — `0` until KYC is `verified`, then the plan's
+ * `max_cod_pool` — and this writes an administrator's pin that replaces the
+ * plan's value, above or below it, until `POST …/cod-threshold/release`. A pin
+ * does **not** outrank KYC: on an unverified agent it is stored and the pool
+ * stays 0 until the verdict.
+ *
+ * Bounds beyond a non-negative integer are **not** checked client-side or by
+ * wi-admin: jovi-mall owns the min/max (0–5 000 000) and, more importantly, owns
+ * the rule this write can actually fail — **leaving the pool below what its
+ * contracts have already allocated is refused there**, and that check needs the
+ * contracts. A client-side copy would be a second definition of a limit we do
+ * not own.
  *
  * Show `CodAllocation['allocated']` beside the input so the floor is visible, but
  * do not enforce it.
  */
 export interface SetCodThresholdBody {
+    /** An **integer** since 2026-09-21 — a fraction is a `400`. */
     maxThreshold: number;
+    /** Required. 3–500 characters, trimmed. Recorded on the pin and in the audit row. */
+    reason: string;
+}
+
+/**
+ * `POST /agents/:agentId/cod-threshold/release` — drop the pin; the agent goes
+ * back to their plan's value (or 0 while unverified). **Strict.**
+ */
+export interface ReleaseCodThresholdBody {
+    /** Required. 3–500 characters. */
+    reason: string;
 }
 
 /** `POST /agents/:agentId/ban`. Permanent-shaped, and always carries a reason. */
@@ -762,20 +1116,25 @@ export const TRUST_SORT_INDEX_FILTERS = ['status', 'kycStatus', 'banned'] as con
 export const AGENT_MAX_RANGE_DAYS = 366;
 
 /**
- * The seven audited actions this surface writes.
+ * The eight audited actions this surface writes.
  *
  * Note `agents.ban` and `agents.unban` are **two audit actions behind one
  * permission** (`agents.ban`): lifting a ban clears the reason, the timestamp and
  * the actor stamp off the agent row, so the audit row is the only surviving record
  * it ever happened — which cannot be true if both directions share a name.
  *
- * Transcribed from `audit.catalog.ts:304-372`.
+ * `agents.cod_threshold.release` (2026-09-21) is the same pairing for the same
+ * reason: it rides `agents.cod_threshold.set`, and jovi-mall clears the pin off
+ * the agent entirely, so its row is the only record the pin existed.
+ *
+ * Transcribed from `audit.catalog.ts:304-372`, plus the release row.
  */
 export const AGENT_AUDIT_ACTIONS = [
     'agents.status.set',
     'agents.kyc.review',
     'agents.tracking.set',
     'agents.cod_threshold.set',
+    'agents.cod_threshold.release',
     'agents.ban',
     'agents.unban',
     'agents.transfer',
@@ -787,7 +1146,13 @@ export const AGENT_AUDIT_ACTION_LABELS: Record<AgentAuditAction, string> = {
     'agents.status.set': 'Status changed',
     'agents.kyc.review': 'Documents reviewed',
     'agents.tracking.set': 'Tracking changed',
-    'agents.cod_threshold.set': 'COD threshold set',
+    /*
+      ⚠ "set or pinned", not "pinned": the action name was kept on 2026-09-21
+      so rows already written under it stay findable, and a row from before
+      that date recorded a plain SET of the pool. Only the date tells them apart.
+    */
+    'agents.cod_threshold.set': 'COD pool set or pinned',
+    'agents.cod_threshold.release': 'COD pool pin released',
     'agents.ban': 'Banned',
     'agents.unban': 'Ban lifted',
     'agents.transfer': 'Transferred',
@@ -900,6 +1265,26 @@ export function agentStateAxes(agent: Agent): StateAxis[] {
  */
 export function statusChangeNeedsReason(status: AgentStatus): boolean {
     return status === 'suspended';
+}
+
+/**
+ * Where the pool came from, as one line — **display only**.
+ *
+ * ⛔ Nothing may branch on `source`; the rule is jovi-mall's. This turns the
+ * label into words and does no more. An unknown source is shown raw rather than
+ * guessed at, per the standing enum rule.
+ */
+export function codPoolSourceLabel(pool: Pick<CodPool, 'source' | 'planCode'>): string {
+    switch (pool.source) {
+        case 'plan':
+            return pool.planCode ? `From the ${pool.planCode} plan` : 'From their plan';
+        case 'override':
+            return 'Pinned by an administrator';
+        case 'not_verified':
+            return '0 — identity not verified';
+        default:
+            return pool.source;
+    }
 }
 
 /** Whether a KYC verdict needs a rejection reason, per `ReviewAgentKycBody`. */

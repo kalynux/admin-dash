@@ -223,7 +223,11 @@ export function setPhone(phone: string): Promise<PhoneRecord> {
  * carrying `details.platformCode: 'PHONE_VERIFICATION_DELIVERY_FAILED'` —
  * ✅ **no longer the ordinary case**: the missing AUTHENTICATION template was
  * approved on 2026-09-15 and the 24-hour window is now recorded, so this is the
- * edge case it reads as.
+ * edge case it reads as. ⚠ **By the time it arrives every route was tried** —
+ * since 2026-09-21 a refused in-window text falls back to the template — so
+ * nothing the operator does in WhatsApp changes it, and it starts no cooldown:
+ * jovi-mall stores a code only after WhatsApp accepts it, so an immediate retry
+ * is allowed. See `api-doc/jovi-mall/me/phone-verification.md`.
  */
 export function requestPhoneCode(): Promise<PhoneCodeSent> {
     return api.post<PhoneCodeSent>('/auth/me/phone/verify/request', undefined);

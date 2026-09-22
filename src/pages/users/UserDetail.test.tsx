@@ -208,6 +208,63 @@ describe('the closure block', () => {
      * failure: `closedAt` pairs with `status`, so a screen reading the stamp
      * alone would report an active account as closed.
      */
+    /**
+     * ⚠ **A closed account offers no action, and every one would fail or harm**
+     * (`account-closure.md`, `users.md` § suspend): suspend and restore both miss
+     * the compare-and-set with a `409` whose copy blames another administrator,
+     * both credential links are refused as *"suspended"*, the Telegram
+     * connection was deleted at closure — and editing the login details
+     * *succeeds*, writing an identifier back onto an anonymised row that can
+     * never sign in, which squats it against the person's next account.
+     */
+    const EVERY_ACCOUNT_ACTION = [
+        'users.read',
+        'audit.read',
+        'users.update',
+        'users.suspend',
+        'users.password.reset',
+        'users.login_link.send',
+        'messaging.telegram.send',
+    ];
+    /** What an active customer is offered under that grant. */
+    const ACTIVE_ACTIONS = [
+        /edit login details/i,
+        /^suspend$/i,
+        /send reset link/i,
+        /send sign-in link/i,
+        /message on telegram/i,
+    ];
+
+    it('offers no account action on a closed account', async () => {
+        stubDetail(
+            userDetailFixture({
+                status: 'closed',
+                roles: ['customer'],
+                email: null,
+                phone: null,
+                closedAt: '2026-08-29T16:44:10.006Z',
+            }),
+        );
+        detail(EVERY_ACCOUNT_ACTION);
+
+        await screen.findByText(/closed by its owner/i);
+        for (const name of [...ACTIVE_ACTIONS, /^restore$/i]) {
+            expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+        }
+        expect(screen.getByRole('button', { name: /refresh/i })).toBeInTheDocument();
+    });
+
+    /** The control, so the test above cannot pass by matching nothing. */
+    it('offers them on an active account under the same grant', async () => {
+        stubDetail(userDetailFixture({ status: 'active', roles: ['customer'] }));
+        detail(EVERY_ACCOUNT_ACTION);
+
+        await screen.findByRole('heading', { level: 1 });
+        for (const name of ACTIVE_ACTIONS) {
+            expect(screen.getByRole('button', { name })).toBeInTheDocument();
+        }
+    });
+
     it('never renders a stale instant left on an active account', async () => {
         stubDetail(
             userDetailFixture({ status: 'active', closedAt: '2026-08-29T16:44:10.006Z' }),

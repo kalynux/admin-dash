@@ -6,7 +6,7 @@
 > Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
 > [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
 >
-> **Reconciled with the backend page on 2026-09-08 (DOC-PROGRAM R5).** The stamp below is
+> **Re-copied from the backend page on 2026-09-22.** The stamp below is
 > that page’s, and the only deliberate differences here are this banner and the outbound
 > references flattened to plain text because their targets are not mirrored into this folder.
 <!-- /CONTEXT-BANNER -->

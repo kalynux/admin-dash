@@ -179,6 +179,24 @@ describe('the plan detail', () => {
         expect(await screen.findByText(/not defined by a vendor plan/i)).toBeInTheDocument();
     });
 
+    it("shows an agent tier's COD pool", async () => {
+        renderDetail(agentPlanFixture());
+
+        expect(await screen.findByText('500,000')).toBeInTheDocument();
+    });
+
+    /**
+     * ⚠ The one limit that fails CLOSED (2026-09-21): on an agent tier `null` is
+     * no cash on delivery, and jovi-mall reads it as 0. A shared "not limited"
+     * rendering would tell an operator the opposite of what the platform does.
+     */
+    it('reports an agent tier with no COD pool as no cash on delivery, never unlimited', async () => {
+        const plan = agentPlanFixture();
+        renderDetail(agentPlanFixture({ limits: { ...plan.limits, maxCodPool: null } }));
+
+        expect(await screen.findByText('0 — no cash on delivery')).toBeInTheDocument();
+    });
+
     it('renders a 404 as a refusal', async () => {
         stubFetch(() =>
             errorResponse(404, 'NOT_FOUND', {

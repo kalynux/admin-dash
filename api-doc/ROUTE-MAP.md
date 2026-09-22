@@ -1,4 +1,11 @@
-# Route map — all 255 wi-admin routes
+# Route map — all 256 wi-admin routes
+
+⚠ **255 → 256 on 2026-09-22: `POST /agents/:agentId/cod-threshold/release`**, from the COD-pool
+round ([changelog](admin/FRONTEND-CHANGELOG-agent-cod-pool-and-emergency-contact.md)). Its
+permission (`agents.cod_threshold.set`, the pin's own) and its audit action
+(`agents.cod_threshold.release`) were read from `agents/routes/agent.routes.ts` **while that change
+was still uncommitted upstream** — so this row is READ, not measured, and the live manifest would
+now print **`TOTAL 261`** once it deploys. Re-run the recipe below before trusting either figure.
 
 🔴 **The recipe was re-run on 2026-09-15 and the live service holds FOUR routes this table does
 not.** BR-025's last acceptance box asked for exactly this, so it is now a measurement rather
@@ -164,7 +171,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 
 ---
 
-## The 255 routes, by namespace
+## The 256 routes, by namespace
 
 ### `/support` — 19 routes
 
@@ -213,7 +220,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | PATCH | `/administrators/me` | *self* | ✅ administrators.profile.update_self | [`administrators.md`](admin/api/administrators.md) |
 | GET | `/administrators/me/activity` | *self* | — | [`administrators.md`](admin/api/administrators.md) |
 
-### `/agents` — 19 routes
+### `/agents` — 20 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -223,6 +230,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | POST | `/agents/:agentId/ban` | `agents.ban` | ✅ agents.ban | [`agents.md`](admin/api/agents.md) |
 | GET | `/agents/:agentId/cod-allocation` | `agents.read` + `agencies.read` | — | [`agents.md`](admin/api/agents.md) |
 | PUT | `/agents/:agentId/cod-threshold` | `agents.cod_threshold.set` | ✅ agents.cod_threshold.set | [`agents.md`](admin/api/agents.md) |
+| POST | `/agents/:agentId/cod-threshold/release` | `agents.cod_threshold.set` | ✅ agents.cod_threshold.release | [`agents.md`](admin/api/agents.md) |
 | GET | `/agents/:agentId/contract-history` | `agents.read` | — | [`agents.md`](admin/api/agents.md) |
 | GET | `/agents/:agentId/assignability` | `agents.read` + `agencies.read` | — | [`agents.md`](admin/api/agents.md) |
 | GET | `/agents/:agentId/contracts` | `agents.read` + `agencies.read` | — | [`agents.md`](admin/api/agents.md) |

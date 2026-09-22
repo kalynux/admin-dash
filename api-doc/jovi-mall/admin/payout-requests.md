@@ -1,3 +1,16 @@
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call jovi-mall.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> Field names here are jovi-mall's **snake_case** storage casing; wi-admin's wire is **camelCase**.
+>
+> Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+>
+> **Re-copied from the backend page on 2026-09-22.** The stamp below is
+> that page’s, and the only deliberate differences here are this banner and the outbound
+> references flattened to plain text because their targets are not mirrored into this folder.
+<!-- /CONTEXT-BANNER -->
+
 # Admin Payout Requests API
 
 **Verified against source on 2026-09-08** — the four routes, the list query schema, the `payout_method_snapshot` unmasking rule and the two 409 paths, against `jovi-mall/src/modules/earnings/{routes/admin-payout-requests.routes.ts,services/payout-request.service.ts,config/earnings.config.ts:77,87}`. Three defects: the Base Path and Authentication sections still described the deleted public `/api/admin` mount, and the ticket note gave the Phase-17 exclusivity lock as a live failure cause.

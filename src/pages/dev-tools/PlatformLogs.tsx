@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, RotateCw, ScrollText } from 'lucide-react';
+import { AlertTriangle, ChevronRight, RotateCw, ScrollText } from 'lucide-react';
 
 import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataState, EmptyState } from '@/components/common/DataState';
@@ -7,6 +7,7 @@ import { FilterBar } from '@/components/common/FilterBar';
 import { FilterField } from '@/components/common/FilterField';
 import { SearchInput } from '@/components/common/SearchInput';
 import { PageContainer } from '@/components/layout/PageContainer';
+import { LogEntryDialog } from '@/components/system/LogEntryDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,10 +19,13 @@ import {
 } from '@/components/ui/select';
 import { useListQueryState } from '@/hooks/use-list-query-state';
 import { useRefreshToken } from '@/hooks/use-refresh-token';
+import { resolveTimeZone } from '@/lib/datetime';
 import { formatRelative } from '@/lib/format';
+import { logEntryHeadline, readLogEntry, type LogEntryView } from '@/lib/log-entry';
 import { scrubText } from '@/lib/scrub-secrets';
 import { cn } from '@/lib/utils';
 import { listPlatformLogs } from '@/services/system.service';
+import { useAdmin } from '@/store';
 import { LOG_LEVELS, LOG_QUERY_MAX, LOG_SOURCES, type PlatformLogsPage } from '@/types/system.types';
 
 const FILTER_KEYS = ['level', 'q', 'requestId', 'source'] as const;
@@ -47,6 +51,13 @@ const LEVEL_TONE: Record<string, string> = {
  *   deliberately: redacting all of it would destroy the endpoint's reason to exist. That is why
  *   this is tier-1 only, and the warning travels on the response.
  *
+ * ── ⚠ On an error line, `msg` is only the code ───────────────────────────────
+ * jovi-mall's error handler writes `msg` as `"internal 500 INTERNAL_SERVER_ERROR"` and keeps the
+ * failure itself in `httpError` and `err` — see `lib/log-entry.ts`. Until 2026-09-21 this screen
+ * rendered `msg` alone, so an operator could see *that* something failed and never *what*, with
+ * nothing to click. Each row now carries the thrown message under the code, cut to three lines,
+ * and opens the whole entry in `LogEntryDialog`.
+ *
  * `q` is bounded at 100 characters as a **pattern-length defence** rather than a UI nicety: the
  * term is escaped and applied literally, and an unbounded one would be a scan amplifier against a
  * collection with no text index.
@@ -55,8 +66,11 @@ const LEVEL_TONE: Record<string, string> = {
  * an offset would yield duplicates and gaps.
  */
 export function PlatformLogs() {
+    const admin = useAdmin();
+    const timeZone = resolveTimeZone(admin?.timezone);
     const { token, refresh } = useRefreshToken();
     const { values, set, reset, isFiltered } = useListQueryState(FILTER_KEYS);
+    const [opened, setOpened] = useState<LogEntryView | null>(null);
 
     const query = useMemo(
         () => ({
@@ -96,17 +110,23 @@ export function PlatformLogs() {
     }
 
     const latest = pages[pages.length - 1];
-    const entries = pages.flatMap((page) => page.entries);
+    const entries = pages.flatMap((page) => page.entries.map(readLogEntry));
 
     /**
      * One scrub per line, done here rather than in the row, so the page-level
      * tally and the rendered text come from the same pass. A per-row notice would
      * put a hundred disclosures on a hundred-row page, which is noise rather than
      * disclosure — the count belongs in the banner that is already the
-     * read-this-first box.
+     * read-this-first box. Both texts a row shows are counted; the dialog
+     * discloses its own fields beside each one.
      */
-    const scrubbedMessages = entries.map((entry) => scrubText(String(entry.msg ?? '')));
-    const maskedLineCount = scrubbedMessages.filter((line) => line.matched.length > 0).length;
+    const scrubbedRows = entries.map((entry) => ({
+        msg: scrubText(entry.msg),
+        headline: scrubText(logEntryHeadline(entry) ?? ''),
+    }));
+    const maskedLineCount = scrubbedRows.filter(
+        (row) => row.msg.matched.length > 0 || row.headline.matched.length > 0,
+    ).length;
 
     return (
         <PageContainer
@@ -211,9 +231,10 @@ export function PlatformLogs() {
             >
                 <ul className="border-border divide-border divide-y rounded-lg border">
                     {entries.map((entry, index) => {
-                        const level = String(entry.level ?? '');
+                        const level = entry.level;
+                        const scrubbed = scrubbedRows[index];
                         return (
-                            <li key={`${String(entry.at)}-${index}`} className="space-y-1 px-4 py-3">
+                            <li key={`${entry.at}-${index}`} className="space-y-1 px-4 py-3">
                                 <div className="flex flex-wrap items-center gap-2">
                                     <Badge
                                         variant="outline"
@@ -222,7 +243,7 @@ export function PlatformLogs() {
                                         {level || 'log'}
                                     </Badge>
                                     <span className="text-muted-foreground/70 text-xs">
-                                        {formatRelative(String(entry.at))}
+                                        {formatRelative(entry.at)}
                                     </span>
                                     {entry.requestId ? (
                                         /*
@@ -243,7 +264,7 @@ export function PlatformLogs() {
                                          * today rather than nudging every log row taller.
                                          */
                                         <CopyableValue
-                                            value={String(entry.requestId)}
+                                            value={entry.requestId}
                                             label="request reference"
                                             truncate={false}
                                             mono={false}
@@ -258,15 +279,38 @@ export function PlatformLogs() {
                                   * `Bearer [secret-removed]` — a string that is not what the
                                   * platform logged — or put the credential the scrubber just
                                   * caught onto the clipboard. Neither is worth an affordance.
+                                  *
+                                  * The text is the button that opens the whole entry, and the
+                                  * reference's copy control stays OUTSIDE it, above: a button
+                                  * inside a button is nesting the browser reparents, and the
+                                  * copy would land outside the row it belongs to.
                                   */}
-                                <p className="text-sm break-words">
-                                    {scrubbedMessages[index]?.text ?? ''}
-                                </p>
+                                <button
+                                    type="button"
+                                    aria-haspopup="dialog"
+                                    onClick={() => setOpened(entry)}
+                                    className="group focus-visible:ring-ring w-full rounded-sm text-left focus-visible:ring-2 focus-visible:outline-none"
+                                >
+                                    <span className="block text-sm [overflow-wrap:anywhere]">
+                                        {scrubbed?.msg.text ?? ''}
+                                    </span>
+                                    {scrubbed?.headline.text ? (
+                                        <span className="text-muted-foreground mt-1 line-clamp-3 font-mono text-xs [overflow-wrap:anywhere]">
+                                            {scrubbed.headline.text}
+                                        </span>
+                                    ) : null}
+                                    <span className="text-muted-foreground group-hover:text-foreground mt-1 inline-flex items-center gap-0.5 text-xs group-hover:underline">
+                                        Show full entry
+                                        <ChevronRight className="size-3.5" aria-hidden />
+                                    </span>
+                                </button>
                             </li>
                         );
                     })}
                 </ul>
             </DataState>
+
+            <LogEntryDialog entry={opened} timeZone={timeZone} onClose={() => setOpened(null)} />
 
             {latest?.nextBefore ? (
                 <div className="flex justify-center">

@@ -9,7 +9,12 @@
 
 # jovi-mall API — Frontend Integration Guide
 
-**Verified against source on 2026-09-08** — the response-envelope rules and the internal-admin route count, against `jovi-mall/src/modules/payments/routes/payment.routes.ts:59,87,123,155,178,206` and the live route census (120 `/api/internal/admin/*` routes in sixteen groups). Two defects: this page claimed `data` is **always** present on success — four `/api/payments/*` routes return flat bodies — and it carried the pre-`/reviews` count of 111 in fifteen. The documentation index was then cut to the 27 pages this folder actually holds (it listed ~140 it does not), which also surfaced two defects about the folder itself: `rate-limits.md` was linked from nowhere, and three pages described as *deleted* all still exist as redirects.
+**Verified against source on 2026-09-08** — the uploads section in full (field names `files` /
+`videos`, 1–10 files, and the per-role ceilings customer 100 MB · agency 200 MB · vendor 500 MB ·
+agent 1 GB · admin 2 GB · video 70 MB, against
+`src/api/controllers/file-upload.controller.ts:47-56,112-122` and
+`src/api/routes/file-upload.routes.ts:48-101`), and the internal-admin door.
+**One count had drifted** and is corrected in that section.
 
 > **Start here.** This is the index and the shared contract for every jovi-mall HTTP endpoint.
 > Read this page once, then jump to the per-feature docs linked below. Live GPS tracking lives in a
@@ -51,9 +56,8 @@ Every jovi-mall endpoint returns one of exactly two shapes.
 - `message` is optional.
 
 > ⚠ **Four payment routes predate this envelope and return FLAT bodies with no `data` key.**
-> This line read *"`data` is **always present** on success"* here until 2026-09-08 (it was
-> corrected on the backend page on 2026-09-06, DOC-PROGRAM F-34, and this copy did not follow).
-> A client helper written from it — `return body.data` — reads `undefined` for every one of
+> This line read *"`data` is **always present** on success"* until 2026-09-06 (DOC-PROGRAM F-34),
+> and a client helper written from it — `return body.data` — reads `undefined` for every one of
 > them, **on the checkout path**.
 >
 > | Route | Shape | Source |
@@ -232,7 +236,7 @@ agency/shipments.md (not mirrored here — `backend/jovi-mall/api-doc/agency/shi
 change, 2026-07-29 — it used to be open). See [payments/README.md](./payments/README.md).
 ⁴ Vendors read a *booking's* payment state via `GET /api/bookings/:id/payment-status` for bookings
 they own. Vendor/agency/agent **plan and credit purchases are a different surface** and create no
-`PaymentTransaction` — see billing-plans-across-roles.md (not mirrored here — `backend/jovi-mall/api-doc/billing-plans-across-roles.md`).
+`PaymentTransaction` — see [billing-plans-across-roles.md](./billing-plans-across-roles.md).
 ⁵ `/api/public/*` is the **only** unauthenticated route tree besides auth, the single
 booking-availability route above and the payment initiate/verify pair. It reads the plan catalog,
 the credit packs, the published blog and the published product catalog — read-only, no identity, no
@@ -281,26 +285,73 @@ Same JWT signs both services — forward the viewer's access token to geo-tracke
 
 ## Documentation index
 
-**This folder is a deliberate subset, and this index lists only what is in it.** It carries the
-jovi-mall pages an administrator needs as *context* — the administrative surface wi-admin
-delegates to, plus the cross-cutting contracts an admin screen has to obey. It is not a mirror of
-jovi-mall's `api-doc/`, and nothing here is a call target.
+### Cross-cutting
+- Auth & sessions (not mirrored here — `backend/jovi-mall/api-doc/auth/README.md`) · **Customer auth (bot registration + passwordless sign-in)** (not mirrored here — `backend/jovi-mall/api-doc/auth/customer-auth.md`) · Bot `/login` & `/reset-password` (not mirrored here — `backend/jovi-mall/api-doc/auth/magic-login.md`) · Onboarding (not mirrored here — `backend/jovi-mall/api-doc/auth/onboarding.md`)
+- [Change password (`/me/password`, all roles)](./me/password.md) · [**Change email or phone (`/me/{email,phone}`, all roles)**](./me/contact-change.md) — pending until proved; the identifier never moves early · [**Close account (`/me/close`, customers)**](./me/account-closure.md) — anonymise-and-retain, *not* a deletion (ADR-A02)
+- **Public API (no auth)** (not mirrored here — `backend/jovi-mall/api-doc/public/README.md`) — the published price list: plan catalog + credit packs, for the marketing site
+- **Public catalog (no auth)** (not mirrored here — `backend/jovi-mall/api-doc/public/catalog.md`) — the storefront's read side: products, categories, stores. **Product URLs are nested under their store**
+- **Public blog (no auth)** (not mirrored here — `backend/jovi-mall/api-doc/public/articles.md`) — articles, typed blocks, hreflang & slug redirects. The editor is **wi-admin's** (`admin/api-doc/api/content.md`), not this service's
+- **Public app downloads (no auth)** (not mirrored here — `backend/jovi-mall/api-doc/public/app-downloads.md`) — the **agent APK**, for the landing page’s download button. `/app/agent-android/download` is a **302** to the CDN and is the stable link; `/latest` carries the version, size, `minSdk` and the **signing-certificate fingerprint**
+- **Reviews & ratings — cross-role** (not mirrored here — `backend/jovi-mall/api-doc/reviews.md`) — one module, **two subjects**: a product review (public, verified purchase) and a **delivery** review (internal, written by the customer *and* the vendor *and* the agency, each feeding a different factor of the agent's trust score). Also the rule for `aggregateRating`: emit it **iff** `rating` is non-null
+- [**Billing, plans & credit — cross-dashboard guide**](./billing-plans-across-roles.md) (vendor · agency · agent · admin)
+- [Error catalog](./errors/README.md)
+- Geospatial addresses & address search (not mirrored here — `backend/jovi-mall/api-doc/geo/README.md`)
+- [Gateway payments (role-neutral)](./payments/README.md) — initiate · verify · read a transaction
+- **Phase D · 0 · 1 — what the readiness phases changed** (not mirrored here — `backend/jovi-mall/api-doc/phase-d-0-1/README.md`) — one document per audience (admin (not mirrored here — `backend/jovi-mall/api-doc/phase-d-0-1/admin-dashboard.md`) · vendor & agency dashboards (not mirrored here — `backend/jovi-mall/api-doc/phase-d-0-1/vendor-agency-dashboard.md`) · customer app (not mirrored here — `backend/jovi-mall/api-doc/phase-d-0-1/customer-app.md`) · agency & agent app (not mirrored here — `backend/jovi-mall/api-doc/phase-d-0-1/agency-agent-app.md`)). Real mobile money, the one-time-code step, callback settlement, refund verdicts, and the ten decisions with their build status
+- **Phase 2 · 3 — deployability and the cross-service seam** (not mirrored here — `backend/jovi-mall/api-doc/FRONTEND-CHANGELOG-phase-2-3.md`) — the cross-role page, plus one per role folder (vendor (not mirrored here — `backend/jovi-mall/api-doc/vendor/FRONTEND-CHANGELOG-phase-2-3.md`) · agency (not mirrored here — `backend/jovi-mall/api-doc/agency/FRONTEND-CHANGELOG-phase-2-3.md`) · agent (not mirrored here — `backend/jovi-mall/api-doc/agent/FRONTEND-CHANGELOG-phase-2-3.md`) · customer (not mirrored here — `backend/jovi-mall/api-doc/customer/FRONTEND-CHANGELOG-phase-2-3.md`) · landing & shop (not mirrored here — `backend/jovi-mall/api-doc/public/FRONTEND-CHANGELOG-phase-2-3.md`) · [admin dashboard](../admin/FRONTEND-CHANGELOG-phase-2-3.md) · [tracking clients](../geo-tracker/FRONTEND-CHANGELOG-phase-2-3.md)). 🔴 **A dropped tracking subscription used to always say `shipment_completed`** — read your role's page before shipping anything that reads that frame
+- **Phase 4 · 5 — hardening and the admin cutover** (not mirrored here — `backend/jovi-mall/api-doc/FRONTEND-CHANGELOG-phase-4-5.md`) — the cross-role page, plus one per role folder (vendor (not mirrored here — `backend/jovi-mall/api-doc/vendor/FRONTEND-CHANGELOG-phase-4-5.md`) · agency (not mirrored here — `backend/jovi-mall/api-doc/agency/FRONTEND-CHANGELOG-phase-4-5.md`) · agent (not mirrored here — `backend/jovi-mall/api-doc/agent/FRONTEND-CHANGELOG-phase-4-5.md`) · customer (not mirrored here — `backend/jovi-mall/api-doc/customer/FRONTEND-CHANGELOG-phase-4-5.md`) · landing & shop (not mirrored here — `backend/jovi-mall/api-doc/public/FRONTEND-CHANGELOG-phase-4-5.md`) · [admin dashboard](../admin/FRONTEND-CHANGELOG-phase-4-5.md) · [tracking clients](../geo-tracker/FRONTEND-CHANGELOG-phase-4-5.md)). 🔴 **Two deliberate breaks**: `FileDetail.url` is now `string | null` with a new `access` field, and a session is capped at **90 days absolutely** (`AUTH_SESSION_CAP_REACHED` — route to login, never retry). Plus: every upload is really scanned now, and **there is no public `/api/admin/*` any more**
+- **Order detail — the customer app's four asks, answered** (not mirrored here — `backend/jovi-mall/api-doc/customer/FRONTEND-CHANGELOG-order-detail.md`) (customer app only, 2026-08-23). A shipment now carries the delivery **`agency`** (logo + published support contacts) and — new policy, ADR-A06 (not mirrored here — `backend/jovi-mall/docs/ADR-A06-AGENT-IDENTITY-DISCLOSURE.md`) — the carrying **`agent`**'s partial name and photo, revoked once the parcel settles. ⚠ Its `visibleFrom` is `"shipped"`, **not** `"out_for_delivery"`, and the two are not the same thing here. Also: a refused payment initiation no longer marks an order `AWAITING_PAYMENT`, and a null address `location` no longer blocks every write to a customer
+- **Email verification — one page for all four apps** (not mirrored here — `backend/jovi-mall/api-doc/FRONTEND-CHANGELOG-email-verification.md`) (cross-role, 2026-08-24). 🔴 **The registration-verification email used to link at the API**, so clicking it rendered raw JSON and the token was routinely spent by a mail-client prefetch before anyone tapped it. It now points at `{STOREFRONT_URL}/verify-email?token=…&app={role}`, which POSTs to a **new `POST /api/auth/verify-email`** (the `GET` stays for links already in inboxes). Both emailed-token pages gained **`app=`** — a role KEY, never a URL. Nothing breaks
+- [**COD pool from the plan · the agent's emergency contact for administrators**](./FRONTEND-CHANGELOG-cod-pool.md) (cross-role, 2026-09-21), plus one per app (agent (not mirrored here — `backend/jovi-mall/api-doc/agent/FRONTEND-CHANGELOG-cod-pool.md`) · agency (not mirrored here — `backend/jovi-mall/api-doc/agency/FRONTEND-CHANGELOG-cod-pool.md`) · landing (not mirrored here — `backend/jovi-mall/api-doc/public/FRONTEND-CHANGELOG-cod-pool.md`) · [admin dashboard](../admin/FRONTEND-CHANGELOG-agent-cod-pool-and-emergency-contact.md)). An agent's COD pool is now **automatic**: `0` until their identity is verified, then their plan's new `max_cod_pool` (Free 500 000 · Plus 1 000 000 · Pro 2 000 000). The agent can lower it (`PUT /api/agent/cod/pool`), and an administrator's value became a **pin** that outranks the plan. ⚠ **One breaking body, admin only**: `PUT /api/v1/agents/:agentId/cod-threshold` now requires `reason`. Also: the admin agent detail shows the **emergency contact**
+- **Payout methods** — where you get paid *to* (mobile money · bank · **card**), one schema documented per role: vendor (not mirrored here — `backend/jovi-mall/api-doc/vendor/payout-methods.md`) · agency (not mirrored here — `backend/jovi-mall/api-doc/agency/payout-methods.md`) · agent (not mirrored here — `backend/jovi-mall/api-doc/agent/payout-methods.md`). Distinct from *payment* methods, which are what you pay *with*
+- [Uploads (role-neutral)](./uploads/README.md)
+- **Health probes & metrics** (not mirrored here — `backend/jovi-mall/api-doc/health.md`) — `/api/health` (frozen — geo-tracker's readiness depends on it), `/api/health/{live,ready}`, `/metrics`
+- System uptime / status (not mirrored here — `backend/jovi-mall/api-doc/system-uptime-status.md`) — ⚠ an **unserved** frontend spec; the operator surface is [admin/system.md](./admin/system.md)
+- **Messaging connections** (not mirrored here — `backend/jovi-mall/api-doc/connections/README.md`) — connecting a WhatsApp or Telegram account, **any role**. One mechanism, one code box; replaces the two separate linking flows
+- WhatsApp bot webhook (not mirrored here — `backend/jovi-mall/api-doc/whatsapp/README.md`) · [WhatsApp notification templates](./notifications/whatsapp-templates.md)
+- Telegram bot webhook & admin send (not mirrored here — `backend/jovi-mall/api-doc/telegram/README.md`) · Google Calendar (OAuth) (not mirrored here — `backend/jovi-mall/api-doc/integrations/google-calendar.md`)
+- **n8n customer agent — design** (not mirrored here — `backend/jovi-mall/api-doc/n8n/README.md`) (2026-08-24, **design only**) — the WhatsApp/Telegram customer bot: a 60-tool catalogue (not mirrored here — `backend/jovi-mall/api-doc/n8n/tools/catalog.json`), a 34-command specification (not mirrored here — `backend/jovi-mall/api-doc/n8n/COMMAND-SPECIFICATION.md`), the architecture (not mirrored here — `backend/jovi-mall/api-doc/n8n/ARCHITECTURE.md`) and twelve backend gaps (not mirrored here — `backend/jovi-mall/api-doc/n8n/BACKEND-GAPS.md`). ⚠ Its premise: **there is no way for the automation layer to act as a customer today** — `/api/internal/*` covers agents, shipments and admin only, and the four live bot commands mint credentials for a *human to redeem in a browser*. GAP-001 is the curated surface that closes it, and no customer bearer token ever leaves the backend
 
-**Everything else jovi-mall documents lives in `backend/jovi-mall/api-doc/`** — the customer,
-vendor, agency, agent and public role folders, auth and account management, geo and bookings, the
-n8n bot design, and the per-phase frontend changelogs. Read them there.
+### Customer
+- **▶ Auth — registration & sign-in (not mirrored here — `backend/jovi-mall/api-doc/auth/customer-auth.md`)** — **start here if you are building the storefront.** Customers register in the bot and sign in without a password; there is no registration endpoint and no password field
+- **▶ Order detail — the four asks, answered (not mirrored here — `backend/jovi-mall/api-doc/customer/FRONTEND-CHANGELOG-order-detail.md`)** (2026-08-23) — the delivery agency's logo and support contacts, the carrying agent's partial identity (ADR-A06 (not mirrored here — `backend/jovi-mall/docs/ADR-A06-AGENT-IDENTITY-DISCLOSURE.md`)), and two bug fixes
+- Profile & addresses (not mirrored here — `backend/jovi-mall/api-doc/customer/profile.md`) · Cart (not mirrored here — `backend/jovi-mall/api-doc/customer/cart.md`) · Orders (not mirrored here — `backend/jovi-mall/api-doc/customer/orders.md`) · **Wishlist & recently viewed** (not mirrored here — `backend/jovi-mall/api-doc/customer/saved-and-viewed.md`) — server-side, replacing the storefront's `localStorage`; entries degrade rather than vanish when a product goes off sale
+- Bookings (not mirrored here — `backend/jovi-mall/api-doc/customer/bookings.md`) · Payment methods (not mirrored here — `backend/jovi-mall/api-doc/customer/payment-methods.md`) · Digital products (not mirrored here — `backend/jovi-mall/api-doc/customer/digital-products.md`) · Tickets (not mirrored here — `backend/jovi-mall/api-doc/customer/tickets.md`)
+- **Reviews** (not mirrored here — `backend/jovi-mall/api-doc/reviews.md`) — `/api/customer/reviews`. A customer reviews a **product** they bought *and* a **delivery** they received; the two have different eligibility rules and only the first is ever published
+- **The bot as a shopping surface** (not mirrored here — `backend/jovi-mall/api-doc/n8n/README.md`) (**design only**) — what a customer can do from WhatsApp or Telegram, and which of these customer endpoints sits behind each command. Read COMMAND-SPECIFICATION.md (not mirrored here — `backend/jovi-mall/api-doc/n8n/COMMAND-SPECIFICATION.md`) before writing bot-facing copy: it carries the rules a chat window makes specific — the delivery code is never sent unasked, `estimatedDelivery` is always null, an agent's phone number is never published, and a product's unavailability is never explained
 
-> ⚠ **This index used to list all of them too — roughly 140 rows, each a plain-text
-> "(not mirrored here — …)" pointer out of the folder** — so an index of 27 pages was about 90 %
-> references to pages it does not contain. Cut on 2026-09-08 (DOC-PROGRAM R5). Nothing a
-> dashboard developer can call was removed; the pointer above replaces the whole list.
->
-> Two smaller things the old index had wrong, both about **this folder**: it linked no page for
-> [rate limits](./rate-limits.md), which was in the folder and reachable from nowhere on this
-> page; and it closed by saying `profile.md` and `catalogue-vectorisation.md` had been *deleted*.
-> Neither was, and there is a third — all three are below, kept as redirects.
+### Vendor
+- Store (not mirrored here — `backend/jovi-mall/api-doc/vendor/store.md`) · Profile (not mirrored here — `backend/jovi-mall/api-doc/vendor/profile.md`) · Onboarding (not mirrored here — `backend/jovi-mall/api-doc/vendor/onboarding.md`) · **Identity verification** (not mirrored here — `backend/jovi-mall/api-doc/vendor/identity-verification.md`) — the ID scans, the selfie and the location sketches an administrator reviews. ⚠ Nothing is required and nothing is graded here: the checklist is the reviewers' and it is documented in that file
+- Products (not mirrored here — `backend/jovi-mall/api-doc/vendor/products.md`) · Simple products (not mirrored here — `backend/jovi-mall/api-doc/vendor/simple-products.md`) · Product update (not mirrored here — `backend/jovi-mall/api-doc/vendor/product-update.md`) · Upload flow (not mirrored here — `backend/jovi-mall/api-doc/vendor/product-upload-flow.md`) · Variants (not mirrored here — `backend/jovi-mall/api-doc/vendor/variants.md`) · Options & variants (not mirrored here — `backend/jovi-mall/api-doc/vendor/option-variant-management.md`) · Digital products (not mirrored here — `backend/jovi-mall/api-doc/vendor/digital-products.md`) · Rich descriptions (not mirrored here — `backend/jovi-mall/api-doc/vendor/product-description-rich.md`) · Share to a chat app (not mirrored here — `backend/jovi-mall/api-doc/vendor/product-share.md`)
+- Inventory (not mirrored here — `backend/jovi-mall/api-doc/vendor/inventory.md`) · Orders (not mirrored here — `backend/jovi-mall/api-doc/vendor/orders.md`) · Shipping (not mirrored here — `backend/jovi-mall/api-doc/vendor/shipping.md`) · Delivery agencies (not mirrored here — `backend/jovi-mall/api-doc/vendor/delivery-agencies.md`) · Agency connections (not mirrored here — `backend/jovi-mall/api-doc/vendor/agency-connections.md`)
+- Bookings (not mirrored here — `backend/jovi-mall/api-doc/vendor/bookings.md`) · Booking guide (not mirrored here — `backend/jovi-mall/api-doc/booking-implementation-guide.md`) · Calendar (not mirrored here — `backend/jovi-mall/api-doc/vendor/calendar.md`) · Availability rules (not mirrored here — `backend/jovi-mall/api-doc/vendor/availability-rules.md`)
+- Billing (not mirrored here — `backend/jovi-mall/api-doc/vendor/billing.md`) · Billing overview (not mirrored here — `backend/jovi-mall/api-doc/vendor/billing-overview.md`) · Earnings (not mirrored here — `backend/jovi-mall/api-doc/vendor/earnings.md`) · Transactions (not mirrored here — `backend/jovi-mall/api-doc/vendor/transactions.md`) · Stripe payments (not mirrored here — `backend/jovi-mall/api-doc/vendor/stripe-payments.md`) · Payment methods (not mirrored here — `backend/jovi-mall/api-doc/vendor/payment-methods.md`) (pay *with*) · **Payout methods** (not mirrored here — `backend/jovi-mall/api-doc/vendor/payout-methods.md`) (get paid *to* — mobile money only right now; 🚧 bank + card switched off)
+- Analytics (not mirrored here — `backend/jovi-mall/api-doc/vendor/analytics.md`) · Customer management (not mirrored here — `backend/jovi-mall/api-doc/vendor/customer-management.md`) · Storage (not mirrored here — `backend/jovi-mall/api-doc/vendor/storage.md`) · File management (not mirrored here — `backend/jovi-mall/api-doc/vendor/file-management.md`) · Storage statements (not mirrored here — `backend/jovi-mall/api-doc/vendor/storage-invoices.md`) — what each agency says you owe it for warehousing
+- **Reviews** (not mirrored here — `backend/jovi-mall/api-doc/reviews.md`) — `/api/vendor/reviews`. **Deliveries only**: rate how your consignment was collected and carried. A product review is the buyer's
+- Notifications (not mirrored here — `backend/jovi-mall/api-doc/vendor/notifications.md`) · Notification channels (not mirrored here — `backend/jovi-mall/api-doc/vendor/notification-channels.md`) · Tickets (not mirrored here — `backend/jovi-mall/api-doc/vendor/tickets.md`) — the shared payload reference for every role's ticket surface; the `TicketType` list is ticket_types.txt (not mirrored here — `backend/jovi-mall/api-doc/ticket_types.txt`), and the picker gaps still open are in tickets-reference-frontend-requirements.md (not mirrored here — `backend/jovi-mall/api-doc/vendor/tickets-reference-frontend-requirements.md`)
 
-### Administrative surface — ⚠️ **not a frontend surface any more**
+### Agency
+- What changed on 2026-09-21: agents' COD pools are automatic (not mirrored here — `backend/jovi-mall/api-doc/agency/FRONTEND-CHANGELOG-cod-pool.md`). Branch the COD refusal copy on the new `details.poolBinds`
+- Profile (not mirrored here — `backend/jovi-mall/api-doc/agency/profile.md`) · Profile schema (not mirrored here — `backend/jovi-mall/api-doc/agency/profile-schema.md`) · Onboarding (not mirrored here — `backend/jovi-mall/api-doc/agency/onboarding.md`) · **Identity verification** (not mirrored here — `backend/jovi-mall/api-doc/agency/identity-verification.md`) — the ID scans, the selfie and the depot sketches an administrator reviews. ⚠ The ID number here is the **person's**, not the company registration; nothing is required and nothing is graded
+- Agent roster & contracts (not mirrored here — `backend/jovi-mall/api-doc/agency/agent-roster.md`) — **canonical for the agent↔agency contract**, including terms negotiation (not mirrored here — `backend/jovi-mall/api-doc/agency/agent-roster.md`) · Shipments (not mirrored here — `backend/jovi-mall/api-doc/agency/shipments.md`)
+- Live tracking (not mirrored here — `backend/jovi-mall/api-doc/agency/live-tracking.md`) — the map: watchable agents, their active shipments, and each shipment's pickup → drop-off pins (movement itself comes from geo-tracker's socket)
+- Billing (plans & credit) (not mirrored here — `backend/jovi-mall/api-doc/agency/billing.md`) · COD cash management (not mirrored here — `backend/jovi-mall/api-doc/agency/cod-cash-management.md`) · Earnings (not mirrored here — `backend/jovi-mall/api-doc/agency/earnings.md`) · Payment methods (not mirrored here — `backend/jovi-mall/api-doc/agency/payment-methods.md`) (pay *with*) · **Payout methods** (not mirrored here — `backend/jovi-mall/api-doc/agency/payout-methods.md`) (get paid *to* — mobile money only right now; 🚧 bank + card switched off)
+- Vendor connections (not mirrored here — `backend/jovi-mall/api-doc/agency/vendor-connections.md`) · Vendors (not mirrored here — `backend/jovi-mall/api-doc/agency/vendors.md`) · Products (not mirrored here — `backend/jovi-mall/api-doc/agency/products.md`)
+- **Inventory** (not mirrored here — `backend/jovi-mall/api-doc/agency/inventory.md`) — what you warehouse, per depot, and since Step 14 **what is physically on the shelf**: receipts, counts, transfers and a movement ledger · Stock requests (not mirrored here — `backend/jovi-mall/api-doc/agency/stock-requests.md`) (changing the vendor's agreed quantity) · **Storage statements** (not mirrored here — `backend/jovi-mall/api-doc/agency/storage-invoices.md`) — the monthly record of rent owed. A RECORD: the platform moves none of this money · Magazin (not mirrored here — `backend/jovi-mall/api-doc/agency/magazin.md`) (the depots themselves)
+- File management (not mirrored here — `backend/jovi-mall/api-doc/agency/file-management.md`) · Storage (not mirrored here — `backend/jovi-mall/api-doc/agency/storage.md`)
+- **Reviews** (not mirrored here — `backend/jovi-mall/api-doc/reviews.md`) — `/api/agency/reviews`. **Deliveries only**, and your review moves *the agent's* rating, never your own: your directory score comes from your customers
+- Notifications (not mirrored here — `backend/jovi-mall/api-doc/agency/notifications.md`) · Tickets (not mirrored here — `backend/jovi-mall/api-doc/agency/tickets.md`)
+
+### Agent
+- **▶ What changed on 2026-09-21: the COD pool comes from the plan (not mirrored here — `backend/jovi-mall/api-doc/agent/FRONTEND-CHANGELOG-cod-pool.md`)**: automatic from your plan once verified; a new "carry less" control; plan cards show `max_cod_pool`; the emergency contact is now visible to platform staff
+- **▶ Shipment discovery — frontend integration guide (not mirrored here — `backend/jovi-mall/api-doc/agent-shipment-discovery-integration.md`)** — search, earnings, addresses and the pickup→drop-off route. **Start here if you are integrating the agent app**; it carries the two breaking changes and the migration checklist.
+- Profile, preferences & dispatch settings (not mirrored here — `backend/jovi-mall/api-doc/agent/profile.md`) · Vehicle colour & photo (not mirrored here — `backend/jovi-mall/api-doc/agent/vehicle-profile.md`) · Onboarding (not mirrored here — `backend/jovi-mall/api-doc/agent/onboarding.md`) · Availability & device (not mirrored here — `backend/jovi-mall/api-doc/agent/availability-and-device.md`) · Agency membership (not mirrored here — `backend/jovi-mall/api-doc/agent/agency-membership.md`) — applying, and negotiating your terms (not mirrored here — `backend/jovi-mall/api-doc/agent/agency-membership.md`)
+- Shipments (not mirrored here — `backend/jovi-mall/api-doc/agent/shipments.md`) · Offers (not mirrored here — `backend/jovi-mall/api-doc/agent/offers.md`) · Delivery proof (not mirrored here — `backend/jovi-mall/api-doc/agent/delivery-proof.md`) · COD cash (not mirrored here — `backend/jovi-mall/api-doc/agent/cod-cash.md`) · Earnings (not mirrored here — `backend/jovi-mall/api-doc/agent/earnings.md`) · Billing (plans & credit) (not mirrored here — `backend/jovi-mall/api-doc/agent/billing.md`) · Payment methods (not mirrored here — `backend/jovi-mall/api-doc/agent/payment-methods.md`) (pay *with*) · **Payout methods** (not mirrored here — `backend/jovi-mall/api-doc/agent/payout-methods.md`) (get paid *to* — mobile money only right now; 🚧 bank + card switched off)
+- **Identity verification** (not mirrored here — `backend/jovi-mall/api-doc/agent/identity-verification.md`) — the ID scans, the selfie, the vehicle-with-rider photo and the home sketch. ⚠ **This is the verdict that lets an agent work at all** — dispatch eligibility passes only on `verified`
+- File management (not mirrored here — `backend/jovi-mall/api-doc/agent/file-management.md`) · Storage (not mirrored here — `backend/jovi-mall/api-doc/agent/storage.md`)
+- Notifications (not mirrored here — `backend/jovi-mall/api-doc/agent/notifications.md`) · Push notifications (Flutter) (not mirrored here — `backend/jovi-mall/api-doc/agent/push-notifications.md`) — includes offer quick actions, whose rationale record is offer-quick-actions.md (not mirrored here — `backend/jovi-mall/api-doc/agent/offer-quick-actions.md`) · Tickets (not mirrored here — `backend/jovi-mall/api-doc/agent/tickets.md`)
+
+### Admin — ⚠️ **not a frontend surface any more**
 
 **There is no public `/api/admin/*` in this service.** Every mount was deleted at the Phase 5
 cutover, together with the second authorization model it carried — `requireRole(['admin'])` on a
@@ -310,9 +361,9 @@ building an admin dashboard, you want the wi-admin backend** (`/api/v1/*`, docum
 calls the surface below on their behalf.
 
 The pages here document `/api/internal/admin/*` — **120 routes in sixteen groups**, behind
-`requireAdminCaller` (re-measured 2026-09-08 against the live route census; this line read *111
-routes in fifteen groups*, the count from before `/reviews` and `/messaging` were added). They are
-kept because one factory always served both mounts, so they remain
+`requireAdminCaller` (re-counted 2026-09-08 against the live route table and the sixteen
+`router.use` mounts in `src/api/routes/internal-admin.routes.ts`; this line read *111 routes in
+fifteen groups*, which was the count before `reviews` and `messaging` were added). They are kept because one factory always served both mounts, so they remain
 exact for request and response shapes; each was **rewritten to the internal prefix**, not deleted.
 
 - [**The internal admin API**](./admin/internal-service-api.md) — start here: the door, its
@@ -326,35 +377,14 @@ exact for request and response shapes; each was **rewritten to the internal pref
 - [**Developer tools**](./admin/dev-tools.md) — the dangerous half: run a worker · replay/prune the outbox · rebuild search vectors (the old `POST /admin/products/bulk-vectorise`) · **maintenance mode** · **cache flush**
 - Not admin surfaces, filed here for historical reasons: [Billing overview](./admin/billing-overview.md) (a cross-role explainer) · [Payment methods](./admin/payment-methods.md) (`/api/me/payment-methods`, every role)
 
-### Cross-cutting contracts
+Two pages were **deleted** rather than repointed, because nothing replaced them here:
+`profile.md` (`/api/admin/profile` — wi-admin has served `GET`/`PATCH /administrators/me` since
+Phase 2) and `catalogue-vectorisation.md` (`POST /api/admin/products/bulk-vectorise` — the same
+controller now runs at `/api/internal/admin/dev-tools/catalogue/vectorise`, documented in
+[dev-tools.md](./admin/dev-tools.md)).
 
-Role-neutral, and every one of them applies to a wi-admin call that reaches jovi-mall underneath.
-
-- [Error catalog](./errors/README.md) — the envelope, the nine categories, and the codes
-- [Rate limits](./rate-limits.md) — the ceilings, the two `/api/auth` buckets, and the six
-  never-limited prefixes
-- [Uploads (role-neutral)](./uploads/README.md) — `FileDetail`, the per-role size ceilings, and
-  why a `url` can be `null`
-- [Gateway payments (role-neutral)](./payments/README.md) — initiate · verify · read a transaction.
-  ⚠ Four of its routes do **not** use the `data` envelope — see the warning at the top of this page
-- [WhatsApp notification templates](./notifications/whatsapp-templates.md) — every template, its
-  variables and its copy in all five languages
-
-### Tracking — authorization only; the streaming is geo-tracker’s
-
+### Tracking (authorization; streaming is in geo-tracker)
 - [Live tracking](./tracking/live-tracking.md) · [Agent tracking policy](./tracking/agent-tracking-policy.md)
-
-### Obsolete — kept as redirects, not deleted
-
-Three pages document surfaces that no longer exist. Each carries a red banner naming what replaced
-it, and each is kept **precisely so the next reader finds the redirect instead of re-deriving it**.
-
-- [`admin/articles.md`](./admin/articles.md) — the blog editor moved to wi-admin
-  (`/api/v1/content/*`, 14 routes)
-- [`admin/catalogue-vectorisation.md`](./admin/catalogue-vectorisation.md) — now
-  `POST /api/v1/dev-tools/catalogue/vectorise`, tier 1 only
-- [`admin/profile.md`](./admin/profile.md) — the most misleading of the three, because it looks
-  like it is about *you*. jovi-mall has no `admin` role; you are `/api/v1/administrators/me`
 
 ---
 
@@ -438,8 +468,8 @@ offending field in `error.details.fields[]`:
   "requestId": "req_abc123",
   "error": {
     "code": "VALIDATION_ERROR",
-    "category": "validation",
     "message": "Validation failed",
+    "category": "validation",
     "statusCode": 400,
     "details": {
       "fields": [

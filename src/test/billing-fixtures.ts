@@ -25,6 +25,8 @@ export function planFixture(overrides: Partial<Plan> = {}): Plan {
             maxStorageBytes: 5_000_000_000,
             commissionPercent: 8.5,
             maxUnterminatedShipments: null,
+            // Agent plans only — `null` on every vendor tier.
+            maxCodPool: null,
             liveTrackingEnabled: null,
         },
         isActive: true,
@@ -59,6 +61,8 @@ export function agentPlanFixture(overrides: Partial<Plan> = {}): Plan {
             maxStorageBytes: null,
             commissionPercent: null,
             maxUnterminatedShipments: 4,
+            // The seeded Free figure. ⚠ `null` here would mean NO COD, not unlimited.
+            maxCodPool: 500000,
             liveTrackingEnabled: true,
         },
         ...overrides,

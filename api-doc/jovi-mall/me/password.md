@@ -1,0 +1,185 @@
+<!-- CONTEXT-BANNER -->
+> **Context only — this dashboard does not call jovi-mall.** Everything here is reached through
+> **wi-admin** at `/api/v1/*` on port 8033. A path on this page is not a call target.
+> Field names here are jovi-mall's **snake_case** storage casing; wi-admin's wire is **camelCase**.
+>
+> Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
+> [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
+>
+> **Re-copied from the backend page on 2026-09-22.** The stamp below is
+> that page’s, and the only deliberate differences here are this banner and the outbound
+> references flattened to plain text because their targets are not mirrored into this folder.
+<!-- /CONTEXT-BANNER -->
+
+# Change Password API
+
+**Verified against source on 2026-09-08** — the route, the strength rule, the response shape,
+the cookie re-issue and the 90-day cap reset, against
+`jovi-mall/src/modules/users/user.controller.ts`, `user.validator.ts`, `user.routes.ts` and
+`src/core/auth/token.issuer.ts`.
+
+Reference for changing the authenticated user's **account password**.
+
+> [!IMPORTANT]
+> This is a **shared, role-agnostic** API mounted at `/api/me/password`. The **same endpoint, request body, and responses** work for **every** authenticated role. The account is resolved from the auth token — the password lives on the **User** record, not on any role entity, so there is exactly one password per account regardless of role.
+>
+> ⚠ **Corrected 2026-09-08:** this used to list the roles as *"customer, vendor, admin, agent,
+> agency"*. There are **four** — `customer`, `vendor`, `agency`, `agent`. `admin` is not a role
+> you can authenticate as on this service and has no password here; administrators are a
+> separate identity in wi-admin. See ../auth/README.md (not mirrored here — `backend/jovi-mall/api-doc/auth/README.md`).
+
+---
+
+## Authentication
+
+Requires a valid access token (any authenticated role).
+
+```
+Authorization: Bearer <access_token>
+```
+
+The token may also be supplied via the `access_token` httpOnly cookie (browser clients).
+
+All responses use the standard envelope:
+
+- Success: `{ "success": true, "message": ... }` — this endpoint sends **no `data` key**, unlike
+  most of the API.
+- Failure: `{ "success": false, "requestId": "...", "error": { "code", "message", "statusCode", "category", "details"? } }` — see [errors/README.md](../errors/README.md).
+
+---
+
+## PATCH /api/me/password
+
+Change the authenticated user's password.
+
+### Request Body
+
+```json
+{
+  "oldPassword": "CurrentPassword123!",
+  "newPassword": "NewSecureP@ssw0rd"
+}
+```
+
+**Fields**:
+
+- `oldPassword` (**required**, string): Current password
+- `newPassword` (**required**, string): New password
+
+**Password Requirements**:
+- Minimum 8 characters
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one number
+- At least one special character
+
+### Response
+
+**Success (200 OK)**:
+
+```json
+{
+  "success": true,
+  "message": "Password updated successfully. All other sessions have been signed out."
+}
+```
+
+The response also carries **`Set-Cookie` for both `access_token` and `refresh_token`**. The
+change invalidates every token minted under the old password — including the pair this
+request arrived with — so the caller is handed a replacement pair and stays signed in. Every
+*other* session is signed out on its next request. A client that discards cookies from this
+response will find itself logged out.
+
+> ### 🔴 A BEARER client is signed out by its own password change
+>
+> The replacement pair is delivered **as cookies only** — the body carries no `tokens` object,
+> deliberately (`user.controller.ts:44-46`: "a token in a response body is a token in a client
+> log"). A Capacitor / native client on `/api/auth/mobile/*` therefore has nothing to store, and
+> its existing bearer token is refused with `401 AUTH_PASSWORD_CHANGED` on the **next** request.
+>
+> Plan for it: warn before the form, then sign the user back in with the new password
+> (`POST /api/auth/mobile/login`) as soon as the `200` returns.
+
+> **This is one of the four things that RESET the 90-day session cap.** `auth_time` is stamped
+> fresh here, because the caller proved a credential (the old password) — so a password change
+> is a complete remedy after a compromise rather than one that leaves the victim's new session
+> carrying the attacker-era start date. `auth-me`, `add-role` and every refresh **copy**
+> `auth_time` instead. See ../auth/README.md (not mirrored here — `backend/jovi-mall/api-doc/auth/README.md`).
+
+### Error Responses
+
+**Validation Error (400)** — `newPassword` fails the strength policy or a field is missing:
+
+```json
+{
+  "success": false,
+  "requestId": "req_abc123",
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "Validation failed",
+    "statusCode": 400,
+    "category": "validation",
+    "details": {
+      "fields": [
+        {
+          "path": "newPassword",
+          "message": "Password must contain at least one uppercase letter",
+          "code": "invalid_string"
+        }
+      ]
+    }
+  }
+}
+```
+
+> `details.fields[]` is an **array inside a `fields` key**, and each entry uses **`path`**, not
+> `field` — the platform-wide Zod projection. See [errors/README.md](../errors/README.md).
+
+**Incorrect Old Password (403)** — `USER_INVALID_PASSWORD`:
+
+```json
+{
+  "success": false,
+  "requestId": "req_abc123",
+  "error": {
+    "code": "USER_INVALID_PASSWORD",
+    "message": "Current password is incorrect",
+    "statusCode": 403,
+    "category": "authorization"
+  }
+}
+```
+
+### Notes
+
+- **Password Verification**: The old password must be correct before the new password is set.
+- **Audit & Events**: The change emits a `user.password.changed` domain event and writes a `PASSWORD_CHANGED` audit-log entry.
+- **Session Invalidation**: Every session issued under the old password ends. Tokens here are
+  stateless, so the revocation is a per-account instant stamped alongside the new hash: any
+  access **or** refresh token minted before it is refused with `401 AUTH_PASSWORD_CHANGED`,
+  on every authenticated request and on every refresh. A stolen 30-day refresh cookie stops
+  working — that is the point of the change.
+- **Your own session survives**, via the replacement cookie pair above. No other session gets
+  one.
+- **What clients must do**: treat `AUTH_PASSWORD_CHANGED` as terminal — do not retry, do not
+  attempt a refresh (the refresh cookie is refused by the same rule). Clear local state and
+  send the user to sign-in, showing the message: to someone who did not change their own
+  password, it is the first sign that somebody else did.
+
+---
+
+## Legacy alias
+
+`PATCH /api/vendor/profile/password` (vendor role only) is a **deprecated alias** kept for existing vendor frontends. It routes to the exact same handler. New integrations should use `/api/me/password` for every role.
+
+### Example
+
+```bash
+curl -X PATCH https://api.example.com/api/me/password \
+  -H "Authorization: Bearer <access_token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "oldPassword": "OldSecureP@ss123",
+    "newPassword": "NewSecureP@ss456!"
+  }'
+```

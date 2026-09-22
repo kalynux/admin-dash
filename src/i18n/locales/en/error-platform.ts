@@ -97,9 +97,14 @@ const platform = {
     AGENT_NOT_FOUND: 'The platform has no such agent.',
     AGENT_KYC_NOT_VERIFIED: 'This agent’s identity has not been verified yet.',
     AGENT_PLATFORM_BANNED: 'This agent is banned platform-wide.',
+    // Raised by the pin AND by the release since 2026-09-21 — a release is refused
+    // when the plan's value is below what the contracts hold — so the sentence
+    // names the resulting pool rather than "that figure".
     AGENT_COD_THRESHOLD_BELOW_ALLOCATED:
-        'That is below what this agent’s contracts already hold. Lower the contract slices first.',
+        'The COD pool would fall below what this agent’s contracts already hold. Lower the contract slices first.',
     AGENT_COD_THRESHOLD_OUT_OF_BOUNDS: 'The platform refused that figure as out of bounds.',
+    AGENT_COD_POOL_CONFLICT:
+        'The agent’s COD pool changed while this was being saved. Reload it and try again — nothing was changed.',
     AGENT_MEMBERSHIP_ALREADY_EXISTS: 'This agent already holds a contract with that agency.',
     AGENT_MEMBERSHIP_NOT_FOUND: 'These two are not working together',
     CONTRACT_NOT_FOUND: 'The platform has no such contract.',
@@ -189,6 +194,12 @@ const platform = {
       in `en` and `fr`, and the window is now recorded on every inbound message — so
       a failure here is the edge case it reads as, and telling somebody their own
       silence caused it would send them chasing a remedy they do not need.
+
+      ⛔ **And never add "message the platform on WhatsApp first" as a remedy.**
+      Until 2026-09-21 that advice was actively harmful — a window-key mismatch in
+      jovi-mall made texting the bot the one thing that guaranteed this failure —
+      and `phone-verification.md` now says to remove it from every frontend. By the
+      time this code arrives every route has been tried; retry, then report it.
     */
     PHONE_VERIFICATION_DELIVERY_FAILED:
         'WhatsApp would not deliver the code. Nothing is wrong with your number — try again in a moment.',

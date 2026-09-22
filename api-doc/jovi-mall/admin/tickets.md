@@ -6,7 +6,7 @@
 > Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
 > [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
 >
-> **Reconciled with the backend page on 2026-09-08 (DOC-PROGRAM R5).** The stamp below is
+> **Re-copied from the backend page on 2026-09-22.** The stamp below is
 > that page’s, and the only deliberate differences here are this banner and the outbound
 > references flattened to plain text because their targets are not mirrored into this folder.
 <!-- /CONTEXT-BANNER -->
@@ -425,9 +425,7 @@ Body:
 > `admin-ticket.routes.ts:68`). They share a path suffix and nothing else, and this page had the
 > role-scoped body pasted under the admin route.
 
-**Authorization**: wi-admin service token (`requireAdminCaller`). Reached from this dashboard
-through wi-admin’s `PATCH /api/v1/support/tickets/:ticketId/assign` — **not called directly**, see
-the banner.
+**Authorization**: wi-admin service token (`requireAdminCaller`).
 
 **Request Headers**:
 - `Authorization: Bearer <INTERNAL_ADMIN_SERVICE_TOKEN>`

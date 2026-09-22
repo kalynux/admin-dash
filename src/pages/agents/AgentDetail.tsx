@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Ban, BadgeCheck, Gauge, MapPin, ShieldCheck, Wallet } from 'lucide-react';
+import { ArrowLeft, Ban, BadgeCheck, Gauge, MapPin, ShieldCheck, Undo2, Wallet } from 'lucide-react';
 
 import { AccountPanel } from '@/components/accounts/AccountPanel';
 import { AgentActivityPanel } from '@/components/agents/AgentActivityPanel';
@@ -15,9 +15,10 @@ import { AgentLiveTrackingPanel } from '@/components/agents/AgentLiveTrackingPan
 import { AgentTrackingPanel } from '@/components/agents/AgentTrackingPanel';
 import {
     BanAgentDialog,
+    PinCodPoolDialog,
+    ReleaseCodPoolDialog,
     SetAgentStatusDialog,
     SetAgentTrackingDialog,
-    SetCodThresholdDialog,
     TransferAgentDialog,
     UnbanAgentDialog,
     type TransferSourceAgency,
@@ -70,11 +71,12 @@ const OBJECT_ID = /^[0-9a-f]{24}$/i;
  *
  * ── The most sensitive record on the platform ─────────────────────────────────
  * What reaches this screen is already whitelisted server-side — `legal_identity`,
- * `payout_details`, `emergency_contact` and `home_base.location` never arrive. Of
- * what does arrive, the home-base label, the licence plate and the device
- * fingerprint are **detail-only and never on a list row**, the device block is
- * collapsed by default, and the last-known position sits behind an explicit
- * reveal. See `api-doc/admin/dashboard/DATA-EXPOSURE-REGISTER.md`.
+ * `payout_details` and `home_base.location` never arrive. Of what does arrive, the
+ * home-base label, the licence plate, the device fingerprint and — since the
+ * owner reversed ADR-009 D-8 on 2026-09-21 — the **emergency contact** are
+ * **detail-only and never on a list row**, the device block is collapsed by
+ * default, and the last-known position sits behind an explicit reveal. See
+ * `api-doc/admin/dashboard/DATA-EXPOSURE-REGISTER.md`.
  */
 export function AgentDetail() {
     const { agentId = '' } = useParams();
@@ -117,7 +119,8 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
     const [settingStatus, setSettingStatus] = useState(false);
     const [reviewingKyc, setReviewingKyc] = useState(false);
     const [settingTracking, setSettingTracking] = useState<boolean | null>(null);
-    const [settingThreshold, setSettingThreshold] = useState(false);
+    const [pinningPool, setPinningPool] = useState(false);
+    const [releasingPin, setReleasingPin] = useState(false);
     const [adjustingTrust, setAdjustingTrust] = useState(false);
     const [banning, setBanning] = useState(false);
     const [unbanning, setUnbanning] = useState(false);
@@ -147,9 +150,10 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
     const canReadWithAgencies = can(['agents.read', 'agencies.read'], 'all');
 
     /**
-     * Read only to show the floor on the cash-pool dialog. It is a hint, never a
-     * client-side gate — lowering the pool below what the contracts hold is
-     * jovi-mall's rule, and it is the only side that can see both numbers.
+     * Read for the two pool dialogs: the floor on the pin (a hint, never a
+     * client-side gate — leaving the pool below what the contracts hold is
+     * jovi-mall's rule, and it is the only side that can see both numbers), and
+     * the agency names a refusal's contract list is labelled with.
      *
      * ⚠ **Gated, and gated inside the fetcher rather than by the key.**
      * `cod-allocation` stopped being an `agents.read` route when its slices
@@ -267,8 +271,9 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
                       denial teaches people the screen is broken, which is the
                       rule the three tabs below already follow.
 
-                      The cost is that `agents.cod_threshold.set` and
-                      `cod.trust.adjust` are the two writes living under here,
+                      The cost is that `agents.cod_threshold.set` (the pin
+                      and its release) and `cod.trust.adjust` are the writes
+                      living under here,
                       and this hides them from a caller holding either without
                       `agencies.read`. That combination is not reachable on any
                       tier the service publishes; if one ever is, split the tab
@@ -380,19 +385,40 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
                                     Adjust trust score
                                 </Button>
                             </Can>
+                            {/*
+                              "Pin", not "Set": since 2026-09-21 the pool comes
+                              from the plan and identity verification, and this
+                              overrides it until released. Release is offered
+                              only while a pin exists — there is nothing to
+                              release otherwise.
+                            */}
                             <Can permission="agents.cod_threshold.set">
+                                {record.cod.poolOverride ? (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setReleasingPin(true)}
+                                    >
+                                        <Undo2 className="size-4" />
+                                        Release pin
+                                    </Button>
+                                ) : null}
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => setSettingThreshold(true)}
+                                    onClick={() => setPinningPool(true)}
                                 >
                                     <Wallet className="size-4" />
-                                    Set cash pool
+                                    Pin COD pool
                                 </Button>
                             </Can>
                         </div>
 
-                        <AgentCodPanel agent={record} reloadToken={reloadToken} />
+                        <AgentCodPanel
+                            agent={record}
+                            reloadToken={reloadToken}
+                            timeZone={timeZone}
+                        />
 
                         {/*
                           The history needs `cod.holders.read` **and** `agents.read`,
@@ -454,13 +480,22 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
                 onOpenChange={(next) => setSettingTracking(next ? settingTracking : null)}
                 onDone={reconcile}
             />
-            <SetCodThresholdDialog
+            <PinCodPoolDialog
                 agent={record}
-                allocated={allocation.data?.allocated ?? null}
-                open={settingThreshold}
-                onOpenChange={setSettingThreshold}
+                allocation={allocation.data ?? null}
+                open={pinningPool}
+                onOpenChange={setPinningPool}
                 onDone={reconcile}
             />
+            {record.cod.poolOverride ? (
+                <ReleaseCodPoolDialog
+                    agent={record}
+                    allocation={allocation.data ?? null}
+                    open={releasingPin}
+                    onOpenChange={setReleasingPin}
+                    onDone={reconcile}
+                />
+            ) : null}
             <TrustAdjustmentDialog
                 agentId={record.id}
                 agentName={agentDisplayName(record)}

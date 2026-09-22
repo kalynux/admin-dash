@@ -9,7 +9,7 @@ import { DevToolsConfig } from '@/pages/dev-tools/DevToolsConfig';
 import { FeatureFlags } from '@/pages/dev-tools/FeatureFlags';
 import { OutboxTools } from '@/pages/dev-tools/OutboxTools';
 import { PlatformLogs } from '@/pages/dev-tools/PlatformLogs';
-import { heldFixture } from '@/test/fixtures';
+import { adminFixture, heldFixture } from '@/test/fixtures';
 import {
     FEATURE_FLAGS_FIXTURE,
     featureFlagFixture,
@@ -22,6 +22,7 @@ import {
     cacheKeysFixture,
     databaseReportFixture,
     dependenciesFixture,
+    errorHandlerLogLineFixture,
     exposedConfigFixture,
     platformConfigFixture,
     platformLogsFixture,
@@ -68,9 +69,14 @@ function stubDevTools(...overrides: Answer[]) {
     });
 }
 
+/**
+ * With a profile, because Platform logs reads the operator's timezone to print a
+ * log line's instant in *their* day — every screen inside the shell has one.
+ */
 function render(ui: React.ReactElement, tier: AdminTier = 1) {
     return renderWithProviders(ui, {
         route: '/dashboard/dev-tools',
+        auth: { status: 'authenticated', admin: adminFixture({ timezone: 'Africa/Douala' }) },
         permissions: { held: heldFixture(tier) },
     });
 }
@@ -240,6 +246,109 @@ describe('Platform logs', () => {
 
         await screen.findByText(/payment gateway did not respond/i);
         expect(screen.queryByRole('button', { name: /load more/i })).not.toBeInTheDocument();
+    });
+
+    /**
+     * 🔴 **The reported bug.** On an error line jovi-mall's `msg` is only
+     * `"internal 500 INTERNAL_SERVER_ERROR"`; what failed is in
+     * `httpError.internalMessage`. The row rendered `msg` alone, so an operator
+     * could see that something broke and never what.
+     */
+    it('shows what the code threw under the bare code line', async () => {
+        stubDevTools((call) =>
+            call.url.includes('/system/platform/logs')
+                ? successResponse(platformLogsFixture({ entries: [errorHandlerLogLineFixture()] }))
+                : undefined,
+        );
+        render(<PlatformLogs />);
+
+        expect(await screen.findByText('internal 500 INTERNAL_SERVER_ERROR')).toBeInTheDocument();
+        expect(
+            screen.getByText(/Cannot read properties of undefined \(reading 'preferred_language'\)/),
+        ).toBeInTheDocument();
+    });
+
+    it('opens the whole entry on a click', async () => {
+        stubDevTools((call) =>
+            call.url.includes('/system/platform/logs')
+                ? successResponse(platformLogsFixture({ entries: [errorHandlerLogLineFixture()] }))
+                : undefined,
+        );
+        render(<PlatformLogs />);
+
+        await userEvent.click(await screen.findByRole('button', { name: /show full entry/i }));
+        const dialog = await screen.findByRole('dialog');
+
+        expect(within(dialog).getByText('What the code threw')).toBeInTheDocument();
+        expect(within(dialog).getByText(/connect ECONNREFUSED 127\.0\.0\.1:6379/)).toBeInTheDocument();
+        expect(within(dialog).getByText(/phone-verification\.service\.ts:136:41/)).toBeInTheDocument();
+        expect(
+            within(dialog).getByText(/POST \/api\/internal\/admin\/phone-verification\/request/),
+        ).toBeInTheDocument();
+        // A masked category: the caller's substituted sentence is shown AS that.
+        expect(within(dialog).getByText('Something went wrong on our side')).toBeInTheDocument();
+        expect(within(dialog).getByText(/"attempt": 2/)).toBeInTheDocument();
+        expect(within(dialog).getByText('5d2c9a41-7e0b-4f3a-9b6c-1a2b3c4d5e6f')).toBeInTheDocument();
+    });
+
+    /** *"Anything else — the writer's context. Render it raw."* Not dropped. */
+    it('renders the keys it does not know rather than dropping them', async () => {
+        stubDevTools((call) =>
+            call.url.includes('/system/platform/logs')
+                ? successResponse(
+                      platformLogsFixture({
+                          entries: [
+                              {
+                                  at: '2026-09-21T10:02:11.004Z',
+                                  level: 'warn',
+                                  msg: 'payout sweep slow',
+                                  worker: 'auto-threshold-sweep',
+                              },
+                          ],
+                      }),
+                  )
+                : undefined,
+        );
+        render(<PlatformLogs />);
+
+        await userEvent.click(await screen.findByRole('button', { name: /show full entry/i }));
+        const dialog = await screen.findByRole('dialog');
+
+        expect(within(dialog).getByText('Other fields')).toBeInTheDocument();
+        expect(within(dialog).getByText(/auto-threshold-sweep/)).toBeInTheDocument();
+    });
+
+    /**
+     * `system.md` claims *"nothing is truncated server-side"*; `parseLogLine`
+     * cuts a stack at `LOG_MAX_STACK_BYTES` and marks it `…`. Saying so stops a
+     * reader hunting for the rest of a stack that was never stored.
+     */
+    it('says when jovi-mall cut the stack as it wrote the line', async () => {
+        const line = errorHandlerLogLineFixture();
+        stubDevTools((call) =>
+            call.url.includes('/system/platform/logs')
+                ? successResponse(
+                      platformLogsFixture({
+                          entries: [
+                              {
+                                  ...line,
+                                  err: {
+                                      type: 'TypeError',
+                                      message: 'boom',
+                                      stack: 'TypeError: boom\n    at frame (server.ts:2…',
+                                  },
+                              },
+                          ],
+                      }),
+                  )
+                : undefined,
+        );
+        render(<PlatformLogs />);
+
+        await userEvent.click(await screen.findByRole('button', { name: /show full entry/i }));
+        const dialog = await screen.findByRole('dialog');
+
+        expect(within(dialog).getByText(/the rest was never stored/i)).toBeInTheDocument();
     });
 });
 
@@ -681,6 +790,48 @@ describe('Platform logs — masking', () => {
         expect(await screen.findByText(/ops@wimall\.cm/)).toBeInTheDocument();
         expect(screen.getByText(/8f14c2a0-6b3e-4a91-9c7d-2e5f0a1b3c4d/)).toBeInTheDocument();
         expect(document.body).not.toHaveTextContent('[secret-removed]');
+    });
+
+    /**
+     * ⚠ The full entry is where the unscrubbed free text lives — a stack, a
+     * cause, a driver message — so it gets the same nets as the row, and the
+     * row's own preview of the thrown message counts toward the banner.
+     */
+    it('masks a credential in the preview and in every field of the full entry', async () => {
+        const token = 'dXNlcjpwYXNzd29yZDEyMw==';
+        const line = errorHandlerLogLineFixture();
+        stubDevTools((call) =>
+            call.url.includes('/system/platform/logs')
+                ? successResponse(
+                      platformLogsFixture({
+                          entries: [
+                              {
+                                  ...line,
+                                  httpError: {
+                                      ...(line.httpError as Record<string, unknown>),
+                                      internalMessage: `gateway refused Bearer ${token}`,
+                                      causeMessage: `retrying with Bearer ${token}`,
+                                  },
+                                  err: {
+                                      type: 'Error',
+                                      message: 'gateway refused',
+                                      stack: `Error: gateway refused\n    headers: Bearer ${token}`,
+                                  },
+                              },
+                          ],
+                      }),
+                  )
+                : undefined,
+        );
+        render(<PlatformLogs />);
+
+        expect(await screen.findByText(/gateway refused Bearer \[secret-removed\]/)).toBeInTheDocument();
+        expect(screen.getByText(/1 line on this page had a credential-shaped value/i)).toBeInTheDocument();
+
+        await userEvent.click(screen.getByRole('button', { name: /show full entry/i }));
+        await screen.findByRole('dialog');
+
+        expect(document.body).not.toHaveTextContent(token);
     });
 });
 

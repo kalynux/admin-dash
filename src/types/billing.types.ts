@@ -34,12 +34,15 @@ export type PlanRole = (typeof PLAN_ROLES)[number];
 /**
  * What a plan allows.
  *
- * ⚠ **`null` does not mean the same thing in all five.** `maxActiveProducts`,
+ * ⚠ **`null` does not mean the same thing in all six.** `maxActiveProducts`,
  * `commissionPercent` and `maxUnterminatedShipments` are genuinely "not limited
  * by this plan"; **`maxStorageBytes: null` falls back to the platform's own
- * default cap**, which is not the same as unlimited; and `liveTrackingEnabled` is
- * a flag rather than a cap at all. `billing.md:99` flattens all five into "null
- * means unlimited", which is wrong for two of them.
+ * default cap**, which is not the same as unlimited; `liveTrackingEnabled` is a
+ * flag rather than a cap at all; and **`maxCodPool: null` on an agent plan means
+ * NO cash on delivery** — the one limit that fails closed, because it is cash.
+ * `billing.md:99` flattens the first five into "null means unlimited", which is
+ * wrong for two of them, and a shared "unlimited" formatter would be wrong for a
+ * third.
  */
 export interface PlanLimits {
     maxActiveProducts: number | null;
@@ -48,6 +51,16 @@ export interface PlanLimits {
     /** **The multiplier every future order's split uses.** */
     commissionPercent: number | null;
     maxUnterminatedShipments: number | null;
+    /**
+     * **Agent plans only** (2026-09-21): the COD pool a KYC-**verified** agent on
+     * this tier may carry across every agency, in XAF. Seeded Free 500 000 · Plus
+     * 1 000 000 · Pro 2 000 000; above 5 000 000 is clamped by jovi-mall.
+     *
+     * ⚠ **`null` = NO COD, never "unlimited"** — jovi-mall reads it as `?? 0`.
+     * Always `null` on vendor and agency plans, where it is simply not part of
+     * the plan. ⚠ **Editing it re-syncs every agent on the tier immediately.**
+     */
+    maxCodPool: number | null;
     /** A flag, not a cap. */
     liveTrackingEnabled: boolean | null;
 }
@@ -208,6 +221,12 @@ export interface CreatePlanBody {
     maxStorageBytes?: number | null;
     commissionPercent?: number | null;
     maxUnterminatedShipments?: number | null;
+    /**
+     * Agent plans. Integer ≥ 0 or `null`, and ⚠ **`null` = no COD**. Omitted on a
+     * create, jovi-mall's schema default is `null` — so an agent tier created
+     * without it grants no cash on delivery at all.
+     */
+    maxCodPool?: number | null;
     liveTrackingEnabled?: boolean;
     isActive?: boolean;
     sortOrder?: number;
@@ -217,11 +236,13 @@ export interface CreatePlanBody {
  * `PATCH /billing/plans/:planId` — every create field **except `role` and
  * `code`**, all optional, at least one required.
  *
- * ⚠ **`null` clears, an omitted key leaves alone — but only on five keys.**
- * `termDays`, `maxActiveProducts`, `maxStorageBytes`, `commissionPercent` and
- * `maxUnterminatedShipments` accept `null`. `null` on `name`, `price`,
- * `currency`, `creditAllowance`, `liveTrackingEnabled`, `isActive` or `sortOrder`
- * is a **`400`**, which `billing.md:233-235` states unconditionally and wrongly.
+ * ⚠ **`null` clears, an omitted key leaves alone — but only on six keys.**
+ * `termDays`, `maxActiveProducts`, `maxStorageBytes`, `commissionPercent`,
+ * `maxUnterminatedShipments` and `maxCodPool` accept `null` — and on the last,
+ * "clearing" means **closing COD for every agent on the tier**, not lifting a
+ * limit. `null` on `name`, `price`, `currency`, `creditAllowance`,
+ * `liveTrackingEnabled`, `isActive` or `sortOrder` is a **`400`**, which
+ * `billing.md:233-235` states unconditionally and wrongly.
  */
 export type UpdatePlanBody = Partial<Omit<CreatePlanBody, 'role' | 'code'>>;
 

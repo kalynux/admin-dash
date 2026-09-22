@@ -65,8 +65,10 @@ const platform = {
     AGENT_KYC_NOT_VERIFIED: 'L’identité de cet agent n’a pas encore été vérifiée.',
     AGENT_PLATFORM_BANNED: 'Cet agent est banni de toute la plateforme.',
     AGENT_COD_THRESHOLD_BELOW_ALLOCATED:
-        'C’est en dessous de ce que les contrats de cet agent immobilisent déjà. Réduisez d’abord les parts contractuelles.',
+        'L’enveloppe COD tomberait en dessous de ce que les contrats de cet agent immobilisent déjà. Réduisez d’abord les parts contractuelles.',
     AGENT_COD_THRESHOLD_OUT_OF_BOUNDS: 'La plateforme a refusé ce montant, hors bornes.',
+    AGENT_COD_POOL_CONFLICT:
+        'L’enveloppe COD de l’agent a changé pendant l’enregistrement. Rechargez-la et réessayez — rien n’a été modifié.',
     AGENT_MEMBERSHIP_ALREADY_EXISTS: 'Cet agent détient déjà un contrat avec cette agence.',
     AGENT_MEMBERSHIP_NOT_FOUND: 'Ces deux-là ne travaillent pas ensemble',
     CONTRACT_NOT_FOUND: 'La plateforme n’a aucun contrat de ce type.',

@@ -1,5 +1,7 @@
 /**
- * `/agents` — the fifteen endpoints of the delivery-agent surface.
+ * `/agents` — the delivery-agent surface: fifteen endpoints, plus the COD-pool
+ * release (2026-09-21) and the assignability diagnostic, which had no service
+ * function here until the same round.
  *
  * Sources: `api-doc/admin/api/agents.md`, `api-doc/docs/ADR-009-DELIVERY-NETWORK.md`,
  * `backend/admin/src/modules/agents/`, and — for the three verdict shapes and
@@ -38,12 +40,16 @@ import type { AuditEntry } from '@/types/audit.types';
 import type {
     Agent,
     AgentActivityQuery,
+    AgentAssignability,
     AgentDetail,
     AgentEligibility,
+    AgentKycReviewResult,
     AgentListQuery,
+    AssignabilityQuery,
     BanAgentBody,
     CodAllocation,
     PlatformAgent,
+    ReleaseCodThresholdBody,
     ReviewAgentKycBody,
     SetAgentStatusBody,
     SetAgentTrackingBody,
@@ -307,6 +313,37 @@ export function getAgentEligibility(
     );
 }
 
+/**
+ * `GET /agents/:agentId/assignability?agencyId=&shipmentId=` · `agents.read`
+ * **+** `agencies.read`, `all` mode. **Delegated, and not audited.**
+ *
+ * **Why can this agent not take this work?** — every gate, from both families,
+ * with the numbers behind each. A superset of `/eligibility`, which answers the
+ * platform half only; the contract half (coverage, value ceiling, COD exposure)
+ * was diagnosable nowhere before this route. See `AgentAssignability`.
+ *
+ * ⚠ **It had no service function here until 2026-09-22**, while this repository
+ * said every route had one. The route-map test pins the map against itself, and
+ * no test pins the services against the map — so the claim was prose.
+ *
+ * ⚠ **Strict query**: `agencyId` required, `shipmentId` optional, nothing else.
+ * An empty `shipmentId` is omitted rather than sent, because `withQuery` drops
+ * `undefined` and the service would refuse `""` as a malformed id.
+ */
+export function getAgentAssignability(
+    agentId: string,
+    query: AssignabilityQuery,
+    options?: RequestOptions,
+): Promise<AgentAssignability> {
+    return api.get<AgentAssignability>(
+        withQuery(`/agents/${encodeURIComponent(agentId)}/assignability`, {
+            agencyId: query.agencyId,
+            shipmentId: query.shipmentId || undefined,
+        }),
+        options,
+    );
+}
+
 // ─── Writes — all delegated, all audited, all CSRF-protected ──────────────────
 
 /**
@@ -337,13 +374,22 @@ export function setAgentStatus(
  * so this is a gate rather than a label. Moving an agent off `verified` makes
  * them undispatchable immediately; it does not touch their contracts, and
  * in-flight shipments they already hold are unaffected.
+ *
+ * ⚠ **It also moves the COD pool (2026-09-21)**: `verified` opens it from the
+ * plan, anything else closes it to 0, and the answer carries the result as
+ * `codPool` beside `kyc` — jovi-mall's `{ agentId, kyc, codPool }`, forwarded
+ * untyped. It was typed `PlatformAgent` here, which it never was.
  */
 export function reviewAgentKyc(
     agentId: string,
     body: ReviewAgentKycBody,
     options?: RequestOptions,
-): Promise<PlatformAgent> {
-    return api.put<PlatformAgent>(`/agents/${encodeURIComponent(agentId)}/kyc`, body, options);
+): Promise<AgentKycReviewResult> {
+    return api.put<AgentKycReviewResult>(
+        `/agents/${encodeURIComponent(agentId)}/kyc`,
+        body,
+        options,
+    );
 }
 
 /**
@@ -369,27 +415,27 @@ export function setAgentTracking(
 }
 
 /**
- * `PUT /agents/:agentId/cod-threshold` · `agents.cod_threshold.set`.
+ * `PUT /agents/:agentId/cod-threshold` · `agents.cod_threshold.set` (`financial`,
+ * never Support) — **PIN** the pool.
  *
- * ⚠⚠ **This returns a `CodAllocation`, not an agent.** Both `agents.md` ("the
- * updated agent") and wi-admin's own gateway annotation (`Promise<PlatformAgent>`,
- * `agent.gateway.ts:273-278`) say otherwise, and both are wrong: jovi-mall's
- * handler is `setAgentThreshold(...)` followed by `getAllocation(...)` and answers
- * `data: allocation` (`admin-agent.controller.ts:212-220`), which wi-admin
- * forwards untouched.
+ * ⚠ **BREAKING on 2026-09-21: `reason` is required.** A body without it is a
+ * `400 VALIDATION_ERROR`, and the old body was *set the pool* where this one
+ * *pins* it over the plan until `releaseAgentCodThreshold`. See
+ * `SetCodThresholdBody`. A pin on an unverified agent is stored and the pool
+ * stays 0 until the verdict — the answer says so by its `maxThreshold`.
  *
- * That is a better answer than an agent — it is the fresh pool, its slices and
- * the new headroom, exactly what the dialog wants to show next — but a caller
- * written against the docs would read `.status` off it and render `undefined`.
+ * ⚠⚠ **This returns a `CodAllocation`, not an agent** — with `pool` and
+ * `override` since the same round, and `message: "COD pool pinned"`. jovi-mall
+ * writes the pin and then answers `getAllocation`, which wi-admin forwards: the
+ * fresh pool, its slices and the new headroom, which is what the dialog wants to
+ * show next. A caller reading `.status` off it would render `undefined`.
  *
- * ⚠ **A knock-on backend bug worth knowing:** wi-admin's `asState()` builds the
- * audit row's `after` by reading `agent.cod.maxThreshold`, and an allocation
- * carries `maxThreshold` at the top level — so `after.codMaxThreshold` is always
- * `null` on this action. The audit trail under-records it. Reported upstream; see
- * `api-doc/admin/dashboard/DATA-EXPOSURE-REGISTER.md`.
+ * (wi-admin's audit row used to record `after.codMaxThreshold: null` on every
+ * one of these, because `asState()` read only the agent-shaped answer. It reads
+ * both shapes now, and records the pin as `codPoolOverride` beside it.)
  *
  * Bounds are **not** checked client-side. jovi-mall owns the min/max and owns the
- * rule this write can actually fail — lowering the pool below what the contracts
+ * rule this write can actually fail — leaving the pool below what the contracts
  * have already allocated — and that check needs the contracts. Show
  * `CodAllocation['allocated']` beside the input so the floor is visible; do not
  * enforce it.
@@ -401,6 +447,34 @@ export function setAgentCodThreshold(
 ): Promise<CodAllocation> {
     return api.put<CodAllocation>(
         `/agents/${encodeURIComponent(agentId)}/cod-threshold`,
+        body,
+        options,
+    );
+}
+
+/**
+ * `POST /agents/:agentId/cod-threshold/release` · `agents.cod_threshold.set` —
+ * the same permission as the pin, its **own** audit action
+ * (`agents.cod_threshold.release`). New on 2026-09-21.
+ *
+ * Drops the pin: the agent goes back to the plan's value, or 0 while unverified.
+ * jovi-mall clears the pin off the agent entirely, so the audit row is the only
+ * record it existed — the `ban` / `unban` reasoning.
+ *
+ * ⚠ **Refused with `AGENT_COD_THRESHOLD_BELOW_ALLOCATED`** when the plan's value
+ * is below what contracts already hold: the pin was holding the pool up, and
+ * releasing it would over-commit it. The remedy is to lower the slices first, or
+ * to pin a smaller value instead.
+ *
+ * Answers the same `CodAllocation` as the pin, with `override: null`.
+ */
+export function releaseAgentCodThreshold(
+    agentId: string,
+    body: ReleaseCodThresholdBody,
+    options?: RequestOptions,
+): Promise<CodAllocation> {
+    return api.post<CodAllocation>(
+        `/agents/${encodeURIComponent(agentId)}/cod-threshold/release`,
         body,
         options,
     );
@@ -483,14 +557,61 @@ export function transferAgent(
 export const PLATFORM_CODE_AGENT_NOT_FOUND = 'AGENT_NOT_FOUND';
 
 /**
- * `422` on `cod-threshold`. The new pool is below what the contracts already
- * sub-allocate — the rule only jovi-mall can check, because it needs the
- * contracts.
+ * `422` on the pin **and on the release**. The resulting pool would be below
+ * what the contracts already sub-allocate — the rule only jovi-mall can check,
+ * because it needs the contracts.
+ *
+ * `details`: `{ requested, currentlyAllocated, shortfall, contracts[] }`, each
+ * contract `{ contractId, agencyId, threshold }` — **conditional**, like every
+ * forwarded `details`, so a reader must cope with its absence. See
+ * `readBelowAllocated`.
  */
 export const PLATFORM_CODE_COD_BELOW_ALLOCATED = 'AGENT_COD_THRESHOLD_BELOW_ALLOCATED';
 
-/** `422` on `cod-threshold`. Outside the platform's own min/max. */
+/** `422` on `cod-threshold`. Outside the platform's own min/max (0–5 000 000). */
 export const PLATFORM_CODE_COD_OUT_OF_BOUNDS = 'AGENT_COD_THRESHOLD_OUT_OF_BOUNDS';
+
+/**
+ * `409` on the pin or the release (2026-09-21). The pool changed between
+ * jovi-mall's read and its write — a plan sync or another administrator landed
+ * first. Re-read and retry; nothing was written.
+ */
+export const PLATFORM_CODE_COD_POOL_CONFLICT = 'AGENT_COD_POOL_CONFLICT';
+
+/** One contract standing in the way of a pool change, from the refusal's `details`. */
+export interface BelowAllocatedContract {
+    contractId: string;
+    agencyId: string | null;
+    threshold: number;
+}
+
+/**
+ * The contracts `AGENT_COD_THRESHOLD_BELOW_ALLOCATED` names, or `[]`.
+ *
+ * `details` passes wi-admin's boundary scrub for a `business_rule` refusal, but
+ * a forwarded `details` is conditional by contract, so absence is a normal state
+ * rather than a fault: the screen then says what the rule is without the list.
+ */
+export function readBelowAllocated(details: Record<string, unknown> | undefined): {
+    shortfall: number | null;
+    contracts: BelowAllocatedContract[];
+} {
+    const shortfall = typeof details?.shortfall === 'number' ? details.shortfall : null;
+    const raw = Array.isArray(details?.contracts) ? details.contracts : [];
+    const contracts = raw.flatMap((entry): BelowAllocatedContract[] => {
+        if (!entry || typeof entry !== 'object') return [];
+        const row = entry as Record<string, unknown>;
+        if (typeof row.contractId !== 'string') return [];
+        return [
+            {
+                contractId: row.contractId,
+                agencyId: typeof row.agencyId === 'string' ? row.agencyId : null,
+                threshold: typeof row.threshold === 'number' ? row.threshold : 0,
+            },
+        ];
+    });
+    return { shortfall, contracts };
+}
 
 /**
  * `422` on `transfer`. Source and destination are the same agency.

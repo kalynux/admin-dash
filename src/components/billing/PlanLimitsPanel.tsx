@@ -17,6 +17,10 @@ import type { Plan } from '@/types/billing.types';
  *   which is not unlimited and not this plan's decision.
  * - **`liveTrackingEnabled` is a flag, not a cap** — `null` means the plan's role
  *   does not define it at all.
+ * - ⚠ **`maxCodPool: null` on an agent plan means NO cash on delivery** (since
+ *   2026-09-21) — the one limit that fails closed. It shares no branch with the
+ *   "not limited" rows above on purpose: one formatter for all of them is how a
+ *   closed pool would read as an open one.
  *
  * ── Half of these are null on any given plan, by design ───────────────────────
  * One billing engine serves vendors, agencies and agents, and a plan's `role`
@@ -87,6 +91,28 @@ export function PlanLimitsPanel({ plan }: { plan: Plan }) {
                     )
                 ) : (
                     formatCount(limits.maxUnterminatedShipments)
+                )}
+            </Definition>
+
+            <Definition
+                label="COD pool"
+                hint={
+                    <InfoHint label="About the COD pool">
+                        The cash on delivery an agent on this tier may carry across every agency —
+                        once their identity is verified; before that it is 0 whatever this says.
+                        Unlike the other limits, an <strong>empty value means no cash on
+                        delivery</strong>, not unlimited. An administrator can pin a different
+                        amount for one agent.
+                    </InfoHint>
+                }
+            >
+                {role !== 'agent' ? (
+                    <NotApplicable>Not part of a {role} plan</NotApplicable>
+                ) : limits.maxCodPool === null || limits.maxCodPool === 0 ? (
+                    // ⚠ Never "Not limited" here: jovi-mall reads `null` as 0.
+                    <span>0 — no cash on delivery</span>
+                ) : (
+                    formatCount(limits.maxCodPool)
                 )}
             </Definition>
 

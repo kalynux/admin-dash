@@ -1378,6 +1378,7 @@ export function vendorAccountFixture(overrides: Partial<OwnerAccount> = {}): Own
                 maxStorageBytes: 5_000_000_000,
                 // Delivery limits — not part of a vendor plan.
                 maxUnterminatedShipments: null,
+                maxCodPool: null,
                 liveTrackingEnabled: null,
             },
         },

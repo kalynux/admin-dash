@@ -45,7 +45,8 @@ export function ClosurePanel({ closedAt, timeZone }: ClosurePanelProps) {
             <AlertDescription className="space-y-2">
                 <p>
                     An administrator did not do this and cannot undo it. There is no reinstatement
-                    for a closure.
+                    for a closure, and nothing can be done to the account from here: it cannot be
+                    suspended, sent a link or a message, or given new login details.
                 </p>
 
                 <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">

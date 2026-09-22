@@ -39,7 +39,13 @@ import type { ActorStamp } from '@/types/actor.types';
  */
 export type UserRole = 'vendor' | 'agency' | 'agent' | 'customer' | (string & {});
 
-export type UserStatus = 'active' | 'suspended' | (string & {});
+/**
+ * `closed` is the owner's own closure (jovi-mall ADR-A02) and is **read-only
+ * here**: no administrator verb reaches it, and none leaves it — suspend
+ * compare-and-sets from `active` and restore from `suspended`, so a closed row
+ * misses both with a `409` (`users.md` § suspend, `account-closure.md`).
+ */
+export type UserStatus = 'active' | 'suspended' | 'closed' | (string & {});
 
 /**
  * Which identity space a `suspension.by.id` belongs to.
@@ -340,7 +346,13 @@ export interface UserActivityQuery {
 /** The `?role=` allowlist. `admin` is absent by contract, not by omission. */
 export const USER_ROLES = ['vendor', 'agency', 'agent', 'customer'] as const;
 
-export const USER_STATUSES = ['active', 'suspended'] as const;
+/**
+ * The `?status=` allowlist, matching `USER_STATUSES` in wi-admin's
+ * `user.validator.ts`. ⚠ **`closed` was missing until 2026-09-21**, so the one
+ * filter `users.md` says exists *for* support — *"why does this order resolve to
+ * a customer with no name"* — could not be chosen here.
+ */
+export const USER_STATUSES = ['active', 'suspended', 'closed'] as const;
 
 /**
  * The `?sort=` allowlist, verbatim from `user.validator.ts:44-48`.

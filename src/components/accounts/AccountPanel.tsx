@@ -299,6 +299,38 @@ function PlanCard({
                                 <NotApplicable>Not part of this {ownerType}'s plan</NotApplicable>
                             )}
                         </Definition>
+
+                        {/*
+                          Agents only, and labelled as the PLAN's figure: the
+                          pool an agent can actually carry is on the agent's Cash
+                          tab, after identity verification, a pin, or their own
+                          lower choice. Two numbers that share a name are how an
+                          operator ends up quoting the wrong one.
+                        */}
+                        {ownerType === 'agent' ? (
+                            <Definition
+                                label="COD pool on this plan"
+                                hint={
+                                    <InfoHint label="About the plan's COD pool">
+                                        What the plan grants once the agent&apos;s identity is
+                                        verified. It is not necessarily what they carry: an
+                                        administrator can pin another amount and the agent can
+                                        choose less. The agent&apos;s own pool is on their Cash
+                                        tab.
+                                    </InfoHint>
+                                }
+                            >
+                                {!hasPlan ? (
+                                    <NotSet>No active plan</NotSet>
+                                ) : entitlements.maxCodPool === null ||
+                                  entitlements.maxCodPool === 0 ? (
+                                    // ⚠ Never "Not limited": for this limit `null` is 0.
+                                    <span>0 — no cash on delivery</span>
+                                ) : (
+                                    formatCount(entitlements.maxCodPool)
+                                )}
+                            </Definition>
+                        ) : null}
                     </DefinitionList>
                 </section>
             </CardContent>

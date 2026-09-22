@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { EyeOff, Info, RotateCw, ScrollText } from 'lucide-react';
+import { Info, RotateCw, ScrollText } from 'lucide-react';
 
 import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataState, EmptyState } from '@/components/common/DataState';
@@ -7,7 +7,7 @@ import { FilterBar } from '@/components/common/FilterBar';
 import { FilterField } from '@/components/common/FilterField';
 import { SearchInput } from '@/components/common/SearchInput';
 import { PageContainer } from '@/components/layout/PageContainer';
-import { MaskedNotice } from '@/components/system/MaskedNotice';
+import { Field, ScrubbedJson, ScrubbedText } from '@/components/system/ScrubbedFields';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -27,7 +27,6 @@ import { useListQueryState } from '@/hooks/use-list-query-state';
 import { useRefreshToken } from '@/hooks/use-refresh-token';
 import { formatInstantInZone, formatRelative } from '@/lib/format';
 import { resolveTimeZone } from '@/lib/datetime';
-import { scrubJson, scrubText } from '@/lib/scrub-secrets';
 import { cn } from '@/lib/utils';
 import { listSystemErrors } from '@/services/system.service';
 import { useAdmin, usePermissions } from '@/store';
@@ -480,81 +479,5 @@ export function SystemErrors() {
                 </DialogContent>
             </Dialog>
         </PageContainer>
-    );
-}
-
-/**
- * Free text from the error record, scrubbed, with the omission disclosed.
- *
- * ── Why these three fields and not the row's `message` ────────────────────────
- * `internalMessage`, `causeMessage` and `stack` are whatever the code threw —
- * a driver's connection string, a gateway's echo of the request it rejected, a
- * frame from a library that logs its own headers. The list's `message` is the
- * sentence the platform *composed* for the caller from a fixed catalogue, so it
- * cannot carry a credential by construction and is deliberately left alone.
- */
-function ScrubbedText({
-    value,
-    subject,
-    mono,
-}: {
-    value: string | null | undefined;
-    subject: string;
-    mono?: boolean;
-}) {
-    const { text, matched } = scrubText(value ?? '');
-    const body = value ? text : '—';
-
-    return (
-        <>
-            {mono ? (
-                <pre className="bg-muted/50 max-h-64 overflow-auto rounded p-2 text-xs">
-                    {body}
-                </pre>
-            ) : (
-                body
-            )}
-            <MaskedNotice matched={matched} subject={subject} className="mt-1" />
-        </>
-    );
-}
-
-/**
- * The `details` block — the one field on this dashboard that needs **both** nets.
- *
- * The contract returns it *unmasked* to tiers 1 and 2, and it is an arbitrary
- * object from a third-party failure, so a credential can arrive either named
- * (`authorization`) or buried in a value (`note: "retrying with Bearer …"`).
- * Each net catches what the other cannot, and the two are disclosed separately
- * because they are different claims about the same object.
- */
-function ScrubbedJson({ value }: { value: Record<string, unknown> | null }) {
-    const { text, matched, redactedKeys } = scrubJson(value);
-
-    return (
-        <>
-            <pre className="bg-muted/50 max-h-48 overflow-auto rounded p-2 text-xs">{text}</pre>
-            {redactedKeys.length > 0 ? (
-                <p className="text-muted-foreground mt-1 flex items-start gap-1.5 text-xs">
-                    <EyeOff className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-                    <span>
-                        {redactedKeys.length}{' '}
-                        {redactedKeys.length === 1 ? 'field was' : 'fields were'} hidden for having
-                        a credential-shaped name:{' '}
-                        <span className="font-mono">{redactedKeys.join(', ')}</span>.
-                    </span>
-                </p>
-            ) : null}
-            <MaskedNotice matched={matched} subject="these details" className="mt-1" />
-        </>
-    );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-    return (
-        <div className="space-y-0.5">
-            <p className="text-muted-foreground text-xs">{label}</p>
-            <div className="break-words">{children}</div>
-        </div>
     );
 }

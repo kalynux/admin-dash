@@ -1,6 +1,6 @@
 # Context only — this dashboard does not call jovi-mall
 
-**Verified against source on 2026-09-08** — the error-registry size (640), the jovi-mall api-doc page counts (183 / 28 / 155 / 108) and the `error-codes.ts` copy beside it, against `jovi-mall/src/core/error-codes.ts` and `jovi-mall/api-doc/`.
+**Re-copied from source on 2026-09-22** — the `error-codes.ts` copy beside it, which now declares **682** codes (it read 640 at the 2026-09-08 verification and had drifted to 657 unrecopied), against `jovi-mall/src/core/error-codes.ts`. **The api-doc page counts were re-counted on 2026-09-22** (197 / 33 / 167 / 115; they read 183 / 28 / 155 / 108), against `jovi-mall/api-doc/` and this folder.
 
 **Read this before opening any other page in this folder.**
 
@@ -20,7 +20,7 @@ Four reasons, all of them real:
 1. **Decoding a delegated failure.** wi-admin writes to jovi-mall over an internal API. When
    jovi-mall refuses, you get `PLATFORM_OPERATION_REJECTED` at jovi-mall's *original* status with
    jovi-mall's own code in **`details.platformCode`** — and that code is only explained here.
-   [`error-codes.ts`](error-codes.ts) is the full **640**-code registry.
+   [`error-codes.ts`](error-codes.ts) is the full **682**-code registry.
 2. **Domain vocabulary.** Shipment statuses, order states, COD terms and contract terms are
    jovi-mall's model. wi-admin renames nothing.
 3. **Understanding what an administrator is changing.** A suspension here cascades there.
@@ -55,8 +55,9 @@ refused **403**.
 
 ## What is here, and what is not
 
-This folder mirrors **28 of jovi-mall's 183 api-doc pages** — the admin-facing subset plus the
-cross-cutting ones. The other **155** are surfaces no administrator calls; **108** of those are
+This folder holds **33 pages**: **30 of jovi-mall's 197 api-doc pages** — the admin-facing subset
+plus the cross-cutting ones — and the three redirects in trap 2, whose backend originals were
+deleted on 2026-08-21. The other **167** are surfaces no administrator calls; **115** of those are
 the vendor, agency, agent, customer and public role documents, and the rest are internal and
 integration notes. All of it would be noise here.
 
@@ -67,6 +68,8 @@ integration notes. All of it would be noise here.
 | `tracking/` | jovi-mall's half of the tracking contract — the **policy**, which it owns |
 | `payments/` · `uploads/` · `rate-limits.md` | cross-cutting behaviour a delegated call inherits |
 | `notifications/` | the WhatsApp template catalogue |
+| `me/` | the self-service account routes every role shares — password, email/phone change, WhatsApp phone verification, account closure — so you know what a party did to their own account |
+| `billing-plans-across-roles.md` · `FRONTEND-CHANGELOG-cod-pool.md` | the one plan and credit model behind every owner's billing, and the 2026-09-21 change that derives an agent's COD pool from their plan |
 
 ### Two deliberate differences from the backend's copies
 
@@ -75,6 +78,13 @@ integration notes. All of it would be noise here.
    otherwise dangle, so it is rendered as **plain text naming the backend path**, never as a
    clickable link that goes nowhere. 239 were degraded this way and 8 were retargeted to a page
    this repository *does* hold.
+
+> ⚠ **A plain `cp` from the backend undoes both, and deletes the three redirects.** The
+> 2026-09-22 re-copy did exactly that; the banners, the redirects and the repair were put back
+> the same day — 207 links flattened (161 of them in `README.md`'s index) across the thirteen
+> re-copied pages that had any, and 6 retargeted to the mirrors in `../admin/` and
+> `../geo-tracker/`. Folder-wide that is 255 `(not mirrored here — …)` pointers on 142 lines,
+> since one line can hold several. After any re-copy, re-run a relative-link check over this folder.
 
 > ⚠ **Repair was done path-aware, and it has to be.** jovi-mall's api-doc carries `billing.md`,
 > `earnings.md`, `payment-methods.md` and `articles.md` under `admin/`, `vendor/`, `agency/`,

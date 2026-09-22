@@ -11,10 +11,12 @@
 
 import type {
     Agent,
+    AgentAssignability,
     AgentDetail,
     AgentEligibility,
     AgentLastKnown,
     CodAllocation,
+    CodPoolOverride,
     TrackingPolicy,
 } from '@/types/agents.types';
 import type { AgentContract } from '@/types/contracts.types';
@@ -112,6 +114,7 @@ export function agentDetailFixture(overrides: Partial<AgentDetail> = {}): AgentD
             photoFileId: null,
         },
         homeBase: { label: 'Bonapriso, Douala', serviceRadiusKm: 12 },
+        emergencyContact: { name: 'Ada Mbarga', phone: '+237670000002' },
         kyc: {
             status: 'verified',
             reference: 'KYC-2025-00871',
@@ -147,7 +150,24 @@ export function agentDetailFixture(overrides: Partial<AgentDetail> = {}): AgentD
             reportedAt: '2026-08-15T05:12:00.000Z',
         },
         capacity: { max: 5, active: 1, reconciledAt: '2026-08-15T06:00:00.000Z' },
-        cod: { trustScore: 82, maxThreshold: 150000 },
+        /*
+          A verified agent on the free tier, synced, no pin — the healthy default
+          since the pool became automatic on 2026-09-21. `maxThreshold` stays at
+          150 000 (below the 500 000 ceiling) so `selfLimited` is honestly true:
+          wi-admin computes it as `max_threshold < pool_ceiling`.
+        */
+        cod: {
+            trustScore: 82,
+            maxThreshold: 150000,
+            pool: {
+                ceiling: 500000,
+                source: 'plan',
+                planCode: 'agent_free',
+                selfLimited: true,
+                syncedAt: '2026-09-21T09:30:00.000Z',
+            },
+            poolOverride: null,
+        },
         trustSignals: {
             onTimeRate: 0.94,
             assignmentResponseRate: 0.88,
@@ -205,6 +225,15 @@ export function codAllocationFixture(overrides: Partial<CodAllocation> = {}): Co
         maxThreshold: 150000,
         allocated: 90000,
         headroom: 60000,
+        overAllocatedBy: 0,
+        pool: {
+            ceiling: 500000,
+            source: 'plan',
+            planCode: 'agent_free',
+            selfLimited: true,
+            syncedAt: '2026-09-21T09:30:00.000Z',
+        },
+        override: null,
         contracts: [
             {
                 contractId: '6671aabbccddeeff00112240',
@@ -245,6 +274,143 @@ export function eligibilityFixture(overrides: Partial<AgentEligibility> = {}): A
         ],
         activeShipmentCount: 5,
         maxConcurrentShipments: 5,
+        ...overrides,
+    };
+}
+
+/**
+ * An administrator's pin on the pool — `cod.poolOverride` on the detail and
+ * `override` on the allocation carry the same five fields.
+ */
+export function poolOverrideFixture(overrides: Partial<CodPoolOverride> = {}): CodPoolOverride {
+    return {
+        amount: 750000,
+        reason: 'Trusted long-standing agent; approved by ops lead',
+        setAt: '2026-09-21T10:02:00.000Z',
+        setByName: 'Awa N.',
+        setBySource: 'admin',
+        ...overrides,
+    };
+}
+
+/** A pinned agent: the detail carries the pin and the pool reads `override`. */
+export function pinnedAgentDetailFixture(overrides: Partial<AgentDetail> = {}): AgentDetail {
+    const base = agentDetailFixture();
+    return agentDetailFixture({
+        cod: {
+            ...base.cod,
+            maxThreshold: 750000,
+            pool: {
+                ceiling: 750000,
+                source: 'override',
+                planCode: null,
+                selfLimited: false,
+                syncedAt: '2026-09-21T10:02:00.000Z',
+            },
+            poolOverride: poolOverrideFixture(),
+        },
+        ...overrides,
+    });
+}
+
+/**
+ * `GET /agents/:id/assignability?agencyId=` — jovi-mall's worked refusal, with
+ * the two `limit` fields its own example omits (`agentPool`, `poolBinds`) taken
+ * from `CodLimitBreakdown` in `cod/services/cod-exposure.service.ts`.
+ *
+ * One platform gate passing, one contract gate skipped for want of a shipment,
+ * and the cash gate refusing on exposure — the case the endpoint was built for.
+ */
+export function assignabilityFixture(
+    overrides: Partial<AgentAssignability> = {},
+): AgentAssignability {
+    return {
+        agentId: '6660112233445566778899aa',
+        agencyId: '6650bb22cc33dd44ee55ff66',
+        shipmentId: null,
+        assignable: false,
+        blockers: ['cod_exposure'],
+        gates: [
+            {
+                family: 'platform',
+                gate: 'capacity',
+                status: 'passed',
+                reason: null,
+                observed: { activeShipmentCount: 1, max: 5 },
+                summary: 'Carrying 1 of a maximum 5 concurrent shipments.',
+                remedies: [],
+            },
+            {
+                family: 'contract',
+                gate: 'coverage_region',
+                status: 'skipped',
+                reason: null,
+                observed: {},
+                summary: 'No shipment was given, so there is no delivery region to test.',
+                remedies: [],
+            },
+            {
+                family: 'contract',
+                gate: 'cod_exposure',
+                status: 'failed',
+                reason: 'COD_AGENT_EXPOSURE_EXCEEDED',
+                observed: {
+                    blocker: 'exposure_exceeded',
+                    additionalAmount: 0,
+                    exposure: {
+                        currency: 'XAF',
+                        cashHeld: 37400,
+                        pendingCollections: { total: 83000, count: 5, items: [] },
+                        total: 120400,
+                    },
+                    limit: {
+                        contractThreshold: 200000,
+                        agentPool: 500000,
+                        poolBinds: false,
+                        base: 200000,
+                        trustScore: 75,
+                        trustSource: 'computed',
+                        computedTrustScore: 75,
+                        overrideReason: null,
+                        tier: 'reduced',
+                        multiplier: 0.5,
+                        fullThreshold: 80,
+                        reducedThreshold: 50,
+                        effectiveLimit: 100000,
+                    },
+                    headroom: 0,
+                    depositNeeded: 20400,
+                    openCashShortfall: false,
+                },
+                summary:
+                    'Refused on cash: the agent is already exposed to 120400 (37400 held plus 83000 expected from 5 undelivered package(s), across every agency they serve), against a limit of 100000 — reduced trust (75, under 80), so the contract threshold of 200000 is halved to 100000.',
+                remedies: [
+                    { action: 'deposit_cash', params: { amount: 20400 } },
+                    {
+                        action: 'raise_trust_score',
+                        params: { to: 80, from: 75, wouldRaiseLimitTo: 200000, sufficientOnItsOwn: true },
+                    },
+                    {
+                        action: 'raise_contract_threshold',
+                        params: { current: 200000, requiredForCurrentExposure: 240800 },
+                    },
+                    { action: 'wait_for_deliveries' },
+                ],
+            },
+        ],
+        context: {
+            shipment: null,
+            contract: {
+                contractId: '6671aabbccddeeff00112240',
+                status: 'active',
+                codThreshold: 200000,
+                outstandingBalance: 4200,
+                shipmentValueCeiling: null,
+                coverageRegions: ['littoral'],
+            },
+        },
+        eligibility: eligibilityFixture({ eligible: true, reasons: [], activeShipmentCount: 1 }),
+        contractPolicy: {},
         ...overrides,
     };
 }

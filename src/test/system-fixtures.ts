@@ -320,6 +320,54 @@ export function platformLogsFixture(overrides: Partial<PlatformLogsPage> = {}): 
     };
 }
 
+/**
+ * A line the platform's global error handler wrote, shaped exactly as
+ * `log-query.service.ts`'s `toRecord` serves it — not as `system.md` describes
+ * it. The page names `res.statusCode`; the service sends a top-level `status`,
+ * plus `httpError`, `method`, `path`, `actorId` and `source`, none of which the
+ * page lists.
+ *
+ * ⚠ **`msg` is only `"<category> <status> <code>"`** — the failure is in
+ * `httpError.internalMessage` and `err`. That is the whole reason the Logs row
+ * had to grow a second line and a full-entry view.
+ */
+export function errorHandlerLogLineFixture(
+    overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+    return {
+        at: '2026-09-21T10:02:11.004Z',
+        level: 'error',
+        msg: 'internal 500 INTERNAL_SERVER_ERROR',
+        source: 'logger',
+        requestId: '5d2c9a41-7e0b-4f3a-9b6c-1a2b3c4d5e6f',
+        actorId: '665f1c2a9b3e4a91c7d2e5f0',
+        method: 'POST',
+        path: '/api/internal/admin/phone-verification/request',
+        status: 500,
+        httpError: {
+            category: 'internal',
+            code: 'INTERNAL_SERVER_ERROR',
+            statusCode: 500,
+            routeGroup: '/api/internal',
+            actorRole: null,
+            clientMessage: 'Something went wrong on our side',
+            internalMessage: "Cannot read properties of undefined (reading 'preferred_language')",
+            details: { attempt: 2 },
+            causeMessage: 'connect ECONNREFUSED 127.0.0.1:6379',
+            masked: true,
+        },
+        err: {
+            type: 'TypeError',
+            message: "Cannot read properties of undefined (reading 'preferred_language')",
+            stack:
+                "TypeError: Cannot read properties of undefined (reading 'preferred_language')\n" +
+                '    at PhoneVerificationService.send (phone-verification.service.ts:136:41)\n' +
+                '    at AdminPhoneController.request (admin-phone.controller.ts:58:22)',
+        },
+        ...overrides,
+    };
+}
+
 export function supportErrorFixture(overrides: Partial<SupportErrorEntry> = {}): SupportErrorEntry {
     return {
         at: '2026-08-16T09:14:02.331Z',

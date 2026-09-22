@@ -1,7 +1,8 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { Link } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { CheckCircle2, MessageCircleWarning, Phone, ShieldAlert } from 'lucide-react';
+import { CheckCircle2, MessageCircleWarning, Phone, ShieldAlert, Telescope } from 'lucide-react';
 
 import { AuthFormError } from '@/components/auth/AuthFormError';
 import {
@@ -29,6 +30,9 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { ERROR_JOURNAL_PATH } from '@/config/navigation';
+import { useCanLookUpErrors } from '@/hooks/use-can-look-up-errors';
+import { tStatic } from '@/i18n/runtime';
 import { formatRelative } from '@/lib/format';
 import { notify } from '@/lib/notify';
 import * as authService from '@/services/auth.service';
@@ -65,8 +69,27 @@ import type { AdminProfile, PhoneCodeSent } from '@/types/auth.types';
  *
  * ⚠ **So a delivery failure is the edge case it reads as, and the notice below
  * must not say otherwise.** Telling somebody their own silence caused it sends
- * them chasing a remedy they do not need. The in-window trick survives as a
- * *fallback* in {@link DeliveryFailedNotice}, not as the primary path.
+ * them chasing a remedy they do not need.
+ *
+ * ── ⛔ Never send them to message the platform on WhatsApp first ──────────────
+ * {@link DeliveryFailedNotice} offered that as a fallback until 2026-09-21 —
+ * *"send any WhatsApp message to the platform's business number, then verify
+ * again"* — and it was worse than useless. jovi-mall stamped the 24-hour window
+ * under the bare number (`237…`) while its send path read it under `+237…`, so
+ * texting the platform steered the code onto the free-form path, the policy
+ * check refused it as outside the window, and the request failed **with no
+ * template attempt**. An administrator who had *not* followed the advice got the
+ * template and could verify. Both halves are fixed upstream — one window key, and
+ * a refused free-form send now falls back to the template — so by the time
+ * `DELIVERY_FAILED` comes back every route has been tried, and nothing the
+ * operator does on their phone changes it. Messaging the bot also creates a
+ * customer account against that number, which `auth.md` itself calls a cost.
+ *
+ * [`phone-verification.md`](../../../api-doc/jovi-mall/me/phone-verification.md)
+ * says to remove that copy from every frontend. ⚠ [`auth.md`](../../../api-doc/admin/api/auth.md)
+ * still carries it as a collapsed *"manual workaround"*, written the same morning
+ * but before the fix — **the page that owns the send path wins**, and the
+ * disagreement is recorded in `CLAUDE.md` rather than resolved by editing a mirror.
  *
  * ── ⚠ Why this card never renders during onboarding ──────────────────────────
  * None of the three routes is on `ONBOARDING_ROUTE_ALLOWLIST`, so a `pending`
@@ -293,6 +316,7 @@ function VerifyPhoneDialog({
     const [sent, setSent] = useState<PhoneCodeSent | null>(null);
     const [isSending, setIsSending] = useState(false);
     const [error, setError] = useState<unknown>(null);
+    const { waitSeconds, holdFor } = useResendGate();
 
     const form = useForm<ConfirmValues>({
         resolver: zodResolver(confirmSchema),
@@ -313,10 +337,11 @@ function VerifyPhoneDialog({
             setSent(await authService.requestPhoneCode());
         } catch (caught) {
             setError(caught);
+            holdFor(caught);
         } finally {
             setIsSending(false);
         }
-    }, []);
+    }, [holdFor]);
 
     const submit = form.handleSubmit(async ({ code }) => {
         setError(null);
@@ -327,6 +352,7 @@ function VerifyPhoneDialog({
             onOpenChange(false);
         } catch (caught) {
             setError(caught);
+            holdFor(caught);
             form.reset({ code: '' });
 
             /*
@@ -415,7 +441,9 @@ function VerifyPhoneDialog({
                     </DialogDescription>
                 </DialogHeader>
 
-                {deliveryFailed ? <DeliveryFailedNotice /> : null}
+                {deliveryFailed ? (
+                    <DeliveryFailedNotice requestId={(error as ApiError).requestId} />
+                ) : null}
                 {!deliveryFailed && rateLimited ? (
                     <RateLimitedNotice
                         kind={
@@ -470,11 +498,11 @@ function VerifyPhoneDialog({
                             <Button
                                 type="button"
                                 variant="ghost"
-                                disabled={isSending || form.formState.isSubmitting}
+                                disabled={isSending || form.formState.isSubmitting || waitSeconds > 0}
                                 onClick={() => void send()}
                             >
                                 {isSending ? <InlineLoader /> : null}
-                                Send another
+                                {waitSeconds > 0 ? `Send another in ${waitSeconds}s` : 'Send another'}
                             </Button>
                             <Button type="submit" disabled={form.formState.isSubmitting}>
                                 {form.formState.isSubmitting ? <InlineLoader /> : null}
@@ -492,9 +520,13 @@ function VerifyPhoneDialog({
                         >
                             Cancel
                         </Button>
-                        <Button type="button" disabled={isSending} onClick={() => void send()}>
+                        <Button
+                            type="button"
+                            disabled={isSending || waitSeconds > 0}
+                            onClick={() => void send()}
+                        >
                             {isSending ? <InlineLoader /> : null}
-                            Send code
+                            {waitSeconds > 0 ? `Send code in ${waitSeconds}s` : 'Send code'}
                         </Button>
                     </DialogFooter>
                 )}
@@ -504,38 +536,121 @@ function VerifyPhoneDialog({
 }
 
 /**
+ * Holds the send buttons shut for as long as a 429 said to wait.
+ *
+ * `phone-verification.md` asks for exactly this on `RESEND_TOO_SOON` —
+ * *"`details.retryAfterSeconds` — disable the button for that long"* — and it
+ * applies to wi-admin's own ceiling too, because a send inside either window is
+ * refused all the same.
+ *
+ * ⚠ **Reactive only: nothing is held after a SUCCESSFUL send**, though jovi-mall
+ * starts its cooldown there. The length is its `PHONE_VERIFY_RESEND_COOLDOWN_SECONDS`
+ * and no response carries it, so holding for "60" would be a constant in our
+ * source standing in for a setting in theirs. The 429 carries the real figure.
+ *
+ * ⚠ **Nor after `DELIVERY_FAILED`.** jovi-mall stores a code only once WhatsApp
+ * has accepted it (`phone-verification.service.ts`, *"Stored only AFTER a
+ * successful send"*), so a failed send starts no cooldown and the retry the
+ * notice offers is available at once.
+ *
+ * Kept across the dialog closing on purpose: the cooldown is the account's, not
+ * the dialog's.
+ */
+function useResendGate() {
+    const [until, setUntil] = useState<number | null>(null);
+    const [now, setNow] = useState(() => Date.now());
+
+    useEffect(() => {
+        if (until === null) return;
+        const timer = setInterval(() => {
+            const tick = Date.now();
+            setNow(tick);
+            if (tick >= until) setUntil(null);
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [until]);
+
+    const holdFor = useCallback((error: unknown) => {
+        if (!(error instanceof ApiError) || !error.isRateLimit) return;
+        const seconds = error.retryAfterSeconds;
+        if (seconds === undefined || seconds <= 0) return;
+        const at = Date.now();
+        setNow(at);
+        setUntil(at + seconds * 1000);
+    }, []);
+
+    const waitSeconds = until === null ? 0 : Math.max(0, Math.ceil((until - now) / 1000));
+    return { waitSeconds, holdFor };
+}
+
+/**
  * What to do when WhatsApp refused the send.
  *
- * ⚠ **Retuned on 2026-09-15, and the direction matters.** It used to lead with
- * *"WhatsApp only lets us message you freely for 24 hours after you message
- * us"*, because at the time that was the cause of every failure on this
- * deployment — there was no approved template, so nobody outside the window
- * could be reached. There is one now, so a failure here is genuinely unusual,
- * and leading with the window would tell an operator their own silence caused
- * something it did not.
+ * ⚠ **Retuned twice, and both directions matter.** On 2026-09-15 it stopped
+ * leading with the 24-hour window, because the approved template made a failure
+ * unusual. On 2026-09-21 the window left it entirely: the *"message the
+ * platform first"* fallback it still offered was steering people onto the one
+ * path that could not work (see the card's docblock), and
+ * `phone-verification.md` now says never to offer it. **Do not add it back as a
+ * tip** — by the time this renders, every route has been tried.
  *
- * So: a retry first, the in-window trick second and explicitly as a fallback,
- * and the account reassurance kept — a person who cannot prove a number should
- * not be left wondering whether they are locked out of anything.
+ * What is left is the contract's own list: a temporary failure, a retry (the
+ * dialog's own send button, which a failed send leaves available at once), and
+ * a way to escalate. For an administrator the escalation is the reference —
+ * wi-admin forwards `requestId` to jovi-mall on every delegated call and
+ * jovi-mall adopts it verbatim, so one id finds WhatsApp's refusal in both
+ * services' logs. Whoever holds the journal gets the same "look this up" link
+ * `ErrorState` offers.
+ *
+ * The warning tone, not the destructive one: nothing is lost, and the next
+ * press may well work.
  */
-function DeliveryFailedNotice() {
+function DeliveryFailedNotice({ requestId }: { requestId?: string }) {
+    const canLookUp = useCanLookUpErrors();
+
     return (
         <div
             role="alert"
-            className="border-destructive/40 bg-destructive/10 text-destructive mb-4 flex gap-2.5 rounded-lg border p-3 text-sm"
+            className="border-warning/40 bg-warning/10 mb-4 flex gap-2.5 rounded-lg border p-3 text-sm"
         >
             <MessageCircleWarning className="mt-0.5 size-4 shrink-0" aria-hidden />
-            <div className="min-w-0 space-y-1.5">
-                <p className="font-medium">WhatsApp would not deliver the code</p>
-                <p className="text-destructive/85 text-xs">
-                    This is unusual — nothing is wrong with your number. Try again in a moment.
+            <div className="text-muted-foreground min-w-0 space-y-1.5 text-xs">
+                <p className="text-foreground text-sm font-medium">
+                    WhatsApp would not deliver the code
                 </p>
-                <p className="text-destructive/85 text-xs">
-                    If it keeps failing: send any WhatsApp message to the platform&rsquo;s business
-                    number from this phone, then press Verify again within the day. That opens a
-                    direct channel and the code arrives as an ordinary message.
-                </p>
-                <p className="text-destructive/85 text-xs">
+                <p>This is unusual, and nothing is wrong with your number. Try again in a moment.</p>
+                {requestId ? (
+                    <>
+                        <p>
+                            If it keeps failing, report it with this reference — WhatsApp&rsquo;s
+                            reason is in the server log under it.
+                        </p>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                            {/* Whole, not head-and-tail: it is read out to somebody else. */}
+                            <CopyableValue
+                                variant="id"
+                                value={requestId}
+                                label="error reference"
+                                truncate={false}
+                            />
+                            {canLookUp ? (
+                                <Link
+                                    to={`${ERROR_JOURNAL_PATH}?requestId=${encodeURIComponent(requestId)}`}
+                                    className="text-foreground inline-flex items-center gap-1 underline-offset-4 hover:underline"
+                                >
+                                    <Telescope className="size-3.5" aria-hidden />
+                                    {tStatic('errors.state.lookUp')}
+                                </Link>
+                            ) : null}
+                        </div>
+                    </>
+                ) : (
+                    <p>
+                        If it keeps failing, report it to the platform&rsquo;s developers —
+                        WhatsApp&rsquo;s reason is in the server log.
+                    </p>
+                )}
+                <p>
                     Your account is unaffected either way — a verified number is a contact detail,
                     not a sign-in requirement.
                 </p>

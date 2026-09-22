@@ -29,6 +29,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { pickFieldErrors } from '@/lib/field-errors';
 import { resolveErrorMessage } from '@/lib/errors';
+import { formatCount } from '@/lib/format';
 import { notify } from '@/lib/notify';
 import { PARTY_NAME_SOURCE_LABELS } from '@/lib/party';
 import {
@@ -38,11 +39,14 @@ import {
     PLATFORM_CODE_CONTRACT_HAS_UNPAID_EARNINGS,
     PLATFORM_CODE_MEMBERSHIP_ALREADY_EXISTS,
     banAgent,
+    readBelowAllocated,
+    releaseAgentCodThreshold,
     setAgentCodThreshold,
     setAgentStatus,
     setAgentTracking,
     transferAgent,
     unbanAgent,
+    type BelowAllocatedContract,
 } from '@/services/agents.service';
 import { useCan } from '@/store';
 import { resolveAgencyDisplayName } from '@/types/agencies.types';
@@ -50,13 +54,16 @@ import { ApiError } from '@/types/api.types';
 import {
     AGENT_STATUSES,
     agentDisplayName,
+    codPoolSourceLabel,
     statusChangeNeedsReason,
     type AgentDetail,
     type AgentStatus,
+    type CodAllocation,
 } from '@/types/agents.types';
 
 /**
- * The seven agent writes.
+ * The eight agent writes — the seven it has always had, plus the COD-pool
+ * release (2026-09-21).
  *
  * Every one follows the same shape as `AgencyWriteDialogs`: a `Dialog` whose form
  * is an inner component, so Radix's unmount on close means each open starts with
@@ -64,11 +71,11 @@ import {
  * exactly, which turns a round-trip `400` into an inline message; the server
  * refuses regardless, and none of these dialogs reproduces a rule it does not own.
  *
- * All seven are **delegated**, so every failure that is not a validation error
+ * All eight are **delegated**, so every failure that is not a validation error
  * carries `details.platformCode` — that is what the branches read, never
  * `error.code`, which is `PLATFORM_OPERATION_REJECTED` for all of them.
  *
- * All seven **refetch rather than merge**: a delegated write answers jovi-mall's
+ * All eight **refetch rather than merge**: a delegated write answers jovi-mall's
  * own narrower DTO, and a second mapper is how two shapes drift apart.
  */
 
@@ -411,38 +418,53 @@ function TrackingForm({
     );
 }
 
-// ─── COD threshold ────────────────────────────────────────────────────────────
+// ─── COD pool: pin and release ────────────────────────────────────────────────
 
 /**
- * The field is a **string** and is parsed at submit, rather than coerced by the
- * schema: a number input hands back `''` when it is cleared, and coercing that to
- * `0` would silently ask to block all cash on an agent who was mid-edit.
+ * ── Why "pin" and not "set" ───────────────────────────────────────────────────
+ * Since 2026-09-21 nobody types the pool in. jovi-mall derives it — `0` until the
+ * agent's identity is verified, then their plan's `max_cod_pool` — and this
+ * write stores an administrator's **pin** that replaces the plan's value, above
+ * or below it, until somebody releases it. Calling that "set" would tell an
+ * operator their number is the pool; it is an override of the pool's rule, and
+ * the next plan change will not move it.
  *
- * Finite and non-negative is all wi-admin checks. The rule that actually matters —
- * not below what the contracts already hold — needs the contracts, so it is
+ * ── The amount is a string, parsed at submit ──────────────────────────────────
+ * A number input hands back `''` when cleared, and coercing that to `0` would
+ * silently pin a zero pool — blocking all cash — on an agent who was mid-edit.
+ * wi-admin checks a **non-negative integer** and nothing more: the rule that
+ * matters, not below what the contracts hold, needs the contracts, so it is
  * jovi-mall's and only jovi-mall can refuse it.
  */
-const thresholdSchema = z.object({
+const pinSchema = z.object({
     maxThreshold: z
         .string()
         .trim()
-        .min(1, 'Enter a number')
+        .min(1, 'Enter an amount')
         .refine((value) => Number.isFinite(Number(value)), 'Enter a number')
-        .refine((value) => Number(value) >= 0, 'The pool cannot be negative'),
+        .refine((value) => Number(value) >= 0, 'The pool cannot be negative')
+        .refine(
+            (value) => Number.isInteger(Number(value)),
+            'Enter a whole amount — the pool takes no fractions',
+        ),
+    reason: reasonField,
 });
 
-type ThresholdValues = { maxThreshold: string };
+type PinValues = { maxThreshold: string; reason: string };
 
-export function SetCodThresholdDialog({
+export function PinCodPoolDialog({
     agent,
-    allocated,
+    allocation,
     open,
     onOpenChange,
     onDone,
 }: {
     agent: AgentDetail;
-    /** From `GET /cod-allocation`, shown as a floor — never enforced here. */
-    allocated: number | null;
+    /**
+     * From `GET /cod-allocation`: the floor, shown and never enforced, and the
+     * agency names a refusal's contract list is labelled with.
+     */
+    allocation: CodAllocation | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onDone: () => void;
@@ -451,14 +473,15 @@ export function SetCodThresholdDialog({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>Set cash pool for {agentDisplayName(agent)}</DialogTitle>
+                    <DialogTitle>Pin the COD pool for {agentDisplayName(agent)}</DialogTitle>
                     <DialogDescription>
-                        The agent&apos;s whole cash ceiling. Every contract slice comes out of it.
+                        A pin replaces the amount the agent&apos;s plan gives them — above or below
+                        it — until an administrator releases it. Plan changes do not move it.
                     </DialogDescription>
                 </DialogHeader>
-                <ThresholdForm
+                <PinForm
                     agent={agent}
-                    allocated={allocated}
+                    allocation={allocation}
                     onCancel={() => onOpenChange(false)}
                     onDone={() => {
                         onOpenChange(false);
@@ -470,71 +493,122 @@ export function SetCodThresholdDialog({
     );
 }
 
-function ThresholdForm({
+function PinForm({
     agent,
-    allocated,
+    allocation,
     onCancel,
     onDone,
 }: {
     agent: AgentDetail;
-    allocated: number | null;
+    allocation: CodAllocation | null;
     onCancel: () => void;
     onDone: () => void;
 }) {
     const [formError, setFormError] = useState<unknown>(null);
+    const [blocking, setBlocking] = useState<BelowAllocatedContract[]>([]);
+    const pinned = agent.cod.poolOverride?.amount;
     const {
         register,
         handleSubmit,
         setError,
         formState: { errors, isSubmitting },
-    } = useForm<ThresholdValues>({
-        resolver: zodResolver(thresholdSchema),
-        defaultValues: { maxThreshold: String(agent.cod.maxThreshold ?? '') },
+    } = useForm<PinValues>({
+        resolver: zodResolver(pinSchema),
+        // Only an existing pin pre-fills. Pre-filling the current pool would make
+        // "pin exactly what the plan gives" the default, which is a pin that
+        // silently stops following the plan — an override nobody meant.
+        defaultValues: { maxThreshold: pinned == null ? '' : String(pinned), reason: '' },
     });
 
-    async function onSubmit(values: ThresholdValues) {
+    // Display only: KYC decides whether the pin takes effect, and this says so
+    // before the choice. The server stores the pin either way.
+    const unverified = agent.kyc.status !== 'verified';
+
+    async function onSubmit(values: PinValues) {
         setFormError(null);
+        setBlocking([]);
         try {
-            await setAgentCodThreshold(agent.id, { maxThreshold: Number(values.maxThreshold) });
-            notify.success('Cash pool updated');
+            const result = await setAgentCodThreshold(agent.id, {
+                maxThreshold: Number(values.maxThreshold),
+                reason: values.reason,
+            });
+            notify.success(
+                unverified
+                    ? 'Pin stored — it applies once their identity is verified'
+                    : `COD pool pinned at ${formatCount(result.maxThreshold)}`,
+            );
             onDone();
         } catch (error) {
             if (error instanceof ApiError) {
                 // Which field a refusal lands on is screen knowledge and stays
                 // here; the sentence is catalogued under `errors.platform.*`.
-                if (
-                    error.platformCode === PLATFORM_CODE_COD_BELOW_ALLOCATED ||
-                    error.platformCode === PLATFORM_CODE_COD_OUT_OF_BOUNDS
-                ) {
+                if (error.platformCode === PLATFORM_CODE_COD_BELOW_ALLOCATED) {
+                    setError('maxThreshold', { message: resolveErrorMessage(error) });
+                    setBlocking(readBelowAllocated(error.details).contracts);
+                    return;
+                }
+                if (error.platformCode === PLATFORM_CODE_COD_OUT_OF_BOUNDS) {
                     setError('maxThreshold', { message: resolveErrorMessage(error) });
                     return;
                 }
-                if (applyFieldError(error, ['maxThreshold'], setError)) return;
+                if (applyFieldError(error, ['maxThreshold', 'reason'], setError)) return;
             }
+            // `AGENT_COD_POOL_CONFLICT` lands here: nothing was written, and its
+            // catalogued sentence says to reload and retry.
             setFormError(error);
         }
     }
 
     return (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {unverified ? (
+                <p className="border-warning/30 bg-warning/10 rounded-lg border px-3 py-2 text-sm">
+                    This agent&apos;s identity is not verified, so their pool stays{' '}
+                    <strong>0</strong> whatever you pin. The pin is stored and applies once their
+                    identity is verified.
+                </p>
+            ) : null}
+
+            <p className="text-muted-foreground text-sm">
+                Now {formatCount(agent.cod.maxThreshold ?? 0)} ·{' '}
+                {codPoolSourceLabel(agent.cod.pool)}
+                {pinned == null ? null : ` — this replaces the current pin of ${formatCount(pinned)}`}
+            </p>
+
             <FormField
-                id="agent-cod-threshold"
-                label="Maximum threshold"
+                id="agent-cod-pin"
+                label="Pinned pool"
                 error={errors.maxThreshold?.message}
                 hint={
-                    allocated === null
-                        ? 'No currency accompanies this figure anywhere, so it is a plain number.'
-                        : `This agent’s contracts already hold ${allocated}. Going below that is refused by the platform, which is the only side that can see both numbers.`
+                    allocation === null
+                        ? 'A whole amount. No currency accompanies this figure anywhere, so it is a plain number.'
+                        : `This agent’s contracts already hold ${formatCount(allocation.allocated)}. A pin below that is refused by the platform, which is the only side that can see both numbers.`
                 }
             >
                 {(field) => (
                     <Input
                         type="number"
-                        inputMode="decimal"
+                        inputMode="numeric"
                         min={0}
+                        // `any`, not 1: a native step mismatch would block the submit with
+                        // the browser's own tooltip before the schema's message could show.
                         step="any"
                         {...field}
                         {...register('maxThreshold')}
+                    />
+                )}
+            </FormField>
+
+            <BlockingContracts contracts={blocking} allocation={allocation} />
+
+            <FormField id="agent-cod-pin-reason" label="Reason" error={errors.reason?.message}>
+                {(field) => (
+                    <Textarea
+                        rows={3}
+                        maxLength={REASON_MAX}
+                        placeholder="Why this agent's pool should differ from their plan"
+                        {...field}
+                        {...register('reason')}
                     />
                 )}
             </FormField>
@@ -547,10 +621,201 @@ function ThresholdForm({
                 </Button>
                 <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting ? <InlineLoader /> : null}
-                    Save pool
+                    Pin pool
                 </Button>
             </DialogFooter>
         </form>
+    );
+}
+
+/**
+ * `POST /agents/:agentId/cod-threshold/release` — back to the plan.
+ *
+ * Offered only while a pin exists (the caller checks `cod.poolOverride`). The
+ * pin's reason and author are shown before the choice because jovi-mall clears
+ * them off the agent on release: after this, the audit row is the only record.
+ */
+export function ReleaseCodPoolDialog({
+    agent,
+    allocation,
+    open,
+    onOpenChange,
+    onDone,
+}: {
+    agent: AgentDetail;
+    allocation: CodAllocation | null;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onDone: () => void;
+}) {
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Release the pin on {agentDisplayName(agent)}&apos;s pool?</DialogTitle>
+                    <DialogDescription>
+                        The pool goes back to the amount the agent&apos;s plan gives them — or 0
+                        while their identity is not verified.
+                    </DialogDescription>
+                </DialogHeader>
+                <ReleaseForm
+                    agent={agent}
+                    allocation={allocation}
+                    onCancel={() => onOpenChange(false)}
+                    onDone={() => {
+                        onOpenChange(false);
+                        onDone();
+                    }}
+                />
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function ReleaseForm({
+    agent,
+    allocation,
+    onCancel,
+    onDone,
+}: {
+    agent: AgentDetail;
+    allocation: CodAllocation | null;
+    onCancel: () => void;
+    onDone: () => void;
+}) {
+    const [formError, setFormError] = useState<unknown>(null);
+    const [heldUp, setHeldUp] = useState<BelowAllocatedContract[] | null>(null);
+    const {
+        register,
+        handleSubmit,
+        setError,
+        formState: { errors, isSubmitting },
+    } = useForm<{ reason: string }>({
+        resolver: zodResolver(z.object({ reason: reasonField })),
+        defaultValues: { reason: '' },
+    });
+
+    const pin = agent.cod.poolOverride;
+
+    async function onSubmit(values: { reason: string }) {
+        setFormError(null);
+        setHeldUp(null);
+        try {
+            const result = await releaseAgentCodThreshold(agent.id, { reason: values.reason });
+            notify.success(`Pin released — the pool is now ${formatCount(result.maxThreshold)}`);
+            onDone();
+        } catch (error) {
+            if (error instanceof ApiError) {
+                /*
+                  ⚠ The one refusal a release has that a pin does not explain:
+                  the plan's value is below what the contracts hold, so the pin
+                  was what held the pool up. Said in the release's own words,
+                  because the catalogued sentence is written for a number the
+                  operator typed — and here they typed none.
+                */
+                if (error.platformCode === PLATFORM_CODE_COD_BELOW_ALLOCATED) {
+                    setHeldUp(readBelowAllocated(error.details).contracts);
+                    return;
+                }
+                if (applyFieldError(error, ['reason'], setError)) return;
+            }
+            setFormError(error);
+        }
+    }
+
+    return (
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            {pin ? (
+                <div className="space-y-1 rounded-lg border px-3 py-2 text-sm">
+                    <p>
+                        Pinned at <strong>{formatCount(pin.amount ?? 0)}</strong>
+                        {pin.setByName ? ` by ${pin.setByName}` : null}
+                    </p>
+                    {pin.reason ? <p className="text-muted-foreground">“{pin.reason}”</p> : null}
+                    <p className="text-muted-foreground text-xs">
+                        Releasing clears this off the agent. The audit entry becomes the only
+                        record that it existed.
+                    </p>
+                </div>
+            ) : null}
+
+            {heldUp !== null ? (
+                <div className="border-destructive/30 bg-destructive/10 space-y-2 rounded-lg border px-3 py-2 text-sm">
+                    <p>
+                        The plan&apos;s value is below what this agent&apos;s contracts already
+                        hold — the pin was holding the pool up. Lower the contract slices first, or
+                        pin a smaller value instead.
+                    </p>
+                    <BlockingContracts contracts={heldUp} allocation={allocation} />
+                </div>
+            ) : null}
+
+            <FormField id="agent-cod-release-reason" label="Reason" error={errors.reason?.message}>
+                {(field) => (
+                    <Textarea
+                        rows={3}
+                        maxLength={REASON_MAX}
+                        placeholder="Why the plan's value applies again"
+                        {...field}
+                        {...register('reason')}
+                    />
+                )}
+            </FormField>
+
+            {formError ? <AuthFormError error={formError} /> : null}
+
+            <DialogFooter>
+                <Button type="button" variant="outline" onClick={onCancel}>
+                    Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? <InlineLoader /> : null}
+                    Release pin
+                </Button>
+            </DialogFooter>
+        </form>
+    );
+}
+
+/**
+ * The contracts a refusal named, labelled with the agency each belongs to.
+ *
+ * The refusal carries `{ contractId, agencyId, threshold }` and no names; the
+ * allocation the screen already holds names every allocating slice, so the join
+ * costs no request. A contract it cannot match still renders, by its agency id.
+ */
+function BlockingContracts({
+    contracts,
+    allocation,
+}: {
+    contracts: BelowAllocatedContract[];
+    allocation: CodAllocation | null;
+}) {
+    if (contracts.length === 0) return null;
+
+    return (
+        <div className="space-y-1 text-sm">
+            <p className="text-muted-foreground text-xs">In the way:</p>
+            <ul className="space-y-1">
+                {contracts.map((contract) => {
+                    const slice = allocation?.contracts.find(
+                        (candidate) => candidate.contractId === contract.contractId,
+                    );
+                    const name = slice?.agency?.businessName ?? null;
+                    return (
+                        <li key={contract.contractId} className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium">{name ?? 'Agency'}</span>
+                            {contract.agencyId ? (
+                                <CopyableValue value={contract.agencyId} label="agency ID" />
+                            ) : null}
+                            <span className="text-muted-foreground tabular-nums">
+                                holds {formatCount(contract.threshold)}
+                            </span>
+                        </li>
+                    );
+                })}
+            </ul>
+        </div>
     );
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * Whether an element's content is wider than the element.
@@ -18,6 +18,22 @@ import { useEffect, useRef, useState } from 'react';
  * keep its header pinned under the app bar; a table that does not has to scroll,
  * and gives the sticky header up. See `DataTable`.
  *
+ * ── 🔴 A callback ref, because the element arrives LATE ───────────────────────
+ * This used to be a `useRef` read by a mount-only `useEffect`, and it measured
+ * nothing, on every table in the dashboard, until 2026-09-21. `DataTable` renders
+ * its **loading skeleton first**, so at mount the table container does not exist:
+ * the effect found `ref.current === null`, returned, and never ran again. The
+ * answer therefore stayed `false` for good — every table sat in "it fits" mode
+ * with `overflow-x: visible`, and one wider than its box (a zoomed-in browser, a
+ * narrow window, a long value) spilled out of it instead of scrolling. Nothing
+ * failed, because jsdom has no `ResizeObserver` and `false` is the answer it
+ * gives anyway.
+ *
+ * Holding the element in state makes it an effect dependency, so observation
+ * starts whenever the container mounts — after loading, after an empty or error
+ * state — and stops when it unmounts. `DataTable.test.tsx` pins that with a
+ * stubbed observer.
+ *
  * ── Why there is no manual first measurement ──────────────────────────────────
  * `ResizeObserver` fires its callback once on `observe()`, which *is* the first
  * measurement. Calling a `setState` measure directly in the effect body would
@@ -29,11 +45,10 @@ import { useEffect, useRef, useState } from 'react';
  * no extra tab stop, which is what a table with no measurable layout should do.
  */
 export function useOverflowX<T extends HTMLElement>() {
-    const ref = useRef<T | null>(null);
+    const [element, setElement] = useState<T | null>(null);
     const [overflows, setOverflows] = useState(false);
 
     useEffect(() => {
-        const element = ref.current;
         if (!element || typeof ResizeObserver === 'undefined') return;
 
         const observer = new ResizeObserver(() => {
@@ -49,7 +64,10 @@ export function useOverflowX<T extends HTMLElement>() {
         if (element.firstElementChild) observer.observe(element.firstElementChild);
 
         return () => observer.disconnect();
-    }, []);
+    }, [element]);
+
+    /** Pass as `ref`. React calls it with the node on mount and `null` on unmount. */
+    const ref: (node: T | null) => void = setElement;
 
     return { ref, overflows };
 }

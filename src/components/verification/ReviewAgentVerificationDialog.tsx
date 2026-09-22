@@ -2,9 +2,15 @@ import { useState } from 'react';
 
 import { FormField } from '@/components/common/FormField';
 import { Input } from '@/components/ui/input';
+import { formatCount } from '@/lib/format';
 import { notify } from '@/lib/notify';
 import { reviewAgentKyc } from '@/services/agents.service';
-import { agentDisplayName, type AgentDetail, type AgentKycStatus } from '@/types/agents.types';
+import {
+    agentDisplayName,
+    type AgentDetail,
+    type AgentKycStatus,
+    type KycCodPoolView,
+} from '@/types/agents.types';
 import type { PartyVerification, VerdictOption } from '@/types/verification.types';
 
 import { VerificationReviewDialog } from './VerificationReviewDialog';
@@ -66,12 +72,14 @@ export function ReviewAgentVerificationDialog({
 
     async function submit(verdict: string, text: string) {
         const status = verdict as AgentKycStatus;
-        await reviewAgentKyc(agent.id, {
+        const result = await reviewAgentKyc(agent.id, {
             status,
             ...(reference.trim() ? { reference: reference.trim() } : {}),
             ...(status === 'rejected' ? { rejectionReason: text } : {}),
         });
-        notify.success('Identity documents reviewed');
+        notify.success('Identity documents reviewed', {
+            description: codPoolConsequence(result.codPool),
+        });
         onOpenChange(false);
         onDone();
     }
@@ -115,11 +123,26 @@ export function ReviewAgentVerificationDialog({
     );
 }
 
+/**
+ * What the verdict just did to the agent's cash — `codPool` on the answer
+ * (2026-09-21). `verified` opens the pool from the plan (or a standing pin), any
+ * other verdict closes it to 0, and the reviewer should see that consequence of
+ * the decision they just made rather than discover it on the Cash tab.
+ *
+ * `undefined` when the block is absent — an older build, or a forwarded payload
+ * that arrived short — so the toast simply carries no second line.
+ */
+function codPoolConsequence(pool: KycCodPoolView | null | undefined): string | undefined {
+    if (typeof pool?.maxThreshold !== 'number') return undefined;
+    return `COD pool now ${formatCount(pool.maxThreshold)}`;
+}
+
 const VERDICTS: VerdictOption[] = [
     {
         value: 'verified',
         label: 'Mark verified',
-        description: 'The agent becomes dispatchable. Eligibility passes only on this value.',
+        description:
+            'The agent becomes dispatchable, and their COD pool opens at their plan’s amount (or a standing pin). Eligibility passes only on this value.',
         textMode: 'none',
         estimates: 'approve',
     },
@@ -127,7 +150,7 @@ const VERDICTS: VerdictOption[] = [
         value: 'rejected',
         label: 'Mark rejected',
         description:
-            'Refuses the document set and makes the agent undispatchable immediately. The agent is shown your reason.',
+            'Refuses the document set, makes the agent undispatchable immediately and closes their COD pool to 0. The agent is shown your reason.',
         textMode: 'required-reason',
         textLabel: 'Rejection reason',
         textHint: 'The agent is shown this. "Your documents were rejected" with no cause is an unactionable message that generates a support ticket by construction.',
@@ -139,14 +162,14 @@ const VERDICTS: VerdictOption[] = [
         value: 'pending',
         label: 'Send back to pending',
         description:
-            'Records that a review is in progress rather than a refusal. The agent is undispatchable while it stands, and is told nothing — use "rejected" when they need to act.',
+            'Records that a review is in progress rather than a refusal. The agent is undispatchable and their COD pool is 0 while it stands, and they are told nothing — use "rejected" when they need to act.',
         textMode: 'none',
     },
     {
         value: 'unverified',
         label: 'Mark unverified',
         description:
-            'Resets the record to "never reviewed". Undispatchable, and it erases the fact that anybody looked — prefer "pending" unless the previous verdict was reached in error.',
+            'Resets the record to "never reviewed". Undispatchable with a COD pool of 0, and it erases the fact that anybody looked — prefer "pending" unless the previous verdict was reached in error.',
         textMode: 'none',
     },
 ];

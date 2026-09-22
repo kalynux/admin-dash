@@ -108,7 +108,7 @@ describe('the route total is the sum of its parts', () => {
         );
     });
 
-    it('holds the 255 routes on the service as of 2026-09-14', () => {
+    it('holds the 256 routes on the service as of 2026-09-22', () => {
         // Pinned deliberately, and it is the assertion that fires when the
         // backend ships a route group. A change here is not a failure to fix by
         // editing this number: it means a route arrived, and something in `src/`
@@ -127,7 +127,11 @@ describe('the route total is the sum of its parts', () => {
         // against the router** — it catches a route the docs gained, never one
         // they omit. Only `routeManifest()` closes that, which is what the map's
         // own recipe is for. 252 → 255; BR-025 asks for the page.
-        expect(totalDeclared).toBe(255);
+        //
+        // ⚠ 255 → 256 on 2026-09-22: `POST /agents/:agentId/cod-threshold/release`,
+        // the COD-pool round. It arrived with a changelog page, which is the
+        // direction this assertion can see.
+        expect(totalDeclared).toBe(256);
     });
 });
 

@@ -192,6 +192,17 @@ export interface PlanEntitlements {
     maxActiveProducts: number | null;
     maxStorageBytes: number | null;
     maxUnterminatedShipments: number | null;
+    /**
+     * Agent plans only (2026-09-21): the COD pool **the plan** grants a
+     * KYC-verified agent. `null` for vendors and agencies, and for "no active
+     * plan".
+     *
+     * ⚠ **The plan's number, not the agent's pool.** The pool an agent can
+     * actually carry — after identity verification, an administrator's pin, or
+     * their own lower choice — is `cod.maxThreshold` on `GET /agents/:agentId`.
+     * Never present the two as the same figure.
+     */
+    maxCodPool: number | null;
     liveTrackingEnabled: boolean | null;
 }
 

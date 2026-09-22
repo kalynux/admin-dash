@@ -7,16 +7,15 @@ import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
 import { Pager } from '@/components/common/Pager';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { InfoHint } from '@/components/ui/info-hint';
 import { useAsyncData } from '@/hooks/use-async-data';
-import { resolveErrorMessage } from '@/lib/errors';
 import { formatCount, humaniseEnum } from '@/lib/format';
 import { PARTY_NAME_SOURCE_LABELS } from '@/lib/party';
 import { PAGE_SIZE_DEFAULT, withQuery } from '@/lib/query';
+import { AssignabilityCheck } from '@/components/agents/AssignabilityCheck';
 import type { TransferSourceAgency } from '@/components/agents/AgentWriteDialogs';
-import { getAgentEligibility, listAgentContracts } from '@/services/agents.service';
+import { listAgentContracts } from '@/services/agents.service';
 import { resolveAgencyDisplayName } from '@/types/agencies.types';
 import type { AgentDetail } from '@/types/agents.types';
 import {
@@ -57,11 +56,14 @@ interface AgentContractsPanelProps {
  * without the ban beside it is a lie by omission, and the banner below is not
  * decoration.
  *
- * ── Why the eligibility check lives on a row ──────────────────────────────────
- * `GET /agents/:agentId/eligibility` is **pairwise** — its rule set includes
- * holding an approved contract with the dispatching agency, so there is no
+ * ── Why the dispatch check lives on a row ─────────────────────────────────────
+ * `GET /agents/:agentId/assignability` is **pairwise** — its rule set includes
+ * holding an active contract with the dispatching agency, so there is no
  * agency-free answer. The `agencyId` is already on the row, which is the only
  * place the question can be asked honestly.
+ *
+ * ⚠ It asked `/eligibility` until 2026-09-22 — the platform half of the answer
+ * only. See `AssignabilityCheck` for why the whole answer replaced it.
  */
 export function AgentContractsPanel({
     agent,
@@ -248,9 +250,10 @@ export function AgentContractsPanel({
                 Contracts, not dispatchability.
                 <InfoHint label="About these rows">
                     A row says a relationship exists. Whether a shipment could be offered right now
-                    additionally depends on availability, identity documents, capacity, tracking and
-                    the device — which is what the per-row check asks, and it asks it for that one
-                    agency because there is no agency-free answer.
+                    additionally depends on availability, identity documents, capacity, tracking,
+                    the device, the contract&apos;s terms and the cash the agent already carries —
+                    which is what the per-row check asks, and it asks it for that one agency because
+                    there is no agency-free answer.
                 </InfoHint>
             </p>
 
@@ -273,9 +276,7 @@ export function AgentContractsPanel({
                 }
             />
 
-            {checking ? (
-                <EligibilityCheck agentId={agent.id} agencyId={checking} />
-            ) : null}
+            {checking ? <AssignabilityCheck agentId={agent.id} agencyId={checking} /> : null}
 
             {meta ? (
                 <Pager
@@ -285,109 +286,6 @@ export function AgentContractsPanel({
                     onPageChange={setPage}
                 />
             ) : null}
-        </div>
-    );
-}
-
-/**
- * The pairwise verdict, rendered **in full**.
- *
- * Every rule is evaluated even after one fails, and all of them are shown: a
- * dispatcher who fixes "offline" only to be told "tracking disabled", then "at
- * capacity", is being made to play twenty questions.
- */
-function EligibilityCheck({ agentId, agencyId }: { agentId: string; agencyId: string }) {
-    const check = useAsyncData(`/agents/${agentId}/eligibility?agencyId=${agencyId}`, (signal) =>
-        getAgentEligibility(agentId, agencyId, { signal }),
-    );
-
-    if (check.isLoading) {
-        return (
-            <p className="text-muted-foreground rounded-lg border px-3 py-2 text-sm">
-                Asking the platform…
-            </p>
-        );
-    }
-
-    if (!check.data) {
-        return (
-            <div className="space-y-2 rounded-lg border px-3 py-2">
-                <p className="text-warning text-sm">
-                    Could not get a verdict — {resolveErrorMessage(check.error)}. This is not a
-                    refusal.
-                </p>
-                <Button variant="outline" size="sm" onClick={check.reload}>
-                    Ask again
-                </Button>
-            </div>
-        );
-    }
-
-    const verdict = check.data;
-
-    return (
-        <div className="space-y-3 rounded-lg border p-3">
-            <div className="flex flex-wrap items-center gap-2">
-                <Badge
-                    variant="outline"
-                    className={
-                        verdict.eligible
-                            ? 'border-success/30 bg-success/10 text-success'
-                            : 'border-destructive/30 bg-destructive/10 text-destructive'
-                    }
-                >
-                    {verdict.eligible ? 'Can be dispatched to' : 'Cannot be dispatched to'}
-                </Badge>
-                <span className="text-muted-foreground flex flex-wrap items-center gap-1 text-xs">
-                    {/*
-                      A verdict is pairwise, so the agency it was asked about is
-                      part of the answer rather than decoration — and this is the
-                      only place the id appears in full, because the table cell
-                      above shows the agency's name whenever it has one.
-                      `truncate={false}` keeps what is on screen today.
-                    */}
-                    by agency
-                    <CopyableValue value={agencyId} label="agency ID" truncate={false} />·{' '}
-                    {formatCount(verdict.activeShipmentCount)} of{' '}
-                    {formatCount(verdict.maxConcurrentShipments)} shipments in hand
-                </span>
-            </div>
-
-            <ul className="space-y-1 text-sm">
-                {verdict.rules.map((rule) => (
-                    <li key={rule.rule} className="flex flex-wrap items-baseline gap-2">
-                        <span
-                            aria-hidden
-                            className={`size-1.5 shrink-0 rounded-full ${
-                                rule.passed ? 'bg-success' : 'bg-destructive'
-                            }`}
-                        />
-                        <span className="capitalize">{humaniseEnum(rule.rule) ?? '—'}</span>
-                        {/*
-                          Mono because it is the platform's own token, but it is a
-                          *reason*, not a value — nothing is looked up by it and
-                          nothing is pasted anywhere with it, so it gets no copy
-                          button. Same call as the status badges beside it.
-                        */}
-                        {rule.reason ? (
-                            <span className="text-muted-foreground font-mono text-xs">
-                                {rule.reason}
-                            </span>
-                        ) : null}
-                        {/* What the rule actually saw — a denial explainable without a re-run. */}
-                        {rule.observed !== null && rule.observed !== undefined ? (
-                            <span className="text-muted-foreground text-xs">
-                                saw {JSON.stringify(rule.observed)}
-                            </span>
-                        ) : null}
-                    </li>
-                ))}
-            </ul>
-
-            <p className="text-muted-foreground text-xs">
-                A verdict is a moment in time — availability and capacity move without an
-                administrator touching anything.
-            </p>
         </div>
     );
 }

@@ -1,12 +1,12 @@
-import { useContext, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Ban, Inbox, RotateCw, SearchX, Telescope, WifiOff } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
-import { ERROR_JOURNAL_PERMISSION, ERROR_JOURNAL_PATH } from '@/config/navigation';
+import { ERROR_JOURNAL_PATH } from '@/config/navigation';
+import { useCanLookUpErrors } from '@/hooks/use-can-look-up-errors';
 import { tStatic } from '@/i18n/runtime';
-import { satisfies } from '@/lib/authorization';
 import {
     isAccessDenial,
     isEscalation,
@@ -15,7 +15,6 @@ import {
     resolveErrorDetail,
     resolveErrorMessage,
 } from '@/lib/errors';
-import { PermissionsContext } from '@/store/permissions-context';
 import { ApiError, NetworkError } from '@/types/api.types';
 
 interface ErrorStateProps {
@@ -33,25 +32,6 @@ function iconFor(error: unknown) {
         if (error.category === 'not_found') return <SearchX />;
     }
     return <AlertTriangle />;
-}
-
-/**
- * Whether this operator could open the error journal on a reference.
- *
- * Reads the context **directly rather than through `usePermissions()`**, which
- * throws outside `PermissionsProvider`. This panel renders in 90 places and the
- * provider is mounted inside `RequireAuth`, so a throwing hook here would turn
- * an error panel into a blank screen on any surface outside it. No provider
- * means no answer, which is correctly "do not offer the link".
- *
- * The requirement is the **same object the sidebar filtered on**, in the same
- * `any` mode: `GET /system/errors` is the service's one `any`-mode guard, and
- * two lookups can disagree where one object cannot.
- */
-function useCanLookUpErrors(): boolean {
-    const permissions = useContext(PermissionsContext);
-    const held = permissions?.held;
-    return held ? satisfies(held, ERROR_JOURNAL_PERMISSION, 'any') : false;
 }
 
 /**

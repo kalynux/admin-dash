@@ -292,8 +292,12 @@ export interface ChangePasswordRequest {
  * How the code was sent, reported so support has the first question answered.
  *
  * `text` is a free-form message, allowed only inside Meta's 24-hour service
- * window. `template` is an approved AUTHENTICATION template, required outside
- * it. Left open like every other enum on this wire.
+ * window. `template` is an approved template — outside the window, **or inside
+ * it when the free-form send was refused** and jovi-mall fell back (since
+ * 2026-09-21). So `template` is not evidence that the person was outside the
+ * window, and it does not say *which* template either: both report the same
+ * value, deliberately, so no client comes to depend on a fallback that is meant
+ * to be retired. Left open like every other enum on this wire.
  */
 export type PhoneCodeDelivery = 'text' | 'template' | (string & {});
 

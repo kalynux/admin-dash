@@ -1,19 +1,34 @@
+import { AlertTriangle } from 'lucide-react';
+
 import { ContractStatusBadge } from '@/components/contracts/ContractStatusBadge';
 import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState, ErrorState } from '@/components/common/DataState';
 import { Definition, DefinitionList, NotSet } from '@/components/common/DefinitionList';
 import { InlineLoader } from '@/components/common/Loading';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { useAsyncData } from '@/hooks/use-async-data';
-import { formatCount } from '@/lib/format';
+import { formatCount, formatInstantInZone } from '@/lib/format';
 import { resolvePartyName } from '@/lib/party';
 import { getCodAllocation } from '@/services/agents.service';
-import type { AgentDetail, CodAllocationSlice } from '@/types/agents.types';
+import {
+    codPoolSourceLabel,
+    type AgentDetail,
+    type CodAllocationSlice,
+    type CodPoolOverride,
+} from '@/types/agents.types';
 
 /**
  * `GET /agents/:agentId/cod-allocation` — the agent's cash pool and its slices.
+ *
+ * ── The pool is automatic (2026-09-21) ────────────────────────────────────────
+ * `0` until the agent's identity is verified, then their plan's `max_cod_pool`,
+ * unless an administrator pinned another value — and the agent may carry less.
+ * The provenance (`cod.pool`) and the pin (`cod.poolOverride`) come from the
+ * **detail** this panel is handed, which always carries them; the allocation
+ * adds the one figure only it has, `overAllocatedBy`.
  *
  * ── One pool, sub-allocated per contract ──────────────────────────────────────
  * `maxThreshold` is the agent's **whole** COD ceiling. Each contract holds a slice
@@ -64,9 +79,11 @@ import type { AgentDetail, CodAllocationSlice } from '@/types/agents.types';
 export function AgentCodPanel({
     agent,
     reloadToken,
+    timeZone,
 }: {
     agent: AgentDetail;
     reloadToken: number;
+    timeZone: string;
 }) {
     const allocation = useAsyncData(`/agents/${agent.id}/cod-allocation#${reloadToken}`, (signal) =>
         getCodAllocation(agent.id, { signal }),
@@ -143,6 +160,8 @@ export function AgentCodPanel({
         },
     ];
 
+    const { pool, poolOverride } = agent.cod;
+
     return (
         <div className="space-y-4">
             <Card>
@@ -163,31 +182,95 @@ export function AgentCodPanel({
                             {agent.cod.trustScore ?? <NotSet>Never computed</NotSet>}
                         </Definition>
                         <Definition
-                            label="Maximum threshold"
+                            label="COD pool"
                             hint={
                                 <InfoHint label="About the pool">
-                                    The agent&apos;s whole cash ceiling, which every contract slice
-                                    comes out of. No currency accompanies this figure anywhere in
-                                    the contract, so it is shown as a plain number.
+                                    The most cash on delivery the agent may carry across every
+                                    agency — what every gate acts on, and what each contract slice
+                                    comes out of. Nobody types it in: it is 0 until their identity
+                                    is verified, then their plan&apos;s amount, unless an
+                                    administrator pinned another. No currency accompanies this
+                                    figure anywhere, so it is shown as a plain number.
                                 </InfoHint>
                             }
                         >
                             {agent.cod.maxThreshold === null ? (
-                                <NotSet>No ceiling set</NotSet>
+                                <NotSet>Not recorded</NotSet>
                             ) : (
                                 formatCount(agent.cod.maxThreshold)
                             )}
                         </Definition>
+                        {/*
+                          ⛔ Words, never a branch. `source` is jovi-mall's label for
+                          which rule produced the ceiling, and every client is told
+                          not to decide anything from it.
+                        */}
+                        <Definition label="Where it comes from">
+                            <span className="space-y-0.5">
+                                <span className="block">{codPoolSourceLabel(pool)}</span>
+                                {pool.selfLimited ? (
+                                    <span className="text-muted-foreground block text-xs">
+                                        The agent chose to carry less than their{' '}
+                                        {formatCount(pool.ceiling)} limit.
+                                    </span>
+                                ) : null}
+                            </span>
+                        </Definition>
+                        <Definition
+                            label="Last synced"
+                            hint={
+                                <InfoHint label="About the sync">
+                                    When the platform last wrote this agent&apos;s pool. An agent
+                                    from before the pool became automatic keeps their old number
+                                    until the nightly reconcile runs — it can be triggered from Dev
+                                    tools → Workers (<code>agent-cod-pool-reconcile</code>).
+                                </InfoHint>
+                            }
+                        >
+                            {pool.syncedAt === null ? (
+                                <span className="text-warning">
+                                    Not yet synced — this may still be the old number
+                                </span>
+                            ) : (
+                                (formatInstantInZone(pool.syncedAt, timeZone) ?? pool.syncedAt)
+                            )}
+                        </Definition>
                     </DefinitionList>
+
+                    {poolOverride ? <PinSummary pin={poolOverride} timeZone={timeZone} /> : null}
 
                     {allocation.isLoading ? (
                         <InlineLoader label="Reading the allocation…" />
                     ) : data ? (
-                        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                            <Figure label="Pool" value={data.maxThreshold} />
-                            <Figure label="Allocated to contracts" value={data.allocated} />
-                            <Figure label="Headroom" value={data.headroom} />
-                        </dl>
+                        <>
+                            <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                <Figure label="Pool" value={data.maxThreshold} />
+                                <Figure label="Allocated to contracts" value={data.allocated} />
+                                <Figure label="Headroom" value={data.headroom} />
+                            </dl>
+                            {data.overAllocatedBy > 0 ? (
+                                /*
+                                  The one number that explains a headroom of 0,
+                                  which otherwise reads as a bug. Only an
+                                  automatic change produces it — a plan downgrade
+                                  or a withdrawn verdict — because the platform
+                                  cannot rewrite what agencies agreed.
+                                */
+                                <p
+                                    role="status"
+                                    className="border-warning/30 bg-warning/10 flex items-start gap-2 rounded-lg border px-3 py-2 text-sm"
+                                >
+                                    <AlertTriangle className="text-warning mt-0.5 size-4 shrink-0" />
+                                    <span>
+                                        The contracts hold{' '}
+                                        <strong>{formatCount(data.overAllocatedBy)} more</strong>{' '}
+                                        than the pool. Until that is resolved no agency can raise
+                                        its slice, and every dispatch is capped at the pool rather
+                                        than at the larger slice.
+                                    </span>
+                                </p>
+                            ) : null}
+                        </>
                     ) : (
                         <ErrorState
                             error={allocation.error}
@@ -229,6 +312,33 @@ export function AgentCodPanel({
                     />
                 </CardContent>
             </Card>
+        </div>
+    );
+}
+
+/**
+ * The administrator's pin — who, when and why.
+ *
+ * Shown in full because the release clears it off the agent: after that, the
+ * audit trail is the only place this reason survives.
+ */
+function PinSummary({ pin, timeZone }: { pin: CodPoolOverride; timeZone: string }) {
+    return (
+        <div className="space-y-1 rounded-lg border px-3 py-2 text-sm">
+            <p className="flex flex-wrap items-center gap-2">
+                <Badge variant="outline">Pinned</Badge>
+                <span>
+                    at <strong className="tabular-nums">{formatCount(pin.amount ?? 0)}</strong>
+                    {pin.setByName ? ` by ${pin.setByName}` : null}
+                    {pin.setBySource === 'platform' ? ' (platform)' : null}
+                    {pin.setAt ? `, ${formatInstantInZone(pin.setAt, timeZone) ?? pin.setAt}` : null}
+                </span>
+            </p>
+            {pin.reason ? <p className="text-muted-foreground">“{pin.reason}”</p> : null}
+            <p className="text-muted-foreground text-xs">
+                It replaces the plan&apos;s amount until released, and applies only while the
+                agent&apos;s identity is verified.
+            </p>
         </div>
     );
 }

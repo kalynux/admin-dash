@@ -148,6 +148,28 @@ function UserDetailScreen({ userId }: { userId: string }) {
 
     const record = user.data;
     const canSeeActivity = can(['users.read', 'audit.read'], 'all');
+    /**
+     * ⚠ **A closed account offers no action at all**, and each one fails a
+     * different way (`account-closure.md`, `users.md` § suspend):
+     *
+     * - **Suspend / Restore** — both compare-and-set from a status a closed row
+     *   is not in, so both answer `409 USER_STATUS_CONFLICT`, whose copy here is
+     *   *"another administrator changed this account first"*. False on this row.
+     * - **Reset / sign-in link** — refused for any non-`active` account with
+     *   `409 AUTH_ACCOUNT_SUSPENDED` and the sentence *"this account is
+     *   suspended"*. Also false.
+     * - **Telegram** — closure deleted the messaging connections, so there is
+     *   nobody to send to.
+     * - **Edit login details** — ⛔ the one that *succeeds*, which is why it is
+     *   the one that matters. Neither service guards it, so an identifier could
+     *   be written back onto an anonymised row that can never sign in again —
+     *   re-identifying a person who closed their account, and squatting the
+     *   address or number so they cannot use it on a new one.
+     *
+     * `ClosurePanel` says why the actions are gone; hiding rather than disabling
+     * follows the suspended-account rule below, where the only outcome is an error.
+     */
+    const closed = record.status === 'closed';
 
     return (
         <PageContainer
@@ -165,12 +187,14 @@ function UserDetailScreen({ userId }: { userId: string }) {
                         Refresh
                     </Button>
 
-                    <Can permission="users.update">
-                        <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-                            <Pencil className="size-4" />
-                            Edit login details
-                        </Button>
-                    </Can>
+                    {!closed ? (
+                        <Can permission="users.update">
+                            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+                                <Pencil className="size-4" />
+                                Edit login details
+                            </Button>
+                        </Can>
+                    ) : null}
 
                     {/*
                       One permission, two directions — `users.suspend` governs both.
@@ -186,9 +210,10 @@ function UserDetailScreen({ userId }: { userId: string }) {
 
                       Both are hidden on a suspended account: the platform refuses
                       with AUTH_ACCOUNT_SUSPENDED, so offering them would be a
-                      button whose only outcome is an error.
+                      button whose only outcome is an error. A closed account is
+                      refused with the same code — see `closed` above.
                     */}
-                    {record.status !== 'suspended' ? (
+                    {record.status !== 'suspended' && !closed ? (
                         <>
                             <Can permission="users.password.reset">
                                 <Button
@@ -241,23 +266,29 @@ function UserDetailScreen({ userId }: { userId: string }) {
                         </>
                     ) : null}
 
-                    <Can permission="users.suspend">
-                        {record.status === 'suspended' ? (
-                            <Button variant="outline" size="sm" onClick={() => setRestoring(true)}>
-                                <RotateCcw className="size-4" />
-                                Restore
-                            </Button>
-                        ) : (
-                            <Button
-                                variant="destructive"
-                                size="sm"
-                                onClick={() => setSuspending(true)}
-                            >
-                                <Ban className="size-4" />
-                                Suspend
-                            </Button>
-                        )}
-                    </Can>
+                    {!closed ? (
+                        <Can permission="users.suspend">
+                            {record.status === 'suspended' ? (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setRestoring(true)}
+                                >
+                                    <RotateCcw className="size-4" />
+                                    Restore
+                                </Button>
+                            ) : (
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => setSuspending(true)}
+                                >
+                                    <Ban className="size-4" />
+                                    Suspend
+                                </Button>
+                            )}
+                        </Can>
+                    ) : null}
                 </>
             }
         >

@@ -6,7 +6,7 @@
 > Start at [`_CONTEXT.md`](../_CONTEXT.md) · what you *can* call is in
 > [`ROUTE-MAP.md`](../../ROUTE-MAP.md).
 >
-> **Reconciled with the backend page on 2026-09-08 (DOC-PROGRAM R5).** The stamp below is
+> **Re-copied from the backend page on 2026-09-22.** The stamp below is
 > that page’s, and the only deliberate differences here are this banner and the outbound
 > references flattened to plain text because their targets are not mirrored into this folder.
 <!-- /CONTEXT-BANNER -->
@@ -38,7 +38,7 @@ Admin-facing endpoints to manage the pricing plan catalog and assign plans to
 **vendors, agencies and agents**. The billing engine is one owner-scoped engine
 across all three roles; a plan's `role` decides which limit fields it carries.
 Read [billing-overview.md](./billing-overview.md) and
-billing-plans-across-roles.md (not mirrored here — `backend/jovi-mall/api-doc/billing-plans-across-roles.md`) for the shared model.
+[billing-plans-across-roles.md](../billing-plans-across-roles.md) for the shared model.
 
 ## Base Path
 ```
@@ -111,10 +111,10 @@ the contract.
   "data": {
     "ownerType": "vendor",
     "ownerId": "664ven...",
-    "planCode": "vendor_growth",
-    "maxActiveProducts": 500,
-    "maxStorageBytes": 5368709120,
-    "commissionPercent": 8,
+    "planCode": "growth",
+    "maxActiveProducts": 150,
+    "maxStorageBytes": 10737418240,
+    "commissionPercent": 5,
     "maxUnterminatedShipments": null,
     "liveTrackingEnabled": true
   }
@@ -160,7 +160,7 @@ the contract.
     {
       "_id": "665f2001", "role": "agent", "code": "agent_free", "name": "Agent Free",
       "price": 0, "term_days": null, "credit_allowance": 20,
-      "max_unterminated_shipments": 20, "live_tracking_enabled": true,
+      "max_unterminated_shipments": 20, "max_cod_pool": 500000, "live_tracking_enabled": true,
       "is_active": true, "sort_order": 1
     }
   ]
@@ -225,6 +225,7 @@ Field rules:
   - `max_storage_bytes` (integer ≥ 0 | `null`) — **vendor**.
   - `commission_percent` (number, 0–100 | `null`) — **vendor**.
   - `max_unterminated_shipments` (integer ≥ 0 | `null`) — **agency & agent**; `null` = unlimited. For **agent** plans this becomes the agent's concurrent-delivery cap (hard). For **agency** plans it is a soft cap (alert only).
+  - `max_cod_pool` (integer ≥ 0 | `null`) — **agent** only (since 2026-09-21). The COD pool a **KYC-verified** agent on this tier may carry across every agency, in XAF. Seeded Free 500 000 · Plus 1 000 000 · Pro 2 000 000. ⚠ **`null` = NO COD, not unlimited** (the one limit here that fails closed, because it is cash). A value above the platform's `AGENT_COD_THRESHOLD_MAX` (5 000 000) is clamped. **Editing it in place re-syncs every agent immediately** (`pricing_plan.updated`); no reassignment is needed. An unverified agent's pool is 0 whatever this says; an administrator's pin (`PUT /internal/admin/agents/:agentId/cod-threshold`) replaces it for that agent.
   - `live_tracking_enabled` (boolean, default `true`) — agency/agent; keep `true` (future free-tier gate).
 - `is_active` (boolean, optional, default `true`) — set `false` to define a tier that is not yet purchasable.
 - `sort_order` (integer, optional).

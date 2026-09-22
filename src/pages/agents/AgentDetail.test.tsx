@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 
@@ -11,11 +11,18 @@ import {
     agentListMetaFixture,
     codAllocationFixture,
     lastKnownFixture,
+    pinnedAgentDetailFixture,
     trackingPolicyFixture,
 } from '@/test/agent-fixtures';
 import { codListMetaFixture, trustEventFixture } from '@/test/cod-fixtures';
 import { adminFixture, heldFixture } from '@/test/fixtures';
-import { errorResponse, renderWithProviders, stubFetch, successResponse } from '@/test/utils';
+import {
+    errorResponse,
+    renderWithProviders,
+    stubFetch,
+    successResponse,
+    type FetchCall,
+} from '@/test/utils';
 import type { AgentDetail as AgentDetailRecord } from '@/types/agents.types';
 
 const AGENT_ID = '6660112233445566778899aa';
@@ -34,9 +41,20 @@ function stubDetail(
         allocation?: () => Response;
         presence?: () => Response;
         contracts?: () => Response;
+        /** Answers the two pool writes; anything else falls through to the reads. */
+        write?: (call: FetchCall) => Response | undefined;
     } = {},
 ) {
     return stubFetch((call) => {
+        /*
+         * First, because both write paths contain the agent path and would
+         * otherwise be answered with the agent document.
+         */
+        if (call.method !== 'GET' && call.url.includes('/cod-threshold')) {
+            const answer = overrides.write?.(call);
+            if (answer) return answer;
+            throw new Error(`unexpected write: ${call.method} ${call.url}`);
+        }
         /*
          * Ahead of `/tracking-policy` because `includes` would not confuse them,
          * but ahead of `/agents/:id` because it must: the geo-tracker data door
@@ -509,5 +527,180 @@ describe('the cash pool', () => {
         expect(calls.some((call) => call.url.includes('/trust-events'))).toBe(false);
         // The write is still offered: it does not read what it cannot see.
         expect(screen.getByRole('button', { name: /adjust trust score/i })).toBeInTheDocument();
+    });
+});
+
+/**
+ * The emergency contact — shown on the detail since the owner reversed ADR-009
+ * D-8 on 2026-09-21, and never on a list.
+ */
+describe('the emergency contact', () => {
+    /**
+     * The number stays a plain copyable value; the dial is its own labelled
+     * link, which is the one `tel:` in the dashboard and sits on no row link.
+     */
+    it('shows the contact with a separate click-to-call', async () => {
+        stubDetail();
+        detail();
+
+        expect(await screen.findByText('Ada Mbarga')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: /^call$/i })).toHaveAttribute(
+            'href',
+            'tel:+237670000002',
+        );
+    });
+
+    /** `null` means none was given — never a half-empty object. */
+    it('says so when the agent named nobody, and offers no call', async () => {
+        stubDetail(agentDetailFixture({ emergencyContact: null }));
+        detail();
+
+        expect(await screen.findByText(/the agent has not named anyone/i)).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: /^call$/i })).not.toBeInTheDocument();
+    });
+
+    /** Support holds `agents.read`, and Support takes the call. */
+    it('is visible to a caller holding only agents.read', async () => {
+        stubDetail();
+        detail(new Set(['agents.read']));
+
+        expect(await screen.findByText('Ada Mbarga')).toBeInTheDocument();
+    });
+});
+
+/**
+ * ⚠ **BREAKING on 2026-09-21: the pin needs a `reason`**, and a body without one
+ * is a `400`. The pool is otherwise automatic — the plan's amount once the agent
+ * is verified — so the write is a pin over the plan, with its own release.
+ */
+describe('pinning and releasing the pool', () => {
+    const REASON = 'Trusted long-standing agent; approved by ops lead';
+
+    async function openPin() {
+        await userEvent.click(await screen.findByRole('tab', { name: /cash/i }));
+        await userEvent.click(await screen.findByRole('button', { name: /pin cod pool/i }));
+    }
+
+    it('sends the amount as an integer, with the reason', async () => {
+        const calls = stubDetail(agentDetailFixture(), {
+            write: (call) =>
+                call.method === 'PUT'
+                    ? successResponse(codAllocationFixture({ maxThreshold: 750000 }), {
+                          message: 'COD pool pinned',
+                      })
+                    : undefined,
+        });
+        detail();
+        await openPin();
+
+        await userEvent.type(screen.getByLabelText(/pinned pool/i), '750000');
+        await userEvent.type(screen.getByLabelText(/^reason$/i), REASON);
+        await userEvent.click(screen.getByRole('button', { name: /^pin pool$/i }));
+
+        await waitFor(() => {
+            expect(calls.some((call) => call.method === 'PUT')).toBe(true);
+        });
+        const put = calls.find((call) => call.method === 'PUT')!;
+        expect(put.url).toMatch(new RegExp(`/agents/${AGENT_ID}/cod-threshold$`));
+        expect(JSON.parse(put.body ?? '{}')).toEqual({ maxThreshold: 750000, reason: REASON });
+    });
+
+    it('refuses a fraction and a missing reason before asking', async () => {
+        const calls = stubDetail();
+        detail();
+        await openPin();
+
+        // One change, not keystrokes: jsdom sanitises the intermediate "1000." to "".
+        fireEvent.change(screen.getByLabelText(/pinned pool/i), { target: { value: '1000.5' } });
+        await userEvent.click(screen.getByRole('button', { name: /^pin pool$/i }));
+
+        expect(await screen.findByText(/enter a whole amount/i)).toBeInTheDocument();
+        expect(screen.getByText(/give at least 3 characters/i)).toBeInTheDocument();
+        expect(calls.some((call) => call.method === 'PUT')).toBe(false);
+    });
+
+    /** A pin does not outrank KYC — said before the choice, not after. */
+    it('says an unverified agent keeps a zero pool whatever is pinned', async () => {
+        const base = agentDetailFixture();
+        stubDetail(
+            agentDetailFixture({
+                kycStatus: 'pending',
+                kyc: { ...base.kyc, status: 'pending', verifiedAt: null, verifiedBy: null },
+            }),
+        );
+        detail();
+        await openPin();
+
+        const note = (await screen.findByText(/identity is not verified, so their pool stays/i)).closest('p');
+        expect(note).toHaveTextContent(/stays 0 whatever you pin/i);
+    });
+
+    it('offers Release only while a pin exists', async () => {
+        stubDetail();
+        detail();
+
+        await userEvent.click(await screen.findByRole('tab', { name: /cash/i }));
+        await screen.findByRole('button', { name: /pin cod pool/i });
+        expect(screen.queryByRole('button', { name: /release pin/i })).not.toBeInTheDocument();
+    });
+
+    it('releases with a reason, on its own route', async () => {
+        const calls = stubDetail(pinnedAgentDetailFixture(), {
+            write: (call) =>
+                call.method === 'POST' && call.url.endsWith('/cod-threshold/release')
+                    ? successResponse(codAllocationFixture({ maxThreshold: 500000 }))
+                    : undefined,
+        });
+        detail();
+
+        await userEvent.click(await screen.findByRole('tab', { name: /cash/i }));
+        await userEvent.click(await screen.findByRole('button', { name: /release pin/i }));
+        await userEvent.type(screen.getByLabelText(/^reason$/i), 'Review closed');
+        await userEvent.click(screen.getByRole('button', { name: /^release pin$/i }));
+
+        await waitFor(() => {
+            expect(calls.some((call) => call.method === 'POST')).toBe(true);
+        });
+        const post = calls.find((call) => call.method === 'POST')!;
+        expect(JSON.parse(post.body ?? '{}')).toEqual({ reason: 'Review closed' });
+    });
+
+    /**
+     * The one refusal a release has that a pin does not explain: the plan's value
+     * is below what the contracts hold, so the pin was holding the pool up. The
+     * contracts come back without names and are labelled from the allocation the
+     * screen already holds.
+     */
+    it('explains a release the contracts are holding up, naming them', async () => {
+        stubDetail(pinnedAgentDetailFixture(), {
+            write: () =>
+                errorResponse(422, 'PLATFORM_OPERATION_REJECTED', {
+                    category: 'business_rule',
+                    details: {
+                        platformCode: 'AGENT_COD_THRESHOLD_BELOW_ALLOCATED',
+                        requested: 50000,
+                        currentlyAllocated: 90000,
+                        shortfall: 40000,
+                        contracts: [
+                            {
+                                contractId: '6671aabbccddeeff00112240',
+                                agencyId: '6650bb22cc33dd44ee55ff66',
+                                threshold: 90000,
+                            },
+                        ],
+                    },
+                }),
+        });
+        detail();
+
+        await userEvent.click(await screen.findByRole('tab', { name: /cash/i }));
+        await userEvent.click(await screen.findByRole('button', { name: /release pin/i }));
+        await userEvent.type(screen.getByLabelText(/^reason$/i), 'Review closed');
+        await userEvent.click(screen.getByRole('button', { name: /^release pin$/i }));
+
+        expect(await screen.findByText(/the pin was holding the pool up/i)).toBeInTheDocument();
+        const dialog = screen.getByRole('dialog');
+        expect(dialog).toHaveTextContent('Littoral Express Delivery');
+        expect(dialog).toHaveTextContent(/holds 90,000/);
     });
 });

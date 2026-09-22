@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { DataTable, type Column } from '@/components/common/DataTable';
@@ -189,5 +189,136 @@ describe('sorting', () => {
         table({ sort: 'email' });
 
         expect(screen.queryByRole('button', { name: /name/i })).not.toBeInTheDocument();
+    });
+});
+
+/**
+ * A `ResizeObserver` the test drives by hand.
+ *
+ * jsdom has none, and that absence is exactly why the bug below lived so long:
+ * without an observer `useOverflowX` answers `false`, which is also what the
+ * broken hook answered for every table in a real browser. So these tests install
+ * one — the only way a suite can tell "measured and fits" from "never measured".
+ */
+class FakeResizeObserver {
+    static instances: FakeResizeObserver[] = [];
+    observed: Element[] = [];
+    readonly callback: ResizeObserverCallback;
+
+    constructor(callback: ResizeObserverCallback) {
+        this.callback = callback;
+        FakeResizeObserver.instances.push(this);
+    }
+
+    observe(target: Element) {
+        this.observed.push(target);
+    }
+
+    unobserve() {}
+
+    disconnect() {
+        this.observed = [];
+    }
+
+    /** What a browser does when the box changes size — a zoom, a resize, a new column. */
+    static resize(target: Element) {
+        for (const observer of FakeResizeObserver.instances) {
+            if (observer.observed.includes(target)) {
+                observer.callback([], observer as unknown as ResizeObserver);
+            }
+        }
+    }
+}
+
+function tableContainer(): HTMLElement {
+    const container = document.querySelector<HTMLElement>('[data-slot="table-container"]');
+    if (!container) throw new Error('no table container rendered');
+    return container;
+}
+
+function measure(container: HTMLElement, scrollWidth: number, clientWidth: number) {
+    Object.defineProperty(container, 'scrollWidth', { configurable: true, value: scrollWidth });
+    Object.defineProperty(container, 'clientWidth', { configurable: true, value: clientWidth });
+}
+
+describe('a table wider than its box', () => {
+    beforeEach(() => {
+        FakeResizeObserver.instances = [];
+        vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    /**
+     * 🔴 **The bug a zoomed-in browser showed on every list.** A table renders its
+     * loading skeleton FIRST, so the scroll container does not exist when the
+     * component mounts. The hook read a `useRef` in a mount-only effect, found
+     * `null`, and never observed anything — the table stayed in "it fits" mode
+     * with `overflow-x: visible` and spilled out of its box instead of scrolling.
+     */
+    it('scrolls sideways when the rows arrive after a loading state', () => {
+        const view = table({ isLoading: true, rows: [] });
+        view.rerender(
+            <DataTable
+                caption="Rows"
+                columns={COLUMNS}
+                rows={ROWS}
+                rowKey={(row) => row.id}
+                isLoading={false}
+            />,
+        );
+
+        const container = tableContainer();
+        measure(container, 1400, 600);
+        act(() => FakeResizeObserver.resize(container));
+
+        const region = screen.getByRole('region', { name: 'Rows — scrolls sideways' });
+        expect(region).toBe(container);
+        expect(region).toHaveClass('overflow-x-auto');
+        expect(region).not.toHaveClass('overflow-x-visible');
+        // A tab stop, so the off-screen columns are reachable without a pointer.
+        expect(region).toHaveAttribute('tabindex', '0');
+    });
+
+    /** Zooming back out: the table fits again, stops scrolling, and its header sticks. */
+    it('drops the scroll again when the table fits', () => {
+        table();
+
+        const container = tableContainer();
+        measure(container, 1400, 600);
+        act(() => FakeResizeObserver.resize(container));
+        expect(container).toHaveClass('overflow-x-auto');
+
+        measure(container, 1200, 1200);
+        act(() => FakeResizeObserver.resize(container));
+
+        expect(container).toHaveClass('overflow-x-visible');
+        expect(container).not.toHaveAttribute('tabindex');
+        expect(screen.getAllByRole('columnheader')[0]).toHaveClass('sticky');
+    });
+
+    /**
+     * The same late arrival from the other two states a table can start in: a
+     * list that was empty and gained rows, or one that failed and was retried.
+     */
+    it('measures a table that replaced an empty state', () => {
+        const view = table({ rows: [], empty: <p>nothing yet</p> });
+        view.rerender(
+            <DataTable
+                caption="Rows"
+                columns={COLUMNS}
+                rows={ROWS}
+                rowKey={(row) => row.id}
+                isLoading={false}
+            />,
+        );
+
+        const container = tableContainer();
+        measure(container, 900, 400);
+        act(() => FakeResizeObserver.resize(container));
+
+        expect(container).toHaveClass('overflow-x-auto');
     });
 });

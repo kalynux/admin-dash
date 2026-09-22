@@ -19,11 +19,50 @@ Both now have one, and a screen: a real product-detail route at
 `/dashboard/vendors/:vendorId/products/:productId`, and a connections panel on the vendor
 Overview with a `?deliveryAgencyId=` drill-down into the catalogue.
 
-✅ **Every route this service publishes now has a service function.** The last two closed with
-Phase F on 2026-08-27: `GET /files/library` and `POST /files/upload`, granted at BR-015 and
-integrated as the **Media** module. The figure this file used to carry (*"233 of 236"*) never
-squared with its own list, which named four uncalled routes in the paragraph beneath it — the
-count is checked by grep against the services, not inferred.
+✅ **Every route this service publishes has a service function — true again since 2026-09-22,
+and it was FALSE for weeks while this line said otherwise.** `GET /agents/:agentId/assignability`
+was in [ROUTE-MAP.md](api-doc/ROUTE-MAP.md) and called by nothing in `src/`; it was found only
+because the COD-pool changelog asked for a change to its screen and there was no screen. It is now
+`getAgentAssignability` and the Roster tab's **Check dispatch** (`AssignabilityCheck`). The last
+two before it closed with Phase F on 2026-08-27 (`GET /files/library`, `POST /files/upload`).
+⚠ **Nothing enforces this line** — `route-map.test.ts` pins the map against itself and no test
+pins the services against the map — so take it by grepping each ROUTE-MAP path in
+`src/services`, not by reading it here.
+
+🔴 **The COD pool is AUTOMATIC since 2026-09-21, and the write that set it now PINS it — a
+breaking body change.** Contract: [FRONTEND-CHANGELOG-agent-cod-pool-and-emergency-contact.md](api-doc/admin/FRONTEND-CHANGELOG-agent-cod-pool-and-emergency-contact.md)
+(wi-admin) and [FRONTEND-CHANGELOG-cod-pool.md](api-doc/jovi-mall/FRONTEND-CHANGELOG-cod-pool.md)
+(the rule). Built here on 2026-09-22. The pool is `0` until the agent's KYC is `verified`, then
+the plan's `max_cod_pool` (Free 500 000 · Plus 1 000 000 · Pro 2 000 000), unless an
+administrator **pins** another value; the agent may carry less. ⚠ **`PUT
+/agents/:agentId/cod-threshold` now requires `reason` (3–500) and an integer**, and a new `POST
+…/cod-threshold/release` drops the pin under its own audit action. ⚠ **Deploy order matters: this
+dashboard must not ship before wi-admin does** — the old `SetThresholdSchema` is `.strict()`, so
+it refuses `reason` as an unknown key, and the release route does not exist there. Both
+upstreams' changes were **uncommitted** when this was built; the mirror was re-copied from their
+working trees.
+
+⛔ **`pool.source` is a label and nothing may branch on it** — `codPoolSourceLabel()` turns it
+into words and does no more. ⛔ **On an agent plan `maxCodPool: null` means NO COD, not unlimited**
+— the one limit that fails closed (jovi-mall reads `?? 0`). `PlanLimitsPanel`, `AccountPanel`
+and `PlanFormDialog` each render it on its own branch, never through the "not limited" one.
+⚠ **Editing a plan's `maxCodPool` re-syncs every agent on the tier at once**, so the form sends it
+on agent tiers only and, on an edit, only when it changed — `PlanFormDialog.test.tsx` fails if an
+unrelated rename carries it (perturbation-tested). ⚠ **`entitlements.maxCodPool` on
+`/accounts` is the PLAN's figure**; the agent's real pool is `cod.maxThreshold` on the detail.
+⚠ `overAllocatedBy > 0` is what explains a headroom of 0, and the Cash tab says so.
+
+⚠ **When `poolBinds` is true, jovi-mall's own gate summary still says *"the contract threshold of
+{base}"*** although the agent's pool set `base` — so `AssignabilityCheck` says *"limited by the
+agent's own COD pool"* above that line and marks the raise-the-slice remedy as unable to help
+(perturbation-tested). ⚠ **`KYC_…` verdicts move the pool too**: `PUT /agents/:agentId/kyc`
+answers `{ agentId, kyc, codPool }` (it was typed `PlatformAgent` here, which it never was), and
+the verdict toast shows the result.
+
+⚠ **The agent's emergency contact is on the detail since 2026-09-21** (ADR-009 § Amendment
+2026-09-21 reversed D-8). **Detail only, never a list, no admin write, and Support sees it** —
+deliberately. It carries the dashboard's **one `tel:` link**, as a separate **Call** button beside
+a plain `CopyableValue`; see the `CopyableValue` note below for why the house rule allows it there.
 
 ✅ **`/files` is closed, and it grew this dashboard's first write path for files.** The Media
 module is `/dashboard/media` with two children: **Library** (`files.library.read`, tiers 1–2 — the
@@ -69,12 +108,26 @@ decides the remedy. ⚠ `errors.md`'s own row for it still says both keys are dr
 on 2026-09-15 with **no code change on either side**: Meta approved
 `wi_mall_phone_verification` (`en` + `fr`) once the WABA's owning business reached `verified`, and
 the 24-hour window is now recorded on every inbound message. So **build the ordinary flow** —
-`PHONE_VERIFICATION_DELIVERY_FAILED` is the edge case it reads as again, the in-window trick
-(message the business number, then verify) is a **fallback** in the failure notice rather than the
-primary path, and the copy no longer blames the operator's own silence. ⛔
-`wi_mall_phone_verification_utility` stays rejected on `INCORRECT_CATEGORY` and **must never be
-resubmitted** — that verdict is about OTP *content*, and rewording to get past the classifier
-would put the WABA's other 189 templates at risk.
+`PHONE_VERIFICATION_DELIVERY_FAILED` is the edge case it reads as again, and the copy no longer
+blames the operator's own silence. ⛔ `wi_mall_phone_verification_utility` stays rejected on
+`INCORRECT_CATEGORY` and **must never be resubmitted** — that verdict is about OTP *content*, and
+rewording to get past the classifier would put the WABA's other 189 templates at risk.
+
+⛔ **Never tell an administrator to message the platform on WhatsApp first — removed
+2026-09-21.** The failure notice kept that as a *fallback* until
+[api-doc/jovi-mall/me/phone-verification.md](api-doc/jovi-mall/me/phone-verification.md) reversed
+it: jovi-mall stamped the 24-hour window under `237…` and read it under `+237…`, so texting the
+bot steered the code onto the free-form path, which was then refused **with no template
+attempt** — the published remedy was the one move that guaranteed the failure. Both halves are
+fixed upstream (one window key; a refused in-window text falls back to the template), so by the
+time the `502` arrives every route was tried. `DeliveryFailedNotice` is now **retry, then report
+it with the `requestId`** — wi-admin forwards it to jovi-mall per call and jovi-mall adopts it,
+so one id finds the refusal in both logs — and `PhoneNumberCard.test.tsx` fails on any rewording
+of the old advice (perturbation-tested). ⚠ **A failed send starts no cooldown** — jovi-mall
+stores a code only after WhatsApp accepts it — so the retry is live at once; a `429` holds the
+send button for `retryAfterSeconds`. ⚠ **wi-admin's [auth.md](api-doc/admin/api/auth.md) still
+carries the workaround** in a collapsed block written that morning, before the fix — see
+inconsistency 9. **The page that owns the send path wins.**
 
 ⚠ **Two `ADMIN_PHONE_*` codes are named, and BR-025 said it was not asking for one.**
 `ADMIN_PHONE_NOT_SET` (422, `business_rule`) and `ADMIN_PHONE_VERIFICATION_MISMATCH` (409,
@@ -99,7 +152,7 @@ as arriving rather than arrived. Its design record is
 [ADR-024](api-doc/docs/ADR-024-PAYOUT-EXECUTION-AND-TRIAGE.md) — payout **execution** (both
 mobile-money gateways can disburse and neither was wired) plus **a review stage below the tier
 that pays**: Support already saw the `PAYOUT_REQUEST` ticket through `resource-scope.ts` and held
-no permission naming it. **Re-run the recipe in ROUTE-MAP.md before trusting 255**, and expect a
+no permission naming it. **Re-run the recipe in ROUTE-MAP.md before trusting 256**, and expect a
 nav change when it deploys.
 
 ✅ **ADR-024 is BUILT as of 2026-09-16 — payout execution, and the review stage below the tier that
@@ -286,7 +339,27 @@ pinned upstream by `test:list-strictness` — read it there rather than copying 
 [`src/lib/query.ts`](src/lib/query.ts) for this repository's one statement of the rule. Widening
 `listQuery` service-wide is still deliberately **not** done.
 
-**`npm test` — 2568 tests in 167 files, measured on 2026-09-16** at the close of the ADR-024
+**`npm test` — 2629 tests in 170 files, measured on 2026-09-22** at the close of the COD-pool
+round (the two new files are `AssignabilityCheck.test.tsx` and `PlanFormDialog.test.tsx`), with
+**3 failures, none in a file the round touched**, and 16 node processes up. ⚠ **One of them is not
+a flake: App.test.tsx's *"lands the orders container on its index child"* failed in the full run,
+alone, and against `HEAD` (`cb6ffce`) in a throwaway worktree** — *"Unable to find /no orders
+yet/i"*, deterministic on that date. So it predates the round and was not investigated here; the
+other two were `CreateTicketDialog.test.tsx`, which passed at `HEAD` the same minute. **The
+previous measurement was 2595 in 168 files on 2026-09-21** after the table-overflow fix (2592
+after the Platform-logs fix before it), and **2578 in 167** earlier that day at the close of the
+`api-doc/jovi-mall/me/` round.
+
+🔴 **`CreateTicketDialog.test.tsx` failed ALONE that evening, twice, and so did the last commit.**
+Three of its ten — the two `entityId` tests at the 20 s timeout, and *"stops at five"* — failed
+in isolation with **33 node processes** up. Rather than argue it, the file was run against
+`HEAD` (`cb6ffce`) in a throwaway `git worktree` with `node_modules` junctioned in: **the same
+three failed the same way**, so the round was not the cause. ⚠ This is new: until now the rule
+was *"it passes alone"*, and under enough load it does not. **When a file in the named set fails
+alone, run it against `HEAD` before touching it** — and remove the junction with `rmdir` before
+`git worktree remove`, which would otherwise follow it into the real `node_modules`.
+
+**The previous measurement was 2568 in 167 files on 2026-09-16** at the close of the ADR-024
 payout-execution round, which added `permissions.pending.test.ts` (the waiting room's
 self-deleting guard — the 167th file) and grew `PayoutsQueue.test.tsx` from 22 tests to 43 and
 `PayoutDetail.test.tsx` from 15 to 23 as the lifecycle went from three states to five.
@@ -407,7 +480,7 @@ machine, not the code.
 npm run dev       # 5175, strictPort
 npm run build     # tsc -b && vite build   ← the typecheck runs here
 npm run lint      # eslint .
-npm test          # vitest run — 2568 tests in 167 files (2026-09-16). No sibling dashboard has one.
+npm test          # vitest run — 2629 tests in 170 files (2026-09-22). No sibling dashboard has one.
 ```
 
 **Every phase closes the same way**: typecheck, lint, tests, build, then a written summary naming
@@ -470,6 +543,20 @@ references in `src/` are correct. Do not "fix" them by analogy.
 ⚠ **A broken doc link fails nothing.** No test resolves the paths in a comment, which is why 40 of
 them rotted silently through a directory move. If you move a doc, grep `src/` for its old path in
 the same change.
+
+⚠ **`api-doc/docs/` is BEHIND `backend/admin/docs/` (measured 2026-09-22), and only ADR-009 was
+re-taken.** `diff -rq --strip-trailing-cr` shows **ADR-023 absent here entirely** and ADR-018,
+020, 021, 022, 024, `ARCHITECTURE.md`, `CONTRACTS.md`, `OPERATIONS.md`, `PHASE-0-DISCOVERY.md`,
+both `PHASE-17-*` and `README.md` differing — not yet checked for which differences are link
+normalisation and which are content. ADR-009 was re-copied for its 2026-09-21 amendment because
+the COD-pool round cites it. Diff before quoting any of the others.
+
+⚠ **`api-doc/jovi-mall/` has the same trap as `api-doc/admin/`, one level worse.** Its pages carry
+a `CONTEXT-BANNER` and flattened outbound links, and `_CONTEXT.md` keeps three redirect pages that
+upstream deleted. **A raw `cp` on 2026-09-22 undid all three at once** (17 banners gone, ~200 dead
+links, the redirects deleted); they were restored the same day. After any re-copy there, re-run a
+relative-link check over the folder and count banners — see `_CONTEXT.md` § *Two deliberate
+differences*.
 
 **The deviations are now seven** — `auth-validator.ts` was taken on 2026-09-15 — so
 `diff -r backend/admin/api-doc frontend/admin-dash/api-doc/admin` reports seven extra names.
@@ -572,6 +659,20 @@ careful reading, every time.
   - Non-React code (`services/api.ts`, `lib/notify.ts`, `lib/errors.ts`) translates through
     `tStatic`/`hasStaticKey`, the module-level snapshot `I18nProvider` republishes on every switch.
 
+### 🔴 Tables: every `DataTable` was stuck in "it fits" mode until 2026-09-21
+
+`DataTable` has two shapes, chosen by `useOverflowX`: a table that fits drops its overflow so the
+header can stick under the app bar; one that does not scrolls sideways and becomes a focusable
+region. **The measurement never ran.** The hook read a `useRef` in a mount-only effect, and a
+`DataTable` mounts showing its **loading skeleton** — so the container was `null`, the effect
+returned, and nothing ever observed it. Every table therefore sat at `overflow-x: visible` and
+**spilled out of its box when zoomed in** instead of scrolling. It is a callback ref now, so
+observation starts whenever the container appears. ⚠ **jsdom has no `ResizeObserver`, and the
+broken answer (`false`) is also the answer jsdom gives**, which is why no test noticed;
+`DataTable.test.tsx` now installs a fake observer and renders the loading state first, and it
+fails against the old hook. ⚠ **Any hook that measures an element must not assume the element
+exists at mount** — a component behind `DataState` renders something else first.
+
 ### The three shared primitives — Phase A of the remediation round
 
 Built 2026-08-26. ⚠ **`CopyableValue` HAS been applied dashboard-wide** in a dedicated sweep
@@ -622,6 +723,10 @@ Two Phase-C additions sit on top of them and are worth knowing before writing a 
   over it, so its 21 call sites did not churn. ⚠ **No `mailto:` and no `tel:`** — these are values
   with no redirect link, and half of them sit inside a row that is itself a link, so a click that
   opened a mail client would change what the row does depending on which pixels were hit.
+  ⚠ **The one exception is the agent's emergency contact** (2026-09-21), and it is not an
+  exception to `CopyableValue`: the number is still a plain copyable value, and the dial is a
+  **separate labelled Call button** on a detail card that sits inside no link — the reason for
+  the rule does not reach it, and the backend's changelog asks for click-to-call there.
 - **`lib/party.ts`** — `partyName()` / `resolvePartyName()`, one fallback rule stated once:
   **`businessName` → `name` → `contactName` → `id`**. The five domain helpers stay and are
   re-expressed over it. ⚠ **`businessName` is the business and `contactName` is a person**, which
@@ -821,9 +926,9 @@ The **26** built route groups are `/auth`, `/administrators`, `/employees`, `/ge
 `/permissions`, `/approvals`, `/audit`, `/users`, `/vendors`, `/agencies`, `/agents`,
 `/contracts`, `/orders`, `/shipments`, `/cod`, `/billing`, `/money`, `/accounts`, `/support`,
 `/content`, `/messaging`, `/files`, `/system`, `/dev-tools`, `/notifications`, `/automation`
-(+ unversioned `/health/live`, `/health/ready`) — **255 routes in total**. Every one is listed
+(+ unversioned `/health/live`, `/health/ready`) — **256 routes in total** (255 → 256 on 2026-09-22: `POST /agents/:agentId/cod-threshold/release`, no new route group). Every one is listed
 with its permission in [api-doc/ROUTE-MAP.md](api-doc/ROUTE-MAP.md), and
-`src/types/route-map.test.ts` parses that file, so the 255 and the exact composite-guard set fail
+`src/types/route-map.test.ts` parses that file, so the 256 and the exact composite-guard set fail
 a test rather than ageing in prose.
 
 🔴 **252 → 255 the same day, and the three that arrived were found by reading SOURCE, not a
@@ -957,6 +1062,7 @@ what is outstanding is integration. See the table.
 | ~~🔴 **A ticket attachment row carries no file id**~~ | ✅ **Closed 2026-08-26, and wi-admin closed it on itself.** Rather than wait on a jovi-mall release, wi-admin reads `file_id` off the attachment row in the shared database and stamps `fileId` onto each row (ADR-018 D-4 — delegate the projection that needs jovi-mall, read the record directly). ⚠ **`id` is the ATTACHMENT and `fileId` is the FILE**, both 24-hex on the same object: the delete takes the first, everything in `/files` takes the second. ⚠ **Not stamped on the `POST` response**, deliberately — you sent it. `uploadedByActor` was documented in the same round |
 | ~~🔴 **A verification verdict is reached with no evidence to reach it from**~~ | ✅ **Closed 2026-09-14 — the backend had already built it.** [`verification.md`](api-doc/admin/api/verification.md): `GET /{vendors,agencies,agents}/:id/verification` returns the ID-card scans, the selfie, the geocoded addresses with a `geocoded` flag, the hand-drawn sketches and (for an agent) the vehicle photographed with its rider. ⚠ **The badge and the drafted reason are OURS by contract, not by omission** — *"There is no `estimatedVerdict` field. No `complete`. No `required` column. … The response is **facts**; the badge is **yours"***, because required/optional is a review policy and the people who change their minds own this dashboard. `lib/verification-review.ts` is that policy and `jovi-mall test:kyc` § 4 fails if a second copy appears upstream. ⚠ **The permission is `*.read`, not the review permission, and the read is NOT audited** — Support answers *"why was my shop rejected"* tickets, and *looking at the picture* is the audited act (`files.content.read`), so the evidence is a **Verification tab** with the verdict dialog on top of it. 🔴 **Filter a review queue on `submittedAt !== null`, never on `status`** — `pending` is also the schema default on a vendor and an agency, so status alone lists every account that ever registered; the estimator refuses to grade a draft at all. ⚠ **`KYC_SUBJECT_NOT_FOUND` is a jovi-mall code on a delegated 404**, so it arrives as `details.platformCode` and branching on `error.code` never matches — `verification.md`'s error table prints it as the latter. [BR-024](api-doc/admin/dashboard/backend-requests/BR-024-party-verification-evidence.md) is kept with a banner listing the five design choices it proposed that were decided the other way; four of the five were about over-restricting a read |
 | ~~🔴 **An agency's verdict and rejection reason are not on the wire**~~ | ✅ **They are, and WE were not reading them.** `kyc.status` and `kyc.rejectionReason` have been served since Phase 6 Step 4; `agencies.md`'s worked JSON shows four `kyc` members and `toAgencyDetailDto` emits six, so this dashboard transcribed the page and **derived the verdict from `agency.status`** — which cannot tell *never reviewed* from *reviewed and refused*, because `pending_verification` is where an agency sits on both sides of a rejection. A re-applying agency therefore read as one nobody had opened, and the sentence they were given was nowhere on screen. Fixed in `AgencyKyc`, the Verification panel and the review dialog on 2026-09-14. ⚠ **The standing lesson applies again: a transcription cannot be diffed and a copy can.** Fourth time a page in this bundle has lagged its service, third time we shipped the lag |
+| 🔴 **Nothing refuses an identifier edit on a CLOSED account** | ⏸ **Open, and worked around rather than reported yet.** jovi-mall's `AdminUserService.updateContact` checks no status and wi-admin adds no guard, so `PATCH` on a closed row **succeeds** — writing an email or phone back onto an account anonymised under ADR-A02, which can never sign in again, and **squatting** that identifier against the person's next account ([account-closure.md](api-doc/jovi-mall/me/account-closure.md): closure frees the number *so the same person may use it again*). `UserDetail` now hides **every** account action on a closed row, and the other four fail with copy that is false there: suspend/restore answer `409 USER_STATUS_CONFLICT` (*"another administrator changed this account first"*), both credential links answer `409 AUTH_ACCOUNT_SUSPENDED` (*"this account is suspended"*), and Telegram finds a deleted connection. ⚠ `closed` also joined the list's `?status=` filter, which `users.md` says exists *for* support and this client could not choose |
 | 🔴 **An administrator's name never reaches a ticket** | ⏸ **Open, and it is the one live backend ask.** `uploadedByActor.name` is the literal string **`"Admin"`** for every administrator upload, and `author.name` is the same on every administrator *note*. jovi-mall resolves the actor against its own `admins` collection; an administrator has no row in that database at all (ADR-004 D-1, the synthetic actor), so it falls back to the capitalised role — and the identical fallback yields `"Customer"`/`"Vendor"`/`"Agency"`/`"Agent"` for a **deleted profile**. ⚠ **`name === capitalise(role)` is the only signal that nothing resolved**; `isRolePlaceholderName` in [`lib/party.ts`](src/lib/party.ts) is the guard and `TicketActorName` is the rendering. Resolving it is wi-admin's job and is deliberately unwired: `GET /administrators/:adminId` needs `administrators.read`, which **Support does not hold** — and Support is the tier that reads tickets. The write path already knows the name in `X-Actor-Name` and drops it, so **a name snapshot on the attachment and note rows is the ask**, not a lookup |
 
 ### Documentation inconsistencies
@@ -1037,6 +1143,26 @@ BR-012 and are kept here as settled precedent**; the rest are open.
    reversed. The anchor resolves to the top of the page instead. ⚠ Recorded rather than patched:
    these pages are **mirrors**, and a mirror is re-copied or it is wrong — never edited here to
    make a link work.
+
+9. ⏸ **`auth.md` still offers *"send any WhatsApp message to the platform's business number"* as
+   a manual workaround for `PHONE_VERIFICATION_DELIVERY_FAILED`, and jovi-mall's
+   [phone-verification.md](api-doc/jovi-mall/me/phone-verification.md) now says to remove exactly
+   that from every frontend.** Upstream `auth.md` was last touched at 01:35 on 2026-09-21
+   (`fd1272e`); jovi-mall's window-key fix and reversal landed at 07:53 (`4460f62`). Re-copied
+   here the same day — the mirror is current, the page is behind. ⚠ `src/` follows jovi-mall,
+   which owns the send path; the collapsed block should go, or say the advice is withdrawn.
+
+10. ⏸ **`system.md`'s log-entry shape is behind jovi-mall's `LogRecord`, in three ways.** It names
+    `res.statusCode`, and the service sends a top-level `status` and no `res`. It lists no
+    `httpError` at all — and on an error line that block **is** the failure: `msg` is only
+    `"<category> <status> <code>"` (`error-handler.middleware.ts`). And it says *"nothing is
+    truncated server-side"*, while `parseLogLine` cuts a stack, an internal message and a cause at
+    `LOG_MAX_STACK_BYTES` (4 KB) with a trailing `…`, and replaces an oversized `details` with
+    `{ truncated: true }`. ⚠ **This is why Platform logs showed the code and never the error**
+    until 2026-09-21: it rendered `msg` alone, as the page implies is enough. Fixed by reading the
+    entry in [`lib/log-entry.ts`](src/lib/log-entry.ts) — both status spellings, every unknown key
+    kept and rendered raw — and by a full-entry dialog, `components/system/LogEntryDialog.tsx`,
+    that says when a field was cut at write.
 
 ### 🔴 One correction to a claim this file used to make
 

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Phone } from 'lucide-react';
 
 import {
     Definition,
@@ -12,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { formatCount, formatInstantInZone, humaniseEnum } from '@/lib/format';
 import { isPlatformActor, type ActorStamp } from '@/types/actor.types';
-import type { AgentDetail } from '@/types/agents.types';
+import type { AgentDetail, AgentEmergencyContact } from '@/types/agents.types';
 import { CopyableId } from '@/components/common/CopyableId';
 import { CopyableValue } from '@/components/common/CopyableValue';
 
@@ -116,6 +117,8 @@ export function AgentOverviewPanel({
                     </DefinitionList>
                 </CardContent>
             </Card>
+
+            <EmergencyContactCard contact={agent.emergencyContact} />
 
             <Card>
                 <CardHeader>
@@ -256,6 +259,77 @@ export function AgentOverviewPanel({
                 </CardContent>
             </Card>
         </div>
+    );
+}
+
+/**
+ * The person the agent named to be called if something happens to them.
+ *
+ * ── Shown since 2026-09-21, and on this screen only ───────────────────────────
+ * It was withheld on purpose (ADR-009 D-8) as a third party's personal data, and
+ * the owner reversed that: the agent gives it precisely so that somebody can be
+ * reached, and platform staff are who would make the call. What D-8 still buys is
+ * that it is **never on a list** — a directory of every courier's next of kin is
+ * a different disclosure from one agent's page — and that there is **no admin
+ * write**: the agent owns it, in the agent app. Support holds `agents.read`, so
+ * Support sees it, deliberately.
+ *
+ * ── The one `tel:` link in the dashboard, and why the house rule allows it ────
+ * `CopyableValue` carries no `tel:` because half its sites sit inside a row that
+ * is itself a link, where a click that dialled would change what the row does
+ * depending on which pixels were hit. The number here is still a plain
+ * `CopyableValue`; the dial is a **separate, labelled button** on a detail card
+ * that is not inside any link — the backend's changelog asks for click-to-call,
+ * and the reason for the rule does not reach this spot.
+ */
+function EmergencyContactCard({ contact }: { contact: AgentEmergencyContact | null }) {
+    const dialable = contact?.phone ? contact.phone.replace(/[^\d+]/g, '') : '';
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-1">
+                    Emergency contact
+                    <InfoHint label="About the emergency contact">
+                        Who the agent asked us to call if something happens to them on a delivery.
+                        They entered it in the agent app and only they can change it. It appears on
+                        this page and never on the agent list.
+                    </InfoHint>
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                {contact === null ? (
+                    <p className="text-muted-foreground text-sm">
+                        The agent has not named anyone.
+                    </p>
+                ) : (
+                    <DefinitionList>
+                        <Definition label="Name">{contact.name ?? <NotSet />}</Definition>
+                        <Definition label="Phone">
+                            {contact.phone ? (
+                                <span className="flex flex-wrap items-center gap-2">
+                                    <CopyableValue
+                                        variant="phone"
+                                        value={contact.phone}
+                                        label="emergency contact phone"
+                                    />
+                                    {dialable ? (
+                                        <Button asChild variant="outline" size="sm">
+                                            <a href={`tel:${dialable}`}>
+                                                <Phone className="size-4" />
+                                                Call
+                                            </a>
+                                        </Button>
+                                    ) : null}
+                                </span>
+                            ) : (
+                                <NotSet />
+                            )}
+                        </Definition>
+                    </DefinitionList>
+                )}
+            </CardContent>
+        </Card>
     );
 }
 

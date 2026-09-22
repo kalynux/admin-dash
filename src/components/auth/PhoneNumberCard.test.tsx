@@ -7,11 +7,27 @@ import { adminFixture } from '@/test/fixtures';
 import { errorResponse, renderWithProviders, stubFetch, successResponse } from '@/test/utils';
 import type { AdminProfile } from '@/types/auth.types';
 
-function renderCard(admin: Partial<AdminProfile> = {}, onChanged = vi.fn()) {
+function renderCard(
+    admin: Partial<AdminProfile> = {},
+    onChanged = vi.fn(),
+    /** Defaults to the whole Developer set, like every other screen test. */
+    held?: string[],
+) {
     renderWithProviders(<PhoneNumberCard admin={adminFixture(admin)} onChanged={onChanged} />, {
         auth: { status: 'authenticated', admin: adminFixture(admin) },
+        ...(held ? { permissions: { status: 'ready' as const, held: new Set(held) } } : {}),
     });
     return onChanged;
+}
+
+/** A refused send, as wi-admin forwards it: a 502 that keeps only the code. */
+function deliveryFailed(requestId = 'req_01J8ZQDELIVERY') {
+    return errorResponse(502, 'SERVICE_DEPENDENCY_UNAVAILABLE', {
+        message: 'A service we depend on did not respond',
+        category: 'external_service',
+        details: { platformCode: 'PHONE_VERIFICATION_DELIVERY_FAILED', platformStatus: 502 },
+        requestId,
+    });
 }
 
 /** The send response, as `admin-phone.service.ts` returns it. */
@@ -169,16 +185,7 @@ describe('proving it', () => {
      * replaced with a registry default too, which is why the explanation is ours.
      */
     it('explains a refused WhatsApp send instead of showing a generic dependency error', async () => {
-        stubFetch(() =>
-            errorResponse(502, 'SERVICE_DEPENDENCY_UNAVAILABLE', {
-                message: 'A service we depend on did not respond',
-                category: 'external_service',
-                details: {
-                    platformCode: 'PHONE_VERIFICATION_DELIVERY_FAILED',
-                    platformStatus: 502,
-                },
-            }),
-        );
+        stubFetch(() => deliveryFailed());
         renderCard({ phone: '+237600123456' });
 
         await userEvent.click(screen.getByRole('button', { name: /verify this number/i }));
@@ -188,10 +195,83 @@ describe('proving it', () => {
         // The remedy that costs nothing first — a delivery failure is unusual
         // again now that the AUTHENTICATION template is approved (2026-09-15).
         expect(screen.getByText(/try again in a moment/i)).toBeInTheDocument();
-        // The in-window trick survives as a FALLBACK, and only as one.
-        expect(screen.getByText(/if it keeps failing/i)).toBeInTheDocument();
         // And the reassurance, because the account is genuinely unaffected.
         expect(screen.getByText(/not a sign-in requirement/i)).toBeInTheDocument();
+    });
+
+    /**
+     * ⛔ **The regression this whole round exists for.** Until 2026-09-21 the
+     * notice's fallback was *"send any WhatsApp message to the platform's
+     * business number, then verify again"* — and a window-key mismatch in
+     * jovi-mall made that the one move that GUARANTEED the failure: texting the
+     * bot steered the code onto the free-form path, which was then refused with
+     * no template attempt. `phone-verification.md` now says to remove the copy
+     * from every frontend. Asserted on the notice's whole text, so a rewording
+     * of the same advice fails too.
+     */
+    it('never sends the administrator to message the platform on WhatsApp first', async () => {
+        stubFetch(() => deliveryFailed());
+        renderCard({ phone: '+237600123456' });
+
+        await userEvent.click(screen.getByRole('button', { name: /verify this number/i }));
+        await userEvent.click(await screen.findByRole('button', { name: 'Send code' }));
+
+        const notice = (await screen.findByText(/would not deliver the code/i)).closest(
+            '[role="alert"]',
+        );
+        expect(notice?.textContent).not.toMatch(/business number/i);
+        expect(notice?.textContent).not.toMatch(/send (any|a) whatsapp message/i);
+        expect(notice?.textContent).not.toMatch(/message (the platform|us|the bot)/i);
+        expect(notice?.textContent).not.toMatch(/24.hour|window/i);
+    });
+
+    /**
+     * The contract's second action is *"contact support"*. For an administrator
+     * the escalation is the reference: wi-admin forwards `requestId` to jovi-mall
+     * per call and jovi-mall adopts it verbatim, so one id finds WhatsApp's
+     * refusal in both logs. Whole, not head-and-tail — it is read out to
+     * somebody else.
+     */
+    it('gives a reference to report, and the journal link to those who can read it', async () => {
+        stubFetch(() => deliveryFailed('req_01J8ZQDELIVERY'));
+        renderCard({ phone: '+237600123456' });
+
+        await userEvent.click(screen.getByRole('button', { name: /verify this number/i }));
+        await userEvent.click(await screen.findByRole('button', { name: 'Send code' }));
+
+        expect(await screen.findByText('req_01J8ZQDELIVERY')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: /look this up/i })).toHaveAttribute(
+            'href',
+            '/dashboard/system/errors?requestId=req_01J8ZQDELIVERY',
+        );
+    });
+
+    it('still gives the reference without the journal link to someone who cannot open it', async () => {
+        stubFetch(() => deliveryFailed('req_01J8ZQDELIVERY'));
+        renderCard({ phone: '+237600123456' }, vi.fn(), []);
+
+        await userEvent.click(screen.getByRole('button', { name: /verify this number/i }));
+        await userEvent.click(await screen.findByRole('button', { name: 'Send code' }));
+
+        expect(await screen.findByText('req_01J8ZQDELIVERY')).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: /look this up/i })).not.toBeInTheDocument();
+    });
+
+    /**
+     * ⚠ The retry the notice offers must actually be available. jovi-mall stores
+     * a code only after WhatsApp accepts it, so a failed send starts **no**
+     * cooldown — holding the button here would invent a wait the server does
+     * not impose.
+     */
+    it('leaves the send button live after a failed delivery', async () => {
+        stubFetch(() => deliveryFailed());
+        renderCard({ phone: '+237600123456' });
+
+        await userEvent.click(screen.getByRole('button', { name: /verify this number/i }));
+        await userEvent.click(await screen.findByRole('button', { name: 'Send code' }));
+        await screen.findByText(/would not deliver the code/i);
+
+        expect(screen.getByRole('button', { name: 'Send code' })).toBeEnabled();
     });
 
     /**
@@ -313,6 +393,30 @@ describe('proving it', () => {
         // somebody their code was destroyed when it was not sends them back for
         // another and restarts the cooldown they are already inside.
         expect(screen.queryByText(/has been destroyed/i)).not.toBeInTheDocument();
+    });
+
+    /**
+     * `phone-verification.md`: *"`details.retryAfterSeconds` — disable the
+     * button for that long"*. Stating the wait and leaving the button live
+     * invites the press that is refused again.
+     */
+    it('holds the send button shut for as long as the cooldown said', async () => {
+        stubFetch(() =>
+            errorResponse(429, 'PLATFORM_OPERATION_REJECTED', {
+                message: 'Another code can be requested in 45s',
+                category: 'rate_limit',
+                details: {
+                    retryAfterSeconds: 45,
+                    platformCode: 'PHONE_VERIFICATION_RESEND_TOO_SOON',
+                },
+            }),
+        );
+        renderCard({ phone: '+237600123456' });
+
+        await userEvent.click(screen.getByRole('button', { name: /verify this number/i }));
+        await userEvent.click(await screen.findByRole('button', { name: 'Send code' }));
+
+        expect(await screen.findByRole('button', { name: /send code in 4\ds/i })).toBeDisabled();
     });
 
     /**
