@@ -111,10 +111,21 @@ describe('the permission catalogue matches api-doc/admin/api/permissions.md', ()
         // table still saying 118, so believing either half of its own prose would
         // have been a coin toss. The three new names are all tier 1, which is why
         // only the first total moved.
-        expect(PERMISSION_NAMES.length).toBe(121);
+        //
+        // ⚠ **Moved 121 → 124 on 2026-09-22**, again taken by executing
+        // `authz:matrix` — 124 / 104 / 38. Three names (`cod.triage`,
+        // `money.payouts.triage`, `users.bot_memory.reset`) held by every tier,
+        // plus four tier-3 reads the page had shown as withheld and the code had
+        // always granted — which is why Support moved by seven for three names.
+        //
+        // ⚠ **Moved 124 → 125 on 2026-09-27**, by executing `authz:matrix` —
+        // 125 / 105 / 39: `money.statements.send`, held by every tier. Taken
+        // from source before `permissions.md` published it, so the two
+        // doc-diffing assertions above fail until the page is re-copied.
+        expect(PERMISSION_NAMES.length).toBe(125);
         expect(UNROUTED_PERMISSION_NAMES.length).toBe(4);
         expect(PERMISSION_FAMILIES.length).toBe(21);
-        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(117);
+        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(121);
     });
 
     /**
@@ -194,7 +205,11 @@ describe('the catalogue is internally consistent', () => {
  * `GET /vendors/:vendorId/agencies`; and *"fifteen … sixteen in all"* until the
  * 2026-09-08 re-count found `GET /agents/:agentId/cod-allocation` and
  * `GET /agents/:agentId/assignability` had never been listed and the
- * `/automation` pair had landed.
+ * `/automation` pair had landed; and *"three `any`-mode … twenty in all"* until
+ * 2026-09-22, when `POST /money/payouts/:payoutId/reject` (which accepts
+ * `money.payouts.reject` **or** `money.payouts.triage`) was listed as the fourth.
+ * The `any`-mode subheading carries the count in words, so it is found by shape
+ * below rather than by its text — the old literal heading was itself a quote.
  *
  * ⚠ **`src/` quoted it too, and got it wrong in five separate files** — four
  * saying "thirteen" and one "Fourteen", none of them asserted by anything. The
@@ -212,13 +227,17 @@ describe('the composite-guard tables match the prose that counts them', () => {
     };
 
     // `all` mode runs from the section heading to the `any`-mode subheading;
-    // `any` mode from there to the next `---` rule.
+    // `any` mode from there to the next `---` rule. Since 2026-09-22 that
+    // section holds two tables — three graded reads and one ungraded write —
+    // and both count.
+    const ANY_MODE_HEADING = doc.match(/### The \w+ `any`-mode guards/)?.[0] ?? '### (any-mode heading not found)';
+
     const allMode = [
-        ...section('## Composite guards', '### The three `any`-mode guards').matchAll(ENDPOINT_ROW),
+        ...section('## Composite guards', ANY_MODE_HEADING).matchAll(ENDPOINT_ROW),
     ].map((m) => m[1]);
 
     const anyMode = [
-        ...section('### The three `any`-mode guards', '\n---').matchAll(ENDPOINT_ROW),
+        ...section(ANY_MODE_HEADING, '\n---').matchAll(ENDPOINT_ROW),
     ].map((m) => m[1]);
 
     it('finds both tables', () => {
@@ -230,16 +249,19 @@ describe('the composite-guard tables match the prose that counts them', () => {
 
     it('states in prose the number of rows each table holds', () => {
         const WORDS: Record<number, string> = {
-            3: 'Three',
+            4: 'Four',
             17: 'Seventeen',
-            20: 'twenty',
+            21: 'twenty-one',
         };
 
         expect(doc, 'the `all`-mode count').toContain(
             `**${WORDS[allMode.length]}** endpoints require **more than one** permission`,
         );
         expect(doc, 'the `any`-mode count').toContain(
-            `${WORDS[anyMode.length]} endpoints accept **any** of three permissions`,
+            `${WORDS[anyMode.length]} endpoints accept **any** of several permissions`,
+        );
+        expect(ANY_MODE_HEADING, 'the `any`-mode subheading').toBe(
+            `### The ${WORDS[anyMode.length].toLowerCase()} \`any\`-mode guards`,
         );
         expect(doc, 'the combined count').toContain(
             `**${WORDS[allMode.length + anyMode.length]}** composite guards in all`,

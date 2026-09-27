@@ -4,6 +4,7 @@ import { AuthLayout } from '@/components/auth/AuthLayout';
 import { ErrorState } from '@/components/common/DataState';
 import { ListSkeleton } from '@/components/common/Loading';
 import { EmployeeDocumentsPanel } from '@/components/employees/EmployeeDocumentsPanel';
+import { EmployeePayoutPanel } from '@/components/employees/EmployeePayoutPanel';
 import { EmployeeReadinessPanel } from '@/components/employees/EmployeeReadinessPanel';
 import { EmployeeRecordForm } from '@/components/employees/EmployeeRecordForm';
 import { Button } from '@/components/ui/button';
@@ -71,6 +72,8 @@ export function Onboarding() {
                         <EmployeeReadinessPanel readiness={current.readiness} audience="subject" />
 
                         <EmployeeRecordForm record={current} onSaved={setRecord} />
+
+                        <EmployeePayoutPanel record={current} onChange={setRecord} />
 
                         <EmployeeDocumentsPanel record={current} onChange={setRecord} />
 

@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { env } from '@/config/env';
 import { permittedChildren, permittedSections, type NavChild, type NavItem } from '@/config/navigation';
 import type { HeldPermissions } from '@/lib/authorization';
+import type { AdminTier } from '@/types/auth.types';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -24,6 +25,8 @@ interface SidebarProps {
      * need a permissions provider stood up around it.
      */
     permissions: HeldPermissions;
+    /** The resolved tier, for `developerOnly` entries. Required, and a prop, for the same reasons. */
+    tier: AdminTier | null;
     /**
      * Resolved collapse state, passed in rather than read from the store: the
      * tablet range force-collapses the rail, and deriving that here would mean
@@ -217,12 +220,13 @@ function SidebarItem({
 }
 
 export function Sidebar({
+    tier,
     permissions,
     collapsed: sidebarCollapsed,
     onToggle: toggleSidebar,
     collapsible = true,
 }: SidebarProps) {
-    const sections = permittedSections(permissions);
+    const sections = permittedSections(permissions, tier);
 
     return (
         <aside
@@ -284,7 +288,7 @@ export function Sidebar({
                                     // greyed. `opacity-55` means "not built yet",
                                     // and reusing it for "not yours" would make
                                     // two different facts look the same.
-                                    entries={permittedChildren(item, permissions)}
+                                    entries={permittedChildren(item, permissions, tier)}
                                     collapsed={sidebarCollapsed}
                                 />
                             ))}

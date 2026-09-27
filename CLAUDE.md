@@ -29,6 +29,54 @@ two before it closed with Phase F on 2026-08-27 (`GET /files/library`, `POST /fi
 pins the services against the map — so take it by grepping each ROUTE-MAP path in
 `src/services`, not by reading it here.
 
+✅ **Account statements built 2026-09-27.** Contract:
+[FRONTEND-CHANGELOG-account-statements.md](api-doc/admin/FRONTEND-CHANGELOG-account-statements.md).
+`POST /accounts/:ownerType/:ownerId/statements` is `downloadAccountStatement` /
+`emailAccountStatement` and the **Statement** button (`AccountStatementDialog.tsx`) in the page
+header of the vendor, agency, agent and account screens. ⚠ **`money.statements.send` is held by
+every tier, Support included**, which is why the button is in the header and never inside the
+Account tab — that tab needs `ACCOUNT_READ_PERMISSIONS`, which Support lacks. ⚠ **The download
+is a POST that answers bytes**, so it goes through `api.postForDownload` (CSRF + JSON body);
+`Content-Disposition` is hidden cross-origin, so the file name falls back to the documented
+pattern. ⚠ The three email refusals (`STATEMENT_RECIPIENT_MISSING` / `_UNVERIFIED` as
+`details.platformCode`, `413 STATEMENT_TOO_LARGE_TO_EMAIL`) all offer **Download instead**.
+⚠ **Activity `direction` gained `internal`**: rendered muted with no sign, and left out of
+`sumAccountActivity`, the loaded-rows totals line on the Activity feed. 🔴 **`permissions.md`
+does not publish `money.statements.send` yet** (upstream or mirrored), so the permission was
+taken from source (`authz:matrix`: **125 / 105 / 39**) and the two doc-diffing assertions in
+`permissions.types.test.ts` are **red until that page is re-derived and re-copied**. Do not
+weaken them or edit the mirror. `ROUTE-MAP.md` is **262** (`dump-routes.js` → `TOTAL 263`).
+
+✅ **COD declarations carry a proof photo — built 2026-09-27.** Contract:
+[FRONTEND-CHANGELOG-cod-cash-proof.md](api-doc/admin/FRONTEND-CHANGELOG-cod-cash-proof.md);
+`cod.md` re-copied the same day (upstream was **uncommitted**). `proof: FileDetail | null` is on
+`Remittance` and `Deposit` (so on both details and the discrepancy's joined deposit), rendered
+by `components/cod/CodProof.tsx` — `ImageBox` for an image, `FileViewer` otherwise, `key={proof.id}`.
+⚠ **`url` is always `null` (private `cod-proofs/`) and every open is audited**, so the lists show
+a `CodProofIndicator` mark and **fetch nothing**; the tests assert no `/files` request before a
+click. ⚠ **The photo is also in both confirm dialogs**, because the list rows confirm without
+opening the detail. ⚠ **`reference` is optional now and `null` is never flagged** — the dialog
+warning *"nothing tying it to a bank statement"* and the lists' *"No reference"* link text were
+removed for that reason. `RecordDepositDialog` is **unchanged**: its `reference` stays required.
+Additive — an older wi-admin simply omits `proof`, which renders as *"No photo attached"*.
+
+✅ **Bot-memory reset built, and the permission waiting room is GONE — 2026-09-27.** Contract:
+[FRONTEND-CHANGELOG-bot-memory-reset.md](api-doc/admin/FRONTEND-CHANGELOG-bot-memory-reset.md).
+`POST /users/:userId/bot-memory/reset` is `resetBotMemory` and `UserDetail`'s **Reset bot memory**
+(`ResetBotMemoryDialog`). ⚠ **`users.bot_memory.reset` is the one `users.*` write Support holds,
+on purpose** — gate on the permission, never tier, and do not "tidy" it to match its neighbours.
+⚠ **It is shown on suspended AND closed customers** — the owner's decision on 2026-09-27; jovi-mall
+checks only that the user exists, so do not move it under the `!closed` guard every other action
+sits behind. Hidden on a non-customer or a `missing` customer profile (`404
+AUTH_PROFILE_NOT_FOUND`). ⚠ **Omit `reason` when blank** — `""` is a `400` on a strict body.
+`permissions.md` was re-derived from source in the same batch: **124 / 104 / 38** (measured with
+`authz:matrix`), `cod.triage` and `money.payouts.triage` are catalogued, so
+`permissions.pending.ts`, its test and `use-pending-permission.ts` were **deleted** and the call
+sites use `can()`. ⚠ **Support now reaches COD (overview, remittances, deposits) and the payout
+queue** — the nav, Overview and fixture tests moved with it. ⚠ **`POST /money/payouts/:id/reject`
+is the fourth `any`-mode guard** (`reject` or `triage`): **17 + 4 = 21** composites.
+`ROUTE-MAP.md` is **261**, *measured* (`dump-routes.js` → `TOTAL 262`).
+
 🔴 **The COD pool is AUTOMATIC since 2026-09-21, and the write that set it now PINS it — a
 breaking body change.** Contract: [FRONTEND-CHANGELOG-agent-cod-pool-and-emergency-contact.md](api-doc/admin/FRONTEND-CHANGELOG-agent-cod-pool-and-emergency-contact.md)
 (wi-admin) and [FRONTEND-CHANGELOG-cod-pool.md](api-doc/jovi-mall/FRONTEND-CHANGELOG-cod-pool.md)
@@ -213,8 +261,9 @@ one code meaning two different things** — `422` is *this destination* (a bank 
 hand) and `503` is *this deployment* (automatic payouts off). `gatewayUnsupportedKind()` separates
 them on the **status**, because no copy keyed on the code alone can carry both remedies.
 
-🔴 **Two permissions the service grants are still absent from `permissions.md`, so they cannot go
-through `can()`.** `money.payouts.triage` and `cod.triage` are real — declared in
+✅ **CLOSED 2026-09-27 — both names are catalogued and the waiting room below was deleted.** Kept
+for why it existed. 🔴 **Two permissions the service grants were absent from `permissions.md`, so
+they could not go through `can()`.** `money.payouts.triage` and `cod.triage` are real — declared in
 `permission.catalog.ts`, guarding live routes, printed by `authz:matrix` — but the catalogue is
 behind, **upstream as well as mirrored**, so `permissions.types.test.ts` ("declares every
 documented permission, and no others") would fail for the right reason about the wrong file, and
@@ -339,7 +388,7 @@ pinned upstream by `test:list-strictness` — read it there rather than copying 
 [`src/lib/query.ts`](src/lib/query.ts) for this repository's one statement of the rule. Widening
 `listQuery` service-wide is still deliberately **not** done.
 
-**`npm test` — 2629 tests in 170 files, measured on 2026-09-22** at the close of the COD-pool
+**`npm test` — 2645 tests in 171 files, measured on 2026-09-27** at the close of the bot-memory round (+`ResetBotMemoryDialog.test.tsx`, −`permissions.pending.test.ts`), with 8 failures in a run that shared the machine with a build, all in `CreateTicketDialog`, `App` and `TicketAttachmentsPanel`; re-run alone, the 3 that remain are the ones recorded below as failing at `HEAD`. **The previous figure was 2629 tests in 170 files, measured on 2026-09-22** at the close of the COD-pool
 round (the two new files are `AssignabilityCheck.test.tsx` and `PlanFormDialog.test.tsx`), with
 **3 failures, none in a file the round touched**, and 16 node processes up. ⚠ **One of them is not
 a flake: App.test.tsx's *"lands the orders container on its index child"* failed in the full run,
@@ -480,7 +529,7 @@ machine, not the code.
 npm run dev       # 5175, strictPort
 npm run build     # tsc -b && vite build   ← the typecheck runs here
 npm run lint      # eslint .
-npm test          # vitest run — 2629 tests in 170 files (2026-09-22). No sibling dashboard has one.
+npm test          # vitest run — 2669 tests in 173 files (2026-09-27, after the account-statements round). No sibling dashboard has one.
 ```
 
 **Every phase closes the same way**: typecheck, lint, tests, build, then a written summary naming
@@ -739,7 +788,7 @@ Two Phase-C additions sit on top of them and are worth knowing before writing a 
 
 Read [permissions.md](api-doc/admin/api/permissions.md) before touching any of it.
 
-- `src/types/permissions.types.ts` — the **121** permission names as literal types.
+- `src/types/permissions.types.ts` — the **125** permission names as literal types.
   `permissions.types.test.ts` **parses `api-doc/admin/api/permissions.md` and diffs it against them**,
   so a backend policy change fails the suite rather than drifting silently.
 
@@ -754,8 +803,9 @@ Read [permissions.md](api-doc/admin/api/permissions.md) before touching any of i
   `developer_tools.webhooks.redeliver`. The 23 that left it are all of `support.*`, all of
   `content.*` and both `files.*` writes, and their screens are built.
 - `src/lib/authorization.ts` — pure predicates. `satisfies(held, requirement, mode)` takes `mode`
-  with **no default**: navigation wants `any`, and the composite endpoint guards are **twenty** —
-  **17 in `all` mode** and **3 in `any`** (`GET /system/errors` plus both `/automation` reads).
+  with **no default**: navigation wants `any`, and the composite endpoint guards are **twenty-one** —
+  **17 in `all` mode** and **4 in `any`** (`GET /system/errors`, both `/automation` reads, and
+  `POST /money/payouts/:payoutId/reject`, added 2026-09-27).
   ⚠ **This count has gone stale four separate times**, so `permissions.md` now says outright to
   derive it rather than quote it, and `src/types/route-map.test.ts` pins the exact set by route.
 - `usePermissions()` / `useCan()` / `<Can>` / `<RequirePermission>` are the only ways to ask.
@@ -887,14 +937,17 @@ status code ([auth.md](api-doc/admin/api/auth.md)):
 show `secret` as the manual fallback.
 
 **Build navigation from `GET /api/v1/permissions/me`.** Do not hard-code the matrix, and do not
-discover capability by collecting 403s. There are **121** permissions named `family.resource.action`
+discover capability by collecting 403s. There are **125** permissions named `family.resource.action`
 across **21** families, and **4 of them are catalogued policy with no endpoint yet** — the
 permission existing does not mean the screen can be built.
 
-**Levels: lower number = more privilege.** Tier 1 Developer (**121/121**, MFA mandatory), tier 2
-Admin (**101/121** — the operational tier including money), tier 3 Support (**31/121** — tickets plus
-read-only lookups **and both tracking-presence and live-position reads**; nothing financial, no
-sight of the administrator directory).
+**Levels: lower number = more privilege.** Tier 1 Developer (**125/125**, MFA mandatory), tier 2
+Admin (**105/125** — the operational tier including money), tier 3 Support (**39/125** — tickets plus
+read-only lookups **and both tracking-presence and live-position reads**, the COD and payout-queue
+reads, both `triage` names and the bot-memory reset; no sight of the administrator directory).
+⚠ **"Nothing financial" is no longer true without qualification**: `money.payouts.triage` is
+`financial` and Support holds it under the named `TIER_3_FINANCIAL_ALLOWLIST` exemption — it can
+release a hold to its owner and never send money out.
 
 ⚠ **118 → 121 on 2026-09-14 (ADR-023), and all three new names are tier 1 only**, so tiers 2 and 3
 did not move. The new family is `employees` (2), and `administrators.activate` is the third.
@@ -916,9 +969,10 @@ demotion or suspension applies on the next call, not at token expiry.
 permission → escalation rules (`AUTHZ_SELF_ACTION_FORBIDDEN`, `AUTHZ_TARGET_TIER_PROTECTED`,
 `AUTHZ_TIER_ESCALATION_FORBIDDEN` on admin-on-admin actions) → resource scope (row-level, on `audit`
 and `tickets`, failing as 404) → dual control. **Seventeen** endpoints are composite guards
-requiring two or three permissions in `all` mode; **three** are `any`-mode —
-`GET /system/errors` and both `/automation` reads — and each returns a *different projection* per
-level rather than refusing. Matrix: [permissions.md](api-doc/admin/api/permissions.md).
+requiring two or three permissions in `all` mode; **four** are `any`-mode —
+`GET /system/errors` and both `/automation` reads, each returning a *different projection* per
+level rather than refusing, and `POST /money/payouts/:payoutId/reject`, which is **not graded**:
+`money.payouts.reject` or `money.payouts.triage` perform the same terminal rejection. Matrix: [permissions.md](api-doc/admin/api/permissions.md).
 
 ## What exists, and what does not
 
@@ -926,9 +980,9 @@ The **26** built route groups are `/auth`, `/administrators`, `/employees`, `/ge
 `/permissions`, `/approvals`, `/audit`, `/users`, `/vendors`, `/agencies`, `/agents`,
 `/contracts`, `/orders`, `/shipments`, `/cod`, `/billing`, `/money`, `/accounts`, `/support`,
 `/content`, `/messaging`, `/files`, `/system`, `/dev-tools`, `/notifications`, `/automation`
-(+ unversioned `/health/live`, `/health/ready`) — **256 routes in total** (255 → 256 on 2026-09-22: `POST /agents/:agentId/cod-threshold/release`, no new route group). Every one is listed
+(+ unversioned `/health/live`, `/health/ready`) — **262 routes in total** (261 → 262 later on 2026-09-27, measured: the account statement; 256 → 261 earlier that day for the bot-memory reset and ADR-024's four triage/send routes). Every one is listed
 with its permission in [api-doc/ROUTE-MAP.md](api-doc/ROUTE-MAP.md), and
-`src/types/route-map.test.ts` parses that file, so the 256 and the exact composite-guard set fail
+`src/types/route-map.test.ts` parses that file, so the 262 and the exact composite-guard set fail
 a test rather than ageing in prose.
 
 🔴 **252 → 255 the same day, and the three that arrived were found by reading SOURCE, not a

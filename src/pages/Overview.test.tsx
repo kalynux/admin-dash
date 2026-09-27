@@ -96,7 +96,6 @@ describe('the overview is composed from independently gated reads', () => {
 
         for (const fragment of [
             '/approvals',
-            '/cod/overview',
             '/money/earnings/platform',
             '/system/health',
             '/system/outbox',
@@ -106,16 +105,38 @@ describe('the overview is composed from independently gated reads', () => {
                 false,
             );
         }
+        // Since 2026-09-22 Support holds `cod.overview.read` (ADR-024's review
+        // stage), so the COD tile is theirs and its read is expected.
+        expect(asked(calls, '/cod/overview')).toBe(true);
     });
 
     it('renders no heading for a section whose every tile is hidden', async () => {
-        renderOverview(3);
+        // Support held neither money permission until 2026-09-22 and this used
+        // the plain tier-3 set; it now holds `cod.overview.read`, so the tile
+        // is withdrawn by hand to keep the empty-section rule asserted.
+        const held = new Set(heldFixture(3));
+        held.delete('cod.overview.read');
+        stubFetch((call) => {
+            const answer = answerOverviewRead(call);
+            if (answer) return answer;
+            throw new Error(`unexpected request: ${call.method} ${call.url}`);
+        });
+        renderWithProviders(<Overview />, {
+            route: '/dashboard',
+            auth: { status: 'authenticated', admin: adminFixture({ tier: 3 }) },
+            permissions: { held, tier: 3 },
+            notifications: { unreadCount: 12 },
+        });
         await screen.findByRole('heading', { name: 'Directories' });
 
-        // Support holds neither money permission. A heading over empty space
-        // would be worse than the row being absent.
+        // A heading over empty space would be worse than the row being absent.
         expect(screen.queryByRole('heading', { name: 'Money' })).not.toBeInTheDocument();
         expect(screen.getByRole('heading', { name: 'Directories' })).toBeInTheDocument();
+    });
+
+    it('gives Support the Money row for its COD tile alone', async () => {
+        renderOverview(3);
+        expect(await screen.findByRole('heading', { name: 'Money' })).toBeInTheDocument();
     });
 
     it('gives every level a system tile, falling back to the unauthenticated probe', async () => {
@@ -284,6 +305,16 @@ describe('a failed tile does not take down the page', () => {
         expect(screen.getByText('Reserved')).toBeInTheDocument();
         expect(screen.getByText('Requested')).toBeInTheDocument();
         expect(earnings.requested).toBe(0);
+    });
+
+    it('shows the platform earnings tile to the Developer tier only', async () => {
+        // Tier 2 holds `money.earnings.read`; the tile is hidden by the owner's
+        // tier rule (2026-09-27), and no request is made for it.
+        const calls = renderOverview(2);
+
+        expect(await screen.findByText('Cash position')).toBeInTheDocument();
+        expect(screen.queryByText('Platform earnings')).not.toBeInTheDocument();
+        expect(asked(calls, '/money/earnings/platform')).toBe(false);
     });
 
     it('renders the cash position without inventing a currency', async () => {

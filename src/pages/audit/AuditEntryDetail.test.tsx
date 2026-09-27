@@ -14,7 +14,12 @@ import type { AuditEntryDetail as AuditEntryDetailRow } from '@/types/audit.type
 
 const ID = '66bc4f0a1d2e3f4a5b6c7d8e';
 
-function renderDetail(row: Partial<AuditEntryDetailRow> = {}, tier: AdminTier = 1, id = ID) {
+function renderDetail(
+    row: Partial<AuditEntryDetailRow> = {},
+    tier: AdminTier = 1,
+    id = ID,
+    held: ReadonlySet<string> = heldFixture(tier),
+) {
     stubFetch((call) => {
         if (call.url.includes('/audit/')) {
             return successResponse(auditEntryDetailFixture(row));
@@ -29,7 +34,7 @@ function renderDetail(row: Partial<AuditEntryDetailRow> = {}, tier: AdminTier = 
         {
             route: `/dashboard/audit/${id}`,
             auth: { admin: adminFixture({ tier }) },
-            permissions: { held: heldFixture(tier), tier },
+            permissions: { held, tier },
         },
     );
 }
@@ -241,7 +246,11 @@ describe('the joins', () => {
      * of such links would itself describe the directory the audit scope withholds.
      */
     it('withholds the link, not the id, from a caller without the module’s permission', async () => {
-        renderDetail({}, 3);
+        // Support itself holds `money.payouts.read` since 2026-09-22, so the
+        // payout target's permission is withdrawn by hand.
+        const held = new Set(heldFixture(3));
+        held.delete('money.payouts.read');
+        renderDetail({}, 3, ID, held);
 
         expect(await screen.findByText('PR-2026-004182')).toBeInTheDocument();
         expect(

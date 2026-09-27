@@ -24,7 +24,8 @@ import {
     type LucideIcon,
 } from 'lucide-react';
 
-import { satisfies, type HeldPermissions } from '@/lib/authorization';
+import { isDeveloperTier, satisfies, type HeldPermissions } from '@/lib/authorization';
+import type { AdminTier } from '@/types/auth.types';
 import type { PermissionMode, RoutedPermissionName } from '@/types/permissions.types';
 
 /**
@@ -86,6 +87,16 @@ interface NavEntryBase {
      * that makes sense.
      */
     permissionMode?: PermissionMode;
+    /**
+     * Shown to the Developer tier (tier 1) only, **on top of** the permission.
+     *
+     * A display rule the owner chose, not one the service enforces: the other
+     * tiers may still hold the permission and call the endpoint. See
+     * `isDeveloperTier`. Honoured by the sidebar, the palette, the mobile nav, the
+     * module redirect and the route gate, so a hidden entry is also refused by
+     * URL.
+     */
+    developerOnly?: boolean;
     /** False until the phase that builds it ships. */
     implemented: boolean;
     /** Which build phase owns this screen, shown on the placeholder. */
@@ -519,6 +530,11 @@ export const NAV_SECTIONS: NavSection[] = [
                         label: 'Earnings',
                         path: '/dashboard/money/earnings',
                         permission: 'money.earnings.read',
+                        // The platform's own commission account — shown to
+                        // Developers only, by the owner's decision (2026-09-27).
+                        // Tier 2 still holds `money.earnings.read` for Accounts
+                        // and Allocations, which stay visible to it.
+                        developerOnly: true,
                         implemented: true,
                         phase: 11,
                     },
@@ -1257,8 +1273,24 @@ export function findNavEntry(pathname: string): NavEntry | undefined {
  *
  * The set comes from `GET /permissions/me`. An entry requiring nothing is always
  * permitted — that is the overview, which composes tiles each gating themselves.
+ *
+ * `tier` matters only to a `developerOnly` entry, and an unknown tier refuses it.
+ * A module with children is reachable only if one of them is, so a container
+ * whose every child is `developerOnly` disappears for the other tiers rather than
+ * leading to a refusal.
  */
-export function isNavEntryPermitted(entry: NavEntry, held: HeldPermissions): boolean {
+export function isNavEntryPermitted(
+    entry: NavEntry,
+    held: HeldPermissions,
+    tier?: AdminTier | null,
+): boolean {
+    if (entry.developerOnly && !isDeveloperTier(tier)) return false;
+
+    const children = 'children' in entry ? entry.children : undefined;
+    if (children && children.length > 0) {
+        return children.some((child) => isNavEntryPermitted(child, held, tier));
+    }
+
     const { permission, mode } = entryRequirement(entry);
     return satisfies(held, permission, mode);
 }
@@ -1267,8 +1299,12 @@ export function isNavEntryPermitted(entry: NavEntry, held: HeldPermissions): boo
 export const isNavItemPermitted = isNavEntryPermitted;
 
 /** A module's children this administrator may open, in declared order. */
-export function permittedChildren(item: NavItem, held: HeldPermissions): readonly NavChild[] {
-    return (item.children ?? []).filter((child) => isNavEntryPermitted(child, held));
+export function permittedChildren(
+    item: NavItem,
+    held: HeldPermissions,
+    tier?: AdminTier | null,
+): readonly NavChild[] {
+    return (item.children ?? []).filter((child) => isNavEntryPermitted(child, held, tier));
 }
 
 /**
@@ -1282,15 +1318,19 @@ export function permittedChildren(item: NavItem, held: HeldPermissions): readonl
 export function firstPermittedChild(
     item: NavItem,
     held: HeldPermissions,
+    tier?: AdminTier | null,
 ): NavChild | undefined {
-    return permittedChildren(item, held)[0];
+    return permittedChildren(item, held, tier)[0];
 }
 
 /** Sections with their items filtered, dropping any section left empty. */
-export function permittedSections(held: HeldPermissions): NavSection[] {
+export function permittedSections(
+    held: HeldPermissions,
+    tier?: AdminTier | null,
+): NavSection[] {
     return NAV_SECTIONS.map((section) => ({
         ...section,
-        items: section.items.filter((item) => isNavEntryPermitted(item, held)),
+        items: section.items.filter((item) => isNavEntryPermitted(item, held, tier)),
     })).filter((section) => section.items.length > 0);
 }
 
@@ -1395,13 +1435,17 @@ export function routeRequirement(pathname: string): NavTrail | 'none' | 'undecla
  * handed their entry's requirement directly, so the guard and the sidebar read
  * the same object rather than two lookups that can disagree.
  */
-export function canAccessRoute(held: HeldPermissions, pathname: string): boolean {
+export function canAccessRoute(
+    held: HeldPermissions,
+    pathname: string,
+    tier?: AdminTier | null,
+): boolean {
     const requirement = routeRequirement(pathname);
     if (requirement === 'none') return true;
     if (requirement === 'undeclared') return false;
 
-    if (!isNavEntryPermitted(requirement.item, held)) return false;
-    return requirement.child ? isNavEntryPermitted(requirement.child, held) : true;
+    if (!isNavEntryPermitted(requirement.item, held, tier)) return false;
+    return requirement.child ? isNavEntryPermitted(requirement.child, held, tier) : true;
 }
 
 /** An entry's permissions as a list, for rendering. `[]` when it needs none. */

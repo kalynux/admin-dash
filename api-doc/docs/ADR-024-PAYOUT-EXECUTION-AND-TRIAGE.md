@@ -30,6 +30,18 @@ because rejection is terminal and terminal outcomes are statuses.
 **There is no `rejected` triage verdict.** Storing one beside `status: 'rejected'` would be two
 fields free to disagree about whether a request is closed.
 
+**How it is reached:** `POST /money/payouts/:id/reject` takes
+`anyPermission('money.payouts.reject', 'money.payouts.triage')`. One route, one write, two ways
+in — rather than a second reject route writing the same terminal state through different code.
+
+⚠ **This was missed on the first pass and is worth recording, because the omission was
+self-consistent.** `/triage` was built to endorse only, and `/reject` was left on
+`money.payouts.reject` alone — so a reviewer could endorse and nothing else. Everything compiled,
+every suite passed, and the permission's `financial` flag plus its grant-table exemption (D-4)
+were both justified by a capability the permission did not actually have. It surfaced while
+writing the dashboard brief, from the question "which control does a reviewer press to reject?",
+and is now pinned by `test:money`.
+
 ### D-2 · The pre-screen is OPTIONAL, and that is the point
 
 A payout nobody has endorsed is exactly as payable as one that has been. Making endorsement a

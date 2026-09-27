@@ -225,6 +225,37 @@ denied is machine detail, which on a support call is not a secret so much as a f
 Unlike the error journal there is **no per-row filter and no query narrowing for tier 3**. Both
 exist there because the subject is a customer's failed request. The subject here is a machine.
 
+> ⚠ **This rung table describes `GET /automation/failures` and nothing else, and that was not
+> stated until BR-020 asked** (2026-09-09). `GET /automation/summary` carries the **same
+> `anyPermission` triple and is not projected at all** — every group in it names a `workflowId`
+> and a `workflowName`, the two fields the table above withholds from rung 3. A Support
+> administrator is therefore refused a workflow name on the feed and handed it on the summary,
+> one route away. The dashboard found this by reading both pages and asked whether it was a
+> decision or an oversight, having built its navigation on top of it.
+>
+> **It is a decision, and it follows from what this section already says the boundary is for.**
+> Read the paragraph above: what rung 3 is denied is machine detail, *"which on a support call
+> is not a secret so much as a false lead"*. The boundary is **not confidentiality** — it is
+> protection against **per-incident causal attribution**, an agent reading one row and telling a
+> customer their message failed because `sync identity` timed out. A summary cannot produce that
+> sentence: it has no node, no message, no stack and no per-incident row, only *this workflow,
+> this channel, this many, since then*. **Aggregate identity is a weaker disclosure than
+> per-incident identity**, and the statement it supports — *"WhatsApp is degraded right now, we
+> know"* — is the exact one the paragraph above says Support is granted this surface to make.
+>
+> Withholding it would have cost the rung its most useful instrument to protect a boundary that
+> was never about the name. So the module's rule is: **the feed is graded, the summary is whole.**
+>
+> Two related facts, recorded so neither is later mistaken for a leak. `workflowId` is an
+> **ungated query filter** on `/failures` — `FailureQuerySchema` never consults the caller's
+> tier — so rung 3 can narrow the feed by workflow and still receives rung-3 rows; consistent
+> with the above, and left alone deliberately. And `external_id_hash` is the one field withheld
+> from **every** rung including 1, which is D-5 and is untouched by any of this.
+>
+> `test:automation` § 2b pins the summary's shape for the same reason § 2 pins the feed's: a
+> deliberate asymmetry that nothing asserts is indistinguishable from an accident, which is
+> precisely how this one read for two days.
+
 ---
 
 ## D-8 · Coverage is an allowlist, and it will drift

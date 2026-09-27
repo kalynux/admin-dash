@@ -15,11 +15,14 @@ import {
 import { env } from '@/config/env';
 import { findNavEntry, permittedChildren, permittedSections } from '@/config/navigation';
 import type { HeldPermissions } from '@/lib/authorization';
+import type { AdminTier } from '@/types/auth.types';
 import { cn } from '@/lib/utils';
 
 interface MobileNavProps {
     /** What the caller holds. Required, and a prop — see `Sidebar`. */
     permissions: HeldPermissions;
+    /** The resolved tier, for `developerOnly` entries. */
+    tier: AdminTier | null;
 }
 
 interface MobileHeaderProps extends MobileNavProps {
@@ -31,11 +34,11 @@ interface MobileHeaderProps extends MobileNavProps {
 }
 
 /** The top bar on mobile: brand, current page, and the drawer trigger. */
-export function MobileHeader({ permissions, actions }: MobileHeaderProps) {
+export function MobileHeader({ permissions, tier, actions }: MobileHeaderProps) {
     const [open, setOpen] = useState(false);
     const { pathname } = useLocation();
     const active = findNavEntry(pathname);
-    const sections = permittedSections(permissions);
+    const sections = permittedSections(permissions, tier);
 
     return (
         <header className="bg-background/80 border-border sticky top-0 z-30 flex h-14 items-center gap-3 border-b px-4 backdrop-blur">
@@ -84,7 +87,7 @@ export function MobileHeader({ permissions, actions }: MobileHeaderProps) {
                                               and a collapsed group on a phone is a
                                               second tap for every destination.
                                             */}
-                                            {permittedChildren(item, permissions).map((child) => (
+                                            {permittedChildren(item, permissions, tier).map((child) => (
                                                 <NavLink
                                                     key={child.id}
                                                     to={child.path}
@@ -133,13 +136,13 @@ export function MobileHeader({ permissions, actions }: MobileHeaderProps) {
  * administrator holds — a Support administrator and a Developer legitimately see
  * different tabs, and pinning a fixed set would give one of them dead buttons.
  */
-export function MobileTabBar({ permissions }: MobileNavProps) {
+export function MobileTabBar({ permissions, tier }: MobileNavProps) {
     // No fallback when the permitted list comes back empty. Falling back to the
     // full catalogue would be fail-open: the one case that produces an empty list
     // is an administrator who may reach nothing, and answering that with every
     // tab is the opposite of the answer. An empty bar is honest, and the Home
     // item — which needs no permission — keeps it from happening in practice.
-    const tabs = permittedSections(permissions)
+    const tabs = permittedSections(permissions, tier)
         .flatMap((section) => section.items)
         .slice(0, 4);
 

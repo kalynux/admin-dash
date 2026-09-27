@@ -32,7 +32,6 @@ import {
 } from '@/components/ui/select';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { useListQueryState } from '@/hooks/use-list-query-state';
-import { usePendingPermission } from '@/hooks/use-pending-permission';
 import {
     dayStringRangeToInstants,
     rangeExceedsMaxDays,
@@ -59,7 +58,6 @@ import {
     type PayoutListQuery,
 } from '@/types/money.types';
 import type { Approval } from '@/types/approvals.types';
-import { PERMISSION_MONEY_PAYOUTS_TRIAGE } from '@/types/permissions.pending';
 
 /**
  * `GET /money/payouts` · `money.payouts.read` — where money leaves the platform.
@@ -155,7 +153,7 @@ export function PayoutsQueue() {
       of the three, and a control that only ever refuses teaches an operator that
       this screen is unreliable.
     */
-    const canEndorse = usePendingPermission(PERMISSION_MONEY_PAYOUTS_TRIAGE);
+    const canEndorse = can('money.payouts.triage');
     const canPay = can('money.payouts.mark_paid');
     const canReject = can('money.payouts.reject') || canEndorse;
 

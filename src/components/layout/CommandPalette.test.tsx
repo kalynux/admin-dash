@@ -15,7 +15,7 @@ import { renderWithProviders } from '@/test/utils';
 
 function palette(tier: 1 | 2 | 3, onOpenChange = vi.fn()) {
     renderWithProviders(
-        <CommandPalette permissions={heldFixture(tier)} open onOpenChange={onOpenChange} />,
+        <CommandPalette permissions={heldFixture(tier)} tier={tier} open onOpenChange={onOpenChange} />,
     );
     return onOpenChange;
 }

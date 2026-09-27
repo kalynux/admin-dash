@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+    downloadAccountStatement,
+    emailAccountStatement,
     listAccountCashLedger,
     listAccountCredits,
     listAccountPayouts,
@@ -13,7 +15,7 @@ import {
     payoutFixture,
     payoutListMetaFixture,
 } from '@/test/money-fixtures';
-import { stubFetch, successResponse, type FetchCall } from '@/test/utils';
+import { errorResponse, stubFetch, successResponse, type FetchCall } from '@/test/utils';
 
 function queryOf(call: FetchCall): URLSearchParams {
     return new URL(call.url, 'http://localhost').searchParams;
@@ -151,5 +153,82 @@ describe('listAccountCashLedger', () => {
         const page = await listAccountCashLedger('agent', '6660112233445566778899aa');
 
         expect(page.data[0].ref).toBeNull();
+    });
+});
+
+describe('account statements', () => {
+    const OWNER = '6650aa11bb22cc33dd44ee55';
+    const REQUEST = { from: '2026-09-01', to: '2026-09-30', format: 'xlsx' as const };
+
+    afterEach(() => {
+        document.cookie = 'admin_csrf_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    });
+
+    it('posts a download with the CSRF echo and reads the answer as a file', async () => {
+        document.cookie = 'admin_csrf_token=stmt-csrf';
+        const calls = stubFetch(
+            () =>
+                new Response('PK', {
+                    status: 200,
+                    headers: {
+                        'Content-Type':
+                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        'Content-Disposition':
+                            'attachment; filename="statement-vendor-44ee55-2026-09-01-to-2026-09-30.xlsx"',
+                    },
+                }),
+        );
+
+        const file = await downloadAccountStatement('vendor', OWNER, REQUEST);
+
+        expect(calls[0].method).toBe('POST');
+        expect(calls[0].url).toContain(`/accounts/vendor/${OWNER}/statements`);
+        expect(calls[0].headers.get('X-CSRF-Token')).toBe('stmt-csrf');
+        // Strict body: exactly these four keys, and never a recipient.
+        expect(JSON.parse(calls[0].body!)).toEqual({ ...REQUEST, delivery: 'download' });
+        expect(file.fileName).toBe('statement-vendor-44ee55-2026-09-01-to-2026-09-30.xlsx');
+        expect(file.blob.size).toBe(2);
+    });
+
+    it('rebuilds the documented file name when Content-Disposition is hidden', async () => {
+        // Cross-origin, CORS hides the header — wi-admin exposes X-Request-Id only.
+        stubFetch(() => new Response('%PDF', { status: 200 }));
+
+        const file = await downloadAccountStatement('agency', OWNER, {
+            ...REQUEST,
+            format: 'pdf',
+        });
+
+        expect(file.fileName).toBe('statement-agency-44ee55-2026-09-01-to-2026-09-30.pdf');
+    });
+
+    it('emails, and hands back the masked recipient as given', async () => {
+        const calls = stubFetch(() =>
+            successResponse({
+                delivery: 'email',
+                fileName: 'statement-agent-44ee55-2026-09-01-to-2026-09-30.xlsx',
+                sent: true,
+                recipient: 'j***@example.com',
+                bytes: 48213,
+            }),
+        );
+
+        const result = await emailAccountStatement('agent', OWNER, REQUEST);
+
+        expect(JSON.parse(calls[0].body!)).toEqual({ ...REQUEST, delivery: 'email' });
+        expect(result.recipient).toBe('j***@example.com');
+    });
+
+    it('surfaces an email refusal as the ApiError that names it', async () => {
+        stubFetch(() =>
+            errorResponse(409, 'PLATFORM_OPERATION_REJECTED', {
+                category: 'conflict',
+                details: { platformCode: 'STATEMENT_RECIPIENT_UNVERIFIED' },
+            }),
+        );
+
+        await expect(emailAccountStatement('vendor', OWNER, REQUEST)).rejects.toMatchObject({
+            platformCode: 'STATEMENT_RECIPIENT_UNVERIFIED',
+        });
     });
 });

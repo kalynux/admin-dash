@@ -29,7 +29,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAsyncData } from '@/hooks/use-async-data';
-import { usePendingPermission } from '@/hooks/use-pending-permission';
 import { resolveTimeZone } from '@/lib/datetime';
 import { formatInstantInZone, formatMoney } from '@/lib/format';
 import { getPayout, PAYOUT_ACTIVITY_PERMISSIONS } from '@/services/money.service';
@@ -37,7 +36,6 @@ import { useAdmin, useCan } from '@/store';
 import type { Approval } from '@/types/approvals.types';
 import { isPlatformActor } from '@/types/actor.types';
 import { ACCOUNT_READ_PERMISSIONS } from '@/services/accounts.service';
-import { PERMISSION_MONEY_PAYOUTS_TRIAGE } from '@/types/permissions.pending';
 import {
     canMarkPayoutPaid,
     canRejectPayout,
@@ -70,7 +68,7 @@ export function PayoutDetail() {
       after this component's early returns — a hook called past a conditional
       `return` runs in a different order on the loading and loaded renders.
     */
-    const canEndorse = usePendingPermission(PERMISSION_MONEY_PAYOUTS_TRIAGE);
+    const canEndorse = can('money.payouts.triage');
     const timeZone = resolveTimeZone(admin.timezone);
 
     const [tab, setTab] = useState('overview');

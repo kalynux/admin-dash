@@ -40,7 +40,7 @@ import {
     countUsers,
     countVendors,
 } from '@/services/counts';
-import { useAuth, useCan } from '@/store';
+import { useAuth, useCan, useIsDeveloper } from '@/store';
 import type { CanPredicate } from '@/store';
 import type { RoutedPermissionName } from '@/types/permissions.types';
 
@@ -60,6 +60,8 @@ import type { RoutedPermissionName } from '@/types/permissions.types';
 interface OverviewTile {
     id: string;
     permission?: RoutedPermissionName;
+    /** Developers (tier 1) only, on top of the permission — see `isDeveloperTier`. */
+    developerOnly?: boolean;
     render: (can: CanPredicate) => ReactNode;
 }
 
@@ -288,6 +290,9 @@ function buildSections(refreshToken: number, timeZone: string, today: InstantRan
                 {
                     id: 'earnings',
                     permission: 'money.earnings.read',
+                    // The platform's own commission — Developers only, by the
+                    // owner's decision (2026-09-27), like its Money child.
+                    developerOnly: true,
                     render: () => <PlatformEarningsTile refreshToken={refreshToken} />,
                 },
             ],
@@ -360,6 +365,7 @@ function buildSections(refreshToken: number, timeZone: string, today: InstantRan
  */
 export function Overview() {
     const can = useCan();
+    const isDeveloper = useIsDeveloper();
     const { admin } = useAuth();
     const { token, refresh } = useRefreshToken();
 
@@ -380,10 +386,15 @@ export function Overview() {
     const sections = buildSections(token, timeZone, today)
         .map((section) => ({
             ...section,
-            tiles: section.tiles.filter((tile) => !tile.permission || can(tile.permission)),
+            tiles: section.tiles.filter(
+                (tile) =>
+                    (!tile.developerOnly || isDeveloper) &&
+                    (!tile.permission || can(tile.permission)),
+            ),
         }))
-        // A heading over nothing is worse than no heading. Support holds neither
-        // money permission, so that whole row is absent for them by design.
+        // A heading over nothing is worse than no heading. Support held neither
+        // money permission until 2026-09-22 and now holds `cod.overview.read`,
+        // so the row appears for them with the COD tile alone.
         .filter((section) => section.tiles.length > 0);
 
     return (

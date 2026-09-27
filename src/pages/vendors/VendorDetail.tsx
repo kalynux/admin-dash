@@ -12,6 +12,7 @@ import { EditVendorSettingsDialog } from '@/components/vendors/EditVendorSetting
 import { RestoreVendorDialog } from '@/components/vendors/RestoreVendorDialog';
 import { SuspendVendorDialog } from '@/components/vendors/SuspendVendorDialog';
 import { AccountPanel } from '@/components/accounts/AccountPanel';
+import { AccountStatementButton } from '@/components/accounts/AccountStatementDialog';
 import { VendorActivityPanel } from '@/components/vendors/VendorActivityPanel';
 import { ReviewVendorVerificationDialog } from '@/components/verification/ReviewVendorVerificationDialog';
 import { VerificationPanel } from '@/components/verification/VerificationPanel';
@@ -216,6 +217,13 @@ function VendorDetailScreen({ vendorId }: { vendorId: string }) {
                       (`409 VENDOR_KYC_STATUS_CONFLICT`) can narrow it to the
                       outcomes that would change something.
                     */}
+
+                    {/* Every tier, Support included — so in the header, never inside the Account tab. */}
+                    <AccountStatementButton
+                        ownerType="vendor"
+                        ownerId={record.id}
+                        timeZone={timeZone}
+                    />
 
                     <Can permission="vendors.settings.manage">
                         <Button

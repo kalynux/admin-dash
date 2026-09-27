@@ -1499,18 +1499,18 @@ export function platformEarningsFixture(
  * reach.
  *
  * Two of the three are *derived* rather than transcribed, so there is less to
- * get wrong: the counts (118 / 101 / 31) are asserted below, and
+ * get wrong: the counts (124 / 104 / 38) are asserted in `authorization.test.ts`, and
  * `permissions.types.test.ts` already proves every name here exists in the
  * catalogue — and that `permissions.md` states those same three numbers.
  */
 
-/** Developer. Holds all 118, and is the only level for which MFA is mandatory. */
+/** Developer. Holds all 124, and is the only level for which MFA is mandatory. */
 export const TIER_1_PERMISSIONS: readonly string[] = [...PERMISSION_NAMES];
 
 /**
  * The twenty an Admin does **not** hold: the seven named in
  * `permissions.md` § "What Admin (tier 2) deliberately does not hold", plus the
- * whole `developer_tools` family (13). 121 − 20 = 101.
+ * whole `developer_tools` family (13). 124 − 20 = 104.
  *
  * ⚠ **ADR-023 added three names and every one of them is tier 1 only**, so tier
  * 2's total did not move: 101 before and 101 after. That is the shape of a change
@@ -1538,13 +1538,13 @@ const TIER_2_EXCLUSIONS: readonly string[] = [
     'users.roles.manage',
 ];
 
-/** Admin — the operational level, including the money. 101 of 121. */
+/** Admin — the operational level, including the money. 105 of 125. */
 export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
     (name) => !TIER_2_EXCLUSIONS.includes(name) && !name.startsWith('developer_tools.'),
 );
 
 /**
- * Support. **31 of 118**, and every one of them is routed — Support holds none
+ * Support. **39 of 125**, and every one of them is routed — Support holds none
  * of the four `†` permissions, so a Support administrator can use everything
  * they hold. That is new: the set was 24 with twelve unusable before Phase 5
  * built the `support` and `content` surfaces.
@@ -1567,12 +1567,30 @@ export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
  * cannot see that the automation layer was degraded escalates it to somebody
  * who knows less about it than they do. What Support is denied there is
  * machine detail, which on a support call is a false lead rather than a secret.
+ *
+ * ⚠ **31 → 38 on 2026-09-22, for three new names.** `cod.triage`,
+ * `money.payouts.triage` and `users.bot_memory.reset` are new; the COD overview,
+ * remittance, deposit and payout-queue reads were granted to Support in code all
+ * along and `permissions.md` showed them withheld until it was re-derived.
+ * `money.payouts.triage` is the one `financial` name Support holds, admitted by
+ * `TIER_3_FINANCIAL_ALLOWLIST` — it can release a hold to its owner and can
+ * never send money out.
+ *
+ * ⚠ **38 → 39 on 2026-09-27**: `money.statements.send`, held by every tier —
+ * "send me my statement" arrives as a ticket, and Support answers it.
  */
 export const TIER_3_PERMISSIONS: readonly string[] = [
     'agents.read',
     'agents.tracking.read',
     'agencies.read',
     'money.payments.read',
+    'money.payouts.read',
+    'money.payouts.triage',
+    'money.statements.send',
+    'cod.overview.read',
+    'cod.remittances.read',
+    'cod.deposits.read',
+    'cod.triage',
     'orders.read',
     'orders.disputes.read',
     'support.errors.lookup',
@@ -1595,6 +1613,7 @@ export const TIER_3_PERMISSIONS: readonly string[] = [
     'files.resolve',
     'files.content.read',
     'users.read',
+    'users.bot_memory.reset',
     'vendors.read',
     'shipments.read',
     'shipments.tracking.read',

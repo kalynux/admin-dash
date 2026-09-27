@@ -122,9 +122,16 @@ describe('the tier fixtures match the documented levels', () => {
         // changed. The figures were taken by executing `npm run authz:matrix`
         // against `backend/admin`, not read: the `permissions.md` that shipped
         // that day had a header saying 121 and a tier table still saying 118.
-        expect(TIER_1_PERMISSIONS.length).toBe(121);
-        expect(TIER_2_PERMISSIONS.length).toBe(101);
-        expect(TIER_3_PERMISSIONS.length).toBe(31);
+        //
+        // ⚠ **121 / 101 / 31 → 124 / 104 / 38 on 2026-09-22**, again by executing
+        // `authz:matrix`: three names every tier holds, plus four Support reads
+        // the page had shown as withheld and the code had always granted.
+        //
+        // ⚠ **124 / 104 / 38 → 125 / 105 / 39 on 2026-09-27**, by executing
+        // `authz:matrix`: `money.statements.send`, held by every tier.
+        expect(TIER_1_PERMISSIONS.length).toBe(125);
+        expect(TIER_2_PERMISSIONS.length).toBe(105);
+        expect(TIER_3_PERMISSIONS.length).toBe(39);
     });
 
     it('withholds from Admin exactly what the doc says it withholds', () => {
@@ -140,10 +147,17 @@ describe('the tier fixtures match the documented levels', () => {
         expect([...admin].some((name) => name.startsWith('developer_tools.'))).toBe(false);
     });
 
-    it('withholds anything financial and the whole administrator directory from Support', () => {
+    it('withholds everything financial but the triage exemption, and the administrator directory, from Support', () => {
         const support = heldFixture(3);
+        // `money.payouts.triage` is `financial` and held — the one named
+        // exemption (`TIER_3_FINANCIAL_ALLOWLIST`). It releases a hold back to
+        // its owner; nothing Support holds sends money out.
+        expect(support.has('money.payouts.triage')).toBe(true);
         for (const name of [
+            'money.payouts.mark_paid',
+            'money.payouts.reject',
             'money.payouts.destination.read',
+            'cod.deposits.confirm',
             'cod.remittances.confirm',
             'agents.cod_threshold.set',
             'orders.refund',
@@ -158,15 +172,17 @@ describe('the tier fixtures match the documented levels', () => {
         expect(heldFixture(3).has('money.payments.read')).toBe(true);
     });
 
-    it('leaves Support holding 31 permissions, every one of them usable', () => {
+    it('leaves Support holding 39 permissions, every one of them usable', () => {
         // 24 held / 12 usable before Phase 5 built the `support` and `content`
         // surfaces; 29 until `files.content.read` was granted to all three tiers
         // at BR-011; 30 until `support.automation.lookup` arrived with
-        // `/automation` (ADR-022 D-7). Support holds none of the four `†` names,
+        // `/automation` (ADR-022 D-7); 31 until the 2026-09-22 re-derivation
+        // (two triage names, the bot-memory reset, four COD/payout reads); 38 until
+        // `money.statements.send` (2026-09-27). Support holds none of the four `†` names,
         // so there is nothing in their set they cannot reach.
         const unrouted = new Set<string>(UNROUTED_PERMISSION_NAMES);
         const usable = TIER_3_PERMISSIONS.filter((name) => !unrouted.has(name));
-        expect(usable.length).toBe(31);
+        expect(usable.length).toBe(39);
     });
 
     it('gives Support file resolution, but not the orphan listing', () => {

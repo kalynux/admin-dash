@@ -4,6 +4,7 @@ import { Plus, Wallet, X } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
 import { CodSettlementStatusBadge, DepositRecipientBadge } from '@/components/cod/CodBadges';
+import { CodProofIndicator } from '@/components/cod/CodProof';
 import {
     ConfirmDepositDialog,
     RejectDepositDialog,
@@ -113,8 +114,10 @@ export function DepositsList() {
                           operator matches against a bank statement, so it keeps
                           its link and gains a copy button beside it — `plain`,
                           never shortened. Where there is none the plain link
-                          stays: `No reference` is a statement about the record
-                          and `NotSet` would drop the way into it.
+                          stays, worded as a way in rather than a gap: the
+                          reference is optional since 2026-09-27 — the photo is
+                          the evidence — so "No reference" would read as
+                          missing evidence.
                         */}
                         {row.reference ? (
                             <CopyableValue
@@ -130,7 +133,7 @@ export function DepositsList() {
                                 to={`/dashboard/cod/deposits/${row.id}`}
                                 className="font-medium hover:underline"
                             >
-                                No reference
+                                Open declaration
                             </Link>
                         )}
                         {row.note ? (
@@ -140,6 +143,15 @@ export function DepositsList() {
                         ) : null}
                     </div>
                 ),
+            },
+            {
+                id: 'proof',
+                header: 'Proof',
+                className: 'align-top',
+                // A mark, never the photo: opening it is an audited read, and a
+                // list would file one per row scrolled past. `—` is ordinary on a
+                // one-step deposit, which has no declaration to prove.
+                cell: (row) => <CodProofIndicator proof={row.proof} />,
             },
             {
                 id: 'parties',

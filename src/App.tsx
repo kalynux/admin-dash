@@ -98,10 +98,15 @@ function relativePath(path: string, parent: string): string {
  */
 function gate(entry: NavEntry, element: ReactNode): ReactNode {
     const { permission, mode } = entryRequirement(entry);
-    if (permission.length === 0) return element;
+    if (permission.length === 0 && !entry.developerOnly) return element;
 
     return (
-        <RequirePermission permission={permission} mode={mode} subject={entry.label}>
+        <RequirePermission
+            permission={permission}
+            mode={mode}
+            subject={entry.label}
+            developerOnly={entry.developerOnly}
+        >
             {element}
         </RequirePermission>
     );

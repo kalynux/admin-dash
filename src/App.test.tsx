@@ -115,7 +115,7 @@ function stubDashboard(tier: 1 | 2 | 3 = 1) {
 function shell() {
     return (
         <Routes>
-            <Route path="/dashboard" element={<AppShell permissions={heldFixture(1)} />}>
+            <Route path="/dashboard" element={<AppShell permissions={heldFixture(1)} tier={1} />}>
                 <Route index element={<Overview />} />
                 <Route path="permissions/*" element={<ModulePlaceholder />} />
             </Route>
@@ -150,7 +150,7 @@ describe('app shell', () => {
         stubDashboard();
         renderWithProviders(
             <Routes>
-                <Route path="/dashboard" element={<AppShell permissions={heldFixture(3)} />}>
+                <Route path="/dashboard" element={<AppShell permissions={heldFixture(3)} tier={3} />}>
                     <Route index element={<Overview />} />
                 </Route>
             </Routes>,
@@ -176,7 +176,7 @@ describe('the dashboard is guarded', () => {
                     path="/dashboard"
                     element={
                         <RequireAuth>
-                            <AppShell permissions={heldFixture(1)} />
+                            <AppShell permissions={heldFixture(1)} tier={1} />
                         </RequireAuth>
                     }
                 >

@@ -19,6 +19,24 @@ import type {
     RemittanceDetail,
     TrustEvent,
 } from '@/types/cod.types';
+import type { FileDetail } from '@/types/files.types';
+
+/**
+ * A declaration's proof photo, as `cod.md` shows it — private `cod-proofs/`
+ * tree, so `url` is **always** null and `access` is `authorized`.
+ */
+export function codProofFixture(overrides: Partial<FileDetail> = {}): FileDetail {
+    return {
+        id: '6682aabbccddeeff00112240',
+        key: 'cod-proofs/2026/09/receipt.webp',
+        url: null,
+        access: 'authorized',
+        mimeType: 'image/webp',
+        size: 184320,
+        originalName: 'receipt.jpg',
+        ...overrides,
+    };
+}
 
 /** `entryType` is `collection|deposit|remittance|adjustment` — never `*_confirmed`. */
 export function cashMovementFixture(
@@ -77,6 +95,7 @@ export function remittanceFixture(overrides: Partial<Remittance> = {}): Remittan
         amount: 1240000,
         currency: 'XAF',
         reference: 'BICEC/2026/08/13/44127',
+        proof: codProofFixture({ id: '6680aabbccddeeff00112240', originalName: 'transfer.png' }),
         note: 'Weekly settlement',
         status: 'declared',
         declaredAt: '2026-08-13T06:00:00.000Z',
@@ -139,6 +158,7 @@ export function platformDepositFixture(overrides: Partial<Deposit> = {}): Deposi
         recipient: 'platform',
         status: 'declared',
         reference: 'AFRILAND/DEP/2026-08-13/8841',
+        proof: codProofFixture(),
         declaredAt: '2026-08-13T09:00:00.000Z',
         resolvedAt: null,
         rejectionReason: null,

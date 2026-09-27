@@ -556,6 +556,46 @@ function envelopeOf(raw: RawResponse): ApiSuccessEnvelope<unknown> | undefined {
     return isEnvelope(raw.body) ? raw.body : undefined;
 }
 
+/** What `api.download` and `api.postForDownload` return. */
+export interface DownloadedFile {
+    blob: Blob;
+    /**
+     * From `Content-Disposition`. ⚠ Not a CORS-safelisted header, and wi-admin
+     * exposes only `X-Request-Id`, so across origins this is `undefined` even
+     * when the server sent one — callers keep a fallback name.
+     */
+    fileName?: string;
+    sha256?: string;
+    contentType?: string;
+    /** ⚠ Absent on a chunked response. Absent is "unknown", never "zero". */
+    contentLength?: number;
+}
+
+async function readDownload(response: Response): Promise<DownloadedFile> {
+    const disposition = response.headers.get('Content-Disposition') ?? '';
+    const match = /filename="?([^"]+)"?/i.exec(disposition);
+
+    // `Number('')` is 0 and `Number(null)` is 0, either of which would read
+    // as "the body is empty" and turn every chunked response into a
+    // false truncation report. Parse only a header that is actually there.
+    const declaredLength = response.headers.get('Content-Length');
+    const contentLength =
+        declaredLength !== null && /^\d+$/.test(declaredLength)
+            ? Number(declaredLength)
+            : undefined;
+
+    return {
+        blob: await response.blob(),
+        fileName: match?.[1],
+        // Verify the download against this when it is recorded.
+        sha256: response.headers.get('X-Content-SHA256') ?? undefined,
+        // jovi-mall's, verbatim. **It is the authority on what the bytes
+        // are** — do not infer a type from the filename extension.
+        contentType: response.headers.get('Content-Type') ?? undefined,
+        contentLength,
+    };
+}
+
 // ─── Public surface ───────────────────────────────────────────────────────────
 
 export const api = {
@@ -703,7 +743,7 @@ export const api = {
     /**
      * A response whose payload is bytes rather than JSON.
      *
-     * **Two endpoints, and they are the only two on the service:**
+     * **Two GET endpoints** (a third, `POST …/statements`, goes through `postForDownload`):
      *
      * | Route | Bytes | Notes |
      * |---|---|---|
@@ -738,14 +778,7 @@ export const api = {
         path: string,
         options: RequestOptions = {},
         isRetry = false,
-    ): Promise<{
-        blob: Blob;
-        fileName?: string;
-        sha256?: string;
-        contentType?: string;
-        /** ⚠ Absent on a chunked response. Absent is "unknown", never "zero". */
-        contentLength?: number;
-    }> {
+    ): Promise<DownloadedFile> {
         const requestId = newRequestId();
         let response: Response;
         try {
@@ -774,28 +807,62 @@ export const api = {
             return api.download(path, options, true);
         }
 
-        const disposition = response.headers.get('Content-Disposition') ?? '';
-        const match = /filename="?([^"]+)"?/i.exec(disposition);
+        return readDownload(response);
+    },
 
-        // `Number('')` is 0 and `Number(null)` is 0, either of which would read
-        // as "the body is empty" and turn every chunked response into a
-        // false truncation report. Parse only a header that is actually there.
-        const declaredLength = response.headers.get('Content-Length');
-        const contentLength =
-            declaredLength !== null && /^\d+$/.test(declaredLength)
-                ? Number(declaredLength)
-                : undefined;
-
-        return {
-            blob: await response.blob(),
-            fileName: match?.[1],
-            // Verify the download against this when it is recorded.
-            sha256: response.headers.get('X-Content-SHA256') ?? undefined,
-            // jovi-mall's, verbatim. **It is the authority on what the bytes
-            // are** — do not infer a type from the filename extension.
-            contentType: response.headers.get('Content-Type') ?? undefined,
-            contentLength,
+    /**
+     * A **write** whose success is bytes: `POST /accounts/:ownerType/:ownerId/statements`
+     * with `delivery: "download"` (2026-09-27), the only one on the service.
+     *
+     * `download` above is `GET`-only and sends no CSRF header, which is right
+     * for a read and a guaranteed `403 ADMIN_AUTH_CSRF_INVALID` here. So this
+     * sends what `performRequest` sends for a write — a JSON body, the CSRF
+     * echo, the request id — and reads the answer as `download` does. Errors
+     * still come back in the JSON envelope, and the same refresh rule applies.
+     */
+    async postForDownload(
+        path: string,
+        body: unknown,
+        options: RequestOptions = {},
+        isRetry = false,
+    ): Promise<DownloadedFile> {
+        const requestId = newRequestId();
+        const headers: Record<string, string> = {
+            [REQUEST_ID_HEADER]: requestId,
+            'Content-Type': 'application/json',
+            ...options.headers,
         };
+        const csrf = currentCsrfToken();
+        if (csrf) headers[CSRF_HEADER] = csrf;
+
+        let response: Response;
+        try {
+            response = await fetch(`${env.apiBaseUrl}${path}`, {
+                method: 'POST',
+                credentials: 'include',
+                headers,
+                body: JSON.stringify(body),
+                signal: options.signal,
+            });
+        } catch (cause) {
+            if (cause instanceof DOMException && cause.name === 'AbortError') throw cause;
+            throw new NetworkError('Could not reach the server', cause);
+        }
+
+        if (!response.ok) {
+            const error = await errorFromResponse(response, requestId);
+            const canRefresh = isRefreshable(error) && !isRetry && !options.skipAuthRefresh;
+
+            if (!canRefresh) {
+                announceSessionState(error, options);
+                throw error;
+            }
+
+            await rotateSessionOnce();
+            return api.postForDownload(path, body, options, true);
+        }
+
+        return readDownload(response);
     },
 
     /**

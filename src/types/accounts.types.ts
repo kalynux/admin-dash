@@ -333,6 +333,9 @@ export interface OwnerAccount {
 
 export type AccountActivityCategory = 'plan' | 'credit' | 'earning' | 'payout' | (string & {});
 
+/** Open, like every enum on the wire: an unknown value renders raw and is never summed. */
+export type AccountActivityDirection = 'in' | 'out' | 'internal' | (string & {});
+
 /**
  * One normalised movement, merged from **five collections** — plan purchases,
  * credit top-ups, credit transactions, the earnings ledger and payout requests.
@@ -351,8 +354,17 @@ export interface AccountActivityItem {
     type: string;
     status: string;
     unit: BalanceUnit;
-    /** From the **owner's** perspective: value arriving vs leaving. */
-    direction: 'in' | 'out' | (string & {});
+    /**
+     * From the **owner's** perspective: value arriving, leaving, or moving
+     * between the owner's own balances.
+     *
+     * ⚠ **`internal` since 2026-09-27**: an `earning_release` (escrow →
+     * available), the two COD reserve entries, and a payout that is pending,
+     * rejected or failed. Before, a release was `in` — which counted every
+     * earning twice — and every payout was `out`. **An `internal` row is never
+     * summed** (see `sumAccountActivity`); it is neither arriving nor leaving.
+     */
+    direction: AccountActivityDirection;
     /** Magnitude in `unit`, **always positive**. The sign lives in `direction`. */
     amount: number;
     currency: string | null;
@@ -387,6 +399,120 @@ export const ACCOUNT_ACTIVITY_CATEGORY_LABELS: Record<string, string> = {
     earning: 'Earnings',
     payout: 'Payout',
 };
+
+/** Money arriving and leaving, for one currency. Both are positive magnitudes. */
+export interface AccountActivityTotal {
+    currency: string | null;
+    moneyIn: number;
+    moneyOut: number;
+}
+
+/**
+ * Money in and money out across the given feed rows, one entry per currency.
+ *
+ * Counts **only** `unit: 'money'` rows whose `direction` is exactly `in` or
+ * `out`. Three kinds of row are left out, each for its own reason:
+ *
+ * - **`internal`** — money moving between the owner's own balances (a release,
+ *   a COD reserve move, a payout not yet paid). Counting a release as well as
+ *   the hold it releases is the double count the 2026-09-27 change removed.
+ * - **credits** — not money; adding them to XAF produces a number that means
+ *   nothing.
+ * - **an unknown direction** — treated as unknown, not guessed at.
+ *
+ * ⚠ This sums **the rows the caller holds**, never the account: the feed is
+ * cursor-paged and has no `total`, so a screen must say it is a figure over
+ * what has been loaded.
+ */
+export function sumAccountActivity(
+    items: readonly AccountActivityItem[],
+): AccountActivityTotal[] {
+    const byCurrency = new Map<string | null, AccountActivityTotal>();
+    for (const item of items) {
+        if (item.unit !== 'money') continue;
+        if (item.direction !== 'in' && item.direction !== 'out') continue;
+
+        const total = byCurrency.get(item.currency) ?? {
+            currency: item.currency,
+            moneyIn: 0,
+            moneyOut: 0,
+        };
+        if (item.direction === 'in') total.moneyIn += item.amount;
+        else total.moneyOut += item.amount;
+        byCurrency.set(item.currency, total);
+    }
+    return [...byCurrency.values()];
+}
+
+// ─── Account statements ───────────────────────────────────────────────────────
+
+/**
+ * `POST /accounts/:ownerType/:ownerId/statements` — added 2026-09-27.
+ *
+ * `money.statements.send`, held by **every** tier. Audited before anything is
+ * read, as `money.statements.send_<ownerType>`, on the owner's activity feed.
+ */
+export const STATEMENT_FORMATS = ['xlsx', 'pdf'] as const;
+export type StatementFormat = (typeof STATEMENT_FORMATS)[number];
+
+export const STATEMENT_DELIVERIES = ['download', 'email'] as const;
+export type StatementDelivery = (typeof STATEMENT_DELIVERIES)[number];
+
+/** Both days included, read by the server in `Africa/Douala`. */
+export const STATEMENT_MAX_DAYS = 366;
+
+/**
+ * The body, **strict** — any other key is a `400`. There is deliberately no
+ * recipient field: jovi-mall sends only to the account's registered, verified
+ * email, and the dashboard cannot choose another.
+ */
+export interface StatementRequest {
+    /** `YYYY-MM-DD` — a calendar day, **not** an instant. */
+    from: string;
+    /** `YYYY-MM-DD`, inclusive. */
+    to: string;
+    format: StatementFormat;
+}
+
+/** `delivery: "email"` → `data`. */
+export interface StatementEmailResult {
+    delivery: 'email';
+    fileName: string;
+    sent: boolean;
+    /** **Masked**, e.g. `j***@example.com`. Never the full address. */
+    recipient: string;
+    bytes: number;
+}
+
+/**
+ * `delivery: "download"` → the file itself, not an envelope.
+ *
+ * `fileName` is always set: `Content-Disposition` is not a CORS-safelisted
+ * header and wi-admin exposes only `X-Request-Id`, so across origins the
+ * browser hides it — the name is then rebuilt from the documented pattern.
+ */
+export interface StatementDownload {
+    blob: Blob;
+    fileName: string;
+}
+
+/**
+ * `statement-<type>-<last6 of id>-<from>-to-<to>.<ext>` — the server's own
+ * pattern (`accounts.md`), for when its header cannot be read.
+ */
+export function statementFileName(
+    ownerType: AccountOwnerType,
+    ownerId: string,
+    request: StatementRequest,
+): string {
+    return `statement-${ownerType}-${ownerId.slice(-6)}-${request.from}-to-${request.to}.${request.format}`;
+}
+
+/** jovi-mall's two email refusals, which arrive as `details.platformCode` on a 409. */
+export const PLATFORM_CODE_STATEMENT_RECIPIENT_MISSING = 'STATEMENT_RECIPIENT_MISSING';
+export const PLATFORM_CODE_STATEMENT_RECIPIENT_UNVERIFIED = 'STATEMENT_RECIPIENT_UNVERIFIED';
+/** wi-admin's own, a plain `error.code` at 413. */
+export const CODE_STATEMENT_TOO_LARGE_TO_EMAIL = 'STATEMENT_TOO_LARGE_TO_EMAIL';
 
 // ─── The two sub-ledgers ──────────────────────────────────────────────────────
 

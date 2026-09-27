@@ -47,7 +47,7 @@ import type {
  * It is on the record, it is a required gap, and it is **masked for everybody
  * including the person who typed it** — so there is nothing to show and no
  * partial edit to make. It gets its own deliberate step rather than a text box
- * beside a date of birth.
+ * beside a date of birth — `EmployeePayoutPanel`, rendered after this form.
  */
 export function EmployeeRecordForm({
     record,

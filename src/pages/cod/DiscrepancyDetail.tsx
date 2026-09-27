@@ -9,6 +9,7 @@ import {
     DiscrepancyStatusBadge,
     RaisedByBadge,
 } from '@/components/cod/CodBadges';
+import { CodProof } from '@/components/cod/CodProof';
 import { ResolveDiscrepancyDialog } from '@/components/cod/CodWriteDialogs';
 import { trustEventColumns } from '@/components/cod/TrustEventsTable';
 import { CopyableValue } from '@/components/common/CopyableValue';
@@ -335,12 +336,23 @@ function DepositCard({ deposit, timeZone }: { deposit: Deposit; timeZone: string
                                 label="deposit reference"
                             />
                         ) : (
-                            <NotSet>None given</NotSet>
+                            /* Optional since 2026-09-27 — the photo is the evidence. */
+                            <NotSet>—</NotSet>
                         )}
                     </Definition>
 
                     <Definition label="Declared">
                         {formatInstantInZone(deposit.declaredAt, timeZone) ?? <NotSet />}
+                    </Definition>
+
+                    {/*
+                      Often the very thing the dispute is about, so it is shown
+                      here rather than one click away on the deposit screen —
+                      which this caller may not be able to open. Still a click
+                      to reveal: every open is an audited read.
+                    */}
+                    <Definition label="Proof photo">
+                        <CodProof proof={deposit.proof} alt="the deposit proof photo" />
                     </Definition>
 
                     <Definition label="The record">

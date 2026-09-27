@@ -1,8 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 
+import { notify } from '@/lib/notify';
 import { UserDetail } from '@/pages/users/UserDetail';
 import {
     adminFixture,
@@ -23,6 +24,10 @@ import {
 import type { UserDetail as UserDetailRecord } from '@/types/users.types';
 
 const USER_ID = '665f1c2a9b3e4a91c7d2e5f0';
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
 
 /** Answers the detail and the activity feed; anything else is a failure. */
 function stubDetail(record: UserDetailRecord = userDetailFixture(), activity = [auditEntryFixture()]) {
@@ -361,6 +366,126 @@ describe('the actions, gated', () => {
         await screen.findByRole('heading', { level: 1 });
         expect(screen.getByRole('button', { name: /restore/i })).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: /^suspend$/i })).not.toBeInTheDocument();
+    });
+});
+
+describe('resetting the bot’s memory', () => {
+    const RESET = { name: /reset bot memory/i };
+
+    it('is offered to a customer under users.bot_memory.reset', async () => {
+        stubDetail(userDetailFixture({ roles: ['customer'] }));
+        detail(['users.read', 'users.bot_memory.reset']);
+
+        expect(await screen.findByRole('button', RESET)).toBeInTheDocument();
+    });
+
+    it('is hidden without the permission', async () => {
+        stubDetail(userDetailFixture({ roles: ['customer'] }));
+        detail(['users.read', 'audit.read', 'users.update', 'users.suspend']);
+
+        await screen.findByRole('heading', { level: 1 });
+        expect(screen.queryByRole('button', RESET)).not.toBeInTheDocument();
+    });
+
+    it('is hidden on a non-customer account even with the permission', async () => {
+        // The memory lives on the customer profile; anything else answers
+        // 404 AUTH_PROFILE_NOT_FOUND, so the button's only outcome would be that.
+        stubDetail(
+            userDetailFixture({
+                roles: ['vendor'],
+                profiles: [roleProfileFixture({ role: 'vendor' })],
+            }),
+        );
+        detail(['users.read', 'users.bot_memory.reset']);
+
+        await screen.findByRole('heading', { level: 1 });
+        expect(screen.queryByRole('button', RESET)).not.toBeInTheDocument();
+    });
+
+    it('is hidden when the customer role is claimed but its profile is missing', async () => {
+        // The same 404, reached from the other side: the users row says customer
+        // and the entity does not exist.
+        stubDetail(
+            userDetailFixture({
+                roles: ['customer'],
+                profiles: [missingRoleProfileFixture('customer')],
+            }),
+        );
+        detail(['users.read', 'users.bot_memory.reset']);
+
+        await screen.findByText(/the customer profile is missing/i);
+        expect(screen.queryByRole('button', RESET)).not.toBeInTheDocument();
+    });
+
+    it('is offered on a suspended and on a closed account, unlike every other action', async () => {
+        // ⚠ A product decision (2026-09-27): jovi-mall checks only that the user
+        // exists, and the reset touches nothing a suspension or closure governs.
+        for (const record of [
+            userDetailFixture({
+                roles: ['customer'],
+                status: 'suspended',
+                suspension: { at: null, reason: 'Chargebacks', by: null },
+            }),
+            userDetailFixture({
+                roles: ['customer'],
+                status: 'closed',
+                email: null,
+                phone: null,
+                closedAt: '2026-08-29T16:44:10.006Z',
+            }),
+        ]) {
+            stubDetail(record);
+            const { unmount } = detail(['users.read', 'users.bot_memory.reset']);
+
+            expect(await screen.findByRole('button', RESET)).toBeInTheDocument();
+            unmount();
+        }
+    });
+
+    it('is offered to Support, which holds no other write here', async () => {
+        // The one users.* write tier 3 holds, on purpose — gated on the
+        // permission, never on tier.
+        stubDetail(userDetailFixture({ roles: ['customer'] }));
+        detail(['users.read', 'audit.read', 'users.bot_memory.reset']);
+
+        expect(await screen.findByRole('button', RESET)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /edit login details/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /suspend/i })).not.toBeInTheDocument();
+    });
+
+    it('reloads the activity feed after a reset, and not the account', async () => {
+        vi.spyOn(notify, 'success').mockImplementation(() => undefined as never);
+        let detailReads = 0;
+        let activityReads = 0;
+        const calls = stubFetch((call: FetchCall) => {
+            if (call.method === 'POST' && call.url.includes('/bot-memory/reset')) {
+                return successResponse(
+                    { userId: USER_ID, memoryEpoch: 1, resetAt: '2026-09-27T10:00:00.000Z' },
+                    { message: 'Bot memory reset — the next conversation starts fresh' },
+                );
+            }
+            if (call.url.includes('/activity')) {
+                activityReads += 1;
+                return successResponse([], { meta: { ...auditMetaFixture({ total: 0, pages: 0 }) } });
+            }
+            if (call.url.includes(`/users/${USER_ID}`)) {
+                detailReads += 1;
+                return successResponse(userDetailFixture({ roles: ['customer'] }));
+            }
+            throw new Error(`unexpected request: ${call.method} ${call.url}`);
+        });
+
+        detail(['users.read', 'audit.read', 'users.bot_memory.reset']);
+
+        await userEvent.click(await screen.findByRole('tab', { name: /activity/i }));
+        await waitFor(() => expect(activityReads).toBe(1));
+
+        await userEvent.click(screen.getByRole('button', RESET));
+        await userEvent.click(screen.getByRole('button', { name: /reset memory/i }));
+
+        await waitFor(() => expect(activityReads).toBe(2));
+        expect(detailReads).toBe(1);
+        expect(calls.filter((call) => call.url.includes('/bot-memory/reset'))).toHaveLength(1);
     });
 });
 

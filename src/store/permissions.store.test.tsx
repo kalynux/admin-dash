@@ -69,7 +69,7 @@ describe('loading the set', () => {
 
         await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('ready'));
         expect(calls.filter((call) => call.url.includes('/permissions/me'))).toHaveLength(1);
-        expect(screen.getByTestId('count')).toHaveTextContent('101');
+        expect(screen.getByTestId('count')).toHaveTextContent('105');
         expect(screen.getByTestId('label')).toHaveTextContent('Admin');
     });
 
@@ -112,7 +112,7 @@ describe('loading the set', () => {
         await userEvent.click(screen.getByRole('button', { name: 'reload' }));
 
         await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('ready'));
-        expect(screen.getByTestId('count')).toHaveTextContent('31');
+        expect(screen.getByTestId('count')).toHaveTextContent('39');
     });
 });
 
@@ -135,11 +135,11 @@ describe('a level change', () => {
         });
 
         render(<MovableLevel initial={2} />);
-        await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('101'));
+        await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('105'));
 
         await userEvent.click(screen.getByRole('button', { name: 'demote' }));
 
-        await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('31'));
+        await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('39'));
         expect(calls.filter((call) => call.url.includes('/permissions/me'))).toHaveLength(2);
     });
 });
@@ -176,13 +176,15 @@ describe('a refusal', () => {
     it('ignores a refusal that agrees with the set it already holds', async () => {
         const calls = await readySet(3);
 
-        // Support reaches the Money section on `money.payments.read` alone, then
-        // opens a payout's activity — `money.payouts.read` + `audit.read`, and it
-        // holds only the second. The refusal is exactly what its own set predicts,
-        // so re-reading would return the identical answer.
+        // Support reaches the Money section, then opens an owner's account
+        // activity — `money.earnings.read` + `billing.plans.read`, and it holds
+        // neither. (This used a payout's activity until 2026-09-22, when Support
+        // turned out to hold `money.payouts.read` after all.) The refusal is
+        // exactly what its own set predicts, so re-reading would return the
+        // identical answer.
         act(() => {
             emitPermissionDenied({
-                required: ['money.payouts.read', 'audit.read'],
+                required: ['money.earnings.read', 'billing.plans.read'],
                 mode: 'all',
                 code: 'AUTHZ_PERMISSION_DENIED',
             });

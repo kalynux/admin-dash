@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import {
     ArrowLeft,
     Ban,
+    BotOff,
     KeyRound,
     LogIn,
     Pencil,
@@ -16,6 +17,7 @@ import { ErrorState } from '@/components/common/DataState';
 import { DetailSkeleton } from '@/components/common/Loading';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { EditIdentifiersDialog } from '@/components/users/EditIdentifiersDialog';
+import { ResetBotMemoryDialog } from '@/components/users/ResetBotMemoryDialog';
 import { RestoreUserDialog } from '@/components/users/RestoreUserDialog';
 import { RoleProfilesPanel } from '@/components/users/RoleProfilesPanel';
 import {
@@ -38,7 +40,7 @@ import { getUser } from '@/services/users.service';
 import { useAdmin, useCan } from '@/store';
 import { ApiError, CODE_CLIENT_INVALID_ID } from '@/types/api.types';
 import { RoleBadges } from '@/components/users/RoleBadges';
-import { userDisplayName } from '@/types/users.types';
+import { isMissingProfile, userDisplayName } from '@/types/users.types';
 import { CopyableId } from '@/components/common/CopyableId';
 import { CopyableValue } from '@/components/common/CopyableValue';
 
@@ -116,6 +118,7 @@ function UserDetailScreen({ userId }: { userId: string }) {
      */
     const [sending, setSending] = useState<CredentialLinkKind | null>(null);
     const [messaging, setMessaging] = useState(false);
+    const [resettingBot, setResettingBot] = useState(false);
     const [activityToken, setActivityToken] = useState(0);
 
     const user = useAsyncData(`/users/${userId}`, (signal) => getUser(userId, { signal }));
@@ -170,6 +173,22 @@ function UserDetailScreen({ userId }: { userId: string }) {
      * follows the suspended-account rule below, where the only outcome is an error.
      */
     const closed = record.status === 'closed';
+    /**
+     * The bot keeps its memory on the **customer profile**, so an account with
+     * no customer role — or one whose `users` row claims the role while the
+     * profile is missing — answers `404 AUTH_PROFILE_NOT_FOUND`. Hidden rather
+     * than offered-and-refused, the rule the sign-in link follows.
+     *
+     * ⚠ **Deliberately NOT gated on status, unlike every other action here.**
+     * jovi-mall checks only that the user exists, so the reset works on a
+     * suspended and on a closed account, and touches nothing either keeps.
+     * The product owner chose to offer it in every state (2026-09-27) — so do
+     * not "tidy" it under the `!closed` or `status !== 'suspended'` guards.
+     */
+    const customerProfile = record.profiles.find((profile) => profile.role === 'customer');
+    const hasBotMemory =
+        record.roles.includes('customer') &&
+        !(customerProfile && isMissingProfile(customerProfile));
 
     return (
         <PageContainer
@@ -264,6 +283,24 @@ function UserDetailScreen({ userId }: { userId: string }) {
                                 </Can>
                             ) : null}
                         </>
+                    ) : null}
+
+                    {/*
+                      Support holds this too — the only `users.*` write it does,
+                      on purpose: the complaint is a Support ticket and this is
+                      the remedy. Gate on the permission, never on tier.
+                    */}
+                    {hasBotMemory ? (
+                        <Can permission="users.bot_memory.reset">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setResettingBot(true)}
+                            >
+                                <BotOff className="size-4" />
+                                Reset bot memory
+                            </Button>
+                        </Can>
                     ) : null}
 
                     {!closed ? (
@@ -401,7 +438,8 @@ function UserDetailScreen({ userId }: { userId: string }) {
                     */}
                     <p className="text-muted-foreground bg-muted/40 rounded-lg border p-3 text-xs leading-relaxed">
                         Login details, suspension and reinstatement are everything this screen can
-                        change. There is deliberately no role editor, no force sign-out and no
+                        change on the account itself — resetting the bot&rsquo;s memory touches none
+                        of it. There is deliberately no role editor, no force sign-out and no
                         password reset: removing a role would strand the records it owns, the
                         platform issues stateless tokens with no session to revoke — suspending
                         already blocks the next request on every device — and it has no
@@ -445,6 +483,15 @@ function UserDetailScreen({ userId }: { userId: string }) {
               Nothing about the user record changes, so this reloads the activity
               feed rather than the account.
             */}
+            {/*
+              Nothing on the account reflects a reset, so only the trail reloads.
+            */}
+            <ResetBotMemoryDialog
+                user={record}
+                open={resettingBot}
+                onOpenChange={setResettingBot}
+                onReset={() => setActivityToken((token) => token + 1)}
+            />
             <SendTelegramDialog
                 user={record}
                 open={messaging}

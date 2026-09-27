@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, BadgeCheck, Power, PowerOff } from 'lucide-react';
 
 import { AccountPanel } from '@/components/accounts/AccountPanel';
+import { AccountStatementButton } from '@/components/accounts/AccountStatementDialog';
 import { AgencyActivityPanel } from '@/components/agencies/AgencyActivityPanel';
 import { AgencyCascadeNotice } from '@/components/agencies/AgencyCascadeNotice';
 import {
@@ -186,6 +187,13 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
                       itself on the tab, because both outcomes are only reachable
                       while the agency is pending.
                     */}
+
+                    {/* Every tier, Support included — so in the header, never inside the Account tab. */}
+                    <AccountStatementButton
+                        ownerType="agency"
+                        ownerId={record.id}
+                        timeZone={timeZone}
+                    />
 
                     <Can permission="agencies.reactivate">
                         {canReactivateAgency(record) ? (

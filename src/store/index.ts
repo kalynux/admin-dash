@@ -21,6 +21,7 @@ export {
 export { PermissionsProvider } from './permissions.store';
 export {
     useCan,
+    useIsDeveloper,
     usePermissions,
     type CanPredicate,
     type PermissionsState,

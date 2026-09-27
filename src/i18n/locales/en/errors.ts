@@ -154,6 +154,9 @@ const codes = {
     // file, so "could not load" would send an operator hunting an outage.
     FILE_CONTENT_NOT_SUPPORTED: 'This platform cannot display stored files',
 
+    // ─── Account statements ─────────────────────────────────────────────────
+    STATEMENT_TOO_LARGE_TO_EMAIL: 'This statement is too large to email',
+
     // ─── Content ─────────────────────────────────────────────────────────────
     BLOG_ARTICLE_NOT_FOUND: 'No article with that key',
     BLOG_ARTICLE_KEY_TAKEN: 'Another article already uses that key',
@@ -240,6 +243,10 @@ const codeHints = {
     // No "try again": on this storage provider it will never succeed.
     FILE_CONTENT_NOT_SUPPORTED:
         'How this deployment stores files means their contents cannot be opened here. Nothing is wrong — the file details above are still accurate.',
+    // Both remedies, because either one works and only the operator knows which
+    // the account holder needs.
+    STATEMENT_TOO_LARGE_TO_EMAIL:
+        'Nothing was sent. Download the file instead, or choose a shorter period.',
 
     // The three tracking-door codes each need a different person, which is the
     // entire reason there are three rather than one.

@@ -23,7 +23,7 @@ import { NotificationsProvider, useAuth, usePermissions } from '@/store';
  * provider the component mounted itself.
  */
 export function DashboardShell({ actions }: { actions?: React.ReactNode }) {
-    const { status, held, error, reload } = usePermissions();
+    const { status, held, tier, error, reload } = usePermissions();
     const { signOut, isSigningOut } = useAuth();
 
     if (status === 'ready' && held) {
@@ -37,7 +37,7 @@ export function DashboardShell({ actions }: { actions?: React.ReactNode }) {
          */
         return (
             <NotificationsProvider>
-                <AppShell permissions={held} actions={actions} />
+                <AppShell permissions={held} tier={tier} actions={actions} />
             </NotificationsProvider>
         );
     }

@@ -11,10 +11,13 @@ import {
 } from '@/components/ui/command';
 import { permittedChildren, permittedSections } from '@/config/navigation';
 import type { HeldPermissions } from '@/lib/authorization';
+import type { AdminTier } from '@/types/auth.types';
 
 interface CommandPaletteProps {
     /** What the caller holds. Required, and a prop — see `Sidebar`. */
     permissions: HeldPermissions;
+    /** The resolved tier, for `developerOnly` entries. */
+    tier: AdminTier | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
 }
@@ -57,16 +60,16 @@ interface Destination {
  * should surface Payouts, and typing "orders" should surface Disputes, neither
  * of which contains the word.
  */
-export function CommandPalette({ permissions, open, onOpenChange }: CommandPaletteProps) {
+export function CommandPalette({ permissions, tier, open, onOpenChange }: CommandPaletteProps) {
     const navigate = useNavigate();
 
     const groups = useMemo(
         () =>
-            permittedSections(permissions).map((section) => ({
+            permittedSections(permissions, tier).map((section) => ({
                 id: section.id,
                 label: section.label,
                 destinations: section.items.flatMap<Destination>((item) => {
-                    const children = permittedChildren(item, permissions);
+                    const children = permittedChildren(item, permissions, tier);
 
                     // A container with children has no screen of its own — its
                     // path redirects to the first child the caller may open — so
@@ -101,7 +104,7 @@ export function CommandPalette({ permissions, open, onOpenChange }: CommandPalet
                     ];
                 }),
             })),
-        [permissions],
+        [permissions, tier],
     );
 
     function go(path: string) {

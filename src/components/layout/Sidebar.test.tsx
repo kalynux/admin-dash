@@ -11,7 +11,7 @@ import type { AdminTier } from '@/types/auth.types';
 function renderSidebar(tier: AdminTier, { collapsed = false, route = '/dashboard' } = {}) {
     return renderWithProviders(
         <TooltipProvider>
-            <Sidebar permissions={heldFixture(tier)} collapsed={collapsed} onToggle={vi.fn()} />
+            <Sidebar permissions={heldFixture(tier)} tier={tier} collapsed={collapsed} onToggle={vi.fn()} />
         </TooltipProvider>,
         { route },
     );

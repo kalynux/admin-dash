@@ -30,6 +30,7 @@
 import { ApiError } from '@/types/api.types';
 import type { TriageStamp } from '@/types/triage.types';
 import type { ActorStamp } from '@/types/actor.types';
+import type { FileDetail } from '@/types/files.types';
 
 /** `GET /cod/overview` · delegated. */
 export interface CodOverview {
@@ -194,7 +195,23 @@ export interface Remittance {
     agencyId: string;
     amount: number;
     currency: string | null;
+    /**
+     * The external bank/transfer/receipt id. **Optional since 2026-09-27** —
+     * `proof` replaced it as the evidence, so `null` is ordinary and is never
+     * to be flagged as missing evidence.
+     */
     reference: string | null;
+    /**
+     * The photo the agency attached to its declaration (receipt, transfer
+     * screenshot, the hand-over itself) — **what an operator checks before
+     * confirming**. Required on every declaration since 2026-09-27; `null` only
+     * on older rows, and that is not a reason to reject.
+     *
+     * ⚠ `url` is always `null` — `cod-proofs/` is a private tree — so the bytes
+     * come only from the audited content route, on a click. Never fetch it on
+     * mount, and never in a list. See `CodProof`.
+     */
+    proof: FileDetail | null;
     note: string | null;
     /** `declared` · `confirmed` · `rejected`. Unpinned on this side. */
     status: string;
@@ -263,7 +280,19 @@ export interface Deposit {
      */
     recipient: string;
     status: string;
+    /** Optional on an agent declaration since 2026-09-27 — `proof` is the evidence. */
     reference: string | null;
+    /**
+     * The photo the agent attached to their declaration — what to look at
+     * before confirming a `platform` deposit; read-only context on an `agency`
+     * one, which the agency answers.
+     *
+     * **`null` is normal** on a deposit recorded in one step (by an agency desk,
+     * or here through `POST /cod/deposits`, which takes no photo) and on any
+     * declaration older than 2026-09-27. Private tree, `url: null` — see
+     * `Remittance.proof`.
+     */
+    proof: FileDetail | null;
     declaredAt: string | null;
     resolvedAt: string | null;
     rejectionReason: string | null;

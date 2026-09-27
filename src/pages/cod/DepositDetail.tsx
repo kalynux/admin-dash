@@ -4,6 +4,7 @@ import { ArrowLeft, Info } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
 import { CashMovementsPanel } from '@/components/cod/CashMovementsPanel';
+import { CodProof } from '@/components/cod/CodProof';
 import {
     CodSettlementStatusBadge,
     DepositRecipientBadge,
@@ -19,7 +20,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { useAsyncData } from '@/hooks/use-async-data';
-import { usePendingPermission } from '@/hooks/use-pending-permission';
 import { resolveTimeZone } from '@/lib/datetime';
 import { formatInstantInZone, formatMoney } from '@/lib/format';
 import { getDeposit } from '@/services/cod.service';
@@ -31,7 +31,6 @@ import {
     isUnresolved,
     type DepositDetail as Deposit,
 } from '@/types/cod.types';
-import { PERMISSION_COD_TRIAGE } from '@/types/permissions.pending';
 
 /**
  * `GET /cod/deposits/:depositId` · `cod.deposits.read` · direct read.
@@ -59,12 +58,8 @@ export function DepositDetail() {
     const [confirming, setConfirming] = useState(false);
     const [rejecting, setRejecting] = useState(false);
     const [endorsing, setEndorsing] = useState(false);
-    /*
-      ⚠ `cod.triage` is not in `permissions.md` yet, so it cannot go through
-      `can()` — see `types/permissions.pending.ts`. The grant is real on the
-      live service; the catalogue is what is behind.
-    */
-    const canEndorse = usePendingPermission(PERMISSION_COD_TRIAGE);
+    const can = useCan();
+    const canEndorse = can('cod.triage');
 
     const deposit = useAsyncData(`/cod/deposits/${depositId}`, (signal) =>
         getDeposit(depositId, { signal }),
@@ -158,6 +153,12 @@ export function DepositDetail() {
                     </div>
                 ) : null}
 
+                {/*
+                  First, directly under Confirm / Reject on a `platform` deposit:
+                  since 2026-09-27 the photo is what an operator checks before
+                  answering. On an `agency` deposit it is read-only context.
+                */}
+                <ProofCard record={record} />
                 <DeclarationCard record={record} timeZone={timeZone} />
                 <ResolutionCard record={record} timeZone={timeZone} />
 
@@ -211,6 +212,27 @@ function BackLink() {
             <ArrowLeft className="size-4" />
             All deposits
         </Link>
+    );
+}
+
+function ProofCard({ record }: { record: Deposit }) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle className="flex items-center gap-1">
+                    Proof of hand-over
+                    <InfoHint label="About the proof">
+                        The photo the agent attached when declaring the hand-over. A deposit
+                        recorded in one step — at an agency desk, or here with Record deposit — has
+                        no declaration and so no photo, and neither does anything declared before
+                        27 September 2026.
+                    </InfoHint>
+                </CardTitle>
+            </CardHeader>
+            <CardContent>
+                <CodProof proof={record.proof} alt="the deposit proof photo" />
+            </CardContent>
+        </Card>
     );
 }
 
@@ -280,10 +302,10 @@ function DeclarationCard({ record, timeZone }: { record: Deposit; timeZone: stri
 
                     <Definition label="Reference">
                         {/*
-                          `plain`: a bank reference is what ties this record to a
-                          statement, so it is reconciled character for character
-                          and never shortened. The ternary stays — `None given`
-                          says more than `NotSet`'s default here.
+                          `plain`: a bank reference is reconciled character for
+                          character and never shortened. Optional on an agent
+                          declaration since 2026-09-27 — the photo is the
+                          evidence — so its absence is a plain "—", never a gap.
                         */}
                         {record.reference ? (
                             <CopyableValue
@@ -293,7 +315,7 @@ function DeclarationCard({ record, timeZone }: { record: Deposit; timeZone: stri
                                 label="deposit reference"
                             />
                         ) : (
-                            <NotSet>None given</NotSet>
+                            <NotSet>—</NotSet>
                         )}
                     </Definition>
 

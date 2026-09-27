@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo } from 'react';
 
-import { satisfies, type HeldPermissions } from '@/lib/authorization';
+import { isDeveloperTier, satisfies, type HeldPermissions } from '@/lib/authorization';
 import type { AdminTier } from '@/types/auth.types';
 import type {
     PermissionMode,
@@ -79,4 +79,16 @@ export function useCan(): CanPredicate {
             held ? satisfies(held, requirement, mode) : false;
         return can as CanPredicate;
     }, [held]);
+}
+
+/**
+ * Is the caller a Developer (tier 1)?
+ *
+ * For the handful of screens shown to Developers only — see `isDeveloperTier`.
+ * **Hides, never protects**: the permission behind those screens is still held
+ * by tier 2. Reads the tier `/permissions/me` resolved, so it fails closed while
+ * the set is unknown.
+ */
+export function useIsDeveloper(): boolean {
+    return isDeveloperTier(usePermissions().tier);
 }

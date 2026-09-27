@@ -562,6 +562,12 @@ export const KNOWN_ERROR_CODES = [
     // the boundary filter would replace the message and drop `details`, losing
     // the `platformCode` that says why.
     'FILE_CONTENT_NOT_SUPPORTED',
+    // Account statements (2026-09-27). wi-admin's own, raised at 413 BEFORE the
+    // mail relay: the rendered file is over the 8 MB the providers accept, so
+    // nothing was sent (the attempt is still audited, `failed`). `details`
+    // carries `bytes` and `maxBytes`. Its two siblings, `STATEMENT_RECIPIENT_*`,
+    // are jovi-mall's and arrive only as `details.platformCode`.
+    'STATEMENT_TOO_LARGE_TO_EMAIL',
     // Content — the blog editor
     'BLOG_ARTICLE_NOT_FOUND',
     'BLOG_ARTICLE_KEY_TAKEN',

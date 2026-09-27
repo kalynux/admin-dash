@@ -4,6 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
 import { AuthFormError } from '@/components/auth/AuthFormError';
+import { CodProof } from '@/components/cod/CodProof';
 import { CopyableValue } from '@/components/common/CopyableValue';
 import { FormField } from '@/components/common/FormField';
 import { InlineLoader } from '@/components/common/Loading';
@@ -36,6 +37,7 @@ import {
     resolveDiscrepancy,
 } from '@/services/cod.service';
 import { ApiError } from '@/types/api.types';
+import type { FileDetail } from '@/types/files.types';
 import {
     COD_REASON_MAX,
     COD_REASON_MIN,
@@ -215,6 +217,30 @@ function ConfirmActionForm({
 }
 
 /**
+ * The declaration's photo, inside a confirm dialog — since 2026-09-27 the
+ * evidence an operator checks before confirming. `null` says so plainly and is
+ * never a warning: older rows and one-step records carry none.
+ */
+function ProofBlock({
+    proof,
+    alt,
+    instruction,
+}: {
+    proof: FileDetail | null;
+    alt: string;
+    instruction: string;
+}) {
+    return (
+        <div className="space-y-2">
+            <p className="text-muted-foreground">
+                {proof ? instruction : 'No photo was attached to this declaration.'}
+            </p>
+            {proof ? <CodProof proof={proof} alt={alt} className="max-w-[240px]" /> : null}
+        </div>
+    );
+}
+
+/**
  * `POST /cod/remittances/:remittanceId/confirm` · `cod.remittances.confirm`.
  *
  * ⚠ **This is the assertion that the cash arrived**, and it is what releases
@@ -261,9 +287,19 @@ export function ConfirmRemittanceDialog({
                             holding back. It happens on the platform, in one transaction, and
                             nothing here can undo it.
                         </p>
+                        {/*
+                          The evidence, where the decision is made — including
+                          when this dialog was opened from a list row, which
+                          never shows the photo. Still a click to reveal.
+                        */}
+                        <ProofBlock
+                            proof={remittance.proof}
+                            alt="the remittance proof photo"
+                            instruction="Check the photo the agency attached before confirming."
+                        />
                         {remittance.reference ? (
                             <p className="text-muted-foreground">
-                                Check the reference against the statement first:{' '}
+                                Check the reference against the statement too:{' '}
                                 {/*
                                   Copyable even here, in a dialog: "check it
                                   against the statement" means pasting it into a
@@ -277,17 +313,11 @@ export function ConfirmRemittanceDialog({
                                     label="remittance reference"
                                 />
                             </p>
-                        ) : (
-                            /*
-                              `reference` is nullable and is the only thing tying
-                              the claim to a bank record — its absence is worth
-                              saying out loud on the screen that acts on it.
-                            */
-                            <p className="text-muted-foreground">
-                                The agency declared no reference, so there is nothing on this record
-                                tying it to a bank statement.
-                            </p>
-                        )}
+                        ) : null
+                        /*
+                          No warning when it is absent: the reference is optional
+                          since 2026-09-27 and the photo above is the evidence.
+                        */}
                     </div>
                 </ConfirmActionForm>
             </DialogContent>
@@ -340,6 +370,11 @@ export function ConfirmDepositDialog({
                             owed and what the agency owed the platform — because the cash bypassed
                             the agency. It cannot be undone from here.
                         </p>
+                        <ProofBlock
+                            proof={deposit.proof}
+                            alt="the deposit proof photo"
+                            instruction="Check the photo the agent attached before confirming."
+                        />
                         {deposit.reference ? (
                             <p className="text-muted-foreground">
                                 Reference:{' '}

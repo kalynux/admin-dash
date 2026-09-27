@@ -1200,6 +1200,10 @@ export const VENDOR_AUDIT_ACTION_LABELS: Record<string, string> = {
     'vendors.products.restore': 'Listing put back on sale',
     'vendors.settings.update': 'Order settings changed',
     'billing.subscriptions.assign_vendor': 'Subscription plan assigned',
+    // Lands on this feed by `target`, like the plan assignment above, and for
+    // the same reason is not offered in the filter: the feed's `?action=` enum
+    // is `vendors.*` only, so selecting it would be a `400`.
+    'money.statements.send_vendor': 'Sent account statement',
 };
 
 /**

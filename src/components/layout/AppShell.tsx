@@ -15,6 +15,7 @@ import { useIsMobile, useIsTablet } from '@/hooks/use-mobile';
 import { useRouteFocus } from '@/hooks/use-route-focus';
 import { useUIStore } from '@/store';
 import type { HeldPermissions } from '@/lib/authorization';
+import type { AdminTier } from '@/types/auth.types';
 import { cn } from '@/lib/utils';
 
 interface AppShellProps {
@@ -25,6 +26,11 @@ interface AppShellProps {
      * until the set has arrived — so there is no "unknown" state to model here.
      */
     permissions: HeldPermissions;
+    /**
+     * The tier `/permissions/me` resolved. Only `developerOnly` nav entries read
+     * it — see `isDeveloperTier`.
+     */
+    tier: AdminTier | null;
     /**
      * Header-right slot — the account menu today, the inbox bell in Phase 4.
      * Passed through to both the desktop and mobile headers so nothing is
@@ -49,7 +55,7 @@ interface AppShellProps {
  * - `useRouteFocus`, which resets scroll and focus the way a real page load does;
  * - `RouteAnnouncer`, which says where you landed.
  */
-export function AppShell({ permissions, actions }: AppShellProps) {
+export function AppShell({ permissions, tier, actions }: AppShellProps) {
     const isMobile = useIsMobile();
     const isTablet = useIsTablet();
     const { sidebarCollapsed, toggleSidebar } = useUIStore();
@@ -76,6 +82,7 @@ export function AppShell({ permissions, actions }: AppShellProps) {
                 {!isMobile && (
                     <Sidebar
                         permissions={permissions}
+                        tier={tier}
                         collapsed={collapsed}
                         onToggle={toggleSidebar}
                         collapsible={!isTablet}
@@ -89,7 +96,7 @@ export function AppShell({ permissions, actions }: AppShellProps) {
                     )}
                 >
                     {isMobile ? (
-                        <MobileHeader permissions={permissions} actions={actions} />
+                        <MobileHeader permissions={permissions} tier={tier} actions={actions} />
                     ) : (
                         <Header actions={actions} onOpenPalette={openPalette} />
                     )}
@@ -118,11 +125,12 @@ export function AppShell({ permissions, actions }: AppShellProps) {
                     </main>
                 </div>
 
-                {isMobile && <MobileTabBar permissions={permissions} />}
+                {isMobile && <MobileTabBar permissions={permissions} tier={tier} />}
 
                 <CommandPaletteHotkey onOpen={openPalette} />
                 <CommandPalette
                     permissions={permissions}
+                    tier={tier}
                     open={paletteOpen}
                     onOpenChange={setPaletteOpen}
                 />

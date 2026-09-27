@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
 import { CashMovementsPanel } from '@/components/cod/CashMovementsPanel';
+import { CodProof } from '@/components/cod/CodProof';
 import { CodSettlementStatusBadge } from '@/components/cod/CodBadges';
 import { CodTriageDialog } from '@/components/cod/CodTriageDialog';
 import {
@@ -19,14 +20,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { useAsyncData } from '@/hooks/use-async-data';
-import { usePendingPermission } from '@/hooks/use-pending-permission';
 import { resolveTimeZone } from '@/lib/datetime';
 import { formatInstantInZone, formatMoney } from '@/lib/format';
 import { getRemittance } from '@/services/cod.service';
 import { useAdmin, useCan } from '@/store';
 import { isPlatformActor } from '@/types/actor.types';
 import { isUnresolved, type RemittanceDetail as Remittance } from '@/types/cod.types';
-import { PERMISSION_COD_TRIAGE } from '@/types/permissions.pending';
 
 /**
  * `GET /cod/remittances/:remittanceId` · `cod.remittances.read` · direct read.
@@ -53,12 +52,8 @@ export function RemittanceDetail() {
     const [confirming, setConfirming] = useState(false);
     const [rejecting, setRejecting] = useState(false);
     const [endorsing, setEndorsing] = useState(false);
-    /*
-      ⚠ `cod.triage` is not in `permissions.md` yet, so it cannot go through
-      `can()` — see `types/permissions.pending.ts`. It is a real grant on the
-      live service; the catalogue is what is behind.
-    */
-    const canEndorse = usePendingPermission(PERMISSION_COD_TRIAGE);
+    const can = useCan();
+    const canEndorse = can('cod.triage');
 
     const remittance = useAsyncData(`/cod/remittances/${remittanceId}`, (signal) =>
         getRemittance(remittanceId, { signal }),
@@ -136,6 +131,12 @@ export function RemittanceDetail() {
             <div className="space-y-4">
                 <BackLink />
 
+                {/*
+                  First, directly under Confirm / Reject: since 2026-09-27 the
+                  photo is the evidence an operator checks before answering, and
+                  the reference is optional.
+                */}
+                <ProofCard record={record} />
                 <DeclarationCard record={record} timeZone={timeZone} />
                 <ResolutionCard record={record} timeZone={timeZone} />
 
@@ -190,6 +191,19 @@ function BackLink() {
     );
 }
 
+function ProofCard({ record }: { record: Remittance }) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Proof of hand-over</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <CodProof proof={record.proof} alt="the remittance proof photo" />
+            </CardContent>
+        </Card>
+    );
+}
+
 function DeclarationCard({ record, timeZone }: { record: Remittance; timeZone: string }) {
     const can = useCan();
 
@@ -229,9 +243,9 @@ function DeclarationCard({ record, timeZone }: { record: Remittance; timeZone: s
                         label="Reference"
                         hint={
                             <InfoHint label="About the reference">
-                                The external bank, transfer or receipt id — evidence, not a
-                                credential. It is what an operator reconciles against a statement,
-                                and the agency chose it.
+                                The external bank, transfer or receipt id, chosen by the agency.
+                                Optional since 27 September 2026 — the photo above is the evidence
+                                — so an empty one is ordinary.
                             </InfoHint>
                         }
                     >
@@ -248,7 +262,8 @@ function DeclarationCard({ record, timeZone }: { record: Remittance; timeZone: s
                                 label="remittance reference"
                             />
                         ) : (
-                            <NotSet>None given</NotSet>
+                            /* Optional since the photo became the evidence — not a gap. */
+                            <NotSet>—</NotSet>
                         )}
                     </Definition>
 

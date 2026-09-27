@@ -13,6 +13,7 @@
  * everything in this file is an affordance hint. The server is the authority.
  */
 
+import type { AdminTier } from '@/types/auth.types';
 import type { PermissionMode, PermissionRequirement } from '@/types/permissions.types';
 
 /**
@@ -64,4 +65,25 @@ export function satisfies(
     const required = toRequirementList(requirement);
     if (required.length === 0) return true;
     return mode === 'all' ? hasAll(held, required) : hasAny(held, required);
+}
+
+/**
+ * The Developer tier. Lower number, more privilege.
+ *
+ * **This is a display rule, not an access rule.** A few screens are shown to
+ * Developers only because the owner decided so (2026-09-27), and the service
+ * knows nothing of it: tier 2 still holds the permission and can still call the
+ * endpoint. Hiding a screen with this protects nothing against someone calling
+ * the API directly. If it ever has to be enforced, the backend must move the
+ * permission; until then, keep every such rule behind this one predicate so they
+ * can all be found with one search.
+ *
+ * `tier` is the one `/permissions/me` resolved, re-read on every request, so a
+ * demotion applies on the next reload of the set.
+ */
+export const DEVELOPER_TIER: AdminTier = 1;
+
+/** Is this the Developer tier? `false` while the tier is unknown — fail closed. */
+export function isDeveloperTier(tier: AdminTier | null | undefined): boolean {
+    return tier === DEVELOPER_TIER;
 }

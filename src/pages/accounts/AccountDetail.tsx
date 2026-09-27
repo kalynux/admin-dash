@@ -6,6 +6,7 @@ import { AccountActivityPanel } from '@/components/accounts/AccountActivityPanel
 import { AccountCashLedgerPanel } from '@/components/accounts/AccountCashLedgerPanel';
 import { AccountCreditsPanel } from '@/components/accounts/AccountCreditsPanel';
 import { AccountPanel } from '@/components/accounts/AccountPanel';
+import { AccountStatementButton } from '@/components/accounts/AccountStatementDialog';
 import { AccountPayoutsPanel } from '@/components/accounts/AccountPayoutsPanel';
 import { EmptyState } from '@/components/common/DataState';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -130,6 +131,13 @@ function ResolvedAccount({
             // unchanged. What changes is that it is now copyable, which is what
             // an operator actually wants a raw id *for*.
             description={<CopyableId value={ownerId} label="owner ID" truncate={false} />}
+            actions={
+                <AccountStatementButton
+                    ownerType={ownerType}
+                    ownerId={ownerId}
+                    timeZone={timeZone}
+                />
+            }
         >
             <div className="space-y-4">
                 <BackLink />

@@ -8,7 +8,7 @@
  * draw that line themselves: `GET /permissions/catalog` requires no permission
  * because "the vocabulary is what a dashboard is written against"
  * (`authorization.md`), while `permissions.md` says in as many words *"Do not
- * hard-code the matrix below into the dashboard"*. So the 121 **names** live
+ * hard-code the matrix below into the dashboard"*. So the 125 **names** live
  * here as literal types — a typo becomes a compile error rather than a module
  * that silently never renders — and **who holds what** comes only from
  * `GET /permissions/me`, never from this file.
@@ -22,7 +22,24 @@ import type { AdminTier } from '@/types/auth.types';
 // ─── The catalogue ────────────────────────────────────────────────────────────
 
 /**
- * All 121 permissions, `family.resource.action`, in the doc's own family order.
+ * All 125 permissions, `family.resource.action`, in the doc's own family order.
+ *
+ * The 125th is `money.statements.send` (2026-09-27, account statements), held by
+ * **every** tier — 125 / 105 / 39, measured with `npm run authz:matrix`. ⚠ It
+ * was taken from `permission.catalog.ts` and the matrix **before
+ * `permissions.md` published it**, at the changelog's instruction, so the
+ * doc-parsing guard in `permissions.types.test.ts` stays red until that page is
+ * re-derived upstream and re-copied here. That is the guard doing its job; do
+ * not weaken it, and do not edit the mirror to match.
+ *
+ * The 122nd, 123rd and 124th are `cod.triage`, `money.payouts.triage` (ADR-024,
+ * served since 2026-09-16) and `users.bot_memory.reset` (2026-09-22), absorbed
+ * together when `permissions.md` was re-derived from source. All three are held
+ * by **every** tier, and four existing reads (`cod.overview.read`,
+ * `cod.remittances.read`, `cod.deposits.read`, `money.payouts.read`) turned out
+ * to have been granted to Support in code all along — so the totals moved
+ * 121/101/31 → 124/104/38. The two `triage` names had waited in a
+ * `permissions.pending.ts` waiting room, deleted the day they arrived here.
  *
  * The 119th, 120th and 121st are `administrators.activate`, `employees.read` and
  * `employees.employment.write`, added 2026-09-14 with ADR-023. ⚠ **All three are
@@ -88,14 +105,19 @@ export const PERMISSION_NAMES = [
     'cod.discrepancies.resolve',
     'cod.holders.read',
     'cod.trust.adjust',
+    'cod.triage',
 
     // money
     'money.earnings.read',
     'money.payouts.read',
     'money.payouts.mark_paid',
     'money.payouts.reject',
+    'money.payouts.triage',
     'money.payouts.destination.read',
     'money.payments.read',
+    // Every tier, Support included (owner decision 2026-09-27). Named `send`,
+    // but it covers the download as well as the email.
+    'money.statements.send',
 
     // orders
     'orders.read',
@@ -194,6 +216,10 @@ export const PERMISSION_NAMES = [
     'users.sessions.revoke', // †
     'users.password.reset',
     'users.login_link.send',
+    // ⚠ The one `users.*` write Support holds, on purpose: the complaint arrives
+    // as a ticket and this is the remedy, and it touches nothing the platform
+    // keeps about the person. Not a precedent for the writes around it.
+    'users.bot_memory.reset',
     'users.roles.manage', // †
 
     // vendors
@@ -353,14 +379,14 @@ export const PERMISSION_FAMILIES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Any of the 121. Use for what the *server* may send us. */
+/** Any of the 125. Use for what the *server* may send us. */
 export type PermissionName = (typeof PERMISSION_NAMES)[number];
 
 /** One of the four `†`. */
 export type UnroutedPermissionName = (typeof UNROUTED_PERMISSION_NAMES)[number];
 
 /**
- * The 117 that gate a real endpoint — 121 less the four `†`. **Use for what *our code* asks for** — nav
+ * The 121 that gate a real endpoint — 125 less the four `†`. **Use for what *our code* asks for** — nav
  * items, `<Can>`, `RequirePermission` — so that gating a screen on a permission
  * whose endpoint does not exist is a `tsc` error.
  */

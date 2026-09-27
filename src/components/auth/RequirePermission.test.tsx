@@ -37,6 +37,26 @@ describe('RequirePermission', () => {
         expect(screen.queryByText(/your level/i)).not.toBeInTheDocument();
     });
 
+    it('refuses a developer-only route below tier 1, whatever is held', () => {
+        const { unmount } = renderWithProviders(
+            <RequirePermission permission="money.earnings.read" subject="Earnings" developerOnly>
+                <div>platform earnings</div>
+            </RequirePermission>,
+            { permissions: { held: heldFixture(2), tier: 2 } },
+        );
+        expect(screen.queryByText('platform earnings')).not.toBeInTheDocument();
+        expect(screen.getByText(/not available to you/i)).toBeInTheDocument();
+        unmount();
+
+        renderWithProviders(
+            <RequirePermission permission="money.earnings.read" subject="Earnings" developerOnly>
+                <div>platform earnings</div>
+            </RequirePermission>,
+            { permissions: { held: heldFixture(1), tier: 1 } },
+        );
+        expect(screen.getByText('platform earnings')).toBeInTheDocument();
+    });
+
     it('reads a list in the mode it is given', () => {
         const composite = ['money.earnings.read', 'billing.plans.read'] as const;
 

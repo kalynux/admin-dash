@@ -4,6 +4,7 @@ import { ErrorState } from '@/components/common/DataState';
 import { ListSkeleton } from '@/components/common/Loading';
 import { EmployeeDocumentsPanel } from '@/components/employees/EmployeeDocumentsPanel';
 import { EmployeeEmploymentPanel } from '@/components/employees/EmployeeEmploymentPanel';
+import { EmployeePayoutPanel } from '@/components/employees/EmployeePayoutPanel';
 import { EmployeeReadinessPanel } from '@/components/employees/EmployeeReadinessPanel';
 import { EmployeeRecordForm } from '@/components/employees/EmployeeRecordForm';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -59,6 +60,8 @@ export function MyEmployeeRecord() {
                     )}
 
                     <EmployeeRecordForm record={current} onSaved={setRecord} />
+
+                    <EmployeePayoutPanel record={current} onChange={setRecord} />
 
                     <EmployeeDocumentsPanel record={current} onChange={setRecord} />
 

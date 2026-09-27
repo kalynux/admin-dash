@@ -13,9 +13,15 @@ import { cn } from '@/lib/utils';
 import { listOwnerAccountActivity } from '@/services/accounts.service';
 import {
     ACCOUNT_ACTIVITY_CATEGORY_LABELS,
+    sumAccountActivity,
     type AccountActivityItem,
     type AccountOwnerType,
 } from '@/types/accounts.types';
+
+/** Money moving between the owner's own balances (2026-09-27). Rendered muted, never summed. */
+function isInternal(item: AccountActivityItem): boolean {
+    return item.direction === 'internal';
+}
 
 interface AccountActivityPanelProps {
     ownerType: AccountOwnerType;
@@ -99,6 +105,9 @@ export function AccountActivityPanel({
      */
     const rows = useMemo(() => [...older, ...(feed.data?.data ?? [])], [older, feed.data]);
 
+    /** Over the loaded rows only, and never counting an `internal` one. */
+    const totals = useMemo(() => sumAccountActivity(rows), [rows]);
+
     function loadMore() {
         if (!meta?.nextCursor) return;
         setOlder(rows);
@@ -119,11 +128,27 @@ export function AccountActivityPanel({
                 className: 'align-top',
                 cell: (item) => (
                     <div className="min-w-0 space-y-1">
-                        <p className="text-sm font-medium">{item.description}</p>
+                        <p
+                            className={cn(
+                                'text-sm font-medium',
+                                isInternal(item) && 'text-muted-foreground font-normal',
+                            )}
+                        >
+                            {item.description}
+                        </p>
                         <div className="flex flex-wrap items-center gap-1">
                             <Badge variant="outline" className="text-[11px]">
                                 {ACCOUNT_ACTIVITY_CATEGORY_LABELS[item.category] ?? item.category}
                             </Badge>
+                            {isInternal(item) ? (
+                                <Badge
+                                    variant="outline"
+                                    className="text-muted-foreground text-[11px]"
+                                    title="Moved between this owner's own balances — neither arriving nor leaving"
+                                >
+                                    Internal
+                                </Badge>
+                            ) : null}
                             {/*
                               Unenumerated in both services — rendered raw, never
                               switched on.
@@ -155,10 +180,17 @@ export function AccountActivityPanel({
                           bare number would make a payout and an earning look the
                           same, so the arrow carries the meaning the data does.
                         */}
+                        {/*
+                          `internal` (2026-09-27) gets no sign and a muted
+                          figure: the money stayed with the owner, moving
+                          between their own balances, so neither `+` nor `−`
+                          is true of it.
+                        */}
                         <p
                             className={cn(
                                 'font-medium tabular-nums',
                                 item.direction === 'in' && 'text-success',
+                                isInternal(item) && 'text-muted-foreground font-normal',
                             )}
                         >
                             {item.direction === 'in' ? '+' : item.direction === 'out' ? '−' : ''}
@@ -205,6 +237,34 @@ export function AccountActivityPanel({
                     permissions, so an empty feed never means no cash has moved.
                 </InfoHint>
             </p>
+
+            {totals.length > 0 ? (
+                <div className="bg-muted/30 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border px-3 py-2 text-sm">
+                    <span className="text-muted-foreground flex items-center gap-1 text-xs">
+                        Across the {formatCount(rows.length)} movements loaded
+                        <InfoHint label="About these totals">
+                            Money only, and only what has been loaded so far — load older
+                            movements to widen it. Internal movements (an earning released from
+                            escrow, a cash-on-delivery reserve, a payout not yet paid) are left out:
+                            that money stayed with the owner, and counting a release as well as the
+                            earning it releases would count it twice. Credits are not money and are
+                            not added in.
+                        </InfoHint>
+                    </span>
+                    {totals.map((total) => (
+                        <span key={total.currency ?? 'none'} className="tabular-nums">
+                            <span className="text-success font-medium">
+                                +{formatMoney(total.moneyIn, total.currency)}
+                            </span>{' '}
+                            in ·{' '}
+                            <span className="font-medium">
+                                −{formatMoney(total.moneyOut, total.currency)}
+                            </span>{' '}
+                            out
+                        </span>
+                    ))}
+                </div>
+            ) : null}
 
             <DataTable
                 caption={`Money movements on this ${ownerType}'s account`}

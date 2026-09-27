@@ -129,6 +129,7 @@ const codes = {
     // réponse le porte dans `details.maxBytes`.
     FILE_UPLOAD_TOO_LARGE: 'Ce fichier est trop volumineux pour être envoyé',
     FILE_CONTENT_NOT_SUPPORTED: 'Cette plateforme ne peut pas afficher les fichiers stockés',
+    STATEMENT_TOO_LARGE_TO_EMAIL: 'Ce relevé est trop volumineux pour être envoyé par e-mail',
 
     // ─── Notifications ───────────────────────────────────────────────────────
     NOTIFICATION_NOT_FOUND: 'Notification introuvable',
@@ -202,6 +203,8 @@ const codeHints = {
         'Rien n’a été envoyé. Transmettez une version plus légère, ou répartissez-la sur plusieurs fichiers.',
     FILE_CONTENT_NOT_SUPPORTED:
         'Le mode de stockage de ce déploiement empêche d’ouvrir le contenu des fichiers ici. Rien n’est en panne — les informations ci-dessus restent exactes.',
+    STATEMENT_TOO_LARGE_TO_EMAIL:
+        'Rien n’a été envoyé. Téléchargez le fichier, ou choisissez une période plus courte.',
 
     SERVICE_DEPENDENCY_UNAVAILABLE:
         'Ce n’est pas de votre fait et cela ne se corrige pas d’ici. Réessayez sous peu, et citez la référence si cela persiste.',

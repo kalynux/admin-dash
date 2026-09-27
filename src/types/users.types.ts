@@ -321,6 +321,39 @@ export interface CredentialLinkResult {
     sentAt: string;
 }
 
+// ─── The customer bot's memory ────────────────────────────────────────────────
+
+/** The reason is the body's only field, and the body is strict. */
+export const BOT_MEMORY_REASON_MIN = 3;
+export const BOT_MEMORY_REASON_MAX = 500;
+
+/**
+ * `POST /users/:userId/bot-memory/reset`'s body.
+ *
+ * ⚠ **Omit `reason` rather than sending `""`** — an empty string is a `400`.
+ * `clearable()` semantics do not apply: this is not a PATCH field, and the
+ * body is strict, so nothing else may ride along either.
+ */
+export interface BotMemoryResetBody {
+    reason?: string;
+}
+
+/**
+ * What a reset answers — exactly these three; wi-admin names them one by one.
+ *
+ * Nothing on the detail screen reflects the reset, so this is shown once, in
+ * the success toast, and never stored.
+ */
+export interface BotMemoryResetResult {
+    userId: string;
+    /**
+     * jovi-mall's counter, which only goes up. ⚠ **Opaque**: display it if
+     * useful, never compute with it, never compare two users'.
+     */
+    memoryEpoch: number;
+    resetAt: string;
+}
+
 /**
  * `GET /users/:userId/activity` query parameters.
  *
@@ -378,10 +411,12 @@ export const USER_MAX_RANGE_DAYS = 366;
 /**
  * The `users.*` audit actions, for the activity feed's filter.
  *
- * Exactly three today (`backend/admin/src/modules/audit/domain/audit.catalog.ts:409-433`).
+ * Six today (`backend/admin/src/modules/audit/domain/audit.catalog.ts`); the
+ * sixth, `users.bot_memory.reset`, arrived on 2026-09-22 and shares its name
+ * with the permission that guards it — the service names several that way.
  * The backend **derives** its own filter from the catalog so it widens
  * automatically; this list cannot, so it is a filter vocabulary only — an
- * incoming row naming a fourth action still renders, because nothing here
+ * incoming row naming a seventh action still renders, because nothing here
  * switches on `action`.
  */
 export const USER_AUDIT_ACTIONS = [
@@ -390,10 +425,11 @@ export const USER_AUDIT_ACTIONS = [
     'users.reinstate',
     'users.password_reset_link.send',
     'users.login_link.send',
+    'users.bot_memory.reset',
 ] as const;
 
 /**
- * How the five read to a person. Falls back to the raw name for anything new.
+ * How the six read to a person. Falls back to the raw name for anything new.
  *
  * ⚠ The two sends are flagged **sensitive** server-side and record the channel
  * and the reason — **never the token, the link, or the full address**. The trail
@@ -406,6 +442,7 @@ export const USER_AUDIT_ACTION_LABELS: Record<string, string> = {
     'users.reinstate': 'Reinstated',
     'users.password_reset_link.send': 'Password-reset link sent',
     'users.login_link.send': 'Sign-in link sent',
+    'users.bot_memory.reset': 'Bot memory reset',
 };
 
 // ─── Display helpers ──────────────────────────────────────────────────────────

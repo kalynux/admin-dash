@@ -48,7 +48,11 @@ import type {
     CreditLedgerMeta,
     CreditLedgerQuery,
     OwnerAccount,
+    StatementDownload,
+    StatementEmailResult,
+    StatementRequest,
 } from '@/types/accounts.types';
+import { statementFileName } from '@/types/accounts.types';
 import type { Payout } from '@/types/money.types';
 
 /**
@@ -279,3 +283,70 @@ export const ACCOUNT_ACTIVITY_PERMISSIONS = ['money.earnings.read', 'billing.pla
 export const ACCOUNT_PAYOUTS_PERMISSION = 'money.payouts.read' as const;
 export const ACCOUNT_CREDITS_PERMISSION = 'billing.plans.read' as const;
 export const ACCOUNT_CASH_LEDGER_PERMISSION = 'cod.overview.read' as const;
+
+// ─── Account statements ───────────────────────────────────────────────────────
+
+/**
+ * The statement route, one per owner. **Every tier** holds its permission.
+ */
+export const ACCOUNT_STATEMENT_PERMISSION = 'money.statements.send' as const;
+
+function statementPath(ownerType: AccountOwnerType, ownerId: string): string {
+    return `/accounts/${encodeURIComponent(ownerType)}/${encodeURIComponent(ownerId)}/statements`;
+}
+
+/**
+ * `POST /accounts/:ownerType/:ownerId/statements` with `delivery: "download"` ·
+ * **`money.statements.send`** · audited (`money.statements.send_<ownerType>`).
+ *
+ * The answer is **the file itself**, not an envelope, so it goes through
+ * `api.postForDownload`. The file name falls back to the server's documented
+ * pattern when `Content-Disposition` is hidden by CORS.
+ *
+ * @throws `400 VALIDATION_ERROR` — bad dates, `from` after `to`, or a period
+ *         over 366 days.
+ */
+export async function downloadAccountStatement(
+    ownerType: AccountOwnerType,
+    ownerId: string,
+    request: StatementRequest,
+    options?: RequestOptions,
+): Promise<StatementDownload> {
+    const file = await api.postForDownload(
+        statementPath(ownerType, ownerId),
+        { ...request, delivery: 'download' },
+        options,
+    );
+    return {
+        blob: file.blob,
+        fileName: file.fileName ?? statementFileName(ownerType, ownerId, request),
+    };
+}
+
+/**
+ * `POST /accounts/:ownerType/:ownerId/statements` with `delivery: "email"` ·
+ * **`money.statements.send`** · audited, and a failed email is still on the
+ * trail, stamped `failed`.
+ *
+ * Sent to the account's **registered, verified** email only — the body is
+ * strict and has no recipient field. `recipient` comes back **masked**.
+ *
+ * @throws `413 STATEMENT_TOO_LARGE_TO_EMAIL` — over 8 MB; download instead or
+ *         shorten the period. Nothing was sent.
+ * @throws `409 PLATFORM_OPERATION_REJECTED`, `details.platformCode`
+ *         `STATEMENT_RECIPIENT_MISSING` / `STATEMENT_RECIPIENT_UNVERIFIED` —
+ *         no usable address; download instead.
+ * @throws `503 SERVICE_DEPENDENCY_UNAVAILABLE` — jovi-mall unreachable.
+ */
+export function emailAccountStatement(
+    ownerType: AccountOwnerType,
+    ownerId: string,
+    request: StatementRequest,
+    options?: RequestOptions,
+): Promise<StatementEmailResult> {
+    return api.post<StatementEmailResult>(
+        statementPath(ownerType, ownerId),
+        { ...request, delivery: 'email' },
+        options,
+    );
+}

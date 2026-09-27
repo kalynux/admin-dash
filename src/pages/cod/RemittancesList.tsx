@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Coins, X } from 'lucide-react';
 
 import { CodSettlementStatusBadge } from '@/components/cod/CodBadges';
+import { CodProofIndicator } from '@/components/cod/CodProof';
 import {
     ConfirmRemittanceDialog,
     RejectRemittanceDialog,
@@ -115,9 +116,10 @@ export function RemittancesList() {
                           reconciled character for character and must never be
                           shortened.
 
-                          Where there is none, the plain link stays. Its absence
-                          is worth showing rather than hiding behind the id
-                          silently, and `NotSet` would take the way in with it.
+                          Where there is none, the plain link stays, worded as a
+                          way in rather than a gap: the reference is optional
+                          since 2026-09-27 — the photo is the evidence — so
+                          "No reference" would read as missing evidence.
                         */}
                         {row.reference ? (
                             <CopyableValue
@@ -133,7 +135,7 @@ export function RemittancesList() {
                                 to={`/dashboard/cod/remittances/${row.id}`}
                                 className="font-medium hover:underline"
                             >
-                                No reference
+                                Open declaration
                             </Link>
                         )}
                         {row.note ? (
@@ -143,6 +145,14 @@ export function RemittancesList() {
                         ) : null}
                     </div>
                 ),
+            },
+            {
+                id: 'proof',
+                header: 'Proof',
+                className: 'align-top',
+                // A mark, never the photo: opening it is an audited read, and a
+                // list would file one per row scrolled past. It opens on the detail.
+                cell: (row) => <CodProofIndicator proof={row.proof} />,
             },
             {
                 id: 'agency',

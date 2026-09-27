@@ -206,10 +206,15 @@ describe('children', () => {
     });
 
     it('lands a module on the first child the caller may actually open', () => {
-        // Support holds `money.payments.read` and nothing else under Money. A
-        // redirect fixed at "the first child declared" would send them to
-        // Earnings and refuse — which is the bug this function exists to prevent.
-        expect(firstPermittedChild(money, heldFixture(3))?.id).toBe('money-payments');
+        // Support holds no `money.earnings.read`, so a redirect fixed at "the
+        // first child declared" could send them to Earnings and refuse — which is
+        // the bug this function exists to prevent. Since 2026-09-22 they hold
+        // `money.payouts.read` (ADR-024's review stage), so they land on Payouts
+        // like an Admin; a held set with payments alone still skips to Payments.
+        expect(firstPermittedChild(money, heldFixture(3))?.id).toBe('money-payouts');
+        expect(firstPermittedChild(money, new Set(['money.payments.read']))?.id).toBe(
+            'money-payments',
+        );
         // An Admin lands on Payouts, the one child that is actually built —
         // which is why it is declared first. Move this when Earnings ships.
         expect(firstPermittedChild(money, heldFixture(2))?.id).toBe('money-payouts');
@@ -313,6 +318,11 @@ describe('permittedSections', () => {
         // and may write articles and bylines while holding neither `publish` nor
         // `delete`. Blog is visible because a container is reachable when
         // anything inside it is.
+        //
+        // **Finance gained Cash on delivery on 2026-09-22.** Support holds
+        // `cod.overview.read`, `cod.remittances.read` and `cod.deposits.read`
+        // — granted in code all along, published only when `permissions.md` was
+        // re-derived — plus `cod.triage` to endorse what it reads.
         const sections = permittedSections(heldFixture(3));
 
         expect(
@@ -322,7 +332,7 @@ describe('permittedSections', () => {
             ['directories', ['users', 'vendors', 'agencies', 'agents']],
             ['operations', ['orders', 'shipments']],
             ['support', ['support-tickets', 'content']],
-            ['finance', ['money']],
+            ['finance', ['cod', 'money']],
             ['administration', ['audit']],
             ['platform', ['system', 'automation']],
         ]);
@@ -452,19 +462,26 @@ describe('route access', () => {
         expect(canAccessRoute(support, '/dashboard/administrators')).toBe(false);
     });
 
-    it('keeps the whole finance surface away from Support', () => {
+    it('gives Support the review desk and keeps accounts away from it', () => {
         /*
-         * Support holds none of `money.earnings.read`, `money.payouts.read`,
-         * `billing.plans.read` or `cod.overview.read`, so the accounts module and
-         * the payout queue are both unreachable — proved from the held set, never
-         * from a tier check in a component.
+         * ⚠ **Rewritten 2026-09-22.** This read *"keeps the whole finance surface
+         * away from Support"* until `permissions.md` was re-derived: Support holds
+         * `money.payouts.read`, the three COD reads and both `triage` names — the
+         * review stage below the tier that pays (ADR-024). What it still lacks is
+         * `money.earnings.read` and `billing.plans.read`, so the composed
+         * accounts view stays unreachable — proved from the held set, never from a
+         * tier check in a component.
          *
          * Money itself stays visible: `money.payments.read` is Support's, and
          * "did my payment go through" is one of the commonest ticket questions.
          */
         const support = heldFixture(3);
         expect(canAccessRoute(support, '/dashboard/accounts')).toBe(false);
-        expect(canAccessRoute(support, '/dashboard/money/payouts')).toBe(false);
+        expect(canAccessRoute(support, '/dashboard/money/payouts')).toBe(true);
+        expect(canAccessRoute(support, '/dashboard/cod/deposits')).toBe(true);
+        expect(canAccessRoute(support, '/dashboard/cod/remittances')).toBe(true);
+        expect(canAccessRoute(support, '/dashboard/cod/holders')).toBe(false);
+        expect(canAccessRoute(support, '/dashboard/cod/discrepancies')).toBe(false);
         expect(canAccessRoute(support, '/dashboard/money/payments')).toBe(true);
     });
 
@@ -485,6 +502,35 @@ describe('route access', () => {
         expect(canAccessRoute(support, '/dashboard/money/refunds')).toBe(true);
         expect(canAccessRoute(support, '/dashboard/money/earnings')).toBe(false);
         expect(canAccessRoute(support, '/dashboard/money/allocations')).toBe(false);
+    });
+
+    it('shows platform Earnings to the Developer tier only, although Admin holds its permission', () => {
+        /*
+         * The owner's decision (2026-09-27), not the catalogue's: tier 2 still
+         * holds `money.earnings.read`, so this proves the tier rule is doing the
+         * hiding and the permission rule is not.
+         */
+        const admin = heldFixture(2);
+        expect(admin.has('money.earnings.read')).toBe(true);
+
+        expect(canAccessRoute(heldFixture(1), '/dashboard/money/earnings', 1)).toBe(true);
+        expect(canAccessRoute(admin, '/dashboard/money/earnings', 2)).toBe(false);
+        // An unknown tier fails closed, even on a Developer's set.
+        expect(canAccessRoute(heldFixture(1), '/dashboard/money/earnings')).toBe(false);
+        expect(canAccessRoute(heldFixture(1), '/dashboard/money/earnings', null)).toBe(false);
+
+        // Only that one child moves: the rest of Money stays with Admin.
+        expect(canAccessRoute(admin, '/dashboard/money', 2)).toBe(true);
+        expect(canAccessRoute(admin, '/dashboard/money/allocations', 2)).toBe(true);
+        expect(canAccessRoute(admin, '/dashboard/accounts', 2)).toBe(true);
+
+        const money = NAV_ITEMS.find((item) => item.id === 'money')!;
+        expect(permittedChildren(money, admin, 2).map((child) => child.id)).not.toContain(
+            'money-earnings',
+        );
+        expect(permittedChildren(money, heldFixture(1), 1).map((child) => child.id)).toContain(
+            'money-earnings',
+        );
     });
 
     it('refuses a child even where the container admits the caller', () => {

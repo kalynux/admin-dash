@@ -88,12 +88,29 @@ describe('the remittance queue', () => {
         ]);
     });
 
-    it('names a declaration with no reference rather than showing a bare id', async () => {
+    it('still links a declaration with no reference, without calling it missing', async () => {
+        // Optional since 2026-09-27 — the photo is the evidence — so "No
+        // reference" would read as a gap in the evidence.
         stubList([remittanceFixture({ reference: null })]);
 
         render(<RemittancesList />, '/dashboard/cod/remittances');
 
-        expect(await screen.findByRole('link', { name: 'No reference' })).toBeInTheDocument();
+        expect(await screen.findByRole('link', { name: 'Open declaration' })).toBeInTheDocument();
+        expect(screen.queryByText(/no reference/i)).not.toBeInTheDocument();
+    });
+
+    it('marks the rows that carry a photo, and fetches none of them', async () => {
+        // Every open of a proof is an audited read; a list that fetched them
+        // would file one per row an operator scrolled past.
+        const calls = stubList([
+            remittanceFixture(),
+            remittanceFixture({ id: '6680aabbccddeeff00112234', proof: null }),
+        ]);
+
+        render(<RemittancesList />, '/dashboard/cod/remittances');
+
+        expect(await screen.findAllByText('Photo')).toHaveLength(1);
+        expect(calls.some((call) => call.url.includes('/files'))).toBe(false);
     });
 
     it('says the platform has not answered rather than leaving the cell blank', async () => {
@@ -146,6 +163,43 @@ describe('one remittance', () => {
 
         expect(await screen.findByRole('button', { name: /confirm receipt/i })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /^reject$/i })).toBeInTheDocument();
+    });
+
+    it('shows the proof photo first, and opens it only on a click', async () => {
+        const calls = stubDetail();
+
+        detail();
+
+        expect(await screen.findByText('Proof of hand-over')).toBeInTheDocument();
+        expect(
+            screen.getByRole('button', { name: /click to view the remittance proof photo/i }),
+        ).toBeInTheDocument();
+        // `url` is null (private tree): the bytes come from the audited content
+        // route, and only once somebody clicks.
+        expect(calls.some((call) => call.url.includes('/files'))).toBe(false);
+    });
+
+    it('reads a missing photo and a missing reference as ordinary absences', async () => {
+        stubDetail(remittanceDetailFixture({ proof: null, reference: null }));
+
+        detail();
+
+        expect(await screen.findByText('No photo attached')).toBeInTheDocument();
+        expect(screen.queryByText(/none given/i)).not.toBeInTheDocument();
+    });
+
+    it('puts the photo in the confirm dialog, and no longer warns about the reference', async () => {
+        stubDetail(remittanceDetailFixture({ reference: null }));
+
+        detail();
+
+        await userEvent.click(await screen.findByRole('button', { name: /confirm receipt/i }));
+        const dialog = await screen.findByRole('dialog');
+
+        expect(
+            within(dialog).getByRole('button', { name: /click to view the remittance proof photo/i }),
+        ).toBeInTheDocument();
+        expect(within(dialog).queryByText(/tying it to a bank statement/i)).not.toBeInTheDocument();
     });
 
     it('offers neither action once it has been answered', async () => {
@@ -467,6 +521,27 @@ describe('one deposit', () => {
         expect(screen.queryByRole('button', { name: /^reject$/i })).not.toBeInTheDocument();
     });
 
+    it('shows the photo on an agency deposit too, as context', async () => {
+        const calls = stubDetail(agencyDepositDetailFixture());
+
+        detail();
+
+        expect(
+            await screen.findByRole('button', { name: /click to view the deposit proof photo/i }),
+        ).toBeInTheDocument();
+        expect(calls.some((call) => call.url.includes('/files'))).toBe(false);
+    });
+
+    it('reads a one-step deposit with no photo as ordinary', async () => {
+        // Recorded in one step — at an agency desk or through POST /cod/deposits
+        // — so there was never a declaration to prove.
+        stubDetail(depositDetailFixture({ proof: null }));
+
+        detail();
+
+        expect(await screen.findByText('No photo attached')).toBeInTheDocument();
+    });
+
     it('offers both on an unresolved platform deposit', async () => {
         stubDetail();
 
@@ -649,6 +724,17 @@ describe('one discrepancy', () => {
         expect(screen.getByRole('link', { name: /open the deposit/i })).toBeInTheDocument();
         // The trust row that this very flag caused links nowhere — it is here.
         expect(screen.getByText('This flag')).toBeInTheDocument();
+    });
+
+    it("shows the joined deposit's photo, often the very thing in dispute", async () => {
+        const calls = stubDetail(discrepancyDetailFixture({ deposit: platformDepositFixture() }));
+
+        detail();
+
+        expect(
+            await screen.findByRole('button', { name: /click to view the deposit proof photo/i }),
+        ).toBeInTheDocument();
+        expect(calls.some((call) => call.url.includes('/files'))).toBe(false);
     });
 
     it('will not close a flag without an outcome and a note', async () => {

@@ -1,5 +1,5 @@
 import { PageLoader } from '@/components/common/Loading';
-import { toRequirementList } from '@/lib/authorization';
+import { isDeveloperTier, toRequirementList } from '@/lib/authorization';
 import { Forbidden } from '@/pages/Forbidden';
 import { useCan, usePermissions } from '@/store';
 import type {
@@ -24,6 +24,12 @@ interface RequirePermissionProps {
     mode?: PermissionMode;
     /** Named on the refusal screen. */
     subject?: string;
+    /**
+     * Refuse everyone but the Developer tier, whatever they hold. A display rule,
+     * not an access rule — see `isDeveloperTier`. Set from the nav entry's own
+     * `developerOnly`, so the gate and the link still read one object.
+     */
+    developerOnly?: boolean;
     children: React.ReactNode;
 }
 
@@ -39,9 +45,10 @@ export function RequirePermission({
     permission,
     mode = 'any',
     subject,
+    developerOnly = false,
     children,
 }: RequirePermissionProps) {
-    const { status } = usePermissions();
+    const { status, tier } = usePermissions();
     const can = useCan();
 
     // Defensive: `DashboardShell` does not render its outlet until the set is
@@ -56,6 +63,10 @@ export function RequirePermission({
         : can(permission as RoutedPermissionName);
 
     if (!allowed) return <Forbidden required={required} mode={mode} subject={subject} />;
+
+    // Named without a permission: holding more would not help, and the rule is
+    // the owner's, not the catalogue's.
+    if (developerOnly && !isDeveloperTier(tier)) return <Forbidden subject={subject} />;
 
     return <>{children}</>;
 }

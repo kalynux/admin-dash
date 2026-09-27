@@ -102,6 +102,8 @@ const platform = {
     USER_CONTACT_REQUIRED: 'Un compte doit conserver au moins un identifiant de connexion',
     AUTH_EMAIL_TAKEN: 'Cet e-mail appartient déjà à un autre compte',
     AUTH_PHONE_TAKEN: 'Ce numéro de téléphone appartient déjà à un autre compte',
+    AUTH_PROFILE_NOT_FOUND:
+        'Ce compte n’a jamais utilisé le bot : il n’y a aucune mémoire à réinitialiser.',
 
     // ─── Téléphone d'un administrateur (code WhatsApp) ────────────────────────
     /* Voir le fichier anglais : les six arrivent depuis le 2026-09-15 (BR-025 § 2). */
@@ -164,6 +166,12 @@ const platform = {
 
     // ─── Fichiers ────────────────────────────────────────────────────────────
     UPLOAD_POLICY_VIOLATION: 'La plateforme a refusé l’un de ces fichiers.',
+
+    // ─── Relevés de compte ───────────────────────────────────────────────────
+    STATEMENT_RECIPIENT_MISSING:
+        'Ce compte n’a aucune adresse e-mail enregistrée : rien n’a été envoyé. Téléchargez le relevé à la place.',
+    STATEMENT_RECIPIENT_UNVERIFIED:
+        'L’adresse e-mail de ce compte n’est pas encore vérifiée : rien n’a été envoyé. Téléchargez le relevé à la place.',
 };
 
 export default platform;

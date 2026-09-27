@@ -108,7 +108,7 @@ describe('the route total is the sum of its parts', () => {
         );
     });
 
-    it('holds the 256 routes on the service as of 2026-09-22', () => {
+    it('holds the 262 routes on the service as of 2026-09-27', () => {
         // Pinned deliberately, and it is the assertion that fires when the
         // backend ships a route group. A change here is not a failure to fix by
         // editing this number: it means a route arrived, and something in `src/`
@@ -131,7 +131,16 @@ describe('the route total is the sum of its parts', () => {
         // ⚠ 255 → 256 on 2026-09-22: `POST /agents/:agentId/cod-threshold/release`,
         // the COD-pool round. It arrived with a changelog page, which is the
         // direction this assertion can see.
-        expect(totalDeclared).toBe(256);
+        //
+        // ⚠ 256 → 261 on 2026-09-27, and measured: `dump-routes.js` printed
+        // `TOTAL 262` (the extra is the excluded internal route). The bot-memory
+        // reset, plus ADR-024's two COD triage routes and the payout triage and
+        // send — those four had waited since 2026-09-15 for `permissions.md` to
+        // publish `cod.triage` and `money.payouts.triage`.
+        //
+        // ⚠ 261 → 262 later on 2026-09-27, measured (`TOTAL 263`): the account
+        // statement, `POST /accounts/:ownerType/:ownerId/statements`.
+        expect(totalDeclared).toBe(262);
     });
 });
 
@@ -183,11 +192,14 @@ describe('the composite guards, as the route map declares them', () => {
         .map((row) => `${row.method} ${row.path}`)
         .sort();
 
-    it('is exactly the twenty the contract enumerates', () => {
-        // Seventeen `all`-mode plus three `any`-mode, per permissions.md's own
-        // § "Composite guards". That count has been stale three separate times —
+    it('is exactly the twenty-one the contract enumerates', () => {
+        // Seventeen `all`-mode plus four `any`-mode, per permissions.md's own
+        // § "Composite guards". That count has been stale four separate times —
         // "Thirteen", then "fourteen plus the any-mode one", then "fifteen …
-        // sixteen in all" — which is why the document says to derive it.
+        // sixteen in all", then "three any-mode … twenty" until
+        // `POST /money/payouts/:payoutId/reject` was found to accept
+        // `money.payouts.triage` too (ADR-024) — which is why the document says
+        // to derive it.
         expect(composite).toEqual([
             'GET /accounts/:ownerType/:ownerId',
             'GET /accounts/:ownerType/:ownerId/activity',
@@ -209,6 +221,7 @@ describe('the composite guards, as the route map declares them', () => {
             'GET /users/:userId/activity',
             'GET /vendors/:vendorId/activity',
             'GET /vendors/:vendorId/agencies',
+            'POST /money/payouts/:payoutId/reject',
         ]);
     });
 });

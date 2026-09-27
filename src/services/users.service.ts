@@ -26,6 +26,8 @@ import { toAuditPage, type AuditPage } from '@/services/audit.service';
 import type { Paginated } from '@/types/api.types';
 import type { AuditEntry } from '@/types/audit.types';
 import type {
+    BotMemoryResetBody,
+    BotMemoryResetResult,
     CredentialLinkBody,
     CredentialLinkResult,
     PlatformUser,
@@ -287,6 +289,43 @@ export function sendLoginLink(
     );
 }
 
+// ─── The customer bot's memory ────────────────────────────────────────────────
+
+/**
+ * `POST /users/:userId/bot-memory/reset` · **`users.bot_memory.reset`** ·
+ * delegated · **every tier, Support included — on purpose**.
+ *
+ * Makes the customer bot start this person's next conversation from nothing.
+ * jovi-mall holds no memory itself, only a per-customer counter the automation
+ * layer folds into its memory key; a reset bumps it, and the old memory becomes
+ * unreachable from the next message. **Deletes no order, message record,
+ * account field or credential**, which is why Support may press it: the
+ * complaint arrives as their ticket, and nothing the platform keeps is touched.
+ *
+ * ⚠ **`reason` is omitted when blank, never sent as `""`** (a `400`), and the
+ * body is strict. `message` is returned beside `data` because the toast shows
+ * it verbatim — there is no panel to refresh.
+ *
+ * ⚠ A non-customer answers `404 PLATFORM_OPERATION_REJECTED` with
+ * `PLATFORM_CODE_PROFILE_NOT_FOUND`; the screen hides the button there. A
+ * `502`/`503` is never retried here, and pressing again is safe — two presses
+ * are two harmless resets.
+ */
+export async function resetBotMemory(
+    userId: string,
+    body: BotMemoryResetBody = {},
+    options?: RequestOptions,
+): Promise<{ result: BotMemoryResetResult; message: string | undefined }> {
+    const reason = body.reason?.trim();
+    const { data, message } = await api.mutate<BotMemoryResetResult>(
+        'POST',
+        `/users/${encodeURIComponent(userId)}/bot-memory/reset`,
+        reason ? { reason } : {},
+        options,
+    );
+    return { result: data, message };
+}
+
 // ─── The platform codes a delegated user write can carry ──────────────────────
 
 /**
@@ -370,3 +409,13 @@ export const PLATFORM_CODE_MESSAGING_DELIVERY_FAILED = 'MESSAGING_DELIVERY_FAILE
  * reinstate it rather than wonder whether the message went.
  */
 export const PLATFORM_CODE_PARTY_ACCOUNT_SUSPENDED = 'AUTH_ACCOUNT_SUSPENDED';
+
+// ─── The bot-memory reset ─────────────────────────────────────────────────────
+
+/**
+ * 404 — the account exists and has **no customer profile**: it has never talked
+ * to the bot as a customer, so there is no memory to forget. An absence, not a
+ * fault. Thrown by `bot-surface/services/bot-memory.service.ts` in jovi-mall,
+ * which wi-admin reaches only after its own `NOT_FOUND` check on the user.
+ */
+export const PLATFORM_CODE_PROFILE_NOT_FOUND = 'AUTH_PROFILE_NOT_FOUND';

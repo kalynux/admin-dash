@@ -19,14 +19,14 @@ import { usePermissions } from '@/store';
  * never render this.
  */
 export function ModuleIndexRedirect({ item }: { item: NavItem }) {
-    const { status, held } = usePermissions();
+    const { status, held, tier } = usePermissions();
 
     // Waiting is not refusing. `RequirePermission` makes the same distinction for
     // the same reason: redirecting on an unknown set would bounce an administrator
     // off a module they hold, and the bounce is not undone when the set arrives.
     if (status !== 'ready' || !held) return <PageLoader label="Checking your access…" />;
 
-    const target = firstPermittedChild(item, held);
+    const target = firstPermittedChild(item, held, tier);
 
     if (!target) {
         /**

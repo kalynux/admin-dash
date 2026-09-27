@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Ban, BadgeCheck, Gauge, MapPin, ShieldCheck, Undo2, Wallet } from 'lucide-react';
 
 import { AccountPanel } from '@/components/accounts/AccountPanel';
+import { AccountStatementButton } from '@/components/accounts/AccountStatementDialog';
 import { AgentActivityPanel } from '@/components/agents/AgentActivityPanel';
 import { AgentCodPanel } from '@/components/agents/AgentCodPanel';
 import { AgentContractsPanel } from '@/components/agents/AgentContractsPanel';
@@ -218,6 +219,13 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
             description={<CopyableId value={record.id} label="agent ID" truncate={false} />}
             actions={
                 <>
+                    {/* Every tier, Support included — so in the header, never inside the Account tab. */}
+                    <AccountStatementButton
+                        ownerType="agent"
+                        ownerId={record.id}
+                        timeZone={timeZone}
+                    />
+
                     <Can permission="agents.status.set">
                         <Button variant="outline" size="sm" onClick={() => setSettingStatus(true)}>
                             <ShieldCheck className="size-4" />

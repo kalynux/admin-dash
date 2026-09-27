@@ -483,10 +483,16 @@ export const AGENCY_AUDIT_ACTIONS = [
 
 export type AgencyAuditAction = (typeof AGENCY_AUDIT_ACTIONS)[number];
 
-export const AGENCY_AUDIT_ACTION_LABELS: Record<AgencyAuditAction, string> = {
+/**
+ * Labels for the feed. Wider than the filter: `money.statements.send_agency`
+ * (2026-09-27) lands here by `target` but is outside the `agencies.*` prefix the
+ * feed's `?action=` enum accepts, so it is labelled and never offered.
+ */
+export const AGENCY_AUDIT_ACTION_LABELS: Record<AgencyAuditAction | (string & {}), string> = {
     'agencies.verify': 'Verified',
     'agencies.deactivate': 'Deactivated',
     'agencies.reactivate': 'Reactivated',
+    'money.statements.send_agency': 'Sent account statement',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

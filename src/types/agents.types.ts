@@ -1142,7 +1142,12 @@ export const AGENT_AUDIT_ACTIONS = [
 
 export type AgentAuditAction = (typeof AGENT_AUDIT_ACTIONS)[number];
 
-export const AGENT_AUDIT_ACTION_LABELS: Record<AgentAuditAction, string> = {
+/**
+ * Labels for the feed. Wider than the filter: `money.statements.send_agent`
+ * (2026-09-27) lands here by `target` but is outside the `agents.*` prefix the
+ * feed's `?action=` enum accepts, so it is labelled and never offered.
+ */
+export const AGENT_AUDIT_ACTION_LABELS: Record<AgentAuditAction | (string & {}), string> = {
     'agents.status.set': 'Status changed',
     'agents.kyc.review': 'Documents reviewed',
     'agents.tracking.set': 'Tracking changed',
@@ -1156,6 +1161,7 @@ export const AGENT_AUDIT_ACTION_LABELS: Record<AgentAuditAction, string> = {
     'agents.ban': 'Banned',
     'agents.unban': 'Ban lifted',
     'agents.transfer': 'Transferred',
+    'money.statements.send_agent': 'Sent account statement',
 };
 
 /** How stale a reported position may be before the wire calls it stale. */

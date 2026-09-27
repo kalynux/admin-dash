@@ -152,6 +152,12 @@ const platform = {
     USER_CONTACT_REQUIRED: 'An account must keep at least one login identifier',
     AUTH_EMAIL_TAKEN: 'That email already belongs to another account',
     AUTH_PHONE_TAKEN: 'That phone number already belongs to another account',
+    /*
+      Only from the bot-memory reset: the account exists and has no customer
+      profile, so it has never talked to the bot as a customer. An absence, not
+      a fault — the button is hidden on such accounts, so this is for the race.
+    */
+    AUTH_PROFILE_NOT_FOUND: 'This account has never used the bot, so there is no memory to reset.',
 
     // ─── An administrator's own phone (WhatsApp OTP) ──────────────────────────
     /*
@@ -302,6 +308,19 @@ const platform = {
      * what to do rather than repeating what was wrong.
      */
     UPLOAD_POLICY_VIOLATION: 'The platform would not accept one of these files.',
+
+    // ─── Account statements ──────────────────────────────────────────────────
+    /**
+     * `POST /accounts/:ownerType/:ownerId/statements` with `delivery: "email"`,
+     * 2026-09-27. Both are 409s from jovi-mall's mail relay, and both have the
+     * same remedy: download the file instead. The dashboard cannot choose the
+     * recipient — jovi-mall sends only to the registered, verified address — so
+     * neither sentence offers to type one in.
+     */
+    STATEMENT_RECIPIENT_MISSING:
+        'This account has no email address on file, so nothing was sent. Download the statement instead.',
+    STATEMENT_RECIPIENT_UNVERIFIED:
+        'This account’s email address is not verified yet, so nothing was sent. Download the statement instead.',
 };
 
 export default platform;

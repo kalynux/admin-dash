@@ -1,40 +1,44 @@
-# Route map — all 256 wi-admin routes
+# Route map — all 262 wi-admin routes
+
+✅ **261 → 262 on 2026-09-27 (later the same day), MEASURED — the recipe printed `TOTAL 263`.**
+The one addition is `POST /accounts/:ownerType/:ownerId/statements` (account statements —
+[changelog](admin/FRONTEND-CHANGELOG-account-statements.md)); its permission and audit cells were
+read from `accounts/routes/account.routes.ts`, **uncommitted upstream** at the time.
+`authz:matrix` printed **125 / 105 / 39**. ⚠ **`permissions.md` does not yet list
+`money.statements.send`** — upstream or mirrored — so it is declared in `permissions.types.ts`
+from source, and the doc-diffing half of `permissions.types.test.ts` is red until the page is
+re-derived and re-copied. So the "agree again" note below is true of 124 and stale by one.
 
 ⚠ **255 → 256 on 2026-09-22: `POST /agents/:agentId/cod-threshold/release`**, from the COD-pool
 round ([changelog](admin/FRONTEND-CHANGELOG-agent-cod-pool-and-emergency-contact.md)). Its
 permission (`agents.cod_threshold.set`, the pin's own) and its audit action
 (`agents.cod_threshold.release`) were read from `agents/routes/agent.routes.ts` **while that change
-was still uncommitted upstream** — so this row is READ, not measured, and the live manifest would
-now print **`TOTAL 261`** once it deploys. Re-run the recipe below before trusting either figure.
+was still uncommitted upstream** — so this row was READ, not measured. ✅ The change was committed
+upstream (`3b66ac4`) and the 2026-09-27 run below lists the route, so its path is now measured.
 
-🔴 **The recipe was re-run on 2026-09-15 and the live service holds FOUR routes this table does
-not.** BR-025's last acceptance box asked for exactly this, so it is now a measurement rather
-than a reading: `dump-routes.js` prints **`TOTAL 260`**, which is 259 rows for this table (the
-260th is the excluded internal one) against the **255** below.
+✅ **256 → 261 on 2026-09-27, MEASURED — the recipe below was re-run and printed `TOTAL 262`**
+(261 rows here, plus the excluded internal one), and a path-by-path diff of its output against
+this table found exactly five missing and nothing extra:
 
-| Missing route | Audit action | Documented in |
-|---|---|---|
-| `POST /cod/deposits/:depositId/triage` | `cod.triage` | [`cod.md`](admin/api/cod.md) |
-| `POST /cod/remittances/:remittanceId/triage` | `cod.triage` | [`cod.md`](admin/api/cod.md) |
-| `POST /money/payouts/:payoutId/triage` | `money.payouts.triage` | [`money.md`](admin/api/money.md) |
-| `POST /money/payouts/:payoutId/send` | `money.payouts.mark_paid` | [`money.md`](admin/api/money.md) |
+| Added | Permission | Audit action | Documented in |
+|---|---|---|---|
+| `POST /users/:userId/bot-memory/reset` | `users.bot_memory.reset` | `users.bot_memory.reset` | [`users.md`](admin/api/users.md) — [changelog](admin/FRONTEND-CHANGELOG-bot-memory-reset.md) |
+| `POST /cod/deposits/:depositId/triage` | `cod.triage` | `cod.triage` | [`cod.md`](admin/api/cod.md) |
+| `POST /cod/remittances/:remittanceId/triage` | `cod.triage` | `cod.triage` | [`cod.md`](admin/api/cod.md) |
+| `POST /money/payouts/:payoutId/triage` | `money.payouts.triage` | `money.payouts.triage` | [`money.md`](admin/api/money.md) |
+| `POST /money/payouts/:payoutId/send` | `money.payouts.mark_paid` | `money.payouts.mark_paid` | [`money.md`](admin/api/money.md) |
 
-⚠ **They are deliberately NOT added as rows yet, and the reason is a second gap.** They require
-two permissions — **`cod.triage`** and **`money.payouts.triage`** — which are declared in
-`permission.catalog.ts` and named on those two endpoint pages, and **the word "triage" appears
-nowhere in [`permissions.md`](admin/api/permissions.md)**, upstream or here. So
-`permissions.types.ts` does not carry them, and `route-map.test.ts` § *names nothing absent from
-`PERMISSION_NAMES`* would fail on the first row added. **Adding the rows would mean weakening
-that guard to record an unfinished change** — the wrong trade. The permission catalogue is the
-fix, upstream.
+The dump prints method and path only, so the permission and audit cells were **read from the
+router source** (`users.routes.ts`, `cod.routes.ts`, `money.routes.ts`) the same day. The four
+triage/send rows had been listed here as known-missing since 2026-09-15 and were held back only
+because `permissions.md` did not yet publish `cod.triage` or `money.payouts.triage`; it does now,
+so `permissions.types.ts` declares both and `route-map.test.ts` accepts the rows.
 
-⚠ **This is a change still arriving**, which is the other reason to report rather than build:
-`cod.md`, `money.md` and `authorization.md` all changed upstream *during* the 2026-09-15
-BR-024/025 round and nothing in `src/` calls any of the four. Its design record is
-[ADR-024](docs/ADR-024-PAYOUT-EXECUTION-AND-TRIAGE.md) — payout *execution* plus **a review stage
-below the tier that pays**, which is what the four tier-3 grants are for: a Support administrator
-already saw the `PAYOUT_REQUEST` ticket and held no permission naming it. **Re-run the recipe
-before trusting 255 again**, and expect a navigation change here when it deploys.
+⚠ **A sixth correction, to a row that was already here: `POST /money/payouts/:payoutId/reject`
+is `money.payouts.reject` or `money.payouts.triage`**, not the first alone. Source declares
+`anyPermission(…)` (ADR-024 — a reviewer's rejection is the half of triage that closes a request),
+and `permissions.md` now lists it as the fourth `any`-mode guard: **17 `all` + 4 `any` = 21**.
+The dump could not show this — it names no permissions.
 
 ⚠ **Three more found the same day by reading SOURCE — 252 → 255, and the way they were
 missed is the point.** `PATCH /auth/me/phone` and the two `/auth/me/phone/verify/*` routes are
@@ -144,24 +148,20 @@ failure is not caught, so with the audit store down nothing is disclosed. See
 ```bash
 cd backend/admin
 node -r ts-node/register/transpile-only -r dotenv/config \
-    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 260 (2026-09-15)
-npm run authz:matrix                                                      # 123 / 103 / 37 (2026-09-15)
+    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 263 (2026-09-27, statements)
+npm run authz:matrix                                                      # 125 / 105 / 39 (2026-09-27, statements)
 ```
 
-🔴 **`authz:matrix` disagrees with the contract too, and by more than the two new names.** It
-printed **123 / 103 / 37** on 2026-09-15 where [`permissions.md`](admin/api/permissions.md) —
-and therefore `permissions.types.ts` — says **121 / 101 / 31**. Two of the six are `cod.triage`
-and `money.payouts.triage`; the other four are **existing permissions newly granted to tier 3**:
-`cod.overview.read`, `cod.remittances.read`, `cod.deposits.read`, `money.payouts.read`. Support
-is being given a COD and payout triage desk, and **nothing published says so yet**. ⚠ This
-dashboard builds its navigation from `GET /permissions/me`, so the screens would appear on their
-own the day it deploys — but the *catalogue* this repository types against would still not
-declare two of the names.
+✅ **`authz:matrix` and the contract agree again: 124 / 104 / 38**, re-derived from source on
+2026-09-22 upstream and re-run here on 2026-09-27. It printed 123 / 103 / 37 on 2026-09-15, when
+`permissions.md` still said 121 / 101 / 31 and did not name the two `triage` permissions; the
+bot-memory reset is the 124th. Support's seven-permission jump is three new names plus four
+COD/payout reads the code had always granted and the page had shown as withheld.
 
 ⚠ **The tool prints one more than this table holds**, always: the extra is
-`POST /api/internal/automation/failures`, deliberately excluded below. So `TOTAL 256` is the
-number that would say *"this table is current"* — and the run on **2026-09-15 printed 260**,
-naming the four routes in the banner at the top of this file. It printed 240 against 239 rows on
+`POST /api/internal/automation/failures`, deliberately excluded below. So `TOTAL 262` is the
+number that says *"this table is current"* — and the run on **2026-09-27 printed exactly that**.
+It printed 260 on 2026-09-15, naming four routes this table then lacked. It printed 240 against 239 rows on
 2026-09-08. (This block said `# TOTAL 239` until then, which made a correct run look like a
 failure.)
 
@@ -171,7 +171,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 
 ---
 
-## The 256 routes, by namespace
+## The 262 routes, by namespace
 
 ### `/support` — 19 routes
 
@@ -267,7 +267,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/system/queues` | `system.outbox.read` | — | [`system.md`](admin/api/system.md) |
 | GET | `/system/workers` | `system.workers.read` | — | [`system.md`](admin/api/system.md) |
 
-### `/cod` — 16 routes
+### `/cod` — 18 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -278,6 +278,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/cod/deposits/:depositId` | `cod.deposits.read` | — | [`cod.md`](admin/api/cod.md) |
 | POST | `/cod/deposits/:depositId/confirm` | `cod.deposits.confirm` | ✅ cod.deposits.confirm | [`cod.md`](admin/api/cod.md) |
 | POST | `/cod/deposits/:depositId/reject` | `cod.deposits.reject` | ✅ cod.deposits.reject | [`cod.md`](admin/api/cod.md) |
+| POST | `/cod/deposits/:depositId/triage` | `cod.triage` | ✅ cod.triage | [`cod.md`](admin/api/cod.md) |
 | GET | `/cod/discrepancies` | `cod.discrepancies.read` | — | [`cod.md`](admin/api/cod.md) |
 | GET | `/cod/discrepancies/:discrepancyId` | `cod.discrepancies.read` | — | [`cod.md`](admin/api/cod.md) |
 | POST | `/cod/discrepancies/:discrepancyId/resolve` | `cod.discrepancies.resolve` | ✅ cod.discrepancies.resolve | [`cod.md`](admin/api/cod.md) |
@@ -287,6 +288,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/cod/remittances/:remittanceId` | `cod.remittances.read` | — | [`cod.md`](admin/api/cod.md) |
 | POST | `/cod/remittances/:remittanceId/confirm` | `cod.remittances.confirm` | ✅ cod.remittances.confirm | [`cod.md`](admin/api/cod.md) |
 | POST | `/cod/remittances/:remittanceId/reject` | `cod.remittances.reject` | ✅ cod.remittances.reject | [`cod.md`](admin/api/cod.md) |
+| POST | `/cod/remittances/:remittanceId/triage` | `cod.triage` | ✅ cod.triage | [`cod.md`](admin/api/cod.md) |
 
 ### `/content` — 14 routes
 
@@ -307,7 +309,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/content/authors/:authorId` | `content.authors.read` | — | [`content.md`](admin/api/content.md) |
 | PATCH | `/content/authors/:authorId` | `content.authors.write` | ✅ content.authors.update | [`content.md`](admin/api/content.md) |
 
-### `/money` — 14 routes
+### `/money` — 16 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -323,7 +325,9 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/money/payouts/:payoutId/activity` | `money.payouts.read` + `audit.read` | — | [`money.md`](admin/api/money.md) |
 | GET | `/money/payouts/:payoutId/destination` | `money.payouts.destination.read` | ✅ money.payouts.destination.read | [`money.md`](admin/api/money.md) |
 | POST | `/money/payouts/:payoutId/mark-paid` | `money.payouts.mark_paid` | ✅ money.payouts.mark_paid | [`money.md`](admin/api/money.md) |
-| POST | `/money/payouts/:payoutId/reject` | `money.payouts.reject` | ✅ money.payouts.reject | [`money.md`](admin/api/money.md) |
+| POST | `/money/payouts/:payoutId/reject` | `money.payouts.reject` **or** `money.payouts.triage` | ✅ money.payouts.reject | [`money.md`](admin/api/money.md) |
+| POST | `/money/payouts/:payoutId/send` | `money.payouts.mark_paid` | ✅ money.payouts.mark_paid | [`money.md`](admin/api/money.md) |
+| POST | `/money/payouts/:payoutId/triage` | `money.payouts.triage` | ✅ money.payouts.triage | [`money.md`](admin/api/money.md) |
 | GET | `/money/refunds` | `money.payments.read` | — | [`money.md`](admin/api/money.md) |
 
 ### `/vendors` — 14 routes
@@ -451,7 +455,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/shipments/:shipmentId/tracking-events` | `shipments.tracking.read` | — | [`shipments.md`](admin/api/shipments.md) |
 | GET | `/shipments/:shipmentId/tracking-trail` | `shipments.tracking.read` | ✅ shipments.tracking.trail.read | [`shipments.md`](admin/api/shipments.md) |
 
-### `/users` — 8 routes
+### `/users` — 9 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -459,6 +463,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/users/:userId` | `users.read` | — | [`users.md`](admin/api/users.md) |
 | PATCH | `/users/:userId` | `users.update` | ✅ users.update | [`users.md`](admin/api/users.md) |
 | GET | `/users/:userId/activity` | `users.read` + `audit.read` | — | [`users.md`](admin/api/users.md) |
+| POST | `/users/:userId/bot-memory/reset` | `users.bot_memory.reset` | ✅ users.bot_memory.reset | [`users.md`](admin/api/users.md) |
 | POST | `/users/:userId/login-link` | `users.login_link.send` | ✅ users.login_link.send | [`users.md`](admin/api/users.md) |
 | POST | `/users/:userId/password-reset-link` | `users.password.reset` | ✅ users.password_reset_link.send | [`users.md`](admin/api/users.md) |
 | POST | `/users/:userId/restore` | `users.suspend` | ✅ users.reinstate | [`users.md`](admin/api/users.md) |
@@ -476,7 +481,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/audit/exports/:exportId` | `audit.export` | — | [`audit.md`](admin/api/audit.md) |
 | GET | `/audit/exports/:exportId/download` | `audit.export` | — | [`audit.md`](admin/api/audit.md) |
 
-### `/accounts` — 5 routes
+### `/accounts` — 6 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -485,6 +490,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/accounts/:ownerType/:ownerId/cash-ledger` | `cod.overview.read` | — | [`accounts.md`](admin/api/accounts.md) |
 | GET | `/accounts/:ownerType/:ownerId/credits` | `billing.plans.read` | — | [`accounts.md`](admin/api/accounts.md) |
 | GET | `/accounts/:ownerType/:ownerId/payouts` | `money.payouts.read` | — | [`accounts.md`](admin/api/accounts.md) |
+| POST | `/accounts/:ownerType/:ownerId/statements` | `money.statements.send` | ✅ money.statements.send_vendor, money.statements.send_agency, money.statements.send_agent | [`accounts.md`](admin/api/accounts.md) |
 
 ### `/approvals` — 5 routes
 
