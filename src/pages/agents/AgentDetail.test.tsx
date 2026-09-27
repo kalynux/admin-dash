@@ -16,6 +16,7 @@ import {
 } from '@/test/agent-fixtures';
 import { codListMetaFixture, trustEventFixture } from '@/test/cod-fixtures';
 import { adminFixture, heldFixture } from '@/test/fixtures';
+import { agentVerificationFixture } from '@/test/verification-fixtures';
 import {
     errorResponse,
     renderWithProviders,
@@ -712,7 +713,14 @@ describe('a link to the KYC review', () => {
      * the tab must follow a navigation, not only the first mount.
      */
     it('opens the Verification tab from ?tab=verification', async () => {
-        stubFetch(() => successResponse(agentDetailFixture()));
+        // The tab fetches its own evidence read; answer it in its own shape.
+        stubFetch((call) =>
+            successResponse(
+                call.url.includes('/verification')
+                    ? agentVerificationFixture()
+                    : agentDetailFixture(),
+            ),
+        );
         renderWithProviders(
             <Routes>
                 <Route path="/dashboard/agents/:agentId" element={<AgentDetail />} />
