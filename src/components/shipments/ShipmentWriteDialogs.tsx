@@ -23,6 +23,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { pickFieldErrors } from '@/lib/field-errors';
 import { notify } from '@/lib/notify';
 import {
+    PLATFORM_CODE_AGENT_KYC_NOT_VERIFIED,
     PLATFORM_CODE_AGENT_NOT_ELIGIBLE,
     PLATFORM_CODE_SHIPMENT_NOT_REASSIGNABLE,
     PLATFORM_CODE_SHIPMENT_NO_ELIGIBLE_AGENTS,
@@ -251,6 +252,13 @@ function ReassignForm({
                     case PLATFORM_CODE_SHIPMENT_REASSIGN_SAME_AGENT:
                         setError('agentId', {
                             message: 'That is the agent already carrying this shipment.',
+                        });
+                        return;
+                    case PLATFORM_CODE_AGENT_KYC_NOT_VERIFIED:
+                        // COD only: the same agent could take a prepaid shipment.
+                        setError('agentId', {
+                            message:
+                                "This agent isn't verified and can't carry cash on delivery.",
                         });
                         return;
                     case PLATFORM_CODE_AGENT_NOT_ELIGIBLE: {

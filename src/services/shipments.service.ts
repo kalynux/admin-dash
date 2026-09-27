@@ -303,6 +303,13 @@ export const PLATFORM_CODE_SHIPMENT_REASSIGN_SAME_AGENT = 'SHIPMENT_REASSIGN_SAM
 /** Reassign — 422. The replacement cannot take it. Carries `details.rules`. */
 export const PLATFORM_CODE_AGENT_NOT_ELIGIBLE = 'AGENT_NOT_ELIGIBLE_FOR_ASSIGNMENT';
 /**
+ * Reassign — the replacement's identity is not verified and the shipment is
+ * **cash on delivery** (since 2026-09-27; before, this arrived as
+ * `AGENT_NOT_ELIGIBLE_FOR_ASSIGNMENT`). A prepaid shipment is never refused for
+ * KYC, so this names the cash, not the agent's right to work.
+ */
+export const PLATFORM_CODE_AGENT_KYC_NOT_VERIFIED = 'AGENT_KYC_NOT_VERIFIED';
+/**
  * Reassign — 422, and **a partial success, not a refusal**.
  *
  * By the time this throws, `reassignAgent` has already run: the previous agent is

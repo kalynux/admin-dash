@@ -176,3 +176,54 @@ describe('asking about one shipment', () => {
         });
     });
 });
+
+describe('an unverified agent on a COD shipment (2026-09-27)', () => {
+    /** KYC left the platform half: it now fails the cash gate, with one remedy. */
+    function kycBlocked(): AgentAssignability {
+        const base = assignabilityFixture();
+        return {
+            ...base,
+            shipmentId: SHIPMENT_ID,
+            gates: base.gates.map((gate) =>
+                gate.gate === 'cod_exposure'
+                    ? {
+                          ...gate,
+                          status: 'failed',
+                          reason: 'AGENT_KYC_NOT_VERIFIED',
+                          observed: { blocker: 'kyc_not_verified' },
+                          summary: 'The agent is not verified, so they cannot carry cash on delivery.',
+                          remedies: [{ action: 'verify_agent_kyc', params: { kycStatus: 'pending' } }],
+                      }
+                    : gate,
+            ),
+        };
+    }
+
+    it('links verify_agent_kyc to the agent’s KYC review', async () => {
+        check(() => successResponse(kycBlocked()));
+
+        const link = await screen.findByRole('link', {
+            name: "Verify this agent's identity (currently: pending)",
+        });
+        expect(link).toHaveAttribute('href', `/dashboard/agents/${AGENT_ID}?tab=verification`);
+        // The raw readout stands in for the figures — this gate carries no limit.
+        expect(screen.getByText(/kyc_not_verified/)).toBeInTheDocument();
+    });
+
+    it('keeps the generic fallback for an action this build does not know', async () => {
+        const base = kycBlocked();
+        check(() =>
+            successResponse({
+                ...base,
+                gates: base.gates.map((gate) =>
+                    gate.gate === 'cod_exposure'
+                        ? { ...gate, remedies: [{ action: 'call_the_agent' }] }
+                        : gate,
+                ),
+            }),
+        );
+
+        expect(await screen.findByText(/call the agent/i)).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: /verify this agent/i })).not.toBeInTheDocument();
+    });
+});

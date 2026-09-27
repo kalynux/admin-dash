@@ -362,6 +362,33 @@ describe('reassigning', () => {
         expect(screen.getByText(/taken off this shipment/i)).toBeInTheDocument();
     });
 
+    /**
+     * Since 2026-09-27 an unverified agent is refused a **COD** shipment only,
+     * under its own code rather than `AGENT_NOT_ELIGIBLE_FOR_ASSIGNMENT` — so the
+     * message names the cash, never the agent's right to work.
+     */
+    it('says an unverified agent cannot carry cash on delivery', async () => {
+        detail({
+            held: new Set(['shipments.read', 'shipments.reassign']),
+            write: () =>
+                errorResponse(422, 'PLATFORM_OPERATION_REJECTED', {
+                    category: 'business_rule',
+                    details: { platformCode: 'AGENT_KYC_NOT_VERIFIED' },
+                }),
+        });
+
+        await userEvent.click(await screen.findByRole('button', { name: /reassign/i }));
+        await userEvent.click(await screen.findByRole('radio', { name: /choose an agent/i }));
+        const dialog = within(await screen.findByRole('dialog'));
+        await userEvent.type(await dialog.findByLabelText(/agent id/i), '6660112233445566778899aa');
+        await userEvent.type(dialog.getByLabelText(/^reason$/i), 'Vehicle broke down');
+        await userEvent.click(dialog.getByRole('button', { name: /^reassign$/i }));
+
+        expect(
+            await dialog.findByText("This agent isn't verified and can't carry cash on delivery."),
+        ).toBeInTheDocument();
+    });
+
     /** Compare-and-set miss: reload, never force. */
     it('reloads on a 409 conflict rather than offering to force it', async () => {
         detail({

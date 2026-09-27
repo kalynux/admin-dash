@@ -968,8 +968,9 @@ export function UnbanAgentDialog({
                 </DialogHeader>
 
                 <p className="text-muted-foreground text-sm">
-                    The other five axes are unaffected. If their account is suspended or their
-                    documents are unverified, they stay undispatchable for those reasons.
+                    The other five axes are unaffected. If their account is suspended they stay
+                    undispatchable for that reason, and if their identity is unverified they
+                    still take no cash-on-delivery orders.
                 </p>
 
                 {formError ? <AuthFormError error={formError} /> : null}

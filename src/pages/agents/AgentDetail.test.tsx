@@ -704,3 +704,54 @@ describe('pinning and releasing the pool', () => {
         expect(dialog).toHaveTextContent(/holds 90,000/);
     });
 });
+
+describe('a link to the KYC review', () => {
+    /**
+     * The assignability check's `verify_agent_kyc` remedy links to
+     * `?tab=verification` (2026-09-27), and it lives on this same screen — so
+     * the tab must follow a navigation, not only the first mount.
+     */
+    it('opens the Verification tab from ?tab=verification', async () => {
+        stubFetch(() => successResponse(agentDetailFixture()));
+        renderWithProviders(
+            <Routes>
+                <Route path="/dashboard/agents/:agentId" element={<AgentDetail />} />
+            </Routes>,
+            {
+                route: `/dashboard/agents/${AGENT_ID}?tab=verification`,
+                auth: {
+                    status: 'authenticated',
+                    admin: adminFixture({ timezone: 'Africa/Douala' }),
+                },
+                permissions: { held: heldFixture(1) },
+            },
+        );
+
+        expect(await screen.findByRole('tab', { name: /verification/i })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+    });
+
+    it('ignores a tab it cannot guarantee is there', async () => {
+        stubFetch(() => successResponse(agentDetailFixture()));
+        renderWithProviders(
+            <Routes>
+                <Route path="/dashboard/agents/:agentId" element={<AgentDetail />} />
+            </Routes>,
+            {
+                route: `/dashboard/agents/${AGENT_ID}?tab=cash`,
+                auth: {
+                    status: 'authenticated',
+                    admin: adminFixture({ timezone: 'Africa/Douala' }),
+                },
+                permissions: { held: heldFixture(1) },
+            },
+        );
+
+        expect(await screen.findByRole('tab', { name: /overview/i })).toHaveAttribute(
+            'aria-selected',
+            'true',
+        );
+    });
+});

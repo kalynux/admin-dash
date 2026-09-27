@@ -53,8 +53,9 @@ export const AGENT_STATUSES = [
 /**
  * The identity-document verdict.
  *
- * **This is a gate, not a label** — jovi-mall's `assertEligible` passes only on
- * `verified`, so moving an agent off it makes them undispatchable immediately.
+ * **A gate for cash on delivery, not for work** (since 2026-09-27). An unverified
+ * agent contracts and takes prepaid shipments; only COD needs `verified`, and
+ * moving an agent off it closes their COD pool and refuses new COD shipments.
  */
 export type AgentKycStatus =
     | 'unverified'
@@ -664,11 +665,14 @@ export interface AgentKycReviewResult {
  * Read from
  * `jovi-mall/src/modules/agents/domain/services/agent-eligibility.service.ts:16-47`.
  * The platform gates are evaluated first and outrank the rest.
+ *
+ * ⚠ **`kyc_not_verified` is gone (2026-09-27)** — the `kyc` rule left
+ * eligibility when KYC stopped gating work. An unverified agent now fails only
+ * the `cod_exposure` gate in `/assignability`, and only on a COD shipment.
  */
 export type IneligibilityReason =
     | 'agent_not_found'
     | 'platform_banned'
-    | 'kyc_not_verified'
     | 'agent_not_active'
     | 'membership_not_approved'
     | 'not_available'
@@ -730,8 +734,11 @@ export type AssignabilityGateStatus =
  * Something an operator can act on, as a code plus its numbers — e.g.
  * `deposit_cash { amount }`, `raise_trust_score { to, from, wouldRaiseLimitTo,
  * sufficientOnItsOwn }`, `raise_contract_threshold { current,
- * requiredForCurrentExposure }`, `wait_for_deliveries`. Open: an action this
- * build does not know still renders, humanised.
+ * requiredForCurrentExposure }`, `wait_for_deliveries`, and — since 2026-09-27 —
+ * `verify_agent_kyc { kycStatus }`, the only remedy when `cod_exposure` fails
+ * with `observed.blocker: "kyc_not_verified"` (nothing an agency can do fixes
+ * it; the screen links it to the KYC review). Open: an action this build does
+ * not know still renders, humanised.
  */
 export interface AssignabilityRemedy {
     action: string;
@@ -978,11 +985,11 @@ export interface SetAgentStatusBody {
 }
 
 /**
- * `PUT /agents/:agentId/kyc` — **the write that lets an agent work.**
+ * `PUT /agents/:agentId/kyc` — **the write that lets an agent carry cash on delivery.**
  *
- * Moving an agent off `verified` makes them undispatchable immediately. It does
- * not touch their contracts, and in-flight shipments they already hold are
- * unaffected.
+ * Moving an agent off `verified` closes their COD pool and refuses them new COD
+ * shipments; prepaid dispatch continues (since 2026-09-27). It does not touch
+ * their contracts, and in-flight shipments they already hold are unaffected.
  */
 export interface ReviewAgentKycBody {
     status: AgentKycStatus;

@@ -370,10 +370,10 @@ export function setAgentStatus(
 /**
  * `PUT /agents/:agentId/kyc` · `agents.kyc.review`.
  *
- * **The write that lets an agent work** — eligibility passes only on `verified`,
- * so this is a gate rather than a label. Moving an agent off `verified` makes
- * them undispatchable immediately; it does not touch their contracts, and
- * in-flight shipments they already hold are unaffected.
+ * **The write that lets an agent carry cash on delivery** — since 2026-09-27 it
+ * gates COD only; an unverified agent still takes prepaid work. Moving an agent
+ * off `verified` refuses them new COD shipments; it does not touch their
+ * contracts, and in-flight shipments they already hold are unaffected.
  *
  * ⚠ **It also moves the COD pool (2026-09-21)**: `verified` opens it from the
  * plan, anything else closes it to 0, and the answer carries the result as
@@ -677,5 +677,10 @@ export const PLATFORM_CODE_CONTRACT_HAS_UNPAID_EARNINGS = 'CONTRACT_HAS_UNPAID_E
  */
 export const PLATFORM_CODE_AGENT_PLATFORM_BANNED = 'AGENT_PLATFORM_BANNED';
 
-/** `422` on `transfer`, same gate — the agent's documents are not verified. */
+/**
+ * The agent's identity is not verified. ⚠ **`transfer` no longer raises it**
+ * (2026-09-27): KYC now gates cash on delivery only, so it arrives on a COD
+ * dispatch — see `shipments.service.ts`'s reassign codes — and as the
+ * `cod_exposure` gate's `reason` in `/assignability`.
+ */
 export const PLATFORM_CODE_AGENT_KYC_NOT_VERIFIED = 'AGENT_KYC_NOT_VERIFIED';

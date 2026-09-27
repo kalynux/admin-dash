@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Ban, BadgeCheck, Gauge, MapPin, ShieldCheck, Undo2, Wallet } from 'lucide-react';
 
 import { AccountPanel } from '@/components/accounts/AccountPanel';
@@ -111,12 +111,33 @@ function InvalidAgentId() {
     );
 }
 
+/** Tabs a link may open. Only the unconditional ones, so a link never names a tab that is not there. */
+const LINKABLE_TABS = ['overview', 'verification'];
+
 function AgentDetailScreen({ agentId }: { agentId: string }) {
     const admin = useAdmin();
     const can = useCan();
     const timeZone = resolveTimeZone(admin.timezone);
 
-    const [tab, setTab] = useState('overview');
+    /**
+     * `?tab=verification` opens the KYC review — the assignability check's
+     * `verify_agent_kyc` remedy links here (2026-09-27).
+     *
+     * ⚠ Read on **every navigation**, keyed on `location.key`, not once at
+     * mount: that link lives in the Contracts tab of this same screen, so the
+     * component does not remount and a mount-only read would ignore the click.
+     * Adjusted during render rather than in an effect, so no stale tab paints.
+     */
+    const location = useLocation();
+    const [searchParams] = useSearchParams();
+    const requestedTab = searchParams.get('tab');
+    const linkedTab = requestedTab && LINKABLE_TABS.includes(requestedTab) ? requestedTab : null;
+    const [tab, setTab] = useState(linkedTab ?? 'overview');
+    const [appliedKey, setAppliedKey] = useState(location.key);
+    if (appliedKey !== location.key) {
+        setAppliedKey(location.key);
+        if (linkedTab) setTab(linkedTab);
+    }
     const [settingStatus, setSettingStatus] = useState(false);
     const [reviewingKyc, setReviewingKyc] = useState(false);
     const [settingTracking, setSettingTracking] = useState<boolean | null>(null);
@@ -305,9 +326,9 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
                 </TabsContent>
 
                 {/*
-                  ⚠ The one verdict of the three with teeth, so the tab says so:
-                  eligibility passes only on `verified`, and moving an agent off it
-                  makes them undispatchable immediately.
+                  ⚠ Since 2026-09-27 the verdict gates cash on delivery only:
+                  moving an agent off `verified` closes their COD pool and refuses
+                  them new COD shipments; prepaid work continues.
 
                   The dialog is rendered by the panel's `actions` because it needs
                   the record the panel loaded — a second fetch could build the

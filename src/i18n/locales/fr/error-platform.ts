@@ -62,7 +62,7 @@ const platform = {
 
     // ─── Agents et contrats ──────────────────────────────────────────────────
     AGENT_NOT_FOUND: 'La plateforme n’a aucun agent de ce type.',
-    AGENT_KYC_NOT_VERIFIED: 'L’identité de cet agent n’a pas encore été vérifiée.',
+    AGENT_KYC_NOT_VERIFIED: 'Cet agent n’est pas vérifié et ne peut pas transporter de paiement à la livraison.',
     AGENT_PLATFORM_BANNED: 'Cet agent est banni de toute la plateforme.',
     AGENT_COD_THRESHOLD_BELOW_ALLOCATED:
         'L’enveloppe COD tomberait en dessous de ce que les contrats de cet agent immobilisent déjà. Réduisez d’abord les parts contractuelles.',

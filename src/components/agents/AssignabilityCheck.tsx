@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 
 import { CopyableValue } from '@/components/common/CopyableValue';
@@ -26,7 +27,7 @@ const OBJECT_ID = /^[0-9a-f]{24}$/i;
  *
  * ── Why this replaced the eligibility check on the row ────────────────────────
  * The row used to ask `/eligibility`, which answers the **platform** half only:
- * banned · KYC · active · available · tracking · device · capacity. The
+ * banned · active · available · tracking · device · capacity. The
  * **contract** half — an active contract, coverage, the per-shipment value
  * ceiling and COD exposure — was diagnosable nowhere, and it is where the numbers
  * are: an agency refused with `COD_AGENT_EXPOSURE_EXCEEDED` could see its own
@@ -172,7 +173,11 @@ export function AssignabilityCheck({ agentId, agencyId }: { agentId: string; age
                     </h4>
                     <ul className="space-y-2 text-sm">
                         {gates.map((gate) => (
-                            <GateRow key={`${gate.family}:${gate.gate}`} gate={gate} />
+                            <GateRow
+                                key={`${gate.family}:${gate.gate}`}
+                                gate={gate}
+                                agentId={agentId}
+                            />
                         ))}
                     </ul>
                 </section>
@@ -224,7 +229,7 @@ const STATUS_WORD: Record<string, string> = {
     not_applicable: 'not applicable',
 };
 
-function GateRow({ gate }: { gate: AssignabilityGate }) {
+function GateRow({ gate, agentId }: { gate: AssignabilityGate; agentId: string }) {
     const cod = readCodExposure(gate);
     const observedKeys = Object.keys(gate.observed ?? {});
 
@@ -271,7 +276,22 @@ function GateRow({ gate }: { gate: AssignabilityGate }) {
                 <ul className="list-disc space-y-0.5 pl-8 text-xs">
                     {gate.remedies.map((remedy, index) => (
                         <li key={`${remedy.action}-${index}`}>
-                            {remedyText(remedy)}
+                            {remedy.action === 'verify_agent_kyc' ? (
+                                /*
+                                  The one remedy nothing an agency can do fixes
+                                  (2026-09-27): only the KYC review opens COD to
+                                  this agent, so it links there rather than
+                                  reading like an instruction to the agency.
+                                */
+                                <Link
+                                    to={agentKycReviewPath(agentId)}
+                                    className="text-primary underline-offset-2 hover:underline"
+                                >
+                                    {remedyText(remedy)}
+                                </Link>
+                            ) : (
+                                remedyText(remedy)
+                            )}
                             {remedy.action === 'raise_contract_threshold' && cod?.limit.poolBinds ? (
                                 <span className="text-warning">
                                     {' '}
@@ -358,6 +378,15 @@ function Figure({ label, value, strong }: { label: string; value: string | null;
 }
 
 /**
+ * The agent's KYC review — the Verification tab, where the verdict sits beside
+ * the evidence. `?tab=` is read by `AgentDetail` on every navigation, so the
+ * link works from this panel on the same page as well as from anywhere else.
+ */
+function agentKycReviewPath(agentId: string): string {
+    return `/dashboard/agents/${encodeURIComponent(agentId)}?tab=verification`;
+}
+
+/**
  * A remedy in words. The vocabulary is open — an action this build has not
  * heard of is humanised and its numbers shown raw, never dropped.
  */
@@ -384,6 +413,10 @@ function remedyText(remedy: AssignabilityRemedy): string {
             return `Raise the per-shipment value ceiling to at least ${n(p.required)}`;
         case 'activate_contract':
             return 'Activate a contract with this agency';
+        case 'verify_agent_kyc':
+            return `Verify this agent's identity (currently: ${
+                typeof p.kycStatus === 'string' ? p.kycStatus : 'unknown'
+            })`;
         case 'wait_for_deliveries':
             return 'Wait for deliveries — delivered packages become cash to deposit';
         default: {

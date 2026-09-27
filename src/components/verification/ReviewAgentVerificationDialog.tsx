@@ -19,15 +19,17 @@ import { VerificationReviewDialog } from './VerificationReviewDialog';
 const REFERENCE_MAX = 200;
 
 /**
- * `PUT /agents/:agentId/kyc` — **the write that lets an agent work.**
+ * `PUT /agents/:agentId/kyc` — **the write that lets an agent carry cash on delivery.**
  *
- * ── ⚠ This is the one verdict of the three with teeth ────────────────────────
- * A vendor's verification gates nothing and an agency's rejection changes no
- * status. An agent's does: eligibility passes only on `verified`, so moving them
- * off it makes them **undispatchable immediately**. It does not touch their
- * contracts and shipments already in hand are unaffected, but the next
- * assignment will not reach them. The dialog says so before the choice, not
- * after it.
+ * ── ⚠ It gates COD, and only COD — since 2026-09-27 ──────────────────────────
+ * Until that date eligibility passed only on `verified`, so this verdict decided
+ * whether an agent could work at all. The owner reversed that: verification is a
+ * trust badge, not a licence to work. An unverified agent contracts, is listed
+ * and takes **prepaid** shipments; what `verified` unlocks is the COD pool and
+ * COD dispatch (`AGENT_KYC_NOT_VERIFIED` otherwise). Moving an agent off it
+ * closes the pool to 0 and refuses them new COD shipments; prepaid work
+ * continues, contracts are untouched and shipments in hand are unaffected.
+ * ⛔ **Do not bring back "cannot be dispatched" / "cannot work" copy here.**
  *
  * ── ⚠ Four statuses, not two, and all four are offered ───────────────────────
  * `unverified` · `pending` · `verified` · `rejected`. The other two surfaces are
@@ -91,7 +93,7 @@ export function ReviewAgentVerificationDialog({
             party="agent"
             subjectName={agentDisplayName(agent)}
             title={`Review documents for ${agentDisplayName(agent)}`}
-            description="Check what the agent supplied, then record a verdict. Eligibility passes only on verified — moving them off it makes them undispatchable immediately, though shipments already in hand are unaffected."
+            description="Check what the agent supplied, then record a verdict. Verifying their identity allows cash-on-delivery orders. Unverified agents still take prepaid work, and shipments already in hand are unaffected either way."
             record={record}
             current={{
                 status: agent.kyc.status ?? 'unverified',
@@ -140,9 +142,9 @@ function codPoolConsequence(pool: KycCodPoolView | null | undefined): string | u
 const VERDICTS: VerdictOption[] = [
     {
         value: 'verified',
-        label: 'Mark verified',
+        label: 'Verify identity',
         description:
-            'The agent becomes dispatchable, and their COD pool opens at their plan’s amount (or a standing pin). Eligibility passes only on this value.',
+            'Allows cash-on-delivery orders: their COD pool opens at their plan’s amount (or a standing pin). Prepaid work does not depend on this.',
         textMode: 'none',
         estimates: 'approve',
     },
@@ -150,7 +152,7 @@ const VERDICTS: VerdictOption[] = [
         value: 'rejected',
         label: 'Mark rejected',
         description:
-            'Refuses the document set, makes the agent undispatchable immediately and closes their COD pool to 0. The agent is shown your reason.',
+            'Refuses the document set and closes their COD pool to 0, so they take no new cash-on-delivery orders. Prepaid work continues. The agent is shown your reason.',
         textMode: 'required-reason',
         textLabel: 'Rejection reason',
         textHint: 'The agent is shown this. "Your documents were rejected" with no cause is an unactionable message that generates a support ticket by construction.',
@@ -162,14 +164,14 @@ const VERDICTS: VerdictOption[] = [
         value: 'pending',
         label: 'Send back to pending',
         description:
-            'Records that a review is in progress rather than a refusal. The agent is undispatchable and their COD pool is 0 while it stands, and they are told nothing — use "rejected" when they need to act.',
+            'Records that a review is in progress rather than a refusal. While it stands their COD pool is 0 and they take no cash-on-delivery orders (prepaid work continues), and they are told nothing — use "rejected" when they need to act.',
         textMode: 'none',
     },
     {
         value: 'unverified',
         label: 'Mark unverified',
         description:
-            'Resets the record to "never reviewed". Undispatchable with a COD pool of 0, and it erases the fact that anybody looked — prefer "pending" unless the previous verdict was reached in error.',
+            'Resets the record to "never reviewed". No cash-on-delivery orders and a COD pool of 0 (prepaid work continues), and it erases the fact that anybody looked — prefer "pending" unless the previous verdict was reached in error.',
         textMode: 'none',
     },
 ];

@@ -119,9 +119,10 @@ describe('the permission catalogue matches api-doc/admin/api/permissions.md', ()
         // always granted — which is why Support moved by seven for three names.
         //
         // ⚠ **Moved 124 → 125 on 2026-09-27**, by executing `authz:matrix` —
-        // 125 / 105 / 39: `money.statements.send`, held by every tier. Taken
-        // from source before `permissions.md` published it, so the two
-        // doc-diffing assertions above fail until the page is re-copied.
+        // 125 / 105 / 39: `money.statements.send`, held by every tier. It was
+        // taken from source before `permissions.md` published it, and the two
+        // doc-diffing assertions above were red until the page was corrected
+        // upstream and re-copied, the same day.
         expect(PERMISSION_NAMES.length).toBe(125);
         expect(UNROUTED_PERMISSION_NAMES.length).toBe(4);
         expect(PERMISSION_FAMILIES.length).toBe(21);

@@ -25,12 +25,10 @@ import type { AdminTier } from '@/types/auth.types';
  * All 125 permissions, `family.resource.action`, in the doc's own family order.
  *
  * The 125th is `money.statements.send` (2026-09-27, account statements), held by
- * **every** tier — 125 / 105 / 39, measured with `npm run authz:matrix`. ⚠ It
- * was taken from `permission.catalog.ts` and the matrix **before
- * `permissions.md` published it**, at the changelog's instruction, so the
- * doc-parsing guard in `permissions.types.test.ts` stays red until that page is
- * re-derived upstream and re-copied here. That is the guard doing its job; do
- * not weaken it, and do not edit the mirror to match.
+ * **every** tier — 125 / 105 / 39, measured with `npm run authz:matrix`. It was
+ * taken from source a few hours before `permissions.md` published it; the guard
+ * went red for those hours, the page was corrected upstream the same day and
+ * re-copied, and the guard is green again.
  *
  * The 122nd, 123rd and 124th are `cod.triage`, `money.payouts.triage` (ADR-024,
  * served since 2026-09-16) and `users.bot_memory.reset` (2026-09-22), absorbed

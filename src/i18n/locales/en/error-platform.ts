@@ -95,7 +95,9 @@ const platform = {
 
     // ─── Agents and contracts ────────────────────────────────────────────────
     AGENT_NOT_FOUND: 'The platform has no such agent.',
-    AGENT_KYC_NOT_VERIFIED: 'This agent’s identity has not been verified yet.',
+    // Since 2026-09-27 this gates cash on delivery only — on a reassign it means
+    // a COD shipment; a prepaid one is never refused for it.
+    AGENT_KYC_NOT_VERIFIED: 'This agent isn’t verified and can’t carry cash on delivery.',
     AGENT_PLATFORM_BANNED: 'This agent is banned platform-wide.',
     // Raised by the pin AND by the release since 2026-09-21 — a release is refused
     // when the plan's value is below what the contracts hold — so the sentence

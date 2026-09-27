@@ -113,9 +113,12 @@ export function PayoutOriginBadge({ origin }: { origin: string | null | undefine
  *
  * ── ⛔ Three things this must never become ───────────────────────────────────
  *
- * 1. **A gate.** It is information, not enforcement: the platform does not refuse
- *    an unverified owner's payout, and `PayoutsQueue`'s row actions are keyed on
- *    `status === 'pending'` alone and must stay that way. The reviewer decides.
+ * 1. **A gate — or a cap.** It is information, not enforcement: the platform does
+ *    not refuse an unverified owner's payout, and `PayoutsQueue`'s row actions are
+ *    keyed on `status === 'pending'` alone and must stay that way. The reviewer
+ *    decides. ⚠ **Nor does it limit the amount** (2026-09-27): the unverified
+ *    payout allowance was deleted, so a payout is always the owner's whole
+ *    available balance. No "capped", "allowance" or "partial payout" wording.
  * 2. **A derivation.** The tone branches on `verification.verified` and nothing
  *    else — never on `verdict !== 'rejected'` (*never reviewed* is not approval,
  *    and on this platform that is most accounts) and never on the owner's

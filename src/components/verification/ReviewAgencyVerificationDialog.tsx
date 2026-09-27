@@ -37,8 +37,9 @@ import { VerificationReviewDialog } from './VerificationReviewDialog';
  * product activation, pickup resolution, COD eligibility and vendor
  * default-agency selection" — **three of those four gate on `active`**, and a
  * refused agency that proved its phone *is* `active`. What a refusal actually
- * costs is **cash**: COD eligibility now tests the KYC flag explicitly, and the
- * payout allowance reads the verdict.
+ * costs is **cash on delivery**: COD eligibility tests the KYC flag explicitly.
+ * ⚠ It no longer limits payouts — the unverified payout allowance was deleted on
+ * 2026-09-27, so an unverified owner withdraws their whole balance.
  *
  * ✅ **Re-review works**: `POST /verify` accepts a refused agency once they fix
  * what the reason named. That was briefly untrue — see BR-026 § 2, raised here

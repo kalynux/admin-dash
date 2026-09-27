@@ -4,10 +4,9 @@
 The one addition is `POST /accounts/:ownerType/:ownerId/statements` (account statements —
 [changelog](admin/FRONTEND-CHANGELOG-account-statements.md)); its permission and audit cells were
 read from `accounts/routes/account.routes.ts`, **uncommitted upstream** at the time.
-`authz:matrix` printed **125 / 105 / 39**. ⚠ **`permissions.md` does not yet list
-`money.statements.send`** — upstream or mirrored — so it is declared in `permissions.types.ts`
-from source, and the doc-diffing half of `permissions.types.test.ts` is red until the page is
-re-derived and re-copied. So the "agree again" note below is true of 124 and stale by one.
+`authz:matrix` printed **125 / 105 / 39**, and `permissions.md` now publishes
+`money.statements.send` (added upstream and re-copied the same day), so the matrix and the
+contract agree at 125 / 105 / 39 — the "124" note below is the previous measurement.
 
 ⚠ **255 → 256 on 2026-09-22: `POST /agents/:agentId/cod-threshold/release`**, from the COD-pool
 round ([changelog](admin/FRONTEND-CHANGELOG-agent-cod-pool-and-emergency-contact.md)). Its

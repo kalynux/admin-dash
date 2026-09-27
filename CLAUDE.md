@@ -29,6 +29,19 @@ two before it closed with Phase F on 2026-08-27 (`GET /files/library`, `POST /fi
 pins the services against the map — so take it by grepping each ROUTE-MAP path in
 `src/services`, not by reading it here.
 
+✅ **An agent's KYC gates cash on delivery ONLY — built 2026-09-27.** Contract:
+[FRONTEND-CHANGELOG-verification-no-longer-gates-work.md](api-doc/admin/FRONTEND-CHANGELOG-verification-no-longer-gates-work.md);
+`agents.md`, `shipments.md` and `money.md` re-copied the same day. An unverified agent contracts
+and takes **prepaid** work; `verified` unlocks the COD pool and COD dispatch. ⛔ **No
+"undispatchable" / "cannot work" copy for KYC** — the review dialog now says *"Verify identity
+— allows cash-on-delivery orders"*. `kyc_not_verified` left `IneligibilityReason`. The new
+remedy **`verify_agent_kyc`** renders as a link to `?tab=verification`, which `AgentDetail`
+reads on every navigation (keyed on `location.key`), because the link sits on the same screen.
+Reassign maps `platformCode: AGENT_KYC_NOT_VERIFIED` onto the agent field. ⚠ **The unverified
+payout allowance is deleted** — `verification` on a payout limits nothing, not even the amount.
+⚠ §4's optional *"dormant until verified"* label was **not** built: it would branch on
+`pool.source`, which nothing here may do.
+
 ✅ **Account statements built 2026-09-27.** Contract:
 [FRONTEND-CHANGELOG-account-statements.md](api-doc/admin/FRONTEND-CHANGELOG-account-statements.md).
 `POST /accounts/:ownerType/:ownerId/statements` is `downloadAccountStatement` /
@@ -41,11 +54,11 @@ is a POST that answers bytes**, so it goes through `api.postForDownload` (CSRF +
 pattern. ⚠ The three email refusals (`STATEMENT_RECIPIENT_MISSING` / `_UNVERIFIED` as
 `details.platformCode`, `413 STATEMENT_TOO_LARGE_TO_EMAIL`) all offer **Download instead**.
 ⚠ **Activity `direction` gained `internal`**: rendered muted with no sign, and left out of
-`sumAccountActivity`, the loaded-rows totals line on the Activity feed. 🔴 **`permissions.md`
-does not publish `money.statements.send` yet** (upstream or mirrored), so the permission was
-taken from source (`authz:matrix`: **125 / 105 / 39**) and the two doc-diffing assertions in
-`permissions.types.test.ts` are **red until that page is re-derived and re-copied**. Do not
-weaken them or edit the mirror. `ROUTE-MAP.md` is **262** (`dump-routes.js` → `TOTAL 263`).
+`sumAccountActivity`, the loaded-rows totals line on the Activity feed. `permissions.md` lagged
+the code by a few hours on `money.statements.send`; the row was added to
+`backend/admin/api-doc/api/permissions.md` and re-copied the same day, so the matrix
+(`authz:matrix`: **125 / 105 / 39**) and the contract agree and `permissions.types.test.ts` is
+green. `ROUTE-MAP.md` is **262** (`dump-routes.js` → `TOTAL 263`).
 
 ✅ **COD declarations carry a proof photo — built 2026-09-27.** Contract:
 [FRONTEND-CHANGELOG-cod-cash-proof.md](api-doc/admin/FRONTEND-CHANGELOG-cod-cash-proof.md);
