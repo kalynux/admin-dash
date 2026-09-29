@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "src/components/content/ArticleCoverFields.tsx"
+        ],
+        "createdAt": "2026-09-29T18:55:49.436Z",
+        "reason": "Claude: L182 is new Image() used off-DOM to measure naturalWidth/Height, never rendered"
+      }
+    ]
+  }
+}

@@ -158,7 +158,8 @@ export function ArticleSavedPreview({
     return (
         <Sheet open onOpenChange={onOpenChange}>
             <SheetContent side="right" className="w-full sm:max-w-2xl">
-                <SheetHeader>
+                {/* `pr-12` keeps the description clear of the close button. */}
+                <SheetHeader className="border-b px-6 pt-6 pr-12 pb-4">
                     <SheetTitle>As a reader sees it</SheetTitle>
                     <SheetDescription>
                         The published projection of the saved article, in {locale} — the same shape
@@ -166,7 +167,9 @@ export function ArticleSavedPreview({
                         here.
                     </SheetDescription>
                 </SheetHeader>
-                <SheetBody className="overflow-y-auto">
+                {/* `SheetBody` carries no padding of its own — without this the
+                    prose runs edge to edge against the sheet's border. */}
+                <SheetBody className="px-6 py-6">
                     {preview.isLoading ? (
                         <DetailSkeleton />
                     ) : preview.data ? (

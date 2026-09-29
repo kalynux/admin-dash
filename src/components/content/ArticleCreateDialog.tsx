@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { AuthFormError } from '@/components/auth/AuthFormError';
 import { ArticleBodyEditor } from '@/components/content/ArticleBodyEditor';
+import { ArticleCoverFields } from '@/components/content/ArticleCoverFields';
 import { InlineLoader } from '@/components/common/Loading';
 import { Button } from '@/components/ui/button';
 import {
@@ -25,6 +26,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { emptyBlock, suggestHeadingId, validateArticleBody } from '@/lib/article-body';
+import { EMPTY_COVER_DRAFT, readCoverDraft, type CoverDraft } from '@/lib/article-cover';
 import { notify } from '@/lib/notify';
 import { createArticle, listAuthors } from '@/services/content.service';
 import { ApiError } from '@/types/api.types';
@@ -41,6 +43,7 @@ import {
     CODE_SLUG_RESERVED,
     CODE_SLUG_TAKEN,
     CONTENT_LOCALES,
+    COVER_ALT_MAX,
     DEFAULT_CONTENT_LOCALE,
     RESERVED_SLUGS,
     type ArticleBody,
@@ -91,6 +94,8 @@ export function ArticleCreateDialog({
     const [title, setTitle] = useState('');
     const [excerpt, setExcerpt] = useState('');
     const [body, setBody] = useState<ArticleBody>([emptyBlock('paragraph')]);
+    const [coverDraft, setCoverDraft] = useState<CoverDraft>(EMPTY_COVER_DRAFT);
+    const [coverAlt, setCoverAlt] = useState('');
 
     const [busy, setBusy] = useState(false);
     const [formError, setFormError] = useState<unknown>(null);
@@ -130,9 +135,15 @@ export function ArticleCreateDialog({
     const localIdProblem = idProblem();
     const localSlugProblem = slugProblem();
 
+    // The cover is optional, but one that was started must be finished — a half
+    // cover is a `400` on the whole create, not a cover quietly left off.
+    const cover = readCoverDraft(coverDraft);
+    const coverReady = cover.empty || cover.cover !== null;
+
     const canSave =
         localIdProblem === null &&
         localSlugProblem === null &&
+        coverReady &&
         authorId.length > 0 &&
         title.trim().length > 0 &&
         excerpt.trim().length > 0 &&
@@ -152,6 +163,8 @@ export function ArticleCreateDialog({
                 id: articleId,
                 categoryKey,
                 authorId,
+                // ⚠ Omitted rather than `null` when there is none — nothing to clear on a create.
+                ...(cover.cover ? { cover: cover.cover } : {}),
                 translations: [
                     {
                         locale,
@@ -159,6 +172,11 @@ export function ArticleCreateDialog({
                         title: title.trim(),
                         excerpt: excerpt.trim(),
                         body,
+                        // Omitted when blank: `""` is refused. Sent only with a cover —
+                        // a description of no picture is noise on the record.
+                        ...(cover.cover && coverAlt.trim().length > 0
+                            ? { coverAlt: coverAlt.trim() }
+                            : {}),
                     },
                 ],
             });
@@ -288,6 +306,32 @@ export function ArticleCreateDialog({
                         </div>
                     </div>
 
+                    {/*
+                      Article-wide, so it sits with the category and byline rather
+                      than inside the language: one picture serves every language.
+                      Its description is per language and lives below.
+                    */}
+                    <div className="space-y-3 border-t pt-4">
+                        <div>
+                            <p className="text-sm font-medium">Cover image (optional)</p>
+                            <p className="text-muted-foreground text-xs">
+                                One picture for every language of this article. It can also be
+                                added or changed later from the article screen.
+                            </p>
+                        </div>
+                        <ArticleCoverFields
+                            idPrefix="article-cover"
+                            value={coverDraft}
+                            onChange={setCoverDraft}
+                        />
+                        {!cover.empty && cover.urlProblem === null && cover.cover === null ? (
+                            <p className="text-warning text-xs">
+                                Fill in the width and height, or clear the url to create the
+                                article without a cover.
+                            </p>
+                        ) : null}
+                    </div>
+
                     <div className="space-y-3 border-t pt-4">
                         <p className="text-sm font-medium">The first language</p>
                         {/*
@@ -396,6 +440,25 @@ export function ArticleCreateDialog({
                                 onChange={(event) => setExcerpt(event.target.value)}
                             />
                         </div>
+
+                        {cover.empty ? null : (
+                            <div className="space-y-1.5">
+                                <Label htmlFor="article-cover-alt">
+                                    Cover description (alt text)
+                                </Label>
+                                <Input
+                                    id="article-cover-alt"
+                                    value={coverAlt}
+                                    maxLength={COVER_ALT_MAX}
+                                    onChange={(event) => setCoverAlt(event.target.value)}
+                                />
+                                <p className="text-muted-foreground text-xs">
+                                    What a screen reader announces, and what a search engine puts
+                                    on the shared card, in {locale}. Optional for a draft, but
+                                    publishing is refused until it is written.
+                                </p>
+                            </div>
+                        )}
 
                         <div className="space-y-2">
                             <Label>Body</Label>

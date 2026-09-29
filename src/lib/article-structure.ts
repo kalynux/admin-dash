@@ -293,7 +293,8 @@ export function initialPlan(storedBody: ArticleBody): StructurePlan {
  */
 export type BodyEdit =
     | { kind: 'replace'; index: number }
-    | { kind: 'add' }
+    /** `index` is where the new block landed; absent means appended. */
+    | { kind: 'add'; index?: number }
     | { kind: 'remove'; index: number }
     | { kind: 'move'; from: number; to: number };
 
@@ -306,8 +307,11 @@ export function applyEditToPlan(plan: StructurePlan, edit: BodyEdit): StructureP
             // Deliberately nothing: the block is the same block with new words.
             return plan;
         case 'add':
-            // The editor appends; a block that did not exist has no origin.
-            return { ...plan, origins: [...origins, null] };
+            // A block that did not exist has no origin. ⚠ An insert must splice
+            // at its own position — appending the `null` would shift every
+            // later block's origin onto its neighbour's translation.
+            origins.splice(edit.index ?? origins.length, 0, null);
+            return { ...plan, origins };
         case 'remove':
             origins.splice(edit.index, 1);
             return { ...plan, origins };

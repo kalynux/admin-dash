@@ -133,6 +133,22 @@ describe('reordering and removal', () => {
         expect(screen.getByLabelText(/move block 2 down/i)).toBeDisabled();
     });
 
+    it('inserts a new block directly below the one it was asked from', async () => {
+        renderWithProviders(
+            <Harness
+                initial={[
+                    { type: 'heading', level: 2, id: 'first', text: 'First' },
+                    { type: 'divider' },
+                ]}
+            />,
+        );
+
+        await userEvent.click(screen.getByLabelText(/insert a block below block 1/i));
+        await userEvent.click(await screen.findByRole('option', { name: /^quote/i }));
+
+        expect(currentBody().map((block) => block.type)).toEqual(['heading', 'quote', 'divider']);
+    });
+
     it('removes a block', async () => {
         renderWithProviders(
             <Harness initial={[{ type: 'divider' }, { type: 'divider' }]} />,

@@ -136,6 +136,17 @@ export function ArticleBodyEditor({
         );
     }
 
+    /** Insert a new block directly below `after`, so a long body needs no scroll back up. */
+    function insertBelow(after: number, type: ArticleBlockType) {
+        const at = after + 1;
+        onChange([...value.slice(0, at), emptyBlock(type), ...value.slice(at)], {
+            kind: 'add',
+            index: at,
+        });
+    }
+
+    const full = value.length >= ARTICLE_BODY_MAX_BLOCKS;
+
     function move(index: number, by: -1 | 1) {
         const target = index + by;
         if (target < 0 || target >= value.length) return;
@@ -171,7 +182,7 @@ export function ArticleBodyEditor({
                     </p>
                 ) : (
                     <AddBlock
-                        disabled={value.length >= ARTICLE_BODY_MAX_BLOCKS}
+                        disabled={full}
                         onAdd={(type) => onChange([...value, emptyBlock(type)], { kind: 'add' })}
                     />
                 )}
@@ -280,6 +291,20 @@ export function ArticleBodyEditor({
                         {problemFor(index) ? (
                             <p className="text-destructive text-xs">{problemFor(index)}</p>
                         ) : null}
+
+                        {/* Hidden, not disabled, in `follows` mode: the header already
+                            says why the structure is fixed, and nine copies of that
+                            reason would bury the prose being translated. */}
+                        {follows ? null : (
+                            <div className="flex justify-center border-t border-dashed pt-2">
+                                <AddBlock
+                                    disabled={full}
+                                    placeholder="Add a block below"
+                                    ariaLabel={`Insert a block below block ${index + 1}`}
+                                    onAdd={(type) => insertBelow(index, type)}
+                                />
+                            </div>
+                        )}
                     </li>
                 ))}
             </ul>
@@ -312,9 +337,14 @@ function describeDrift(extra: number, mismatched: number): string {
 function AddBlock({
     onAdd,
     disabled,
+    placeholder = 'Add a block',
+    ariaLabel = 'Add a block',
 }: {
     onAdd: (type: ArticleBlockType) => void;
     disabled: boolean;
+    placeholder?: string;
+    /** ⚠ Must not match /add a block/ on the per-block copies — the header one is found by it. */
+    ariaLabel?: string;
 }) {
     return (
         <Select
@@ -324,9 +354,9 @@ function AddBlock({
             onValueChange={(next) => onAdd(next as ArticleBlockType)}
             disabled={disabled}
         >
-            <SelectTrigger className="w-56" aria-label="Add a block">
+            <SelectTrigger className="w-56" aria-label={ariaLabel}>
                 <Plus className="size-4" />
-                <SelectValue placeholder="Add a block" />
+                <SelectValue placeholder={placeholder} />
             </SelectTrigger>
             <SelectContent>
                 {ARTICLE_BLOCK_TYPES.map((type) => (

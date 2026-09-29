@@ -322,6 +322,24 @@ describe('propagating a driver edit — by origin, never by position', () => {
         expect(planRemovesOrReorders(plan)).toBe(false);
     });
 
+    it('keeps every translation on its own block when a block is inserted mid-list', () => {
+        // ⚠ Appending the `null` origin instead of splicing it would hand the new
+        // block "Deux" and push every later translation one block down.
+        let plan = initialPlan(storedDriver);
+        plan = applyEditToPlan(plan, { kind: 'add', index: 1 });
+        const editedDriver: ArticleBody = [
+            storedDriver[0],
+            paragraph('Inserted'),
+            storedDriver[1],
+            storedDriver[2],
+        ];
+
+        const result = applyStructure(french, editedDriver, plan);
+
+        expect(result).toEqual([french[0], paragraph('Inserted'), french[1], french[2]]);
+        expect(planRemovesOrReorders(plan)).toBe(false);
+    });
+
     it('does not share block objects with the language it rebuilt', () => {
         let plan = initialPlan(storedDriver);
         plan = applyEditToPlan(plan, { kind: 'add' });
