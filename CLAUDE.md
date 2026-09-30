@@ -29,6 +29,28 @@ two before it closed with Phase F on 2026-08-27 (`GET /files/library`, `POST /fi
 pins the services against the map — so take it by grepping each ROUTE-MAP path in
 `src/services`, not by reading it here.
 
+✅ **Payment routing built 2026-09-30 — Developer tools › Payments, and `provider` on the money
+pages.** Contract: [FRONTEND-CHANGELOG-payment-providers.md](api-doc/admin/FRONTEND-CHANGELOG-payment-providers.md)
+(jovi-mall ADR-A08); `dev-tools.md`, `money.md`, `accounts.md`, `permissions.md` re-copied, and
+jovi-mall's `payments/routing.md` (new), `payments/README.md`, its changelog and `error-codes.ts`
+mirrored with banners and path-aware link repair. `GET`/`PUT /dev-tools/payments` are
+`getPaymentRouting` / `setPaymentRouting` and `pages/dev-tools/PaymentRouting.tsx`; the rules live
+in [`payment-routing.types.ts`](src/types/payment-routing.types.ts) with their own test.
+⛔ **The screen is gated on `developer_tools.payments.read` ONLY and never reads
+`dev_tools.enabled`** — it is the outage failover lever, exempt like maintenance; a test asserts
+no `feature-flags` request. ⚠ **`expectedVersion` is the version the draft was STARTED from**, not
+the one loaded at save time: a tab-return refresh under a pending draft would otherwise overwrite
+another operator's switch with no `409` (perturbation-tested). After a conflict it rebases to what
+is on screen. ⚠ **Issue codes, aggregator and provider names are all open strings** — render an
+unknown one by its `message`/name. ⚠ **`gateway` is no longer a closed list**:
+`PAYMENT_GATEWAYS`/`REFUND_GATEWAYS` are deleted, and `GatewayFilter` builds its options from
+`aggregators[]` — **but that read is tier 1 only**, so Admin and Support get an upper-casing text
+box instead (a lower-cased `?gateway=` is an empty page, not an error). ⚠ **`transferGateway: null`
+on a SENT payout means NotchPay** — `payoutTransferGateway()` applies it, and a `paid` payout with
+no transfer ref (recorded by hand) gets no aggregator at all. `authz:matrix`: **127 / 105 / 39**;
+`dump-routes.js`: `TOTAL 265` → **264** routes. ⚠ **Deploy order: jovi-mall first** — against an
+older platform the `GET` answers `platformSupported: false` and the screen says so.
+
 ✅ **An agent's KYC gates cash on delivery ONLY — built 2026-09-27.** Contract:
 [FRONTEND-CHANGELOG-verification-no-longer-gates-work.md](api-doc/admin/FRONTEND-CHANGELOG-verification-no-longer-gates-work.md);
 `agents.md`, `shipments.md` and `money.md` re-copied the same day. An unverified agent contracts
@@ -401,7 +423,7 @@ pinned upstream by `test:list-strictness` — read it there rather than copying 
 [`src/lib/query.ts`](src/lib/query.ts) for this repository's one statement of the rule. Widening
 `listQuery` service-wide is still deliberately **not** done.
 
-**`npm test` — 2645 tests in 171 files, measured on 2026-09-27** at the close of the bot-memory round (+`ResetBotMemoryDialog.test.tsx`, −`permissions.pending.test.ts`), with 8 failures in a run that shared the machine with a build, all in `CreateTicketDialog`, `App` and `TicketAttachmentsPanel`; re-run alone, the 3 that remain are the ones recorded below as failing at `HEAD`. **The previous figure was 2629 tests in 170 files, measured on 2026-09-22** at the close of the COD-pool
+**`npm test` — 2715 tests in 176 files, measured on 2026-09-30** at the close of the payment-routing round, with 7 failures in a run sharing the machine with 32 node processes, none in a file the round touched (`App`, `ArticleCreateDialog`, `CreateTicketDialog`, `UserDetail`); re-run alone all passed but one `ArticleCreateDialog` cover test, which then passed alone on a second run — `ArticleCreateDialog.test.tsx` is the sixth file in the contention pattern. **The previous figure was 2645 tests in 171 files, measured on 2026-09-27** at the close of the bot-memory round (+`ResetBotMemoryDialog.test.tsx`, −`permissions.pending.test.ts`), with 8 failures in a run that shared the machine with a build, all in `CreateTicketDialog`, `App` and `TicketAttachmentsPanel`; re-run alone, the 3 that remain are the ones recorded below as failing at `HEAD`. **The previous figure was 2629 tests in 170 files, measured on 2026-09-22** at the close of the COD-pool
 round (the two new files are `AssignabilityCheck.test.tsx` and `PlanFormDialog.test.tsx`), with
 **3 failures, none in a file the round touched**, and 16 node processes up. ⚠ **One of them is not
 a flake: App.test.tsx's *"lands the orders container on its index child"* failed in the full run,
@@ -542,7 +564,7 @@ machine, not the code.
 npm run dev       # 5175, strictPort
 npm run build     # tsc -b && vite build   ← the typecheck runs here
 npm run lint      # eslint .
-npm test          # vitest run — 2669 tests in 173 files (2026-09-27, after the account-statements round). No sibling dashboard has one.
+npm test          # vitest run — 2715 tests in 176 files (2026-09-30, after the payment-routing round). No sibling dashboard has one.
 ```
 
 **Every phase closes the same way**: typecheck, lint, tests, build, then a written summary naming
@@ -801,7 +823,7 @@ Two Phase-C additions sit on top of them and are worth knowing before writing a 
 
 Read [permissions.md](api-doc/admin/api/permissions.md) before touching any of it.
 
-- `src/types/permissions.types.ts` — the **125** permission names as literal types.
+- `src/types/permissions.types.ts` — the **127** permission names as literal types.
   `permissions.types.test.ts` **parses `api-doc/admin/api/permissions.md` and diffs it against them**,
   so a backend policy change fails the suite rather than drifting silently.
 
@@ -950,12 +972,12 @@ status code ([auth.md](api-doc/admin/api/auth.md)):
 show `secret` as the manual fallback.
 
 **Build navigation from `GET /api/v1/permissions/me`.** Do not hard-code the matrix, and do not
-discover capability by collecting 403s. There are **125** permissions named `family.resource.action`
+discover capability by collecting 403s. There are **127** permissions named `family.resource.action`
 across **21** families, and **4 of them are catalogued policy with no endpoint yet** — the
 permission existing does not mean the screen can be built.
 
-**Levels: lower number = more privilege.** Tier 1 Developer (**125/125**, MFA mandatory), tier 2
-Admin (**105/125** — the operational tier including money), tier 3 Support (**39/125** — tickets plus
+**Levels: lower number = more privilege.** Tier 1 Developer (**127/127**, MFA mandatory), tier 2
+Admin (**105/127** — the operational tier including money), tier 3 Support (**39/127** — tickets plus
 read-only lookups **and both tracking-presence and live-position reads**, the COD and payout-queue
 reads, both `triage` names and the bot-memory reset; no sight of the administrator directory).
 ⚠ **"Nothing financial" is no longer true without qualification**: `money.payouts.triage` is
@@ -993,9 +1015,9 @@ The **26** built route groups are `/auth`, `/administrators`, `/employees`, `/ge
 `/permissions`, `/approvals`, `/audit`, `/users`, `/vendors`, `/agencies`, `/agents`,
 `/contracts`, `/orders`, `/shipments`, `/cod`, `/billing`, `/money`, `/accounts`, `/support`,
 `/content`, `/messaging`, `/files`, `/system`, `/dev-tools`, `/notifications`, `/automation`
-(+ unversioned `/health/live`, `/health/ready`) — **262 routes in total** (261 → 262 later on 2026-09-27, measured: the account statement; 256 → 261 earlier that day for the bot-memory reset and ADR-024's four triage/send routes). Every one is listed
+(+ unversioned `/health/live`, `/health/ready`) — **264 routes in total** (262 → 264 on 2026-09-30, measured: `GET`/`PUT /dev-tools/payments`; 261 → 262 later on 2026-09-27, measured: the account statement; 256 → 261 earlier that day for the bot-memory reset and ADR-024's four triage/send routes). Every one is listed
 with its permission in [api-doc/ROUTE-MAP.md](api-doc/ROUTE-MAP.md), and
-`src/types/route-map.test.ts` parses that file, so the 262 and the exact composite-guard set fail
+`src/types/route-map.test.ts` parses that file, so the 264 and the exact composite-guard set fail
 a test rather than ageing in prose.
 
 🔴 **252 → 255 the same day, and the three that arrived were found by reading SOURCE, not a

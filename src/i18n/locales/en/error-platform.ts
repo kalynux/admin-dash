@@ -323,6 +323,19 @@ const platform = {
         'This account has no email address on file, so nothing was sent. Download the statement instead.',
     STATEMENT_RECIPIENT_UNVERIFIED:
         'This account’s email address is not verified yet, so nothing was sent. Download the statement instead.',
+
+    // ─── Payment routing ─────────────────────────────────────────────────────
+    /**
+     * `PUT /dev-tools/payments`, 2026-09-30 (jovi-mall ADR-A08). The Payments
+     * screen renders both itself — it reloads on the conflict and lists
+     * `details.errors[]` on the invalid one — so these are the floor for any
+     * other path, and neither promises a retry: the conflict needs a human to
+     * look again, and the invalid one needs a different choice.
+     */
+    PAYMENT_SETTINGS_VERSION_CONFLICT:
+        'Someone else changed payment routing first. Nothing was saved — reload, look at what they did, and decide again.',
+    PAYMENT_SETTINGS_INVALID:
+        'Those payment settings break a routing rule, so nothing was saved.',
 };
 
 export default platform;

@@ -216,8 +216,13 @@ export function AccountActivityPanel({
                         <Badge variant="outline" className="capitalize">
                             {item.status}
                         </Badge>
-                        {item.gateway ? (
-                            <p className="text-muted-foreground text-xs">{item.gateway}</p>
+                        {item.gateway || item.provider ? (
+                            <p className="text-muted-foreground text-xs">
+                                {/* Paid with the provider, carried by the aggregator — both open strings. */}
+                                {[item.provider ? `Paid with ${item.provider}` : null, item.gateway]
+                                    .filter(Boolean)
+                                    .join(' · ')}
+                            </p>
                         ) : null}
                     </div>
                 ),

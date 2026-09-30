@@ -371,7 +371,17 @@ export interface AccountActivityItem {
     /** `null` on a row that moves no credit. */
     credits: number | null;
     description: string;
+    /**
+     * The aggregator that carried a charge — an OPEN uppercase string, informational only.
+     * `null` on rows that are not charges.
+     */
     gateway: string | null;
+    /**
+     * What the payer paid **with** — `MTN` · `ORANGE` · `MOOV` · `CARD`, open. Always
+     * present; `null` on rows that are not charges **and** on charges written before payment
+     * routing (2026-09-30), with no backfill.
+     */
+    provider: string | null;
     source: { type: string; id: string } | null;
     createdAt: string;
 }

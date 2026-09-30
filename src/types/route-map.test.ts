@@ -108,7 +108,7 @@ describe('the route total is the sum of its parts', () => {
         );
     });
 
-    it('holds the 262 routes on the service as of 2026-09-27', () => {
+    it('holds the 264 routes on the service as of 2026-09-30', () => {
         // Pinned deliberately, and it is the assertion that fires when the
         // backend ships a route group. A change here is not a failure to fix by
         // editing this number: it means a route arrived, and something in `src/`
@@ -140,7 +140,10 @@ describe('the route total is the sum of its parts', () => {
         //
         // ⚠ 261 → 262 later on 2026-09-27, measured (`TOTAL 263`): the account
         // statement, `POST /accounts/:ownerType/:ownerId/statements`.
-        expect(totalDeclared).toBe(262);
+        //
+        // ⚠ 262 → 264 on 2026-09-30, measured (`TOTAL 265`): `GET` and
+        // `PUT /dev-tools/payments`, the payment-routing switch.
+        expect(totalDeclared).toBe(264);
     });
 });
 

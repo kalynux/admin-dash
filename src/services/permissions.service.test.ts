@@ -48,10 +48,11 @@ describe('the flags this service deliberately does not set', () => {
         // aged out in a background tab would land on a broken shell.
         expect(calls).toHaveLength(3);
         expect(calls[1].url).toContain('/auth/refresh');
-        // Tier 1 holds all of them — 125 since `money.statements.send` (2026-09-27);
+        // Tier 1 holds all of them — 127 since the `developer_tools.payments.*`
+        // pair (2026-09-30); 125 since `money.statements.send` (2026-09-27);
         // 124 from the 2026-09-22 re-derivation, which added
         // the two ADR-024 `triage` names and `users.bot_memory.reset`.
-        expect(result.permissions).toHaveLength(125);
+        expect(result.permissions).toHaveLength(127);
     });
 
     it('lets a scoped session announce itself rather than swallowing the refusal', async () => {

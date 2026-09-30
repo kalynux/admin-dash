@@ -1,8 +1,8 @@
 /**
  * `/dev-tools` — the operations writes.
  *
- * Feature flags, worker triggers, outbox replay and prune, catalogue vectorise, maintenance mode
- * and cache flush. **Almost everything here is Developer (tier 1) only, and every write is
+ * Feature flags, worker triggers, outbox replay and prune, catalogue vectorise, maintenance mode,
+ * cache flush and the payment-routing switch. **Almost everything here is Developer (tier 1) only, and every write is
  * audited.**
  *
  * ── Every write goes through `api.mutate`, and that is not a style choice ─────
@@ -39,6 +39,12 @@ import type {
     VectoriseResult,
     WorkerRunResult,
 } from '@/types/dev-tools.types';
+import type {
+    PaymentRouting,
+    PaymentStatsWindow,
+    SetPaymentSettingsBody,
+    SetPaymentSettingsResult,
+} from '@/types/payment-routing.types';
 
 /** What every write here answers with: the platform's result plus the sentence to show. */
 export interface ToolOutcome<T> {
@@ -287,6 +293,63 @@ export async function flushCache(
     const { data, message } = await api.mutate<FlushCacheResult>(
         'POST',
         '/dev-tools/cache/flush',
+        body,
+        options,
+    );
+    return { data, message };
+}
+
+// ─── Payment routing ──────────────────────────────────────────────────────────
+
+/**
+ * `GET /dev-tools/payments?window=` · `developer_tools.payments.read` (tier 1).
+ *
+ * The settings, every aggregator's facts, what customers are offered right now, the standing
+ * `errors` / `warnings`, and per-aggregator outcomes over `window` — all in one read, on purpose:
+ * if jovi-mall is unreachable the **whole** read fails (`502`/`503`), because a screen showing
+ * stats with no settings would invite a switch decided on half the picture.
+ *
+ * **Not behind `dev_tools.enabled`** — it is the failover lever for an aggregator outage, and
+ * nobody in an outage should first have to find and flip an unrelated flag. So the screen must
+ * never gate itself on that flag either.
+ *
+ * ⚠ `errors` and `warnings` are defaulted to `[]` here as well as in wi-admin: both are
+ * "always present" on the contract, and a list the screen maps over must never be `undefined`.
+ */
+export async function getPaymentRouting(
+    window: PaymentStatsWindow = '24h',
+    options?: RequestOptions,
+): Promise<PaymentRouting> {
+    const data = await api.get<PaymentRouting>(
+        `/dev-tools/payments?window=${encodeURIComponent(window)}`,
+        options,
+    );
+    return {
+        ...data,
+        aggregators: data.aggregators ?? [],
+        errors: data.errors ?? [],
+        warnings: data.warnings ?? [],
+    };
+}
+
+/**
+ * `PUT /dev-tools/payments` · `developer_tools.payments.set` (tier 1) · **destructive**,
+ * audited fail-closed.
+ *
+ * Send **only what changed** (`buildSettingsPatch`), plus `expectedVersion` — the `version` last
+ * read, `0` on the defaults — and a `reason` of 10–500 characters. The body is `.strict()`.
+ *
+ * ⚠ **Never retry this automatically.** A `409 PAYMENT_SETTINGS_VERSION_CONFLICT` means another
+ * operator switched first; the caller reloads and lets a human decide again. The three refusals
+ * arrive as `details.platformCode` — see `classifyPaymentSettingsRefusal`.
+ */
+export async function setPaymentRouting(
+    body: SetPaymentSettingsBody,
+    options?: RequestOptions,
+): Promise<ToolOutcome<SetPaymentSettingsResult>> {
+    const { data, message } = await api.mutate<SetPaymentSettingsResult>(
+        'PUT',
+        '/dev-tools/payments',
         body,
         options,
     );

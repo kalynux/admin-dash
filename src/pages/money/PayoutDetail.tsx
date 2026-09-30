@@ -44,6 +44,7 @@ import {
     payoutHoldsFunds,
     type Payout,
 } from '@/types/money.types';
+import { payoutTransferGateway } from '@/types/payment-routing.types';
 
 /**
  * `GET /money/payouts/:payoutId` · `money.payouts.read`.
@@ -410,6 +411,33 @@ function TransferStateNotice({ record }: { record: Payout }) {
     );
 }
 
+/**
+ * The aggregator that sent this payout — `transferGateway`, with the legacy default applied by
+ * `payoutTransferGateway`: a payout sent before the stamp existed went through NotchPay, and says
+ * so as an inference rather than as a recorded fact. One recorded by hand went through none.
+ */
+function TransferGateway({ record }: { record: Payout }) {
+    const sent = payoutTransferGateway(record);
+    if (!sent) {
+        return (
+            <NotSet>
+                {record.status === 'paid' ? 'No aggregator — recorded as paid by hand' : 'Not sent yet'}
+            </NotSet>
+        );
+    }
+    return (
+        <span>
+            {sent.gateway}
+            {sent.inferred ? (
+                <span className="text-muted-foreground text-xs">
+                    {' '}
+                    · sent before aggregators were recorded, when NotchPay was the only one
+                </span>
+            ) : null}
+        </span>
+    );
+}
+
 function BackLink() {
     return (
         <Link
@@ -587,6 +615,10 @@ function ResolutionCard({ record, timeZone }: { record: Payout; timeZone: string
                         ) : (
                             <NotSet>Nobody yet</NotSet>
                         )}
+                    </Definition>
+
+                    <Definition label="Sent through">
+                        <TransferGateway record={record} />
                     </Definition>
 
                     <Definition label="Transfer reference">

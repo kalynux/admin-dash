@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Route, Routes } from 'react-router-dom';
 
@@ -8,7 +8,8 @@ import { AllocationsList } from '@/pages/money/AllocationsList';
 import { PaymentsList } from '@/pages/money/PaymentsList';
 import { PlatformLedger } from '@/pages/money/PlatformLedger';
 import { RefundsList } from '@/pages/money/RefundsList';
-import { adminFixture } from '@/test/fixtures';
+import { __resetAggregatorNames } from '@/hooks/use-aggregator-names';
+import { adminFixture, heldFixture } from '@/test/fixtures';
 import {
     allocationDetailFixture,
     allocationFixture,
@@ -301,6 +302,64 @@ describe('payments', () => {
         expect(latest(calls).searchParams.get('status')).toBe('SUCCEEDED');
     });
 
+    /**
+     * `gateway` is an OPEN list since 2026-09-30 (payment routing). A row carried by an
+     * aggregator this build has never heard of renders by its name, and `provider` — what the
+     * customer paid WITH — sits beside it.
+     */
+    it('renders an unknown gateway by name, with the provider beside it', async () => {
+        stubPayments([
+            paymentFixture({ id: 'p1', gateway: 'CAMPAY', provider: 'ORANGE', gatewayRef: 'CP-1' }),
+            paymentFixture({ id: 'p2', provider: null, gatewayRef: 'NP-OLD' }),
+        ]);
+
+        render(<PaymentsList />);
+
+        expect(await screen.findByText('CAMPAY')).toBeInTheDocument();
+        expect(screen.getByText(/paid with ORANGE/)).toBeInTheDocument();
+        // A row from before routing has no provider, and says nothing rather than "null".
+        expect(screen.queryByText(/paid with null/i)).not.toBeInTheDocument();
+    });
+
+    /**
+     * A developer may read the aggregator catalogue, so the filter is a picker built from
+     * `aggregators[]` — never a constant. CAMPAY is in it because the platform says so.
+     */
+    it('builds the gateway picker from the aggregator catalogue for a developer', async () => {
+        __resetAggregatorNames();
+        const calls = stubFetch((call: FetchCall) => {
+            if (call.url.includes('/money/payments')) {
+                return successResponse([paymentFixture()], { meta: payoutListMetaFixture() });
+            }
+            if (call.url.includes('/dev-tools/payments')) {
+                return successResponse({
+                    platformSupported: true,
+                    settings: null,
+                    aggregators: ['NOTCHPAY', 'MYCOOLPAY', 'STRIPE', 'CAMPAY'].map((name) => ({ name })),
+                    effectiveProviders: [],
+                    errors: [],
+                    warnings: [],
+                    stats: { window: '24h', since: '', stuckPendingAfterMinutes: 30, gateways: [] },
+                });
+            }
+            throw new Error(`unexpected request: ${call.method} ${call.url}`);
+        });
+        const user = userEvent.setup();
+
+        renderWithProviders(<PaymentsList />, {
+            route: '/dashboard/money',
+            auth: { status: 'authenticated', admin: adminFixture({ timezone: 'Africa/Douala' }) },
+            permissions: { held: heldFixture(1) },
+        });
+        await screen.findByText('NP-2026-08-13-4471');
+
+        await user.click(await screen.findByRole('combobox', { name: /gateway/i }));
+        await user.click(await screen.findByRole('option', { name: 'CAMPAY' }));
+
+        await waitFor(() => expect(latest(calls).searchParams.get('gateway')).toBe('CAMPAY'));
+        __resetAggregatorNames();
+    });
+
     it('reports a cart payment by its order count rather than a single id', async () => {
         // A cart checkout writes `orderIds` and leaves `orderId` unset, which is
         // why the server's filter matches either.
@@ -359,8 +418,13 @@ describe('refunds', () => {
         expect(await screen.findByRole('option', { name: 'completed' })).toBeInTheDocument();
         await user.keyboard('{Escape}');
 
-        await user.click(screen.getByRole('combobox', { name: /gateway/i }));
-        expect(await screen.findByRole('option', { name: 'NOTCHPAY' })).toBeInTheDocument();
+        // Gateway is an OPEN list since 2026-09-30, and this caller cannot read the aggregator
+        // catalogue (tier 1 only) — so it is a text box that upper-cases what is typed, because
+        // a lower-cased value is an empty page rather than an error.
+        const calls = stubRefunds();
+        await user.type(screen.getByRole('textbox', { name: /gateway/i }), 'campay');
+        await waitFor(() => expect(latest(calls).searchParams.get('gateway')).toBe('CAMPAY'));
+        expect(calls.some((call) => call.url.includes('/dev-tools/payments'))).toBe(false);
     });
 
     it('reports an incomplete refund as not completed, never as unknown', async () => {

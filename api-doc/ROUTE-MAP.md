@@ -1,4 +1,10 @@
-# Route map — all 262 wi-admin routes
+# Route map — all 264 wi-admin routes
+
+✅ **262 → 264 on 2026-09-30, MEASURED — the recipe printed `TOTAL 265`.** The two additions are
+`GET` and `PUT /dev-tools/payments`, the payment-routing switch (jovi-mall ADR-A08 —
+[changelog](admin/FRONTEND-CHANGELOG-payment-providers.md)). Both are **not** behind
+`dev_tools.enabled`, like maintenance. `authz:matrix` printed **127 / 105 / 39**: the two new
+`developer_tools.payments.*` names are tier 1 only, and `permissions.md` publishes both.
 
 ✅ **261 → 262 on 2026-09-27 (later the same day), MEASURED — the recipe printed `TOTAL 263`.**
 The one addition is `POST /accounts/:ownerType/:ownerId/statements` (account statements —
@@ -147,8 +153,8 @@ failure is not caught, so with the audit store down nothing is disclosed. See
 ```bash
 cd backend/admin
 node -r ts-node/register/transpile-only -r dotenv/config \
-    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 263 (2026-09-27, statements)
-npm run authz:matrix                                                      # 125 / 105 / 39 (2026-09-27, statements)
+    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 265 (2026-09-30, payment routing)
+npm run authz:matrix                                                      # 127 / 105 / 39 (2026-09-30, payment routing)
 ```
 
 ✅ **`authz:matrix` and the contract agree again: 124 / 104 / 38**, re-derived from source on
@@ -158,8 +164,8 @@ bot-memory reset is the 124th. Support's seven-permission jump is three new name
 COD/payout reads the code had always granted and the page had shown as withheld.
 
 ⚠ **The tool prints one more than this table holds**, always: the extra is
-`POST /api/internal/automation/failures`, deliberately excluded below. So `TOTAL 262` is the
-number that says *"this table is current"* — and the run on **2026-09-27 printed exactly that**.
+`POST /api/internal/automation/failures`, deliberately excluded below. So `TOTAL 265` is the
+number that says *"this table is current"* — and the run on **2026-09-30 printed exactly that**.
 It printed 260 on 2026-09-15, naming four routes this table then lacked. It printed 240 against 239 rows on
 2026-09-08. (This block said `# TOTAL 239` until then, which made a correct run look like a
 failure.)
@@ -170,7 +176,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 
 ---
 
-## The 262 routes, by namespace
+## The 264 routes, by namespace
 
 ### `/support` — 19 routes
 
@@ -427,7 +433,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | POST | `/agencies/:agencyId/reject` | `agencies.verify` | ✅ agencies.reject | [`agencies.md`](admin/api/agencies.md) |
 | POST | `/agencies/:agencyId/verify` | `agencies.verify` | ✅ agencies.verify | [`agencies.md`](admin/api/agencies.md) |
 
-### `/dev-tools` — 9 routes
+### `/dev-tools` — 11 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -438,6 +444,8 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | PUT | `/dev-tools/maintenance` | `developer_tools.maintenance.set` | ✅ developer_tools.maintenance.set | [`dev-tools.md`](admin/api/dev-tools.md) |
 | POST | `/dev-tools/outbox/prune` | `developer_tools.outbox.prune` | ✅ developer_tools.outbox.prune | [`dev-tools.md`](admin/api/dev-tools.md) |
 | POST | `/dev-tools/outbox/replay` | `developer_tools.outbox.replay` | ✅ developer_tools.outbox.replay | [`dev-tools.md`](admin/api/dev-tools.md) |
+| GET | `/dev-tools/payments` | `developer_tools.payments.read` | — | [`dev-tools.md`](admin/api/dev-tools.md) |
+| PUT | `/dev-tools/payments` | `developer_tools.payments.set` | ✅ developer_tools.payments.set | [`dev-tools.md`](admin/api/dev-tools.md) |
 | GET | `/dev-tools/workers` | `system.workers.read` | — | [`dev-tools.md`](admin/api/dev-tools.md) |
 | POST | `/dev-tools/workers/:workerKey/run` | `developer_tools.workers.trigger` | ✅ developer_tools.workers.trigger | [`dev-tools.md`](admin/api/dev-tools.md) |
 

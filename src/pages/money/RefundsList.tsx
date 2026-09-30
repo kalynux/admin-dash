@@ -10,6 +10,7 @@ import { FilterField } from '@/components/common/FilterField';
 import { NotSet } from '@/components/common/DefinitionList';
 import { Pager } from '@/components/common/Pager';
 import { PageContainer } from '@/components/layout/PageContainer';
+import { GatewayFilter } from '@/components/money/GatewayFilter';
 import { RefundStatusBadge } from '@/components/money/MoneyBadges';
 import { InfoHint } from '@/components/ui/info-hint';
 import {
@@ -33,7 +34,6 @@ import { listRefunds } from '@/services/money.service';
 import { useAdmin, useCan } from '@/store';
 import {
     MONEY_MAX_RANGE_DAYS,
-    REFUND_GATEWAYS,
     REFUND_SORT_DEFAULT,
     REFUND_STATUSES,
     type Refund,
@@ -233,26 +233,11 @@ export function RefundsList() {
                         </Select>
                     </FilterField>
 
-                    <FilterField label="Gateway" htmlFor="refund-gateway">
-                        <Select
-                            value={values.gateway || ANY}
-                            onValueChange={(next) => set({ gateway: next === ANY ? null : next })}
-                        >
-                            <SelectTrigger id="refund-gateway" className="w-[160px]">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value={ANY}>Any gateway</SelectItem>
-                                {withCurrent(REFUND_GATEWAYS, values.gateway || ANY).map(
-                                    (value) => (
-                                        <SelectItem key={value} value={value}>
-                                            {value}
-                                        </SelectItem>
-                                    ),
-                                )}
-                            </SelectContent>
-                        </Select>
-                    </FilterField>
+                    <GatewayFilter
+                        id="refund-gateway"
+                        value={values.gateway}
+                        onChange={(next, { typing }) => set({ gateway: next }, { replace: typing })}
+                    />
 
                     <DateRangeFilter
                         label="Requested"

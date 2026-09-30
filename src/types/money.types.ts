@@ -364,6 +364,17 @@ export interface Payout {
      */
     triage: TriageStamp | null;
     /**
+     * The **aggregator** that sent, or is sending, this payout — stamped at the first transfer
+     * attempt; retries and callbacks follow the stamp, never the current routing switch. An open
+     * uppercase string (`NOTCHPAY` today, more with no dashboard release).
+     *
+     * ⚠ **Passed through RAW, so `null` has two meanings** and the dashboard does the defaulting:
+     * no transfer was attempted yet, **or** it was sent before the stamp existed — in which case
+     * it was NotchPay, the only payout aggregator then. Read it through
+     * `payoutTransferGateway()`, never directly.
+     */
+    transferGateway: string | null;
+    /**
      * The **gateway's own** transfer id, for reconciling against the provider's
      * dashboard. Never our merchant reference, and `null` until one is issued.
      */
@@ -972,7 +983,18 @@ export interface Payment {
     };
     /** `kind` is a hard-coded constant, always this exact string. */
     payer: { id: string; kind: 'customer_or_user' };
+    /**
+     * **Which aggregator carried it; informational.** An OPEN uppercase string — `NOTCHPAY` ·
+     * `MYCOOLPAY` · `STRIPE` today, `CAMPAY` and `FLUTTERWAVE` coming with no dashboard
+     * release. The active one is switched at runtime (`PUT /dev-tools/payments`); a row keeps
+     * the one that actually carried it. Never branch on it, never validate it against a list.
+     */
     gateway: string;
+    /**
+     * What the customer paid **with** — `MTN` · `ORANGE` · `MOOV` · `CARD`, also open.
+     * **`null` on every row written before payment routing** (2026-09-30); no backfill.
+     */
+    provider: string | null;
     method: string;
     gatewayRef: string;
     status: string;
@@ -1042,8 +1064,12 @@ export interface Refund {
  * Refunds then invert half of it: `status` is lowercase while `gateway` is
  * UPPERCASE, in the same object (`refund-transaction.model.ts:25,27`). So
  * `money.md:625` is right and `:626` is wrong on adjacent lines.
+ *
+ * ⚠ **There is no gateway constant here any more, on purpose (2026-09-30).** The aggregator is
+ * switched at runtime and new ones (Campay) appear with no dashboard release, so a gateway filter
+ * takes its options from `GET /dev-tools/payments` → `aggregators[]` (see `GatewayFilter`),
+ * never from a list in this file.
  */
-export const PAYMENT_GATEWAYS = ['NOTCHPAY', 'MYCOOLPAY', 'STRIPE'] as const;
 export const PAYMENT_METHODS = ['MOBILE', 'CARD', 'CASH'] as const;
 export const PAYMENT_STATUSES = [
     'INITIATED',
@@ -1056,8 +1082,6 @@ export const PAYMENT_STATUSES = [
 
 /** Lowercase — unlike its own `gateway`, and unlike every payment vocabulary. */
 export const REFUND_STATUSES = ['pending', 'completed', 'failed'] as const;
-/** UPPERCASE, matching payments. */
-export const REFUND_GATEWAYS = PAYMENT_GATEWAYS;
 
 export const PAYMENT_SORT_KEYS = ['createdAt', 'amount'] as const;
 export const PAYMENT_SORT_DEFAULT = '-createdAt';

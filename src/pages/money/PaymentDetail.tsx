@@ -68,7 +68,7 @@ export function PaymentDetail() {
     return (
         <PageContainer
             title={formatMoney(record.amount, record.currency)}
-            description={`${record.gateway} · ${record.method}`}
+            description={`${record.gateway} · ${record.method}${record.provider ? ` · paid with ${record.provider}` : ''}`}
         >
             <div className="space-y-4">
                 <BackLink />
@@ -141,6 +141,15 @@ function SettlementCard({
 
                     <Definition label="Gateway">
                         {payment.gateway} · {payment.method}
+                    </Definition>
+
+                    {/*
+                      What the customer paid WITH, beside the aggregator that carried it.
+                      `null` on every payment made before routing existed (2026-09-30) —
+                      unknown, not "none", so it says when it was not recorded.
+                    */}
+                    <Definition label="Paid with">
+                        {payment.provider ?? <NotSet>Not recorded — paid before providers were</NotSet>}
                     </Definition>
 
                     <Definition label="Gateway reference">

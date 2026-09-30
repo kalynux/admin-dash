@@ -230,6 +230,21 @@ export const ERROR_CODES = Object.freeze({
      * conversation than "which network is this number on?".
      */
     PAYMENT_OPERATOR_UNDETERMINED: 'PAYMENT_OPERATOR_UNDETERMINED',
+
+    // ── PAYMENT ROUTING (ADR-A08, api-doc/payments/routing.md) ────────────────
+    // All five are raised BEFORE anything is written, and all are client-safe categories so
+    // `details` reaches the caller (wi-admin forwards it only for those). `test:errors` pins
+    // their statuses.
+    /** 422. The provider is disabled, or no aggregator can route it now. `details.offered` lists what can. */
+    PAYMENT_PROVIDER_UNAVAILABLE: 'PAYMENT_PROVIDER_UNAVAILABLE',
+    /** 422. The number's prefix belongs to another operator than `provider`. `{ provider, detected, spent: false }`. */
+    PAYMENT_PROVIDER_PHONE_MISMATCH: 'PAYMENT_PROVIDER_PHONE_MISMATCH',
+    /** 400. No `provider`, and none could be derived from a legacy body. */
+    PAYMENT_PROVIDER_REQUIRED: 'PAYMENT_PROVIDER_REQUIRED',
+    /** 422. A payment-settings write broke a hard rule. `details.errors[]` names each one. */
+    PAYMENT_SETTINGS_INVALID: 'PAYMENT_SETTINGS_INVALID',
+    /** 409. `expectedVersion` is not the stored `version`: reload and retry. */
+    PAYMENT_SETTINGS_VERSION_CONFLICT: 'PAYMENT_SETTINGS_VERSION_CONFLICT',
     /**
      * A currency with a minor unit was sent to a mobile-money gateway.
      *
@@ -539,6 +554,13 @@ export const ERROR_CODES = Object.freeze({
      * tap is simply silent.
      */
     BOT_ACTION_TOKEN_UNKNOWN: 'BOT_ACTION_TOKEN_UNKNOWN',
+    /**
+     * `chat_answer_question` was called and no Yes/No question is waiting in this
+     * conversation — none was drawn, its fifteen minutes passed, a tap already
+     * answered it, or the one showing is a question a word may not answer (account
+     * closure; a checkout with several addresses to choose from). 409 → `conflict`.
+     */
+    BOT_NO_PENDING_QUESTION: 'BOT_NO_PENDING_QUESTION',
     /**
      * The Mini App asked to add something the list it was opened for never
      * offered.
@@ -899,6 +921,14 @@ export const ERROR_CODES = Object.freeze({
     MAIL_SEND_REJECTED: 'MAIL_SEND_REJECTED',
     // Every provider in the chain failed. Carries the last provider's verdict.
     MAIL_ALL_PROVIDERS_FAILED: 'MAIL_ALL_PROVIDERS_FAILED',
+
+    // ── ACCOUNT STATEMENT MAIL (`/api/internal/admin/mail/statement`) ─────────
+    // The recipient is resolved HERE from the profile, never supplied by the caller,
+    // so "who may receive a statement" has no input to get wrong. Both 409s: the
+    // request is well-formed and the account's state refuses it.
+    STATEMENT_RECIPIENT_MISSING: 'STATEMENT_RECIPIENT_MISSING',
+    STATEMENT_RECIPIENT_UNVERIFIED: 'STATEMENT_RECIPIENT_UNVERIFIED',
+    STATEMENT_ATTACHMENT_TOO_LARGE: 'STATEMENT_ATTACHMENT_TOO_LARGE',
 
     // ── VENDORS ─────────────────────────────────────────────────────────────
     VENDOR_UNSUPPORTED_FISCAL_CALENDAR: 'VENDOR_UNSUPPORTED_FISCAL_CALENDAR',
@@ -1356,8 +1386,9 @@ export const ERROR_CODES = Object.freeze({
      *
      * Not in ADR-A02, and added because the anonymisation makes an in-flight delivery
      * undeliverable rather than merely untidy: `CashCollectionService.notifyCodeIssued`
-     * sends the COD delivery code to `Customer.phone`, which closure clears, and the
-     * messaging connections that carry every other delivery notification are deleted. The
+     * sends the COD delivery code on the customer's notification channel (since 2026-09-27;
+     * before, to `Customer.phone`, which closure clears), and closure deletes the messaging
+     * connections that carry it and every other delivery notification. The
      * agent arrives at an address holding a parcel the recipient can no longer be given a
      * code for.
      *
@@ -1637,6 +1668,19 @@ export const ERROR_CODES = Object.freeze({
      * choose, typed by hand rather than picked from `GET /api/geo/search`).
      */
     ORDER_DELIVERY_ADDRESS_REQUIRED: 'ORDER_DELIVERY_ADDRESS_REQUIRED',
+    /**
+     * 422 — a vendor's part of the basket is too small to carry its delivery cost
+     * (ADR-A07). The vendor absorbs the agency's delivery fee (+ COD handling fee), so
+     * checkout refuses when that cost is above `ORDER_MAX_DELIVERY_COST_PERCENT` of the
+     * subtotal, or would leave the vendor nothing after commission.
+     *
+     * Raised by checkout (authoritative, inside the order transaction) and by the chat
+     * checkout's pre-spend check (`details.spent: false`). `details`: `vendorId`, `scope`
+     * (`order` online / `shipment` COD), `agencyId`, `subtotal`, `minimumSubtotal`,
+     * `shortfall`, `maxDeliveryPercent`, `reason`, `currency`. Never the commission or the
+     * vendor's net.
+     */
+    ORDER_BELOW_DELIVERY_MINIMUM: 'ORDER_BELOW_DELIVERY_MINIMUM',
 
     // ── CART ──────────────────────────────────────────────────────────────────
     CART_VARIANT_REQUIRED: 'CART_VARIANT_REQUIRED',
@@ -1685,6 +1729,8 @@ export const ERROR_CODES = Object.freeze({
     BOOKING_BALANCE_PAYMENT_IN_PROGRESS: 'BOOKING_BALANCE_PAYMENT_IN_PROGRESS',
     /** The booking must be completed before its balance can be settled. */
     BOOKING_NOT_COMPLETED: 'BOOKING_NOT_COMPLETED',
+    /** Owed, but not payable yet — the shop has not accepted it (bookings phase 6, the list's Pay). */
+    BOOKING_NOT_PAYABLE_NOW: 'BOOKING_NOT_PAYABLE_NOW',
     /** An active booking already overlaps the requested interval (commit-time race). */
     BOOKING_SLOT_UNAVAILABLE: 'BOOKING_SLOT_UNAVAILABLE',
     /** The booking is past the point where it can be cancelled by its owner. */
@@ -1730,7 +1776,6 @@ export const ERROR_CODES = Object.freeze({
     EARNINGS_PAYOUT_METHOD_MISSING: 'EARNINGS_PAYOUT_METHOD_MISSING',
     EARNINGS_PAYOUT_NO_AVAILABLE_BALANCE: 'EARNINGS_PAYOUT_NO_AVAILABLE_BALANCE',
     EARNINGS_PAYOUT_BELOW_MINIMUM: 'EARNINGS_PAYOUT_BELOW_MINIMUM',
-    EARNINGS_PAYOUT_UNVERIFIED_CAP_REACHED: 'EARNINGS_PAYOUT_UNVERIFIED_CAP_REACHED',
     EARNINGS_PAYOUT_REQUEST_NOT_FOUND: 'EARNINGS_PAYOUT_REQUEST_NOT_FOUND',
     EARNINGS_PAYOUT_REQUEST_NOT_PENDING: 'EARNINGS_PAYOUT_REQUEST_NOT_PENDING',
 
@@ -1782,7 +1827,14 @@ export const ERROR_CODES = Object.freeze({
     COD_DEPOSIT_EXCEEDS_BALANCE: 'COD_DEPOSIT_EXCEEDS_BALANCE',
     COD_DEPOSIT_NOT_FOUND: 'COD_DEPOSIT_NOT_FOUND',
     COD_DEPOSIT_ALREADY_RESOLVED: 'COD_DEPOSIT_ALREADY_RESOLVED',
-    COD_DEPOSIT_REFERENCE_REQUIRED: 'COD_DEPOSIT_REFERENCE_REQUIRED',
+    /**
+     * A deposit or remittance declaration carried no proof image. A dedicated code for the
+     * same reason as `SHIPMENT_PROOF_FILE_REQUIRED`: the likely cause is the wrong multipart
+     * field name, or a client still sending the old JSON body.
+     */
+    COD_PROOF_FILE_REQUIRED: 'COD_PROOF_FILE_REQUIRED',
+    /** The deposit/remittance has no proof image (recorded by its receiver, or legacy). */
+    COD_PROOF_NOT_FOUND: 'COD_PROOF_NOT_FOUND',
     /** Direct-to-platform deposit for cash the agency has already remitted. */
     COD_DEPOSIT_AGENCY_ALREADY_SETTLED: 'COD_DEPOSIT_AGENCY_ALREADY_SETTLED',
     COD_DEPOSIT_WRONG_RECIPIENT: 'COD_DEPOSIT_WRONG_RECIPIENT',

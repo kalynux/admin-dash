@@ -15,6 +15,7 @@ function row(overrides: Partial<AccountActivityItem>): AccountActivityItem {
         credits: null,
         description: 'Earnings held',
         gateway: null,
+        provider: null,
         source: null,
         createdAt: '2026-09-01T00:00:00.000Z',
         ...overrides,

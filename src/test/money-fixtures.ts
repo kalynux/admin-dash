@@ -113,6 +113,8 @@ export function payoutFixture(overrides: Partial<Payout> = {}): Payout {
           mistaken gate is invisible.
         */
         triage: null,
+        // Raw, as wi-admin passes it: `null` on a payout never attempted.
+        transferGateway: null,
         transferGatewayRef: null,
         transferFailureReason: null,
         ticketId: null,
@@ -300,6 +302,8 @@ export function paymentFixture(overrides: Record<string, unknown> = {}) {
         },
         payer: { id: '665b112233445566778899bb', kind: 'customer_or_user' },
         gateway: 'NOTCHPAY',
+        // `null` on rows written before payment routing (2026-09-30).
+        provider: 'MTN',
         method: 'MOBILE',
         gatewayRef: 'NP-2026-08-13-4471',
         status: 'SUCCEEDED',

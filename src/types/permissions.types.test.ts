@@ -123,10 +123,14 @@ describe('the permission catalogue matches api-doc/admin/api/permissions.md', ()
         // taken from source before `permissions.md` published it, and the two
         // doc-diffing assertions above were red until the page was corrected
         // upstream and re-copied, the same day.
-        expect(PERMISSION_NAMES.length).toBe(125);
+        //
+        // ⚠ **Moved 125 → 127 on 2026-09-30**, by executing `authz:matrix` —
+        // 127 / 105 / 39: `developer_tools.payments.read` / `.set`, the
+        // payment-routing switch. Tier 1 only, so only the first total moved.
+        expect(PERMISSION_NAMES.length).toBe(127);
         expect(UNROUTED_PERMISSION_NAMES.length).toBe(4);
         expect(PERMISSION_FAMILIES.length).toBe(21);
-        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(121);
+        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(123);
     });
 
     /**

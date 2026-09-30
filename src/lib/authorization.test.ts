@@ -129,7 +129,10 @@ describe('the tier fixtures match the documented levels', () => {
         //
         // ⚠ **124 / 104 / 38 → 125 / 105 / 39 on 2026-09-27**, by executing
         // `authz:matrix`: `money.statements.send`, held by every tier.
-        expect(TIER_1_PERMISSIONS.length).toBe(125);
+        //
+        // ⚠ **125 → 127 on 2026-09-30**, by executing `authz:matrix`: the two
+        // `developer_tools.payments.*` names, tier 1 only — tiers 2 and 3 unmoved.
+        expect(TIER_1_PERMISSIONS.length).toBe(127);
         expect(TIER_2_PERMISSIONS.length).toBe(105);
         expect(TIER_3_PERMISSIONS.length).toBe(39);
     });

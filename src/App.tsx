@@ -57,6 +57,7 @@ import { FeatureFlags } from '@/pages/dev-tools/FeatureFlags';
 import { MediaLibrary } from '@/pages/media/MediaLibrary';
 import { OrphanFiles } from '@/pages/media/OrphanFiles';
 import { OutboxTools } from '@/pages/dev-tools/OutboxTools';
+import { PaymentRouting } from '@/pages/dev-tools/PaymentRouting';
 import { PlatformLogs } from '@/pages/dev-tools/PlatformLogs';
 import { PermissionsModule } from '@/pages/permissions/PermissionsModule';
 import { SystemErrors } from '@/pages/system/SystemErrors';
@@ -260,6 +261,7 @@ const SCREENS: Record<string, ReactNode> = {
      * against.
      */
     'dev-tools-flags': <FeatureFlags />,
+    'dev-tools-payments': <PaymentRouting />,
     'dev-tools-config': <DevToolsConfig />,
     'dev-tools-logs': <PlatformLogs />,
     'dev-tools-database': <DatabaseInspector />,

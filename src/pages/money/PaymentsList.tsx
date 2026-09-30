@@ -10,6 +10,7 @@ import { FilterBar } from '@/components/common/FilterBar';
 import { FilterField } from '@/components/common/FilterField';
 import { Pager } from '@/components/common/Pager';
 import { PageContainer } from '@/components/layout/PageContainer';
+import { GatewayFilter } from '@/components/money/GatewayFilter';
 import { PaymentStatusBadge } from '@/components/money/MoneyBadges';
 import { Badge } from '@/components/ui/badge';
 import { InfoHint } from '@/components/ui/info-hint';
@@ -34,7 +35,6 @@ import { listPayments } from '@/services/money.service';
 import { useAdmin } from '@/store';
 import {
     MONEY_MAX_RANGE_DAYS,
-    PAYMENT_GATEWAYS,
     PAYMENT_METHODS,
     PAYMENT_SORT_DEFAULT,
     PAYMENT_STATUSES,
@@ -60,6 +60,13 @@ import {
  * so a lower-cased filter returns an **empty page rather than an error** — and
  * `money.md`'s examples are all lower-cased. The constants come from the schema
  * enums instead; a filter built from the doc would match nothing, silently.
+ *
+ * ── `gateway` is an OPEN list since 2026-09-30 ────────────────────────────────
+ * The aggregator is switched at runtime and Campay will arrive with no release,
+ * so the gateway filter is `GatewayFilter` (options from the Payments screen's
+ * `aggregators[]`) and the column renders whatever it is given. `provider` — what
+ * the customer paid **with** — sits under it, and is `null` on every row written
+ * before routing existed.
  */
 
 const FILTER_KEYS = [
@@ -154,7 +161,10 @@ export function PaymentsList() {
                 cell: (row) => (
                     <div className="space-y-0.5">
                         <p className="text-sm">{row.gateway}</p>
-                        <p className="text-muted-foreground text-xs">{row.method}</p>
+                        <p className="text-muted-foreground text-xs">
+                            {row.method}
+                            {row.provider ? ` · paid with ${row.provider}` : ''}
+                        </p>
                     </div>
                 ),
             },
@@ -233,26 +243,11 @@ export function PaymentsList() {
                         </Select>
                     </FilterField>
 
-                    <FilterField label="Gateway" htmlFor="payment-gateway">
-                        <Select
-                            value={values.gateway || ANY}
-                            onValueChange={(next) => set({ gateway: next === ANY ? null : next })}
-                        >
-                            <SelectTrigger id="payment-gateway" className="w-[160px]">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value={ANY}>Any gateway</SelectItem>
-                                {withCurrent(PAYMENT_GATEWAYS, values.gateway || ANY).map(
-                                    (value) => (
-                                        <SelectItem key={value} value={value}>
-                                            {value}
-                                        </SelectItem>
-                                    ),
-                                )}
-                            </SelectContent>
-                        </Select>
-                    </FilterField>
+                    <GatewayFilter
+                        id="payment-gateway"
+                        value={values.gateway}
+                        onChange={(next, { typing }) => set({ gateway: next }, { replace: typing })}
+                    />
 
                     <FilterField label="Method" htmlFor="payment-method">
                         <Select

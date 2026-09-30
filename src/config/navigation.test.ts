@@ -735,6 +735,24 @@ describe('the platform modules', () => {
         expect(isNavEntryPermitted(devTools, heldFixture(1))).toBe(true);
     });
 
+    /**
+     * The payment-routing switch (2026-09-30). Tier 1 only by permission — and ONLY by
+     * permission: it is exempt from `dev_tools.enabled`, like maintenance, because it is the
+     * failover lever for an aggregator outage, so nothing here may make it depend on that flag.
+     */
+    it('shows Payments to a developer and to nobody else', () => {
+        const payments = (devTools.children ?? []).find((child) => child.id === 'dev-tools-payments');
+        expect(navEntryPermissions(payments)).toEqual(['developer_tools.payments.read']);
+
+        expect(permittedChildren(devTools, heldFixture(1)).map((child) => child.id)).toContain(
+            'dev-tools-payments',
+        );
+        for (const tier of [2, 3] as const) {
+            expect(isNavEntryPermitted(devTools, heldFixture(tier)), `tier ${tier}`).toBe(false);
+            expect(isNavEntryPermitted(payments as NavChild, heldFixture(tier)), `tier ${tier}`).toBe(false);
+        }
+    });
+
     it('gates the cache destination on inspecting, not on flushing', () => {
         // Looking is not clearing: one permission for both would mean an operator who may
         // inspect may also delete. The flush is a button on the screen, gated separately.

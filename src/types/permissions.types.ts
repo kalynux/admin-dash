@@ -8,7 +8,7 @@
  * draw that line themselves: `GET /permissions/catalog` requires no permission
  * because "the vocabulary is what a dashboard is written against"
  * (`authorization.md`), while `permissions.md` says in as many words *"Do not
- * hard-code the matrix below into the dashboard"*. So the 125 **names** live
+ * hard-code the matrix below into the dashboard"*. So the 127 **names** live
  * here as literal types — a typo becomes a compile error rather than a module
  * that silently never renders — and **who holds what** comes only from
  * `GET /permissions/me`, never from this file.
@@ -22,7 +22,13 @@ import type { AdminTier } from '@/types/auth.types';
 // ─── The catalogue ────────────────────────────────────────────────────────────
 
 /**
- * All 125 permissions, `family.resource.action`, in the doc's own family order.
+ * All 127 permissions, `family.resource.action`, in the doc's own family order.
+ *
+ * The 126th and 127th are `developer_tools.payments.read` and
+ * `developer_tools.payments.set` (2026-09-30, the payment-routing switch —
+ * jovi-mall ADR-A08). **Tier 1 only**, like the rest of the family, so tiers 2
+ * and 3 did not move: 127 / 105 / 39, measured with `npm run authz:matrix`. Like
+ * `developer_tools.maintenance.set`, neither is behind `dev_tools.enabled`.
  *
  * The 125th is `money.statements.send` (2026-09-27, account statements), held by
  * **every** tier — 125 / 105 / 39, measured with `npm run authz:matrix`. It was
@@ -311,6 +317,8 @@ export const PERMISSION_NAMES = [
     'developer_tools.database.inspect',
     'developer_tools.cache.inspect',
     'developer_tools.outbox.prune',
+    'developer_tools.payments.read',
+    'developer_tools.payments.set',
 ] as const;
 
 /**
@@ -377,14 +385,14 @@ export const PERMISSION_FAMILIES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Any of the 125. Use for what the *server* may send us. */
+/** Any of the 127. Use for what the *server* may send us. */
 export type PermissionName = (typeof PERMISSION_NAMES)[number];
 
 /** One of the four `†`. */
 export type UnroutedPermissionName = (typeof UNROUTED_PERMISSION_NAMES)[number];
 
 /**
- * The 121 that gate a real endpoint — 125 less the four `†`. **Use for what *our code* asks for** — nav
+ * The 123 that gate a real endpoint — 127 less the four `†`. **Use for what *our code* asks for** — nav
  * items, `<Can>`, `RequirePermission` — so that gating a screen on a permission
  * whose endpoint does not exist is a `tsc` error.
  */

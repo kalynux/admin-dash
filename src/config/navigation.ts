@@ -1059,6 +1059,26 @@ export const NAV_SECTIONS: NavSection[] = [
                     },
                     {
                         /**
+                         * The payment-routing switch (2026-09-30, jovi-mall ADR-A08): which
+                         * aggregator collects and pays out, Stripe, and the providers offered.
+                         *
+                         * ⚠ **Gated on the permission ONLY — never on `dev_tools.enabled`.** It
+                         * is the manual failover lever for an aggregator outage, and like
+                         * maintenance mode the backend exempts it from the flag, so nobody in
+                         * an outage has to find and flip an unrelated switch first. The screen
+                         * does not read the flag either. Declared second, beside the flag it
+                         * does not depend on, because it is the one an operator reaches for
+                         * under pressure.
+                         */
+                        id: 'dev-tools-payments',
+                        label: 'Payments',
+                        path: '/dashboard/dev-tools/payments',
+                        permission: 'developer_tools.payments.read',
+                        implemented: true,
+                        phase: 14,
+                    },
+                    {
+                        /**
                          * Moved out of System, where it sat behind a `developer_tools.*`
                          * permission and so refused every Admin who clicked it. Shows wi-admin's
                          * own configuration beside the platform's — two endpoints with two

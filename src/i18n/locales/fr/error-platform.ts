@@ -172,6 +172,12 @@ const platform = {
         'Ce compte n’a aucune adresse e-mail enregistrée : rien n’a été envoyé. Téléchargez le relevé à la place.',
     STATEMENT_RECIPIENT_UNVERIFIED:
         'L’adresse e-mail de ce compte n’est pas encore vérifiée : rien n’a été envoyé. Téléchargez le relevé à la place.',
+
+    // ─── Routage des paiements ───────────────────────────────────────────────
+    PAYMENT_SETTINGS_VERSION_CONFLICT:
+        'Quelqu’un d’autre a modifié le routage des paiements avant vous. Rien n’a été enregistré : rechargez, regardez ce qui a changé, puis décidez à nouveau.',
+    PAYMENT_SETTINGS_INVALID:
+        'Ces réglages de paiement enfreignent une règle de routage : rien n’a été enregistré.',
 };
 
 export default platform;

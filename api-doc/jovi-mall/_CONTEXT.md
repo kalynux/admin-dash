@@ -66,10 +66,11 @@ integration notes. All of it would be noise here.
 | `admin/` | jovi-mall's own former admin surface — **historical**, plus the internal API wi-admin actually uses |
 | `errors/` · `error-codes.ts` | the registry behind `details.platformCode` |
 | `tracking/` | jovi-mall's half of the tracking contract — the **policy**, which it owns |
-| `payments/` · `uploads/` · `rate-limits.md` | cross-cutting behaviour a delegated call inherits |
+| `payments/` · `uploads/` · `rate-limits.md` | cross-cutting behaviour a delegated call inherits — `payments/routing.md` (2026-09-30) is the provider/aggregator model behind Developer tools › Payments |
 | `notifications/` | the WhatsApp template catalogue |
 | `me/` | the self-service account routes every role shares — password, email/phone change, WhatsApp phone verification, account closure — so you know what a party did to their own account |
 | `billing-plans-across-roles.md` · `FRONTEND-CHANGELOG-cod-pool.md` | the one plan and credit model behind every owner's billing, and the 2026-09-21 change that derives an agent's COD pool from their plan |
+| `FRONTEND-CHANGELOG-payment-providers.md` | the 2026-09-30 change that split the customer's **provider** from the runtime-switched **aggregator** (ADR-A08) — the other apps' side of the Payments screen |
 
 ### Two deliberate differences from the backend's copies
 
