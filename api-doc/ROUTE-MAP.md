@@ -1,4 +1,13 @@
-# Route map — all 264 wi-admin routes
+# Route map — all 265 wi-admin routes
+
+✅ **264 → 265 on 2026-09-30 (later the same day), MEASURED — the recipe printed `TOTAL 266`.** The one
+addition is `POST /money/payouts/:payoutId/resolve-unknown`, the manual exit for a payout stuck in
+`processing` with an unknown transfer outcome ([`money.md`](admin/api/money.md) § resolve-unknown).
+It is `anyPermission('money.payouts.mark_paid', 'money.payouts.triage')` at the door, narrowed by
+the body's `outcome` — so it is the **fifth `any`-mode guard: 17 `all` + 5 `any` = 22**. Read from
+`money/routes/money.routes.ts`, **uncommitted upstream**. ⚠ `permissions.md` still says *four*
+`any`-mode guards and does not name this route — the contract is behind the code. `authz:matrix`
+is unchanged at **127 / 105 / 39**: no new permission, two new audit actions.
 
 ✅ **262 → 264 on 2026-09-30, MEASURED — the recipe printed `TOTAL 265`.** The two additions are
 `GET` and `PUT /dev-tools/payments`, the payment-routing switch (jovi-mall ADR-A08 —
@@ -153,7 +162,7 @@ failure is not caught, so with the audit store down nothing is disclosed. See
 ```bash
 cd backend/admin
 node -r ts-node/register/transpile-only -r dotenv/config \
-    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 265 (2026-09-30, payment routing)
+    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 266 (2026-09-30, resolve-unknown)
 npm run authz:matrix                                                      # 127 / 105 / 39 (2026-09-30, payment routing)
 ```
 
@@ -164,7 +173,7 @@ bot-memory reset is the 124th. Support's seven-permission jump is three new name
 COD/payout reads the code had always granted and the page had shown as withheld.
 
 ⚠ **The tool prints one more than this table holds**, always: the extra is
-`POST /api/internal/automation/failures`, deliberately excluded below. So `TOTAL 265` is the
+`POST /api/internal/automation/failures`, deliberately excluded below. So `TOTAL 266` is the
 number that says *"this table is current"* — and the run on **2026-09-30 printed exactly that**.
 It printed 260 on 2026-09-15, naming four routes this table then lacked. It printed 240 against 239 rows on
 2026-09-08. (This block said `# TOTAL 239` until then, which made a correct run look like a
@@ -176,7 +185,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 
 ---
 
-## The 264 routes, by namespace
+## The 265 routes, by namespace
 
 ### `/support` — 19 routes
 
@@ -314,7 +323,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/content/authors/:authorId` | `content.authors.read` | — | [`content.md`](admin/api/content.md) |
 | PATCH | `/content/authors/:authorId` | `content.authors.write` | ✅ content.authors.update | [`content.md`](admin/api/content.md) |
 
-### `/money` — 16 routes
+### `/money` — 17 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -331,6 +340,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/money/payouts/:payoutId/destination` | `money.payouts.destination.read` | ✅ money.payouts.destination.read | [`money.md`](admin/api/money.md) |
 | POST | `/money/payouts/:payoutId/mark-paid` | `money.payouts.mark_paid` | ✅ money.payouts.mark_paid | [`money.md`](admin/api/money.md) |
 | POST | `/money/payouts/:payoutId/reject` | `money.payouts.reject` **or** `money.payouts.triage` | ✅ money.payouts.reject | [`money.md`](admin/api/money.md) |
+| POST | `/money/payouts/:payoutId/resolve-unknown` | `money.payouts.mark_paid` **or** `money.payouts.triage` (by `outcome`) | ✅ money.payouts.resolve_unknown_paid / _failed | [`money.md`](admin/api/money.md) |
 | POST | `/money/payouts/:payoutId/send` | `money.payouts.mark_paid` | ✅ money.payouts.mark_paid | [`money.md`](admin/api/money.md) |
 | POST | `/money/payouts/:payoutId/triage` | `money.payouts.triage` | ✅ money.payouts.triage | [`money.md`](admin/api/money.md) |
 | GET | `/money/refunds` | `money.payments.read` | — | [`money.md`](admin/api/money.md) |

@@ -267,6 +267,10 @@ const platform = {
     */
 
     /** `409`. ⛔ Never offer a retry beside this one — sending again risks a second transfer. */
+    /** `409` on resolve-unknown — a callback or the sweep settled it first. Nothing was written twice. */
+    EARNINGS_PAYOUT_NOT_PROCESSING:
+        'This payout was settled while you were looking — a late confirmation or the reconciliation sweep got there first. Reload to see what happened.',
+
     EARNINGS_PAYOUT_TRANSFER_IN_FLIGHT:
         'A transfer is already in progress for this payout. Reload to see where it got to — it cannot be sent again, or rejected, until the provider confirms.',
 

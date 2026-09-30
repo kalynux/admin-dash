@@ -193,11 +193,15 @@ function DocumentSlotRow({
             {filled ? (
                 <div className="flex flex-wrap gap-2">
                     {state.fileIds.map((fileId) => (
-                        <div key={fileId} className="space-y-1">
+                        // ⚠ The width lives on this flex item, not on the box. The
+                        // box is `w-full` over an `AspectRatio` whose content is
+                        // absolutely positioned, so it has no intrinsic width — a
+                        // flex item sized by its content shrinks to 0 and the
+                        // document renders as a dot (its 2px border).
+                        <div key={fileId} className="w-full max-w-[14rem] space-y-1">
                             <ResolvedImageBox
                                 fileId={fileId}
                                 alt={EMPLOYEE_DOCUMENT_LABELS[slot]}
-                                className="max-w-[14rem]"
                                 caption={EMPLOYEE_DOCUMENT_LABELS[slot]}
                             />
                             {!readOnly ? (

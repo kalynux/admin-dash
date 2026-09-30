@@ -133,8 +133,17 @@ export const APPROVAL_STALE_CODES: readonly string[] = [
  * Lives here rather than in either screen that renders it, because both do — the
  * `202` notice on the payout screens and the approval card itself — and two
  * readings of one field are two things to keep in step.
+ *
+ * ⚠ **`resolve_paid` is a third** (money.md § resolve-unknown): a transfer the
+ * platform DID make, whose outcome was unknown, being confirmed as arrived on the
+ * evidence of the provider's dashboard. It sends nothing, like `manual`, but it
+ * is a judgement on evidence rather than a record of a human's transfer — and
+ * the server's `description` ends with the reason for exactly that purpose.
  */
-export function payoutApprovalMode(approval: Approval): 'gateway' | 'manual' | null {
+export function payoutApprovalMode(
+    approval: Approval,
+): 'gateway' | 'manual' | 'resolve_paid' | null {
     const mode = approval.payload?.mode;
-    return mode === 'gateway' || mode === 'manual' ? mode : null;
+    return mode === 'gateway' || mode === 'manual' || mode === 'resolve_paid' ? mode : null;
 }
+

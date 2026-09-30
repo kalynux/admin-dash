@@ -51,6 +51,23 @@ no transfer ref (recorded by hand) gets no aggregator at all. `authz:matrix`: **
 `dump-routes.js`: `TOTAL 265` → **264** routes. ⚠ **Deploy order: jovi-mall first** — against an
 older platform the `GET` answers `platformSupported: false` and the screen says so.
 
+✅ **Resolve stuck payout built 2026-09-30 (later the same day).** `POST
+/money/payouts/:payoutId/resolve-unknown` ([`money.md`](api-doc/admin/api/money.md) §
+resolve-unknown) is `resolveUnknownPayout` and `ResolveUnknownPayoutDialog` on `PayoutDetail`.
+⚠ **Offered only when `isPayoutOutcomeUnknown()`** — `processing` **and** `transferFailureReason`
+starting `"Outcome unknown:"`; an ordinary `processing` payout has a callback coming. ⚠ **One route,
+two permissions by `outcome`**: `paid` → `mark_paid` (≥ 2 000 000 XAF → `202`, payload `mode:
+'resolve_paid'`, the third value `payoutApprovalMode()` knows); `failed` → `triage`, so Support
+records it, funds stay held. Each choice is shown only to its holder, **none is pre-selected**, and
+a `403` disables that choice. ⚠ **Not-processing is two codes** — wi-admin's
+`PAYOUT_NOT_PROCESSING` and jovi-mall's `EARNINGS_PAYOUT_NOT_PROCESSING` — read by
+`isPayoutNoLongerProcessing()`; `EARNINGS_PAYOUT_TRANSFER_IN_FLIGHT` here means *too soon* and
+carries `details.settleAfter`. `errors.md` and `error-codes.ts` re-copied (one new code each).
+Two audit actions, `money.payouts.resolve_unknown_{paid,failed}`, joined the activity filter. It is
+the **fifth `any`-mode guard (17 + 5 = 22)**, and ⚠ **`permissions.md` still says four** — upstream
+is behind its own router. Upstream was **uncommitted**; `ROUTE-MAP.md` is **265** (`TOTAL 266`),
+`authz:matrix` unchanged at 127 / 105 / 39.
+
 ✅ **An agent's KYC gates cash on delivery ONLY — built 2026-09-27.** Contract:
 [FRONTEND-CHANGELOG-verification-no-longer-gates-work.md](api-doc/admin/FRONTEND-CHANGELOG-verification-no-longer-gates-work.md);
 `agents.md`, `shipments.md` and `money.md` re-copied the same day. An unverified agent contracts
@@ -423,7 +440,7 @@ pinned upstream by `test:list-strictness` — read it there rather than copying 
 [`src/lib/query.ts`](src/lib/query.ts) for this repository's one statement of the rule. Widening
 `listQuery` service-wide is still deliberately **not** done.
 
-**`npm test` — 2715 tests in 176 files, measured on 2026-09-30** at the close of the payment-routing round, with 7 failures in a run sharing the machine with 32 node processes, none in a file the round touched (`App`, `ArticleCreateDialog`, `CreateTicketDialog`, `UserDetail`); re-run alone all passed but one `ArticleCreateDialog` cover test, which then passed alone on a second run — `ArticleCreateDialog.test.tsx` is the sixth file in the contention pattern. **The previous figure was 2645 tests in 171 files, measured on 2026-09-27** at the close of the bot-memory round (+`ResetBotMemoryDialog.test.tsx`, −`permissions.pending.test.ts`), with 8 failures in a run that shared the machine with a build, all in `CreateTicketDialog`, `App` and `TicketAttachmentsPanel`; re-run alone, the 3 that remain are the ones recorded below as failing at `HEAD`. **The previous figure was 2629 tests in 170 files, measured on 2026-09-22** at the close of the COD-pool
+**`npm test` — 2731 tests in 177 files, measured on 2026-09-30** at the close of the resolve-unknown round (+`PayoutResolveUnknown.test.tsx`), 10 failures with 33 node processes up, all in `App`, `ArticleCreateDialog` and `CreateTicketDialog`; run together alone 6 still failed, and **the same 6 fail at `HEAD` (`079588f`) in a throwaway worktree** — pre-existing, not investigated. **Before that, 2715 tests in 176 files** at the close of the payment-routing round, with 7 failures in a run sharing the machine with 32 node processes, none in a file the round touched (`App`, `ArticleCreateDialog`, `CreateTicketDialog`, `UserDetail`); re-run alone all passed but one `ArticleCreateDialog` cover test, which then passed alone on a second run — `ArticleCreateDialog.test.tsx` is the sixth file in the contention pattern. **The previous figure was 2645 tests in 171 files, measured on 2026-09-27** at the close of the bot-memory round (+`ResetBotMemoryDialog.test.tsx`, −`permissions.pending.test.ts`), with 8 failures in a run that shared the machine with a build, all in `CreateTicketDialog`, `App` and `TicketAttachmentsPanel`; re-run alone, the 3 that remain are the ones recorded below as failing at `HEAD`. **The previous figure was 2629 tests in 170 files, measured on 2026-09-22** at the close of the COD-pool
 round (the two new files are `AssignabilityCheck.test.tsx` and `PlanFormDialog.test.tsx`), with
 **3 failures, none in a file the round touched**, and 16 node processes up. ⚠ **One of them is not
 a flake: App.test.tsx's *"lands the orders container on its index child"* failed in the full run,
@@ -564,7 +581,7 @@ machine, not the code.
 npm run dev       # 5175, strictPort
 npm run build     # tsc -b && vite build   ← the typecheck runs here
 npm run lint      # eslint .
-npm test          # vitest run — 2715 tests in 176 files (2026-09-30, after the payment-routing round). No sibling dashboard has one.
+npm test          # vitest run — 2731 tests in 177 files (2026-09-30, after the resolve-unknown round). No sibling dashboard has one.
 ```
 
 **Every phase closes the same way**: typecheck, lint, tests, build, then a written summary naming
@@ -838,9 +855,11 @@ Read [permissions.md](api-doc/admin/api/permissions.md) before touching any of i
   `developer_tools.webhooks.redeliver`. The 23 that left it are all of `support.*`, all of
   `content.*` and both `files.*` writes, and their screens are built.
 - `src/lib/authorization.ts` — pure predicates. `satisfies(held, requirement, mode)` takes `mode`
-  with **no default**: navigation wants `any`, and the composite endpoint guards are **twenty-one** —
-  **17 in `all` mode** and **4 in `any`** (`GET /system/errors`, both `/automation` reads, and
-  `POST /money/payouts/:payoutId/reject`, added 2026-09-27).
+  with **no default**: navigation wants `any`, and the composite endpoint guards are **twenty-two** —
+  **17 in `all` mode** and **5 in `any`** (`GET /system/errors`, both `/automation` reads,
+  `POST /money/payouts/:payoutId/reject`, added 2026-09-27, and
+  `POST /money/payouts/:payoutId/resolve-unknown`, 2026-09-30 — which `permissions.md` does not
+  list yet).
   ⚠ **This count has gone stale four separate times**, so `permissions.md` now says outright to
   derive it rather than quote it, and `src/types/route-map.test.ts` pins the exact set by route.
 - `usePermissions()` / `useCan()` / `<Can>` / `<RequirePermission>` are the only ways to ask.
@@ -1004,10 +1023,12 @@ demotion or suspension applies on the next call, not at token expiry.
 permission → escalation rules (`AUTHZ_SELF_ACTION_FORBIDDEN`, `AUTHZ_TARGET_TIER_PROTECTED`,
 `AUTHZ_TIER_ESCALATION_FORBIDDEN` on admin-on-admin actions) → resource scope (row-level, on `audit`
 and `tickets`, failing as 404) → dual control. **Seventeen** endpoints are composite guards
-requiring two or three permissions in `all` mode; **four** are `any`-mode —
+requiring two or three permissions in `all` mode; **five** are `any`-mode —
 `GET /system/errors` and both `/automation` reads, each returning a *different projection* per
-level rather than refusing, and `POST /money/payouts/:payoutId/reject`, which is **not graded**:
-`money.payouts.reject` or `money.payouts.triage` perform the same terminal rejection. Matrix: [permissions.md](api-doc/admin/api/permissions.md).
+level rather than refusing, `POST /money/payouts/:payoutId/reject`, which is **not graded**:
+`money.payouts.reject` or `money.payouts.triage` perform the same terminal rejection, and
+`POST /money/payouts/:payoutId/resolve-unknown`, which is narrowed **by the body's `outcome`**
+(`paid` → `mark_paid`, `failed` → `triage`). Matrix: [permissions.md](api-doc/admin/api/permissions.md).
 
 ## What exists, and what does not
 
@@ -1015,9 +1036,9 @@ The **26** built route groups are `/auth`, `/administrators`, `/employees`, `/ge
 `/permissions`, `/approvals`, `/audit`, `/users`, `/vendors`, `/agencies`, `/agents`,
 `/contracts`, `/orders`, `/shipments`, `/cod`, `/billing`, `/money`, `/accounts`, `/support`,
 `/content`, `/messaging`, `/files`, `/system`, `/dev-tools`, `/notifications`, `/automation`
-(+ unversioned `/health/live`, `/health/ready`) — **264 routes in total** (262 → 264 on 2026-09-30, measured: `GET`/`PUT /dev-tools/payments`; 261 → 262 later on 2026-09-27, measured: the account statement; 256 → 261 earlier that day for the bot-memory reset and ADR-024's four triage/send routes). Every one is listed
+(+ unversioned `/health/live`, `/health/ready`) — **265 routes in total** (264 → 265 later on 2026-09-30, measured: `POST /money/payouts/:payoutId/resolve-unknown`; 262 → 264 earlier that day, measured: `GET`/`PUT /dev-tools/payments`; 261 → 262 later on 2026-09-27, measured: the account statement; 256 → 261 earlier that day for the bot-memory reset and ADR-024's four triage/send routes). Every one is listed
 with its permission in [api-doc/ROUTE-MAP.md](api-doc/ROUTE-MAP.md), and
-`src/types/route-map.test.ts` parses that file, so the 264 and the exact composite-guard set fail
+`src/types/route-map.test.ts` parses that file, so the 265 and the exact composite-guard set fail
 a test rather than ageing in prose.
 
 🔴 **252 → 255 the same day, and the three that arrived were found by reading SOURCE, not a

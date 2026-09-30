@@ -421,6 +421,21 @@ export interface RejectPayoutBody {
     reason: string;
 }
 
+/** What an administrator found on the provider's dashboard. */
+export type ResolveUnknownOutcome = 'paid' | 'failed';
+
+/**
+ * `POST /money/payouts/:payoutId/resolve-unknown`. **Strict** — and, as on
+ * mark-paid, there is no `amount`: the four-eyes threshold is read off the row.
+ */
+export interface ResolveUnknownPayoutBody {
+    outcome: ResolveUnknownOutcome;
+    /** **Required**, 10–500. What was checked and what it showed. */
+    reason: string;
+    /** Optional, 1–500. Omit rather than send empty — `""` is a `400`. */
+    evidence?: string;
+}
+
 export interface PayoutListQuery {
     status?: string;
     ownerType?: string;
@@ -540,6 +555,35 @@ export function canRejectPayout(status: string | null | undefined): boolean {
 }
 
 /**
+ * The prefix jovi-mall writes on `transferFailureReason` when a transfer request
+ * timed out or gave no readable answer — money.md § *A payout stuck in
+ * `processing`*. The rest of the sentence names the reference to look up.
+ */
+export const OUTCOME_UNKNOWN_PREFIX = 'Outcome unknown:';
+
+/**
+ * Is this a transfer nobody knows the outcome of — the one case
+ * `/resolve-unknown` exists for?
+ *
+ * ⚠ **Both halves, never the status alone.** An ordinary `processing` payout is
+ * awaiting a callback that will come; offering "record what happened" there
+ * invites an operator to decide a transfer the provider is about to decide for
+ * them. The prefix is the platform saying no callback is coming.
+ *
+ * It does not check the 15-minute quiet period — that is jovi-mall's clock, and
+ * it answers `EARNINGS_PAYOUT_TRANSFER_IN_FLIGHT` with `settleAfter` when it is
+ * too soon, which the dialog renders.
+ */
+export function isPayoutOutcomeUnknown(
+    payout: Pick<Payout, 'status' | 'transferFailureReason'>,
+): boolean {
+    return (
+        payout.status === 'processing' &&
+        (payout.transferFailureReason?.startsWith(OUTCOME_UNKNOWN_PREFIX) ?? false)
+    );
+}
+
+/**
  * Is a gateway send even possible for this destination?
  *
  * `mobile_money` only. A `bank` or `card` destination answers `422
@@ -602,6 +646,13 @@ export const PAYOUT_AUDIT_ACTIONS = [
       it — the payout's own `transferGatewayRef` is what tells them apart.
     */
     'money.payouts.triage',
+    /*
+      `/resolve-unknown` records under one of TWO names, by outcome — unlike
+      `/send`, which shares mark-paid's. The two outcomes need different
+      permissions, and a catalog action names one.
+    */
+    'money.payouts.resolve_unknown_paid',
+    'money.payouts.resolve_unknown_failed',
 ] as const;
 
 export const PAYOUT_AUDIT_ACTION_LABELS: Record<string, string> = {
@@ -611,6 +662,8 @@ export const PAYOUT_AUDIT_ACTION_LABELS: Record<string, string> = {
     'money.payouts.reject': 'Rejected',
     'money.payouts.destination.read': 'Destination revealed',
     'money.payouts.triage': 'Endorsed',
+    'money.payouts.resolve_unknown_paid': 'Unknown transfer confirmed paid',
+    'money.payouts.resolve_unknown_failed': 'Unknown transfer recorded failed',
 };
 
 // ─── Error codes ──────────────────────────────────────────────────────────────
@@ -676,6 +729,16 @@ export const PLATFORM_CODE_PAYOUT_NOT_SENDABLE = 'EARNINGS_PAYOUT_NOT_SENDABLE';
 /** `409` — somebody endorsed it first. `details.endorsedBy` names who, when it survives. */
 export const PLATFORM_CODE_PAYOUT_ALREADY_TRIAGED = 'EARNINGS_PAYOUT_ALREADY_TRIAGED';
 
+/** `409` on **resolve-unknown**, wi-admin's own pre-flight: the payout is not `processing`. */
+export const CODE_PAYOUT_NOT_PROCESSING = 'PAYOUT_NOT_PROCESSING';
+
+/**
+ * `409` on **resolve-unknown**, jovi-mall's: a callback or the reconciliation
+ * sweep settled it between the operator's read and their write. Nothing was
+ * written twice — reload.
+ */
+export const PLATFORM_CODE_PAYOUT_NOT_PROCESSING = 'EARNINGS_PAYOUT_NOT_PROCESSING';
+
 /** Does this error carry the given `details.platformCode`? */
 function isPlatformCode(error: unknown, code: string): boolean {
     return error instanceof ApiError && error.isPlatformRejection && error.platformCode === code;
@@ -683,6 +746,34 @@ function isPlatformCode(error: unknown, code: string): boolean {
 
 export function isPayoutTransferInFlight(error: unknown): boolean {
     return isPlatformCode(error, PLATFORM_CODE_PAYOUT_TRANSFER_IN_FLIGHT);
+}
+
+/**
+ * Has this payout left `processing` underneath a resolve-unknown?
+ *
+ * ⚠ **One situation, two codes again**, split by where the refusal happened —
+ * wi-admin's pre-flight (`PAYOUT_NOT_PROCESSING`, with `details.status`) or
+ * jovi-mall's own check after it (`EARNINGS_PAYOUT_NOT_PROCESSING`). The remedy
+ * is the same: reload.
+ */
+export function isPayoutNoLongerProcessing(error: unknown): boolean {
+    if (!(error instanceof ApiError)) return false;
+    return (
+        error.code === CODE_PAYOUT_NOT_PROCESSING ||
+        isPlatformCode(error, PLATFORM_CODE_PAYOUT_NOT_PROCESSING)
+    );
+}
+
+/**
+ * When a resolve-unknown may be tried again, on a `409
+ * EARNINGS_PAYOUT_TRANSFER_IN_FLIGHT` — the quiet period in which a late
+ * callback can still arrive. `null` when the `details` did not survive the hop,
+ * and the caller then says "try again later" without a time.
+ */
+export function resolveSettleAfterOf(error: unknown): string | null {
+    if (!isPayoutTransferInFlight(error)) return null;
+    const settleAfter = (error as ApiError).details?.settleAfter;
+    return typeof settleAfter === 'string' ? settleAfter : null;
 }
 
 export function isPayoutAlreadyTriaged(error: unknown): boolean {

@@ -154,6 +154,8 @@ const platform = {
       pire que pas de traduction du tout — la clé manquante retomberait sur la
       phrase du serveur, qui est exacte.
     */
+    EARNINGS_PAYOUT_NOT_PROCESSING:
+        'Ce versement a été réglé pendant que vous le consultiez — une confirmation tardive ou le rapprochement automatique est passé avant. Rechargez pour voir ce qui s’est passé.',
     EARNINGS_PAYOUT_TRANSFER_IN_FLIGHT:
         'Un virement est déjà en cours pour ce versement. Rechargez pour voir où il en est — il ne peut être ni renvoyé ni rejeté tant que le prestataire n’a pas confirmé.',
     EARNINGS_PAYOUT_GATEWAY_UNSUPPORTED:

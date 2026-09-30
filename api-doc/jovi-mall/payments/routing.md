@@ -29,7 +29,7 @@ Pure logic: `src/modules/payments/domain/payment-provider.ts` and
 | Layer | What it is | Values | Who chooses |
 |---|---|---|---|
 | **Provider** | what the customer holds and pays with | `MTN` · `ORANGE` · `MOOV` · `CARD` | the **customer**, on the client |
-| **Aggregator** (called `gateway` in code and on stored rows) | the company the backend calls to move the money | `NOTCHPAY` · `MYCOOLPAY` · `STRIPE` (later `CAMPAY`, `FLUTTERWAVE`) | an **administrator**, at runtime, in wi-admin dev tools |
+| **Aggregator** (called `gateway` in code and on stored rows) | the company the backend calls to move the money | `NOTCHPAY` · `MYCOOLPAY` · `STRIPE` · `CAMPAY` (later `FLUTTERWAVE`) | an **administrator**, at runtime, in wi-admin dev tools |
 
 A client shows providers and sends `provider`. It never names, chooses or branches on an
 aggregator for a **new** charge. Switching aggregator is a settings write, with no deploy and no
@@ -38,22 +38,32 @@ app release.
 ### ⚠ Two different things are called `provider`
 
 The **saved payment methods** (`payment-methods` module, `user_payment_methods.provider`, and
-the bot's saved wallets) already have a `provider` field with **lowercase** values:
-`stripe`, `notchpay`, `mycoolpay`, `mtn_momo`, `orange_money`, `moov_money`.
+the bot's saved wallets) also have a stored `provider` field, and **since 2026-09-30 it holds two
+vocabularies**:
 
-That field is **not** this one and is **not renamed**. Stored values stay as they are. The
-request field `provider` on a charge is the uppercase layer-1 value above.
+- **Rows saved since 2026-09-30** store the canonical uppercase value itself: `MTN` · `ORANGE` ·
+  `MOOV`. A saved method no longer names an aggregator, and no card is saved
+  (customer/payment-methods.md (not mirrored here — `backend/jovi-mall/api-doc/customer/payment-methods.md`)).
+- **Rows saved before** keep their **lowercase** values: `stripe`, `notchpay`, `mycoolpay`,
+  `mtn_momo`, `orange_money`, `moov_money`. They are **not rewritten**.
 
-The one bridge between them is `providerForSavedWallet()` in `payment-provider.ts`:
+Clients never see the second list: the saved-methods API maps legacy rows to the canonical
+vocabulary on read (`mtn_momo` → `MTN`, a card → `CARD`, an aggregator name → `null`). The mixture
+exists only in the database, and server code reading `user_payment_methods` directly must still
+handle it.
 
-| Saved value | Charge `provider` |
+The one server-side bridge is `providerForSavedWallet()` in `payment-provider.ts`, which reads
+both:
+
+| Stored value | Charge `provider` |
 |---|---|
+| `MTN` · `ORANGE` · `MOOV` (new rows, any case) | the same value |
 | `mtn_momo` | `MTN` |
 | `orange_money` | `ORANGE` |
 | `moov_money` | `MOOV` |
-| anything else (`stripe`, `notchpay`, `mycoolpay`, unknown, null) | `null`: not a mobile wallet the router can name. The caller decides |
+| anything else (`CARD`, `stripe`, `notchpay`, `mycoolpay`, unknown, null) | `null`: not a mobile wallet the router can name. The caller decides |
 
-A door that charges a saved wallet maps it with this function. It never compares the saved
+A door that charges a saved wallet maps it with this function. It never compares the stored
 string to a provider name itself.
 
 ---
@@ -95,8 +105,9 @@ interface GatewayCapabilities {
 | Aggregator | MTN | ORANGE | MOOV | CARD | `settlesAsync` | Can send payouts (`createPayout`) |
 |---|---|---|---|---|---|---|
 | `NOTCHPAY` | `PUSH`, requires `phoneNumber` | `PUSH`, requires `phoneNumber` | — | — | `true` | ✅ (behind `NOTCHPAY_PAYOUTS_ENABLED`) |
-| `MYCOOLPAY` | `PUSH`, requires `phoneNumber` | `OTP`, requires `phoneNumber` | — | — | `true` | ❌ |
+| `MYCOOLPAY` | `PUSH`, requires `phoneNumber` | `OTP`, requires `phoneNumber` | — | — | `true` | ✅ (behind `MYCOOLPAY_PAYOUTS_ENABLED`, and the server IP registered with My-CoolPay) |
 | `STRIPE` | — | — | — | `CARD_ELEMENT`, requires nothing | `false` | ❌ |
+| `CAMPAY` | `PUSH`, requires `phoneNumber` | `PUSH`, requires `phoneNumber` | — | — | `true` | ✅ (behind `CAMPAY_PAYOUTS_ENABLED`, **and** "API withdrawals" allowed in the Campay app) |
 
 Flows, for a client:
 
@@ -352,7 +363,7 @@ interface SettingsIssue {
 | `COLLECTION_AGGREGATOR_NO_ENABLED_PROVIDER` | at least one mobile provider is enabled, and the aggregator can serve **none** of them. Turning every mobile provider off is allowed (the "stop taking mobile money" lever) and only warns |
 | `STRIPE_NOT_CONFIGURED` | `stripe_enabled` is being turned **on** (off → on) without Stripe credentials. Leaving an already-on Stripe unconfigured is not an error, so an emergency switch is never blocked by it |
 | `PAYOUT_AGGREGATOR_UNKNOWN` | `payout_aggregator` is not a registered gateway name |
-| `PAYOUT_AGGREGATOR_NOT_IMPLEMENTED` | it has no `createPayout` (today only `NOTCHPAY` has one) |
+| `PAYOUT_AGGREGATOR_NOT_IMPLEMENTED` | it has no `createPayout` (today only `STRIPE`: `NOTCHPAY`, `MYCOOLPAY` and `CAMPAY` all have one) |
 | `PROVIDER_UNKNOWN` | a key of `providers` is not in the catalogue |
 
 **Soft warnings: the write is accepted**
@@ -441,3 +452,33 @@ which would race. A `404` from jovi-mall means "platform too old", never success
 `createPayout` may be chosen (a hard rule). One whose account cannot send right now is accepted
 with `PAYOUT_UNAVAILABLE`. The payout service resolves it at the first transfer attempt and stamps
 `transfer_gateway`; everything after that reads the stamp.
+
+Payout capability per aggregator (`createPayout`, and `payoutAvailable()` for "can send right
+now"):
+
+| Aggregator | Can pay out | Available when |
+|---|---|---|
+| `NOTCHPAY` | ✅ | `NOTCHPAY_PAYOUTS_ENABLED=true` and the server's egress IP on NotchPay's payout allowlist |
+| `CAMPAY` | ✅ | `CAMPAY_PAYOUTS_ENABLED=true` **and** "allow withdrawals through the API" on in the Campay app settings. The second is invisible to the server: a refusal for it comes back per call as `unsupported` |
+| `MYCOOLPAY` | ✅ (jovi-mall `83e8535`) | `MYCOOLPAY_PAYOUTS_ENABLED=true` (the service refuses to boot with it on unless `MYCOOLPAY_PUBLIC_KEY` and `MYCOOLPAY_PRIVATE_KEY` are both set), and the server's egress IP registered with My-CoolPay. The second is invisible to `payoutAvailable()`: an unregistered IP surfaces per payout as a retryable `FAILED` ("Nothing was sent") |
+| `STRIPE` | ❌ | — |
+
+My-CoolPay payouts are `POST {base}/{public_key}/payout` with `X-PRIVATE-KEY`; our `jm_po_…`
+reference travels as `app_transaction_ref`, the operator (`CM_MOMO` / `CM_OM`) is derived from the
+number, and XAF only. Two properties matter to operations:
+
+- **Callbacks are sent once, with no retry.** A lost payout callback is recovered only by the
+  payout reconciliation sweep. A payout callback's signature does not cover the status either, so
+  it is confirmed with `checkStatus`, as for collections.
+- **An unknown outcome stays `processing`.** A timeout, a `5xx`, a `409` or an unreadable `2xx` on
+  the payout call leaves the payout `processing` with a `transfer_failure_reason` that begins
+  "Outcome unknown … check … dashboard for reference jm_po_…". If My-CoolPay never returned its
+  own reference, the sweep cannot ask about it (`checkStatus` is keyed on their reference only),
+  so it needs an administrator.
+
+**Open questions, not documented by My-CoolPay** (owner actions: ask their support): whether a
+repeated `app_transaction_ref` is refused (the idempotency question), the payout fees, and the
+minimum and maximum amounts.
+
+The owner ops for each (allowlists, toggles, float) are in the workspace
+`docs/RUNBOOK.md` § Enabling payouts per aggregator (not mirrored here — `backend/docs/RUNBOOK.md#enabling-payouts-per-aggregator`).

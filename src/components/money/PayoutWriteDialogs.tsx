@@ -301,11 +301,15 @@ export function PayoutQueuedNotice({
                     <strong className="font-medium">
                         {mode === 'gateway'
                             ? 'They will be approving a live transfer.'
-                            : 'They will be approving a record of a payment already made.'}
+                            : mode === 'resolve_paid'
+                              ? 'They will be confirming a transfer whose outcome was unknown.'
+                              : 'They will be approving a record of a payment already made.'}
                     </strong>{' '}
                     {mode === 'gateway'
                         ? 'Approving instructs the platform to send the money through the payment gateway.'
-                        : 'Approving records that a human moved this money out of band — it sends nothing.'}
+                        : mode === 'resolve_paid'
+                          ? 'Approving records that the transfer arrived, on your evidence — it sends nothing.'
+                          : 'Approving records that a human moved this money out of band — it sends nothing.'}
                 </p>
             ) : null}
 

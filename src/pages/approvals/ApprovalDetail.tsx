@@ -346,6 +346,21 @@ function PayoutModeNotice({ approval }: { approval: Approval }) {
     const mode = payoutApprovalMode(approval);
     if (!mode) return null;
 
+    if (mode === 'resolve_paid') {
+        return (
+            <div className="bg-muted/50 space-y-1 rounded-md border p-3 text-sm">
+                <p className="font-medium">
+                    This confirms a transfer whose outcome was unknown.
+                </p>
+                <p className="text-muted-foreground">
+                    The platform sent this payout and never heard back. Approving records that the
+                    money arrived, on the evidence in the description — it sends nothing, and
+                    settles the payout.
+                </p>
+            </div>
+        );
+    }
+
     return (
         <div className="bg-muted/50 space-y-1 rounded-md border p-3 text-sm">
             <p className="font-medium">

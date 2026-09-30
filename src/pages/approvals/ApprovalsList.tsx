@@ -145,6 +145,8 @@ export function ApprovalsList() {
                         */}
                         {payoutApprovalMode(row) === 'gateway' ? (
                             <p className="text-xs">Sends the money through the payment gateway</p>
+                        ) : payoutApprovalMode(row) === 'resolve_paid' ? (
+                            <p className="text-xs">Confirms a transfer whose outcome was unknown</p>
                         ) : null}
                         <p className="text-muted-foreground truncate font-mono text-xs">
                             {row.action}

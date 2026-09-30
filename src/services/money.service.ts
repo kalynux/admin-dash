@@ -1,7 +1,8 @@
 /**
  * `/money` — the platform's own account, the earnings directory, and payouts.
  *
- * **All fourteen routes.**
+ * **All seventeen `/money` routes** (this said fourteen until ADR-024's `/triage`
+ * and `/send`, and `/resolve-unknown`, arrived).
  *
  * ── The one audited read on the service ───────────────────────────────────────
  * `revealPayoutDestination` is not an ordinary GET. It writes an audit row
@@ -31,6 +32,7 @@ import type {
     PlatformLedgerQuery,
     Refund,
     RefundListQuery,
+    ResolveUnknownPayoutBody,
 } from '@/types/money.types';
 
 /**
@@ -325,6 +327,43 @@ export function triagePayout(payoutId: string, note?: string, options?: RequestO
         // an empty string is a 400 where an absent key is the documented "no
         // note". Built as a literal — the schema is `.strict()`.
         trimmed ? { note: trimmed } : {},
+        options,
+    );
+}
+
+/**
+ * `POST /money/payouts/:payoutId/resolve-unknown` · **`money.payouts.mark_paid`
+ * or `money.payouts.triage`, by outcome** · **delegated** · `paid` is
+ * dual-controlled.
+ *
+ * Records what an administrator found on the provider's dashboard for a transfer
+ * whose outcome is unknown (`processing`, `transferFailureReason` starting
+ * `"Outcome unknown:"`). The route is `anyPermission` at the door and narrowed by
+ * the body: `paid` needs `mark_paid`, `failed` needs `triage` — so Support can
+ * record `failed` and is refused `paid` with a `403` naming the permission.
+ *
+ * `paid` rides mark-paid's ≥ 2,000,000 XAF rule, so this returns a
+ * `DualControlResult` and a `202` means **nothing has been settled**; the queued
+ * payload carries `mode: 'resolve_paid'`. `failed` moves no money, is never
+ * queued, and leaves the funds held — the next step is `/send` or `/reject`.
+ *
+ * Built as a literal: the schema is `.strict()`, and an empty `evidence` is a
+ * `400` where an absent one is "none".
+ */
+export function resolveUnknownPayout(
+    payoutId: string,
+    body: ResolveUnknownPayoutBody,
+    options?: RequestOptions,
+): Promise<DualControlResult<Payout, Approval>> {
+    const evidence = body.evidence?.trim();
+    return api.dualControl<Payout, Approval>(
+        'POST',
+        `/money/payouts/${encodeURIComponent(payoutId)}/resolve-unknown`,
+        {
+            outcome: body.outcome,
+            reason: body.reason.trim(),
+            ...(evidence ? { evidence } : {}),
+        },
         options,
     );
 }

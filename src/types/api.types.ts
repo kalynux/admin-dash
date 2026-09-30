@@ -503,6 +503,7 @@ export const KNOWN_ERROR_CODES = [
     // Money and accounts
     'PAYOUT_DESTINATION_ABSENT',
     'PAYOUT_NOT_PENDING',
+    'PAYOUT_NOT_PROCESSING',
     'ACCOUNT_OWNER_NOT_FOUND',
     // Delivery network
     'CONTRACT_NOT_FOUND',

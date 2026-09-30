@@ -15,6 +15,7 @@ import {
     PayoutVerificationBadge,
 } from '@/components/money/PayoutBadges';
 import { PayoutDestinationReveal } from '@/components/money/PayoutDestinationReveal';
+import { ResolveUnknownPayoutDialog } from '@/components/money/ResolveUnknownPayoutDialog';
 import {
     SendPayoutDialog,
     TriagePayoutDialog,
@@ -40,6 +41,7 @@ import {
     canMarkPayoutPaid,
     canRejectPayout,
     isGatewaySendableDestination,
+    isPayoutOutcomeUnknown,
     isPayoutSendable,
     payoutHoldsFunds,
     type Payout,
@@ -78,6 +80,7 @@ export function PayoutDetail() {
     const [rejectOpen, setRejectOpen] = useState(false);
     const [sendOpen, setSendOpen] = useState(false);
     const [endorseOpen, setEndorseOpen] = useState(false);
+    const [resolveOpen, setResolveOpen] = useState(false);
     const [queued, setQueued] = useState<{ approval: Approval; message?: string } | null>(null);
     const [activityAction, setActivityAction] = useState<string | undefined>(undefined);
 
@@ -92,6 +95,7 @@ export function PayoutDetail() {
         setMarkPaidOpen(false);
         setRejectOpen(false);
         setEndorseOpen(false);
+        setResolveOpen(false);
         /*
           ⚠ `sendOpen` is deliberately NOT closed here. The send dialog reconciles
           as soon as the transfer resolves and then keeps showing its outcome —
@@ -176,13 +180,24 @@ export function PayoutDetail() {
     /* Endorsing is for an open request, and a request carries one endorsement. */
     const showEndorse = canEndorse && record.status === 'pending' && record.triage === null;
 
+    /*
+      A transfer nobody knows the outcome of — `processing` AND the platform's
+      "Outcome unknown:" note, never the status alone: an ordinary `processing`
+      payout has a callback coming. Offered to whoever holds either outcome's
+      permission; the dialog shows each choice only to its holder.
+    */
+    const showResolveUnknown = isPayoutOutcomeUnknown(record) && (canPay || canEndorse);
+
     return (
         <PageContainer
             title={formatMoney(record.amount, record.currency)}
             description={`Payout to ${record.owner.name ?? record.owner.type}`}
             actions={
-                showEndorse || showReject || showSend || showMarkPaid ? (
+                showEndorse || showReject || showSend || showMarkPaid || showResolveUnknown ? (
                     <div className="flex flex-wrap gap-2">
+                        {showResolveUnknown ? (
+                            <Button onClick={() => setResolveOpen(true)}>Resolve stuck payout</Button>
+                        ) : null}
                         {showEndorse ? (
                             <Button variant="outline" onClick={() => setEndorseOpen(true)}>
                                 Endorse
@@ -341,6 +356,23 @@ export function PayoutDetail() {
                 />
             ) : null}
 
+            {showResolveUnknown ? (
+                <ResolveUnknownPayoutDialog
+                    payout={record}
+                    open={resolveOpen}
+                    onOpenChange={setResolveOpen}
+                    canConfirmPaid={canPay}
+                    canRecordFailed={canEndorse}
+                    timeZone={timeZone}
+                    onResolved={reconcile}
+                    onQueued={(approval, message) => {
+                        setQueued({ approval, message });
+                        // Nothing was settled — re-read so it shows as still processing.
+                        reconcile();
+                    }}
+                />
+            ) : null}
+
             {showEndorse ? (
                 <TriagePayoutDialog
                     payout={record}
@@ -369,16 +401,27 @@ function TransferStateNotice({ record }: { record: Payout }) {
     if (record.status !== 'processing' && record.status !== 'failed') return null;
 
     const processing = record.status === 'processing';
+    // "Confirms by callback" is exactly wrong here: none is coming.
+    const unknown = isPayoutOutcomeUnknown(record);
 
     return (
         <div className="border-warning/40 bg-warning/10 space-y-2 rounded-lg border p-4 text-sm">
             <p className="font-medium">
-                {processing
-                    ? 'Sent to the provider — awaiting confirmation.'
-                    : 'The gateway refused this transfer.'}
+                {unknown
+                    ? 'The provider never said whether this transfer arrived.'
+                    : processing
+                      ? 'Sent to the provider — awaiting confirmation.'
+                      : 'The gateway refused this transfer.'}
             </p>
             <p>
-                {processing ? (
+                {unknown ? (
+                    <>
+                        <strong>Nobody knows yet whether the money left.</strong> No confirmation is
+                        coming. Look the reference up on the provider&rsquo;s own dashboard, then
+                        record what it shows with <strong>Resolve stuck payout</strong>. It cannot
+                        be rejected until then.
+                    </>
+                ) : processing ? (
                     <>
                         The money has been handed to the payment gateway and{' '}
                         <strong>is not settled yet</strong>. It confirms by callback. This request

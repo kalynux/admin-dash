@@ -108,7 +108,7 @@ describe('the route total is the sum of its parts', () => {
         );
     });
 
-    it('holds the 264 routes on the service as of 2026-09-30', () => {
+    it('holds the 265 routes on the service as of 2026-09-30', () => {
         // Pinned deliberately, and it is the assertion that fires when the
         // backend ships a route group. A change here is not a failure to fix by
         // editing this number: it means a route arrived, and something in `src/`
@@ -143,7 +143,10 @@ describe('the route total is the sum of its parts', () => {
         //
         // ⚠ 262 → 264 on 2026-09-30, measured (`TOTAL 265`): `GET` and
         // `PUT /dev-tools/payments`, the payment-routing switch.
-        expect(totalDeclared).toBe(264);
+        //
+        // ⚠ 264 → 265 later on 2026-09-30, measured (`TOTAL 266`):
+        // `POST /money/payouts/:payoutId/resolve-unknown`.
+        expect(totalDeclared).toBe(265);
     });
 });
 
@@ -195,14 +198,18 @@ describe('the composite guards, as the route map declares them', () => {
         .map((row) => `${row.method} ${row.path}`)
         .sort();
 
-    it('is exactly the twenty-one the contract enumerates', () => {
-        // Seventeen `all`-mode plus four `any`-mode, per permissions.md's own
-        // § "Composite guards". That count has been stale four separate times —
-        // "Thirteen", then "fourteen plus the any-mode one", then "fifteen …
-        // sixteen in all", then "three any-mode … twenty" until
-        // `POST /money/payouts/:payoutId/reject` was found to accept
+    it('is exactly the twenty-two the service declares', () => {
+        // Seventeen `all`-mode plus five `any`-mode. That count has been stale
+        // four separate times — "Thirteen", then "fourteen plus the any-mode
+        // one", then "fifteen … sixteen in all", then "three any-mode … twenty"
+        // until `POST /money/payouts/:payoutId/reject` was found to accept
         // `money.payouts.triage` too (ADR-024) — which is why the document says
         // to derive it.
+        //
+        // ⚠ The fifth is `resolve-unknown` (2026-09-30), read from
+        // `money.routes.ts`: `permissions.md` § "Composite guards" still says
+        // four and does not list it, so this is the service's figure and the
+        // page is behind.
         expect(composite).toEqual([
             'GET /accounts/:ownerType/:ownerId',
             'GET /accounts/:ownerType/:ownerId/activity',
@@ -225,6 +232,7 @@ describe('the composite guards, as the route map declares them', () => {
             'GET /vendors/:vendorId/activity',
             'GET /vendors/:vendorId/agencies',
             'POST /money/payouts/:payoutId/reject',
+            'POST /money/payouts/:payoutId/resolve-unknown',
         ]);
     });
 });

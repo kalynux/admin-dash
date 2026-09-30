@@ -88,6 +88,7 @@ const codes = {
     // ─── Finances et comptes ─────────────────────────────────────────────────
     PAYOUT_DESTINATION_ABSENT: 'Ce versement n’a aucune destination enregistrée',
     PAYOUT_NOT_PENDING: 'Ce versement n’est plus en attente',
+    PAYOUT_NOT_PROCESSING: 'Ce versement n’attend plus de virement',
     ACCOUNT_OWNER_NOT_FOUND: 'Titulaire de compte introuvable',
 
     // ─── Réseau de livraison ─────────────────────────────────────────────────
@@ -193,6 +194,7 @@ const codeHints = {
     PAYOUT_DESTINATION_ABSENT:
         'Il s’agit d’un ancien enregistrement sans destination. Renseignez-vous auprès du bénéficiaire.',
     PAYOUT_NOT_PENDING: 'Rechargez pour voir son état actuel.',
+    PAYOUT_NOT_PROCESSING: 'Il a été réglé entre-temps. Rechargez pour voir son état actuel.',
 
     CONTRACT_NOT_FOUND: 'Vérifiez l’identifiant, ou ouvrez le contrat depuis le livreur ou l’agence.',
     FILE_NOT_FOUND:

@@ -114,6 +114,7 @@ const codes = {
     // ─── Money and accounts ──────────────────────────────────────────────────
     PAYOUT_DESTINATION_ABSENT: 'This payout has no recorded destination',
     PAYOUT_NOT_PENDING: 'This payout is no longer pending',
+    PAYOUT_NOT_PROCESSING: 'This payout is no longer waiting on a transfer',
     ACCOUNT_OWNER_NOT_FOUND: 'No such account owner',
 
     // ─── Delivery network ────────────────────────────────────────────────────
@@ -227,6 +228,7 @@ const codeHints = {
 
     PAYOUT_DESTINATION_ABSENT: 'This is an older record with no destination snapshot. Ask the beneficiary.',
     PAYOUT_NOT_PENDING: 'Reload to see its current state.',
+    PAYOUT_NOT_PROCESSING: 'It was settled meanwhile. Reload to see its current state.',
 
     CONTRACT_NOT_FOUND: 'Check the id, or open the contract from the agent or the agency.',
     // Not a client bug and not worth an error banner: files are soft-deleted and
