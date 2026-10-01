@@ -19,6 +19,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { calendarDayInZone, formatCalendarDay, parseCalendarDay } from '@/lib/datetime';
 import { formatBytes } from '@/lib/format';
 import { notify } from '@/lib/notify';
+import { saveFile } from '@/lib/save-file';
 import { cn } from '@/lib/utils';
 import {
     ACCOUNT_STATEMENT_PERMISSION,
@@ -112,22 +113,6 @@ function periodProblem(from: string, to: string): string | null {
         return `A statement covers at most ${STATEMENT_MAX_DAYS} days. Choose a shorter period.`;
     }
     return null;
-}
-
-function saveFile(blob: Blob, fileName: string) {
-    const url = URL.createObjectURL(blob);
-    try {
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = fileName;
-        document.body.appendChild(anchor);
-        anchor.click();
-        anchor.remove();
-    } finally {
-        // Safe synchronously — the download is queued by the time `click()`
-        // returns — and in a `finally` so a throw cannot leak the object URL.
-        URL.revokeObjectURL(url);
-    }
 }
 
 const FORMAT_OPTIONS: { value: StatementFormat; label: string; description: string }[] = [

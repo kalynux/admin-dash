@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { AuthFormError } from '@/components/auth/AuthFormError';
 import { ArticleBodyEditor } from '@/components/content/ArticleBodyEditor';
+import { ArticleBodyJson } from '@/components/content/ArticleBodyJson';
 import { ArticleCoverFields } from '@/components/content/ArticleCoverFields';
 import { InlineLoader } from '@/components/common/Loading';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { emptyBlock, suggestHeadingId, validateArticleBody } from '@/lib/article-body';
+import { articleBodyFileName } from '@/lib/article-body-json';
 import { EMPTY_COVER_DRAFT, readCoverDraft, type CoverDraft } from '@/lib/article-cover';
 import { notify } from '@/lib/notify';
 import { createArticle, listAuthors } from '@/services/content.service';
@@ -461,7 +463,15 @@ export function ArticleCreateDialog({
                         )}
 
                         <div className="space-y-2">
-                            <Label>Body</Label>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <Label>Body</Label>
+                                <ArticleBodyJson
+                                    body={body}
+                                    onImport={setBody}
+                                    locale={locale}
+                                    fileName={articleBodyFileName(id, locale)}
+                                />
+                            </div>
                             <ArticleBodyEditor
                                 value={body}
                                 onChange={setBody}

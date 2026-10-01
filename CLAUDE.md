@@ -29,6 +29,21 @@ two before it closed with Phase F on 2026-08-27 (`GET /files/library`, `POST /fi
 pins the services against the map — so take it by grepping each ROUTE-MAP path in
 `src/services`, not by reading it here.
 
+✅ **Article body JSON import/export built 2026-10-01 — client only, no backend change.** The file
+is the body exactly as stored: a bare array of the nine blocks. `ArticleBodyJson` (Copy · Download ·
+Import) sits on the Body label of **both** the create and translation dialogs. ⚠ **An import
+replaces the DRAFT, never the article** — nothing is written until the dialog's own Save.
+`lib/article-body-json.ts` checks in two passes: **shape** (not JSON, unknown type, wrong value
+kind, heading level ≠ 2/3, **any unknown key** — never stripped, `.strict()` would refuse it and no
+field could show it) **refuses** and leaves the draft untouched; **rules** (`validateArticleBody`,
+e.g. a placeholder image url) **load** and block Save. `validateArticleBody` gained the schema's
+max lengths and blank-optional checks, which only an import can break. ⚠ **On the driver,
+`planForReplacement` re-derives origins BY POSITION** — right for an export → reword → import round
+trip, wrong for a block inserted or moved in the file, and the preview says so when other
+languages exist; on a follower, a different layout surfaces as the existing drift remedy.
+`saveFile` moved to `lib/save-file.ts`. Fixture `src/test/article-body-sample.json` is a real
+editor-drafted article: 28 blocks, exactly two problems (blocks 8 and 12, the unuploaded images).
+
 ✅ **Payment routing built 2026-09-30 — Developer tools › Payments, and `provider` on the money
 pages.** Contract: [FRONTEND-CHANGELOG-payment-providers.md](api-doc/admin/FRONTEND-CHANGELOG-payment-providers.md)
 (jovi-mall ADR-A08); `dev-tools.md`, `money.md`, `accounts.md`, `permissions.md` re-copied, and
@@ -440,7 +455,7 @@ pinned upstream by `test:list-strictness` — read it there rather than copying 
 [`src/lib/query.ts`](src/lib/query.ts) for this repository's one statement of the rule. Widening
 `listQuery` service-wide is still deliberately **not** done.
 
-**`npm test` — 2731 tests in 177 files, measured on 2026-09-30** at the close of the resolve-unknown round (+`PayoutResolveUnknown.test.tsx`), 10 failures with 33 node processes up, all in `App`, `ArticleCreateDialog` and `CreateTicketDialog`; run together alone 6 still failed, and **the same 6 fail at `HEAD` (`079588f`) in a throwaway worktree** — pre-existing, not investigated. **Before that, 2715 tests in 176 files** at the close of the payment-routing round, with 7 failures in a run sharing the machine with 32 node processes, none in a file the round touched (`App`, `ArticleCreateDialog`, `CreateTicketDialog`, `UserDetail`); re-run alone all passed but one `ArticleCreateDialog` cover test, which then passed alone on a second run — `ArticleCreateDialog.test.tsx` is the sixth file in the contention pattern. **The previous figure was 2645 tests in 171 files, measured on 2026-09-27** at the close of the bot-memory round (+`ResetBotMemoryDialog.test.tsx`, −`permissions.pending.test.ts`), with 8 failures in a run that shared the machine with a build, all in `CreateTicketDialog`, `App` and `TicketAttachmentsPanel`; re-run alone, the 3 that remain are the ones recorded below as failing at `HEAD`. **The previous figure was 2629 tests in 170 files, measured on 2026-09-22** at the close of the COD-pool
+**`npm test` — 2753 tests in 179 files, measured on 2026-10-01** at the close of the article-JSON round (+`article-body-json.test.ts`, +`ArticleBodyJson.test.tsx`), 9 failures in `App`, `SearchInput`, `ArticleCreateDialog` and `CreateTicketDialog` with 12 node processes up; all four files passed alone (3/3, 40/40). **Before that, 2731 tests in 177 files, measured on 2026-09-30** at the close of the resolve-unknown round (+`PayoutResolveUnknown.test.tsx`), 10 failures with 33 node processes up, all in `App`, `ArticleCreateDialog` and `CreateTicketDialog`; run together alone 6 still failed, and **the same 6 fail at `HEAD` (`079588f`) in a throwaway worktree** — pre-existing, not investigated. **Before that, 2715 tests in 176 files** at the close of the payment-routing round, with 7 failures in a run sharing the machine with 32 node processes, none in a file the round touched (`App`, `ArticleCreateDialog`, `CreateTicketDialog`, `UserDetail`); re-run alone all passed but one `ArticleCreateDialog` cover test, which then passed alone on a second run — `ArticleCreateDialog.test.tsx` is the sixth file in the contention pattern. **The previous figure was 2645 tests in 171 files, measured on 2026-09-27** at the close of the bot-memory round (+`ResetBotMemoryDialog.test.tsx`, −`permissions.pending.test.ts`), with 8 failures in a run that shared the machine with a build, all in `CreateTicketDialog`, `App` and `TicketAttachmentsPanel`; re-run alone, the 3 that remain are the ones recorded below as failing at `HEAD`. **The previous figure was 2629 tests in 170 files, measured on 2026-09-22** at the close of the COD-pool
 round (the two new files are `AssignabilityCheck.test.tsx` and `PlanFormDialog.test.tsx`), with
 **3 failures, none in a file the round touched**, and 16 node processes up. ⚠ **One of them is not
 a flake: App.test.tsx's *"lands the orders container on its index child"* failed in the full run,
@@ -581,7 +596,7 @@ machine, not the code.
 npm run dev       # 5175, strictPort
 npm run build     # tsc -b && vite build   ← the typecheck runs here
 npm run lint      # eslint .
-npm test          # vitest run — 2731 tests in 177 files (2026-09-30, after the resolve-unknown round). No sibling dashboard has one.
+npm test          # vitest run — 2753 tests in 179 files (2026-10-01, after the article-JSON round). No sibling dashboard has one.
 ```
 
 **Every phase closes the same way**: typecheck, lint, tests, build, then a written summary naming

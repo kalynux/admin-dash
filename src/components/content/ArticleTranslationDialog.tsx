@@ -3,6 +3,7 @@ import { Eye, EyeOff, Languages } from 'lucide-react';
 
 import { AuthFormError } from '@/components/auth/AuthFormError';
 import { ArticleBodyEditor } from '@/components/content/ArticleBodyEditor';
+import { ArticleBodyJson } from '@/components/content/ArticleBodyJson';
 import { ArticleReaderView } from '@/components/content/ArticlePreview';
 import { InlineLoader } from '@/components/common/Loading';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { emptyBlock, validateArticleBody } from '@/lib/article-body';
+import { articleBodyFileName } from '@/lib/article-body-json';
 import {
     alignToDriver,
     applyEditToPlan,
@@ -35,7 +37,9 @@ import {
     driverTranslation,
     hasDrift,
     initialPlan,
+    planForReplacement,
     planRemovesOrReorders,
+    sameLayout,
     seedFromDriver,
     structureDrift,
     structureLoss,
@@ -219,6 +223,27 @@ export function ArticleTranslationDialog({
     function editBody(next: ArticleBody, edit: BodyEdit) {
         setBody(next);
         if (isDriver) setPlan((current) => applyEditToPlan(current, edit));
+    }
+
+    /**
+     * A JSON import replaces the whole draft. On the driver the plan is
+     * re-derived by position, so a round trip that only changed words keeps every
+     * other language's translations attached to their blocks; on a follower the
+     * existing drift notice and "Take the … structure" remedy take over.
+     */
+    function importBody(next: ArticleBody) {
+        if (isDriver) setPlan((current) => planForReplacement(current, body, next));
+        setBody(next);
+    }
+
+    function importLayoutNotice(next: ArticleBody): string | null {
+        if (follows) {
+            return sameLayout(next, follows.body)
+                ? null
+                : `This language follows the ${follows.locale} version’s blocks, and this file’s blocks do not match them. It will load, and the editor will offer to take the ${follows.locale} structure again.`;
+        }
+        if (!editing || otherLanguages.length === 0 || sameLayout(next, body)) return null;
+        return `The other languages follow this one’s blocks. The file is matched to the current ${locale} blocks by position — right when only words changed, but a block added, removed or moved in the file shifts every block after it. Before saving you will be asked which languages, if any, to carry the change to; for layout changes the block editor is the safer tool.`;
     }
 
     function slugProblem(): string | null {
@@ -492,14 +517,24 @@ export function ArticleTranslationDialog({
 
                     <div className="space-y-2 border-t pt-4">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                            <Label>Body</Label>
-                            {follows && untranslated.length > 0 ? (
-                                <p className="text-muted-foreground text-xs">
-                                    {formatCount(untranslated.length)} of{' '}
-                                    {formatCount(body.length)} block
-                                    {body.length === 1 ? '' : 's'} still read as {follows.locale}
-                                </p>
-                            ) : null}
+                            <div className="flex flex-wrap items-baseline gap-x-3">
+                                <Label>Body</Label>
+                                {follows && untranslated.length > 0 ? (
+                                    <p className="text-muted-foreground text-xs">
+                                        {formatCount(untranslated.length)} of{' '}
+                                        {formatCount(body.length)} block
+                                        {body.length === 1 ? '' : 's'} still read as{' '}
+                                        {follows.locale}
+                                    </p>
+                                ) : null}
+                            </div>
+                            <ArticleBodyJson
+                                body={body}
+                                onImport={importBody}
+                                locale={locale}
+                                fileName={articleBodyFileName(article.id, locale)}
+                                layoutNotice={importLayoutNotice}
+                            />
                         </div>
                         <ArticleBodyEditor
                             value={body}

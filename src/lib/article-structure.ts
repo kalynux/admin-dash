@@ -323,6 +323,38 @@ export function applyEditToPlan(plan: StructurePlan, edit: BodyEdit): StructureP
     }
 }
 
+/**
+ * The plan after the whole body was replaced at once — a JSON import.
+ *
+ * An import reports no edits, only a result, so the origins are recovered **by
+ * position**: a block of the same type at the same index is taken to be the same
+ * block with new words (and keeps its origin, so the other languages' translation
+ * of it survives a carry-across), and anything else is new. Old blocks left
+ * unmatched drop out of the plan, which `planRemovesOrReorders` then reports.
+ *
+ * ⚠ **Position is right for the round trip this exists for** — export, change
+ * some words, import — **and wrong for a block inserted or moved in the file**,
+ * where every block after it shifts onto a neighbour's origin. The same caveat
+ * as `alignToDriver`, and the import preview says so where other languages exist.
+ */
+export function planForReplacement(
+    plan: StructurePlan,
+    currentBody: ArticleBody,
+    nextBody: ArticleBody,
+): StructurePlan {
+    return {
+        ...plan,
+        origins: nextBody.map((block, index) =>
+            currentBody[index]?.type === block.type ? (plan.origins[index] ?? null) : null,
+        ),
+    };
+}
+
+/** Whether two bodies have the same block types in the same order. */
+export function sameLayout(a: ArticleBody, b: ArticleBody): boolean {
+    return a.length === b.length && a.every((block, index) => block.type === b[index]?.type);
+}
+
 /** Whether the driver's block list changed shape — added blocks do not count. */
 export function planRemovesOrReorders(plan: StructurePlan): boolean {
     const kept = plan.origins.filter((origin): origin is number => origin !== null);

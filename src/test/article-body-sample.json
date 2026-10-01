@@ -1,0 +1,417 @@
+[
+  {
+    "type": "paragraph",
+    "text": [
+      {
+        "type": "text",
+        "text": "Au Cameroun, WhatsApp n'est pas un canal de vente parmi d'autres. C'est "
+      },
+      {
+        "type": "text",
+        "text": "le",
+        "bold": true
+      },
+      {
+        "type": "text",
+        "text": " canal. Une enquête relayée par Investir au Cameroun indique que "
+      },
+      {
+        "type": "text",
+        "text": "88 % des personnes interrogées avaient déjà acheté quelque chose via WhatsApp",
+        "bold": true
+      },
+      {
+        "type": "text",
+        "text": ", contre 68 % via Facebook."
+      }
+    ]
+  },
+  {
+    "type": "paragraph",
+    "text": [
+      {
+        "type": "text",
+        "text": "Pourtant, la plupart des vendeurs y perdent de l'argent sans s'en rendre compte : des clients qui disparaissent, un catalogue que personne ne voit, des réponses trop lentes. Voici la méthode complète, et surtout les trois fuites à colmater en premier."
+      }
+    ]
+  },
+  {
+    "type": "heading",
+    "level": 2,
+    "id": "pourquoi-whatsapp",
+    "text": "Pourquoi WhatsApp et pas autre chose"
+  },
+  {
+    "type": "paragraph",
+    "text": [
+      {
+        "type": "text",
+        "text": "Les commerçantes camerounaises — pagnes, prêt-à-porter, cosmétiques, alimentaire, accessoires — ont fait ce choix pour des raisons très concrètes :"
+      }
+    ]
+  },
+  {
+    "type": "list",
+    "items": [
+      [
+        {
+          "type": "text",
+          "text": "Facebook est saturé d'arnaques.",
+          "bold": true
+        },
+        {
+          "type": "text",
+          "text": " La confiance y est devenue difficile à établir, et les clients le savent."
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "text": "Instagram touche une audience trop jeune",
+          "bold": true
+        },
+        {
+          "type": "text",
+          "text": ", souvent peu solvable pour un panier moyen correct."
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "text": "Une boutique physique coûte un loyer tous les mois",
+          "bold": true
+        },
+        {
+          "type": "text",
+          "text": ", avec un trafic incertain et des horaires fixes."
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "text": "WhatsApp, lui, est déjà ouvert",
+          "bold": true
+        },
+        {
+          "type": "text",
+          "text": " sur le téléphone du client. Il n'a rien à installer, rien à apprendre."
+        }
+      ]
+    ]
+  },
+  {
+    "type": "heading",
+    "level": 2,
+    "id": "les-cinq-etapes",
+    "text": "Les cinq étapes d'une vente, et celle qui casse"
+  },
+  {
+    "type": "paragraph",
+    "text": [
+      {
+        "type": "text",
+        "text": "Toute vente WhatsApp suit le même chemin. Savoir lequel des cinq moments vous fait perdre de l'argent est la moitié du travail."
+      }
+    ]
+  },
+  {
+    "type": "image",
+    "url": "<<URL renvoyée par le CMS après upload de a1-flow.jpg>>",
+    "alt": "Schéma des cinq étapes d'une vente sur WhatsApp, de la découverte à la réception, avec l'étape 3 signalée comme point de rupture.",
+    "width": 1200,
+    "height": 822
+  },
+  {
+    "type": "paragraph",
+    "text": [
+      {
+        "type": "text",
+        "text": "L'étape 3 est celle qui coûte le plus cher. Le client ne vous connaît pas, il a déjà entendu des histoires d'arnaque, et il hésite. Tout ce que vous faites avant — photos, prix, délais — sert uniquement à franchir ce moment-là."
+      }
+    ]
+  },
+  {
+    "type": "heading",
+    "level": 2,
+    "id": "trois-fuites",
+    "text": "Les trois fuites d'argent"
+  },
+  {
+    "type": "paragraph",
+    "text": [
+      {
+        "type": "text",
+        "text": "Elles sont presque toujours les mêmes, et elles sont toutes réparables sans dépenser un franc."
+      }
+    ]
+  },
+  {
+    "type": "image",
+    "url": "<<URL renvoyée par le CMS après upload de a1-leaks.jpg>>",
+    "alt": "Trois colonnes décrivant le client fantôme, le catalogue invisible et la réponse trop lente.",
+    "width": 1200,
+    "height": 531
+  },
+  {
+    "type": "paragraph",
+    "text": [
+      {
+        "type": "text",
+        "text": "Le client fantôme",
+        "bold": true
+      },
+      {
+        "type": "text",
+        "text": " est le plus douloureux : vous avez déjà payé le transport quand il disparaît. La réponse n'est pas de refuser la vente, mais de demander un engagement — même petit. C'est le sujet de "
+      },
+      {
+        "type": "link",
+        "text": "notre article sur le paiement avant livraison",
+        "href": "/blog/se-faire-payer-avant-livraison"
+      },
+      {
+        "type": "text",
+        "text": "."
+      }
+    ]
+  },
+  {
+    "type": "paragraph",
+    "text": [
+      {
+        "type": "text",
+        "text": "Le catalogue invisible",
+        "bold": true
+      },
+      {
+        "type": "text",
+        "text": " est le plus courant. Des photos publiées en statut disparaissent au bout de 24 heures, et obligent le client à vous écrire pour connaître un prix. La moitié ne vous écrira jamais. "
+      },
+      {
+        "type": "link",
+        "text": "Une vraie boutique en ligne règle ce problème",
+        "href": "/blog/creer-une-boutique-en-ligne-sans-site-web"
+      },
+      {
+        "type": "text",
+        "text": " sans site web ni développeur."
+      }
+    ]
+  },
+  {
+    "type": "paragraph",
+    "text": [
+      {
+        "type": "text",
+        "text": "La réponse trop lente",
+        "bold": true
+      },
+      {
+        "type": "text",
+        "text": " est la plus silencieuse : vous ne saurez jamais combien de ventes elle vous a coûté, parce que le client ne vous dit pas qu'il a acheté ailleurs."
+      }
+    ]
+  },
+  {
+    "type": "heading",
+    "level": 2,
+    "id": "combien-de-temps",
+    "text": "Combien de temps ça prend vraiment"
+  },
+  {
+    "type": "paragraph",
+    "text": [
+      {
+        "type": "text",
+        "text": "C'est la question que personne ne pose avant de se lancer, et celle qui décide si l'activité tient sur la durée. Vendre sur WhatsApp n'est pas gratuit en temps : chaque vente demande entre cinq et quinze messages, et ces messages arrivent quand le client le décide, pas quand vous êtes disponible."
+      }
+    ]
+  },
+  {
+    "type": "paragraph",
+    "text": [
+      {
+        "type": "text",
+        "text": "Une boutique qui traite dix commandes par jour passe facilement "
+      },
+      {
+        "type": "text",
+        "text": "trois heures en conversations",
+        "bold": true
+      },
+      {
+        "type": "text",
+        "text": ", sans compter la préparation des colis et la coordination des livraisons. C'est viable. À trente commandes, cela ne l'est plus : vous passez vos journées à répéter les mêmes réponses et vous commencez à en oublier."
+      }
+    ]
+  },
+  {
+    "type": "paragraph",
+    "text": [
+      {
+        "type": "text",
+        "text": "Deux réflexes repoussent beaucoup ce plafond. D'abord, enregistrer des "
+      },
+      {
+        "type": "text",
+        "text": "réponses rapides",
+        "bold": true
+      },
+      {
+        "type": "text",
+        "text": " dans WhatsApp Business pour les questions qui reviennent — les frais de livraison, les tailles disponibles, les délais. Ensuite, répondre par "
+      },
+      {
+        "type": "text",
+        "text": "créneaux",
+        "bold": true
+      },
+      {
+        "type": "text",
+        "text": " plutôt qu'en continu : trois passages par jour à heures fixes suffisent si vous l'annoncez dans votre profil."
+      }
+    ]
+  },
+  {
+    "type": "heading",
+    "level": 2,
+    "id": "par-ou-commencer",
+    "text": "Par où commencer, concrètement"
+  },
+  {
+    "type": "list",
+    "ordered": true,
+    "items": [
+      [
+        {
+          "type": "text",
+          "text": "Écrivez vos prix.",
+          "bold": true
+        },
+        {
+          "type": "text",
+          "text": " « Inbox pour le prix » fait fuir plus de clients qu'il n'en attire. Un prix affiché est un filtre : les gens qui vous écrivent sont déjà d'accord."
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "text": "Photographiez à la lumière du jour, sur fond neutre.",
+          "bold": true
+        },
+        {
+          "type": "text",
+          "text": " Pas au flash, pas sur un lit. C'est gratuit et c'est le plus gros écart de qualité entre deux boutiques."
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "text": "Annoncez les frais de livraison dès le départ.",
+          "bold": true
+        },
+        {
+          "type": "text",
+          "text": " Les découvrir au moment de payer annule des ventes déjà conclues."
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "text": "Dites votre règle de paiement au premier message",
+          "bold": true
+        },
+        {
+          "type": "text",
+          "text": ", pas après vingt minutes de négociation."
+        }
+      ],
+      [
+        {
+          "type": "text",
+          "text": "Donnez un lien, pas un numéro.",
+          "bold": true
+        },
+        {
+          "type": "text",
+          "text": " Un lien de boutique se partage, se transfère et survit à la conversation."
+        }
+      ]
+    ]
+  },
+  {
+    "type": "callout",
+    "tone": "tip",
+    "title": "La règle qui change tout",
+    "text": [
+      {
+        "type": "text",
+        "text": "Un client qui a payé 2 000 FCFA d'acompte ne disparaît presque jamais. Ce n'est pas le montant qui compte, c'est l'engagement."
+      }
+    ]
+  },
+  {
+    "type": "heading",
+    "level": 2,
+    "id": "et-apres",
+    "text": "Et après ?"
+  },
+  {
+    "type": "paragraph",
+    "text": [
+      {
+        "type": "text",
+        "text": "Vendre sur WhatsApp fonctionne très bien jusqu'à un certain volume. Au-delà, trois choses commencent à coincer : suivre les commandes de tête devient impossible, organiser les livraisons prend plus de temps que vendre, et répondre à tout le monde en moins d'une heure n'est plus humainement faisable."
+      }
+    ]
+  },
+  {
+    "type": "paragraph",
+    "text": [
+      {
+        "type": "text",
+        "text": "C'est exactement là que "
+      },
+      {
+        "type": "link",
+        "text": "Wi-Mall",
+        "href": "/vendors"
+      },
+      {
+        "type": "text",
+        "text": " prend le relais : votre boutique reste dans WhatsApp, mais le catalogue, les paiements et les livraisons sont gérés pour vous."
+      }
+    ]
+  },
+  {
+    "type": "divider"
+  },
+  {
+    "type": "faq",
+    "items": [
+      {
+        "question": "Faut-il WhatsApp Business ou WhatsApp normal pour vendre ?",
+        "answer": "WhatsApp Business, sans hésiter. Il est gratuit, il permet un catalogue, des réponses rapides enregistrées et un profil avec vos horaires et votre adresse. WhatsApp normal n'a rien de tout cela."
+      },
+      {
+        "question": "Comment éviter les clients qui ne viennent jamais chercher la commande ?",
+        "answer": "Demandez un acompte qui couvre au minimum le transport, entre 30 et 50 % pour un nouveau client. Présentez-le comme un service — « je bloque l'article pour vous » — et non comme une méfiance."
+      },
+      {
+        "question": "Combien faut-il investir pour commencer à vendre sur WhatsApp ?",
+        "answer": "Rien, au-delà du stock que vous vendez déjà. Un téléphone, WhatsApp Business et de bonnes photos suffisent. Les coûts n'arrivent qu'avec le volume : livraison, et éventuellement une plateforme pour organiser les commandes."
+      },
+      {
+        "question": "Est-ce que je dois déclarer mon activité de vente en ligne ?",
+        "answer": "Oui. Une activité commerciale régulière doit être enregistrée auprès des impôts, quelle que soit la plateforme utilisée. Le e-commerce est désormais explicitement suivi par l'administration fiscale camerounaise."
+      }
+    ]
+  },
+  {
+    "type": "cta",
+    "title": "Votre boutique WhatsApp, sans les fuites",
+    "body": "Wi-Mall vous donne un catalogue partageable, des paiements confirmés automatiquement et une livraison suivie. Vous continuez à vendre dans WhatsApp.",
+    "href": "/vendors",
+    "label": "Découvrir Wi-Mall pour les vendeurs"
+  }
+]

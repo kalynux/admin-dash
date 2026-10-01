@@ -21,8 +21,22 @@
 
 import {
     ARTICLE_BODY_MAX_BLOCKS,
+    CALLOUT_TITLE_MAX,
     CONTENT_LOCALES,
+    CTA_BODY_MAX,
+    CTA_LABEL_MAX,
+    CTA_TITLE_MAX,
+    FAQ_ANSWER_MAX,
+    FAQ_QUESTION_MAX,
+    HEADING_ID_MAX,
     HEADING_ID_PATTERN,
+    HEADING_TEXT_MAX,
+    HREF_MAX,
+    IMAGE_ALT_MAX,
+    IMAGE_CAPTION_MAX,
+    IMAGE_URL_MAX,
+    QUOTE_ATTRIBUTION_MAX,
+    QUOTE_TEXT_MAX,
     type ArticleBlock,
     type ArticleBody,
     type RichText,
@@ -55,6 +69,7 @@ export function hrefProblem(href: string): string | null {
     const value = href.trim();
 
     if (value.length === 0) return 'A link needs an href';
+    if (value.length > HREF_MAX) return `A link is at most ${HREF_MAX} characters`;
 
     const shaped =
         /^https?:\/\//i.test(value) ||
@@ -79,6 +94,7 @@ export function hrefProblem(href: string): string | null {
 export function imageUrlProblem(url: string): string | null {
     const value = url.trim();
     if (value.length === 0) return 'An image needs a url';
+    if (value.length > IMAGE_URL_MAX) return `An image url is at most ${IMAGE_URL_MAX} characters`;
     if (/^https?:\/\//i.test(value)) return null;
     if (value.startsWith('/') && !value.startsWith('//')) return null;
     return 'An image url must be an http(s):// URL or an internal path starting with “/”';
@@ -122,6 +138,30 @@ function richTextProblem(spans: RichText, label: string): string | null {
     return null;
 }
 
+/**
+ * A trimmed length over the schema's maximum.
+ *
+ * The editor's inputs carry `maxLength`, so a body typed by hand never trips
+ * these — a body **imported as JSON** can, and the server's answer would be one
+ * `400` for the whole array with no block named.
+ */
+function tooLong(value: string | undefined, max: number, label: string): string | null {
+    return value !== undefined && value.trim().length > max
+        ? `${label} is at most ${max} characters`
+        : null;
+}
+
+/**
+ * An optional field present but blank. Absent and empty are different to a
+ * `.strict()` schema — `.min(1).optional()` refuses `""` — so the key has to go.
+ * The editor prunes it as it is cleared; an imported file may not have.
+ */
+function blankOptional(value: string | undefined, label: string): string | null {
+    return value !== undefined && value.trim().length === 0
+        ? `Remove the ${label} rather than leaving it blank`
+        : null;
+}
+
 /** The per-block rules. Whole-body rules are in `validateArticleBody`. */
 function blockProblem(block: ArticleBlock): string | null {
     switch (block.type) {
@@ -132,7 +172,10 @@ function blockProblem(block: ArticleBlock): string | null {
             if (!HEADING_ID_PATTERN.test(id)) {
                 return 'An anchor id is lowercase letters, digits and single hyphens — e.g. “how-momo-payouts-work”';
             }
-            return null;
+            return (
+                tooLong(block.text, HEADING_TEXT_MAX, 'A heading') ??
+                tooLong(id, HEADING_ID_MAX, 'An anchor id')
+            );
         }
         case 'paragraph':
             return richTextProblem(block.text, 'This paragraph');
@@ -145,14 +188,22 @@ function blockProblem(block: ArticleBlock): string | null {
             return null;
         }
         case 'quote':
-            return block.text.trim().length === 0 ? 'A quote needs text' : null;
+            if (block.text.trim().length === 0) return 'A quote needs text';
+            return (
+                tooLong(block.text, QUOTE_TEXT_MAX, 'A quote') ??
+                blankOptional(block.attribution, 'attribution') ??
+                tooLong(block.attribution, QUOTE_ATTRIBUTION_MAX, 'An attribution')
+            );
         case 'callout': {
             if (block.title !== undefined && block.title.trim().length === 0) {
                 // Absent and empty are different to a `.strict()` schema: omit
                 // the key rather than sending "".
                 return 'Remove the callout title rather than leaving it blank';
             }
-            return richTextProblem(block.text, 'This callout');
+            return (
+                tooLong(block.title, CALLOUT_TITLE_MAX, 'A callout title') ??
+                richTextProblem(block.text, 'This callout')
+            );
         }
         case 'image': {
             const problem = imageUrlProblem(block.url);
@@ -167,19 +218,32 @@ function blockProblem(block: ArticleBlock): string | null {
                 return 'An image needs its real pixel height — it reserves the space so the page does not jump while loading';
             }
             if (block.alt.trim().length === 0) return 'Every image needs alt text';
-            return null;
+            return (
+                tooLong(block.alt, IMAGE_ALT_MAX, 'Alt text') ??
+                blankOptional(block.caption, 'caption') ??
+                tooLong(block.caption, IMAGE_CAPTION_MAX, 'A caption')
+            );
         }
         case 'cta': {
             if (block.title.trim().length === 0) return 'A call to action needs a title';
             if (block.body.trim().length === 0) return 'A call to action needs body copy';
             if (block.label.trim().length === 0) return 'A call to action needs a button label';
-            return hrefProblem(block.href);
+            return (
+                tooLong(block.title, CTA_TITLE_MAX, 'A call-to-action title') ??
+                tooLong(block.body, CTA_BODY_MAX, 'Call-to-action body copy') ??
+                tooLong(block.label, CTA_LABEL_MAX, 'A button label') ??
+                hrefProblem(block.href)
+            );
         }
         case 'faq': {
             if (block.items.length === 0) return 'An FAQ block needs at least one question';
             for (const [index, item] of block.items.entries()) {
                 if (item.question.trim().length === 0) return `FAQ ${index + 1} needs a question`;
                 if (item.answer.trim().length === 0) return `FAQ ${index + 1} needs an answer`;
+                const problem =
+                    tooLong(item.question, FAQ_QUESTION_MAX, `FAQ ${index + 1}’s question`) ??
+                    tooLong(item.answer, FAQ_ANSWER_MAX, `FAQ ${index + 1}’s answer`);
+                if (problem) return problem;
             }
             return null;
         }
