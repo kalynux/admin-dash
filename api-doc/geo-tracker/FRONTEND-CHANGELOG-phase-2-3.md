@@ -9,9 +9,11 @@
 
 # Frontend changelog — Phase 2 and Phase 3 (geo-tracker)
 
-**Verified against source on 2026-09-08** — the behavioural claims re-checked against
-`geo-tracker/internal/` and, for the 90-day session cap, `jovi-mall/src/core/auth/token.issuer.ts:47-49`.
-No corrections were needed.
+**Verified against source on 2026-09-08** — the three `permission_revoked` reasons, the optional
+`subscribe.shipmentId`, the destination-resolution order, the `ETA_MIN_INTERVAL` throttle, the
+`/webhooks/*` rate-limit exemption and the `JWT_SECRET` fail-closed change, against
+`geo-tracker/internal/modules/tracking/`, `internal/platform/middleware/ratelimit.go` and
+`internal/platform/config/config.go`. No corrections were needed.
 
 Everything Phases **2** (Deployability) and **3** (Cross-service correctness) of
 `PRODUCTION-READINESS/10-IMPLEMENTATION-PLAN.md` (not mirrored here — `backend/PRODUCTION-READINESS/10-IMPLEMENTATION-PLAN.md`)
@@ -70,7 +72,7 @@ the arrival of the frame. A screen that reads "your parcel has been delivered" o
 `permission_revoked` with no `reason` check will tell a user their delivery completed because
 their access token aged out.
 
-Detail: [tracking-websocket.md](./tracking-websocket.md) ·
+Detail: [tracking-websocket.md](tracking-websocket.md) ·
 [`jovi-mall/api-doc/tracking/live-tracking.md`](../jovi-mall/tracking/live-tracking.md)
 
 ---
@@ -132,7 +134,7 @@ countdown off it as though it were live; and when the provider fails, the **last
 served rather than the field disappearing — a value that lags is better for a client than one
 that vanishes and reappears.
 
-Detail: [routing.md](./routing.md#eta-on-the-broadcast-path-and-its-throttle)
+Detail: [routing.md](routing.md#eta-on-the-broadcast-path-and-its-throttle)
 
 ---
 
@@ -208,7 +210,7 @@ this service (ADR-015 D-5). There is still no data door.
 **`/webhooks/*` is exempt from this service's rate limiter**, now asserted by
 `ratelimit_test.go` rather than by a comment: a 429 to jovi-mall's dispatcher would delay a
 permission revocation, and a watcher who sees what they should not is worse than the load.
-Client-facing limits are unchanged — see [rate-limits.md](./rate-limits.md).
+Client-facing limits are unchanged — see [rate-limits.md](rate-limits.md).
 
 ---
 

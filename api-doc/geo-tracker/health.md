@@ -9,9 +9,11 @@
 
 # Health & Metrics
 
-**Verified against source on 2026-09-08** — both probes and all 23 metric names against
-`geo-tracker/internal/modules/health/` and `internal/platform/metrics/metrics.go`. **Two defects
-fixed**: the `503` example showed a raw checker error that Phase 16 replaced with the constant
+**Verified against source on 2026-09-08** — both routes, the three readiness checker names, the
+`200`/`503` semantics and all 23 metric names, types and label sets, against
+`geo-tracker/internal/modules/health/`, `internal/platform/metrics/metrics.go`,
+`internal/platform/config/config.go` and `cmd/server/main.go`. Two defects fixed: the `503`
+example still showed the raw checker error that Phase 16 replaced with the constant
 `"unavailable"`, and the metrics table listed 7 of 23 series.
 
 ## Authentication
@@ -57,6 +59,10 @@ in place of `"ok"`:
 > says which dependency failed; *why* is an operator's question and is answered
 > in the log line, not on the wire. Do not parse this value for a cause, and do
 > not build a UI that expects one.
+>
+> The key set, the `200`/`503` semantics and the JSON shape are unchanged, and
+> must stay that way: wi-admin surfaces this at
+> `GET /api/v1/system/geo-tracker` through a closed literal path set.
 
 | Checker | Verifies |
 |---|---|
@@ -68,33 +74,74 @@ in place of `"ok"`:
 
 ### GET /metrics
 
-Prometheus exposition format. Disable with `METRICS_ENABLED=false`.
+Prometheus exposition format. Enabled by default; disable with
+`METRICS_ENABLED=false`.
+
+**All 23 series the service registers**, grouped by what they are for. This table
+listed seven until 2026-09-08.
+
+*Live tracking*
 
 | Metric | Type | Labels |
 |---|---|---|
 | `geotracker_active_connections` | gauge | `role` |
 | `geotracker_location_updates_total` | counter | — |
+| `geotracker_location_suppressed_total` | counter | — |
 | `geotracker_broadcasts_total` | counter | — |
-| `geotracker_permission_cache_total` | counter | `result` (`hit`/`miss`) |
-| `geotracker_webhook_events_total` | counter | `outcome` (`processed`/`deduped`) |
-| `geotracker_revocations_total` | counter | — |
-| `geotracker_routing_provider_seconds` | histogram | `provider` |
+| `geotracker_ws_frames_rejected_total` | counter | `code` |
 
-> ⚠ **This table listed 7 of the 23 series the service registers, until 2026-09-08.** The
-> sixteen it omitted, verified against `internal/platform/metrics/metrics.go`:
-> `geotracker_location_suppressed_total`, `geotracker_ws_frames_rejected_total{code}`,
-> `geotracker_tracking_sessions_opened_total`,
-> `geotracker_tracking_sessions_closed_total{trigger}`,
-> `geotracker_tracking_allow_locked_total`, `geotracker_checkpoints_written_total{kind}`,
-> `geotracker_checkpoints_suppressed_total{kind}`, `geotracker_checkpoints_pruned_total`,
-> `geotracker_checkpoint_partitions`, `geotracker_service_reads_total{scope,outcome}`,
-> `geotracker_agent_actions_audited_total`, `geotracker_agent_actions_deduped_total`,
-> `geotracker_routing_provider_calls_total{provider,capability,outcome}`,
-> `geotracker_errors_total{category,status_class}`,
-> `geotracker_rate_limited_total{transport}` and `geotracker_panics_total{source}`.
->
-> Two worth knowing: **`location_suppressed_total`** counts fixes accepted from the socket and
-> not persisted because the agent has not granted Tracking Allow — read it against
-> `location_updates_total`, or a low update rate cannot distinguish "nobody is driving" from
-> "everybody has tracking switched off". And **`tracking_sessions_opened/closed`** count
-> *shipments tracked, not sockets*, so a reconnect moves neither.
+`location_suppressed` counts fixes accepted from the socket and **not** persisted
+because the agent has not granted Tracking Allow. Read it against
+`location_updates_total`: on its own a low update rate cannot distinguish "nobody
+is driving" from "everybody has tracking switched off".
+
+*Tracking sessions and the GPS trail*
+
+| Metric | Type | Labels |
+|---|---|---|
+| `geotracker_tracking_sessions_opened_total` | counter | — |
+| `geotracker_tracking_sessions_closed_total` | counter | `trigger` (`shipment_terminal`/`shipment_released`) |
+| `geotracker_tracking_allow_locked_total` | counter | — |
+| `geotracker_checkpoints_written_total` | counter | `kind` |
+| `geotracker_checkpoints_suppressed_total` | counter | `kind` |
+| `geotracker_checkpoints_pruned_total` | counter | — |
+| `geotracker_checkpoint_partitions` | gauge | — |
+
+Opened/closed count **shipments tracked, not sockets** — a reconnect moves
+neither, which is what makes them the check on "no duplicate sessions".
+
+*Authorization and the service door*
+
+| Metric | Type | Labels |
+|---|---|---|
+| `geotracker_permission_cache_total` | counter | `result` (`hit`/`miss`) |
+| `geotracker_revocations_total` | counter | — |
+| `geotracker_service_reads_total` | counter | `scope`, `outcome` |
+
+*Inbound peer traffic*
+
+| Metric | Type | Labels |
+|---|---|---|
+| `geotracker_webhook_events_total` | counter | `outcome` |
+| `geotracker_agent_actions_audited_total` | counter | — |
+| `geotracker_agent_actions_deduped_total` | counter | — |
+
+*Routing providers*
+
+| Metric | Type | Labels |
+|---|---|---|
+| `geotracker_routing_provider_seconds` | histogram | `provider` |
+| `geotracker_routing_provider_calls_total` | counter | `provider`, `capability`, `outcome` |
+
+`routing_provider_calls_total` is this service's half of the **shared
+provider-quota** picture — jovi-mall spends the same Geoapify/LocationIQ
+allowance on checkout geocoding and has no counterpart counter, so nothing adds
+the two together.
+
+*Errors and process health*
+
+| Metric | Type | Labels |
+|---|---|---|
+| `geotracker_errors_total` | counter | `category`, `status_class` |
+| `geotracker_rate_limited_total` | counter | `transport` (`http`/`websocket`) |
+| `geotracker_panics_total` | counter | `source` |

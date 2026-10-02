@@ -9,10 +9,13 @@
 
 # Live Tracking WebSocket
 
-**Verified against source on 2026-09-08** (backend counterpart: `geo-tracker/api-doc/`) — endpoint,
-all three token sources and their precedence, every frame shape, the three `permission_revoked`
-reasons and all nine error-frame codes, against `geo-tracker/internal/modules/tracking/` and
-`internal/platform/apperror/codes.go`. One defect fixed: the token precedence was listed in reverse.
+**Verified against source on 2026-09-08** — endpoint, all three token sources and their
+precedence, every inbound and outbound frame shape, the three `permission_revoked` reasons,
+all nine error-frame codes and the keepalive/frame-size numbers, against
+`geo-tracker/internal/modules/tracking/` (`module.go`, `delivery/ws/handler.go`,
+`delivery/ws/message.go`, `delivery/ws/connection.go`, `domain/entity.go`) and
+`internal/platform/apperror/codes.go`. One defect fixed: the token precedence was listed
+in reverse.
 
 The real-time channel: agents publish their position here, and authorized
 viewers (admin / agency / customer) receive it.
@@ -22,14 +25,14 @@ over the tracking health of each shipment they are delivering (ONLINE, DEGRADED,
 NETWORK_LOST, DISCONNECTED, LOCATION_DISABLED, TRACKING_DISABLED, APP_BACKGROUND,
 APP_FOREGROUND). Each `location_update` is a heartbeat, and the `device_state`
 and `app_state` frames drive the corresponding transitions. Its read side is
-HTTP; see [tracking-sessions.md](./tracking-sessions.md). Viewer connections have
+HTTP; see [tracking-sessions.md](tracking-sessions.md). Viewer connections have
 no sessions — they watch, they are not tracked.
 
 > ### What this socket cannot do: start or end a tracking session
 >
 > A **tracking session is one shipment's** tracking lifecycle. It is opened by
 > jovi-mall reporting the shipment active, and closed only by jovi-mall reporting
-> it terminal (see [webhooks.md](./webhooks.md)). This socket only *binds* to
+> it terminal (see [webhooks.md](webhooks.md)). This socket only *binds* to
 > sessions that already exist.
 >
 > - **Connecting** resumes whatever deliveries are already in flight
@@ -291,7 +294,7 @@ is normal and must still be rendered.
 They are also **throttled**: an estimate is recomputed at most once per
 `ETA_MIN_INTERVAL` (default 30 s) per agent and destination, so the value may
 lag the position by up to that much. Two viewers of the same delivery see the
-same number, from one routing call. See [routing.md](./routing.md#eta-on-the-broadcast-path-and-its-throttle).
+same number, from one routing call. See [routing.md](routing.md#eta-on-the-broadcast-path-and-its-throttle).
 
 #### `permission_revoked`
 ```json
@@ -299,7 +302,7 @@ same number, from one routing call. See [routing.md](./routing.md#eta-on-the-bro
   "payload": { "agentId": "agent-1", "reason": "shipment_completed" } }
 ```
 Your subscription to that agent has ended and no further broadcasts for them
-will arrive. See the authorization section in [README.md](./README.md).
+will arrive. See the authorization section in [README.md](README.md).
 
 **`reason` is a closed set of three values, and only one of them is about a
 delivery.** The subscription is dropped in all three cases — the server fails
@@ -355,8 +358,8 @@ Errors are frame-level, not fatal: the connection stays open.
 > ⚠ **Branch on `code`, never on `message`.** `code` is declared `omitempty` in the Go struct
 > (`tracking/domain/entity.go:186`) but `sendError` takes it as a **required positional argument**
 > and sets it on **every** frame — all 18 call sites supply one, and there is no path that emits an
-> error frame without it. These examples omitted the field until 2026-09-06 (DOC-PROGRAM F-40),
-> which mattered because `message` is free text that two codes have shared:
+> error frame without it. This example omitted the field until 2026-09-06 (DOC-PROGRAM F-40), which
+> mattered because `message` is free text that two codes have shared:
 > `LOCATION_COORDINATE_INVALID` means *do not resend* and `LOCATION_STORE_UNAVAILABLE` means
 > *retry* — opposite instructions the message alone cannot separate. That is why the field exists.
 >

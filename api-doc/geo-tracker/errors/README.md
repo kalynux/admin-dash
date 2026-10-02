@@ -9,10 +9,13 @@
 
 # Error Responses
 
-**Verified against source on 2026-09-08** — the envelope, the nine categories, every HTTP status the
-service can emit and all nine WebSocket frame codes, against
-`geo-tracker/internal/platform/apperror/` and `internal/platform/httpx/`. **One defect fixed**: the
-status table listed a `422` that exists nowhere in the repository.
+**Verified against source on 2026-09-08** — the envelope, the nine categories, the two
+message-filtered categories, every HTTP status the service can actually emit, all nine WebSocket
+frame codes and the `X-Request-ID` pattern, against `geo-tracker/internal/platform/apperror/`
+(`category.go`, `codes.go`, `error.go`), `internal/platform/httpx/httpx.go`,
+`internal/platform/reqid/reqid.go` and every `delivery/` package. One defect fixed: the status
+table listed a `422` that exists nowhere in the repository — the same defect as the `409` removed
+on 2026-09-06, and from the same cause (a WebSocket frame written into an HTTP table).
 
 **Changed in Phase 16.** This service used to answer in **plain text** via Go's `http.Error`,
 except the routing module which answered `{"error":"…"}`, and this document told you to
@@ -75,18 +78,21 @@ never sent.
 **429 is new** — nothing was rate limited before Phase 16.
 
 > ⚠ **There is no `409`, and this table listed one until 2026-09-06** (DOC-PROGRAM F-39).
-> `http.StatusConflict` appears **nowhere** in this service. `TRACKING_ALLOW_LOCKED` — the
-> mid-shipment Tracking-Allow refusal the removed row described — is still a **WebSocket frame
-> only**, raised at `tracking/delivery/ws/handler.go:312` via `sendError`, exactly as it was
-> before Phase 16. Do not write a `409` branch for this service, and do not infer from that row
-> that device state can be changed over HTTP: there is no such endpoint.
+> No route in this service emits `http.StatusConflict` — the only occurrence in the repository
+> is a unit test of the envelope writer (`internal/platform/httpx/httpx_test.go:161`), which
+> reaches no router. `TRACKING_ALLOW_LOCKED` — the mid-shipment Tracking-Allow refusal the
+> removed row described — is still a **WebSocket frame only**, raised at
+> `tracking/delivery/ws/handler.go:312` via `sendError`, exactly as it was before Phase 16. Do
+> not write a `409` branch for this service, and do not infer from that row that device state
+> can be changed over HTTP: there is no such endpoint.
 
-> ⚠ **There is no `422`, and this table listed one until 2026-09-08** — the same defect as the
-> `409` above, one row down. `http.StatusUnprocessableEntity` appears **nowhere in the
-> geo-tracker repository at all**, tests included. The removed row cited "an implausible position
-> jump", which is `LOCATION_JUMP_IMPLAUSIBLE` — a **WebSocket frame**, like the Tracking-Allow
-> refusal, and like it never an HTTP status. A failure that happens over the socket does not
-> acquire an HTTP status by being written into an HTTP table.
+> ⚠ **There is no `422` either, and this table listed one until 2026-09-08** — the same defect
+> as the `409` above, one row down and caught two days later. `http.StatusUnprocessableEntity`
+> appears **nowhere in the repository at all**, tests included. The removed row cited "an
+> implausible position jump", which is `LOCATION_JUMP_IMPLAUSIBLE` — a **WebSocket frame**, like
+> the Tracking-Allow refusal, and like it never an HTTP status. The lesson both rows teach: a
+> failure that happens over the socket does not acquire an HTTP status by being written into an
+> HTTP table.
 
 > **The 404-not-403 on `/locations/{agentID}` is deliberate and is preserved.** An unauthorized
 > viewer and a non-existent agent get byte-identical answers, so the endpoint never confirms
@@ -102,8 +108,13 @@ the connection stays open in every case.
                                 "message": "Position rejected as implausible" } }
 ```
 
-`code` is **new and additive** (`omitempty`); a client reading `payload.message` is
-unaffected.
+`code` is **new and additive** (`omitempty` in the Go struct); a client reading
+`payload.message` is unaffected.
+
+**In practice `code` is always present.** `sendError` takes it as a required positional
+argument and sets it on every frame, and all 18 call sites supply one — there is no path
+that emits an error frame without it. Branch on `code`, never on `message`: `message` is
+free text, and two codes calling for *opposite* client behaviour have shared one string.
 
 ### The codes that used to be one string
 
@@ -119,6 +130,9 @@ opposite behaviour:
 
 Other frame codes: `WS_MESSAGE_INVALID`, `WS_UNKNOWN_MESSAGE_TYPE`,
 `TRACKING_NOT_AUTHORIZED`, `TRACKING_ALLOW_LOCKED`, `WS_RATE_LIMITED`.
+
+That is **nine frame codes in total** — the four in the table above plus these five. Treat
+an unknown one as non-fatal and keep the socket open.
 
 > **Error frames are best-effort.** The outbound buffer holds 32 frames and drops when full —
 > deliberately, so a slow client cannot stall the broadcaster. Do not build a client that

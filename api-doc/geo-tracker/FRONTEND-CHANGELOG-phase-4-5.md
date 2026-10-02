@@ -9,9 +9,13 @@
 
 # geo-tracker — what Phase 4 and Phase 5 changed for a client
 
-**Verified against source on 2026-09-08** — the behavioural claims re-checked against
-`geo-tracker/internal/` and, for the 90-day session cap, `jovi-mall/src/core/auth/token.issuer.ts:47-49`.
-No corrections were needed.
+**Verified against source on 2026-09-08** — the 72 h `TRACKING_SESSION_TTL`, the trail's
+plausibility gate and the heartbeat's deliberate exemption, the grant-direction cache behaviour,
+and jovi-mall's 90-day absolute session cap, against
+`geo-tracker/internal/platform/config/config.go:318`,
+`internal/modules/tracking/service/service.go`, and
+`jovi-mall/src/core/auth/{session-cap.ts,token.issuer.ts:47-49}` (`AUTH_ABSOLUTE_SESSION_CAP`,
+default `7776000` = 90 days). No corrections were needed.
 
 Your slice of Phases **4** (Per-service hardening) and **5** (Legacy close-out) of
 `PRODUCTION-READINESS/10-IMPLEMENTATION-PLAN.md` (not mirrored here — `backend/PRODUCTION-READINESS/10-IMPLEMENTATION-PLAN.md`).
@@ -19,7 +23,7 @@ Your slice of Phases **4** (Per-service hardening) and **5** (Legacy close-out) 
 - **Written:** 2026-08-21 · **Phase 4:** 2026-08-19 → 08-20 · **Phase 5:** 2026-08-20
 - **Also read:** `jovi-mall/api-doc/FRONTEND-CHANGELOG-phase-4-5.md` (not mirrored here — `backend/jovi-mall/api-doc/FRONTEND-CHANGELOG-phase-4-5.md`)
   — **§ 2 there has a required change for you**, see § 5 below
-- **Previous instalment:** [FRONTEND-CHANGELOG-phase-2-3.md](./FRONTEND-CHANGELOG-phase-2-3.md)
+- **Previous instalment:** [FRONTEND-CHANGELOG-phase-2-3.md](FRONTEND-CHANGELOG-phase-2-3.md)
 
 ---
 
@@ -129,7 +133,7 @@ when the verdict is false.
   **Read it against the written counter, never alone** — without that pairing, "we started
   rejecting checkpoints" and "agents stopped moving" look identical from outside.
 
-Detail: [gps-persistence.md](./gps-persistence.md).
+Detail: [gps-persistence.md](gps-persistence.md).
 
 ---
 
@@ -263,10 +267,10 @@ Two things that found real behaviour, worth knowing as a client:
 | Topic | Document |
 |---|---|
 | The session TTL and its reasoning | `docs/ADR-B01-SESSION-TTL.md` (not mirrored here — `backend/geo-tracker/docs/ADR-B01-SESSION-TTL.md`) |
-| The trail, its downsampling and the gate | [gps-persistence.md](./gps-persistence.md) |
-| Sessions and their health states | [tracking-sessions.md](./tracking-sessions.md) |
-| The socket | [tracking-websocket.md](./tracking-websocket.md) |
-| ETA and routing | [routing.md](./routing.md) |
-| Errors | [errors/](./errors/) |
-| Health and metrics | [health.md](./health.md) |
+| The trail, its downsampling and the gate | [gps-persistence.md](gps-persistence.md) |
+| Sessions and their health states | [tracking-sessions.md](tracking-sessions.md) |
+| The socket | [tracking-websocket.md](tracking-websocket.md) |
+| ETA and routing | [routing.md](routing.md) |
+| Errors | [errors/](errors) |
+| Health and metrics | [health.md](health.md) |
 | The jovi-mall side | `jovi-mall/api-doc/FRONTEND-CHANGELOG-phase-4-5.md` (not mirrored here — `backend/jovi-mall/api-doc/FRONTEND-CHANGELOG-phase-4-5.md`) |

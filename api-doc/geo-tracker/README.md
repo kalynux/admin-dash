@@ -9,9 +9,16 @@
 
 # geo-tracker API Documentation
 
-**Verified against source on 2026-09-08** — the `PORT` default, the five per-role visibility rules
-and the five `TRACKABLE_SHIPMENT_STATUSES` against `geo-tracker/internal/platform/config/config.go`
-and `jovi-mall/src/.../visible-agents.service.ts:25-31,101-109`.
+**Verified against source on 2026-09-08** — the `PORT` default, the root-mount claim, the
+document index, the five per-role visibility rules and the five `TRACKABLE_SHIPMENT_STATUSES`,
+against `geo-tracker/internal/platform/config/config.go`, every module's `routes.go`, and
+`jovi-mall/src/modules/tracking-integration/services/visible-agents.service.ts:25-31,101-109`.
+One gap filled: the authentication table named only two of the three token sources and did not
+warn that the cookie authenticates but does not authorize on the HTTP routes.
+
+**Updated 2026-09-08 (session S9).** That last point was a **bug in this service, not in this
+page**, and it is now **fixed** — the cookie authenticates *and* authorizes on the HTTP routes.
+The table below is corrected accordingly.
 
 This is the contract for **geo-tracker** ("Project B") — the live GPS tracking
 / WebSocket service for jovi-mall delivery agents. It is the only source of
@@ -30,19 +37,19 @@ the root (`/ws/track`, `/healthz`, not `/api/...`).
 
 ## Documents
 
-- [tracking-websocket.md](./tracking-websocket.md) — the live tracking WebSocket: auth, message protocol, ETA, revocation
-- [tracking-sessions.md](./tracking-sessions.md) — the tracking lifecycle: read an agent's live tracking state, device state, eligibility, and state history over HTTP
-- [routing.md](./routing.md) — route, distance-matrix, geocode, reverse-geocode, ETA (provider-agnostic)
-- [locations.md](./locations.md) — read an agent's last-known position over HTTP
-- [gps-persistence.md](./gps-persistence.md) — how GPS is stored: live position (Redis) vs. the temporary, downsampled checkpoint trail (Postgres), retention, partitioning, and cleanup
-- [service-data-door.md](./service-data-door.md) — **`/internal/*`, the SECOND authorization path.** Four reads for a **service caller** (wi-admin) rather than a viewer, gated by a configured scope set. Not a general integration surface, and inert unless `GEO_TRACKER_ADMIN_TOKEN` is set
-- [webhooks.md](./webhooks.md) — inbound lifecycle events from jovi-mall (HMAC-authenticated)
-- [agent-action-audit.md](./agent-action-audit.md) — inbound agent shipment-action events, recorded as an immutable spatial audit with captured GPS
-- [tracking-notifications.md](./tracking-notifications.md) — outbound tracking-state notifications to jovi-mall (geo-tracker → Project A)
-- [health.md](./health.md) — liveness/readiness probes and `/metrics`
-- [errors/README.md](./errors/README.md) — error response shape
-- [**FRONTEND-CHANGELOG-phase-2-3.md**](./FRONTEND-CHANGELOG-phase-2-3.md) — what the readiness Phases 2 and 3 changed for a client of this service. 🔴 **`permission_revoked.reason` is now a closed set of three** (it used to be the single literal `shipment_completed`, for every outcome), `subscribe` gained an optional `shipmentId`, and the ETA now resolves without you supplying a destination
-- [**FRONTEND-CHANGELOG-phase-4-5.md**](./FRONTEND-CHANGELOG-phase-4-5.md) — what the readiness Phases 4 and 5 changed. **Nothing on this service's wire moved**: the session TTL is now **72 h**, the durable trail is **plausibility-gated** (the heartbeat is not), and grant latency is unchanged on purpose. 🔴 The one required change comes from jovi-mall — its new **90-day absolute session cap** can refuse the token you handed the handshake, surfacing here as `permission_revoked` / `authorization_expired`
+- [tracking-websocket.md](tracking-websocket.md) — the live tracking WebSocket: auth, message protocol, ETA, revocation
+- [tracking-sessions.md](tracking-sessions.md) — the tracking lifecycle: read an agent's live tracking state, device state, eligibility, and state history over HTTP
+- [routing.md](routing.md) — route, distance-matrix, geocode, reverse-geocode, ETA (provider-agnostic)
+- [locations.md](locations.md) — read an agent's last-known position over HTTP
+- [gps-persistence.md](gps-persistence.md) — how GPS is stored: live position (Redis) vs. the temporary, downsampled checkpoint trail (Postgres), retention, partitioning, and cleanup
+- [service-data-door.md](service-data-door.md) — **`/internal/*`, the SECOND authorization path.** Four reads for a **service caller** (wi-admin) rather than a viewer, gated by a configured scope set. Not a general integration surface, and inert unless `GEO_TRACKER_ADMIN_TOKEN` is set
+- [webhooks.md](webhooks.md) — inbound lifecycle events from jovi-mall (HMAC-authenticated)
+- [agent-action-audit.md](agent-action-audit.md) — inbound agent shipment-action events, recorded as an immutable spatial audit with captured GPS
+- [tracking-notifications.md](tracking-notifications.md) — outbound tracking-state notifications to jovi-mall (geo-tracker → Project A)
+- [health.md](health.md) — liveness/readiness probes and `/metrics`
+- [errors/README.md](errors/README.md) — error response shape
+- [**FRONTEND-CHANGELOG-phase-2-3.md**](FRONTEND-CHANGELOG-phase-2-3.md) — what the readiness Phases 2 and 3 changed for a client of this service. 🔴 **`permission_revoked.reason` is now a closed set of three** (it used to be the single literal `shipment_completed`, for every outcome), `subscribe` gained an optional `shipmentId`, and the ETA now resolves without you supplying a destination
+- [**FRONTEND-CHANGELOG-phase-4-5.md**](FRONTEND-CHANGELOG-phase-4-5.md) — what the readiness Phases 4 and 5 changed. **Nothing on this service's wire moved**: the session TTL is now **72 h**, the durable trail is **plausibility-gated** (the heartbeat is not), and grant latency is unchanged on purpose. 🔴 The one required change comes from jovi-mall — its new **90-day absolute session cap** can refuse the token you handed the handshake, surfacing here as `permission_revoked` / `authorization_expired`
 
 ## Authorization model
 
@@ -57,8 +64,8 @@ below is the viewer path, and it governs everything except `/internal/*`:
 The second exists because a wi-admin administrator holds no jovi-mall `users`
 row, so the first cannot resolve them at all. It is a separate module, separate
 middleware and a separate path namespace on purpose — see
-[service-data-door.md](./service-data-door.md), and
-[`admin/docs/ADR-020`](../docs/ADR-020-ADMIN-DATA-DOOR.md) for the
+[service-data-door.md](service-data-door.md), and
+`admin/docs/ADR-020` (not mirrored here — `backend/admin/docs/ADR-020-ADMIN-DATA-DOOR.md`) for the
 decision. Nothing below applies to it: it has no viewer, no role, and no
 per-agent visibility resolution.
 
@@ -72,19 +79,22 @@ Who may see an agent's live location, on the **viewer** path:
 | **customer** | agents on their active orders |
 | **vendor** | nothing — rejected at connect with `403` |
 
-> ⚠ **That list was FOUR statuses in this mirror until 2026-09-06** (DOC-PROGRAM F-41). It is
-> **five**: `TRACKABLE_SHIPMENT_STATUSES` has always included **`handing_over`**, because a
-> picked-up parcel being reassigned becomes trackable again the moment its replacement agent
-> accepts. The `agent_id` clause is **part of the rule, not an optimisation** — a shipment offered
-> but not yet accepted is trackable in status only, with nobody bound to it to track.
->
-> **Context only for this dashboard**, which reads tracking through wi-admin rather than this
-> socket — but it is the rule an *agency* board is filtered by, and getting it wrong there drops
-> every reassigned-post-pickup delivery off the live map.
-
 This is computed by jovi-mall (`GET /api/tracking/visible-agents`), which
 geo-tracker calls **as the caller**, forwarding their access token. Clients
 never call that endpoint directly for tracking purposes.
+
+> ⚠ **This list was FOUR statuses until 2026-09-06 and is FIVE** (DOC-PROGRAM F-41).
+> `TRACKABLE_SHIPMENT_STATUSES` (`jovi-mall/src/modules/tracking-integration/services/visible-agents.service.ts:25-31`)
+> has always included **`handing_over`** — a picked-up parcel being reassigned is tracked again the
+> moment its replacement agent accepts. An agency board filtered by the old four-status list drops
+> every reassigned-post-pickup delivery from the live map: precisely the deliveries most in need of
+> watching. jovi-mall's own `api-doc/tracking/live-tracking.md` listed all five correctly, so this
+> mirror was the stale half.
+>
+> The `agent_id: { $ne: null }` clause is **part of the rule, not an optimisation** — a shipment
+> offered but not yet accepted is trackable in status only; there is nobody bound to it to track.
+> geo-tracker never enumerates these statuses itself: it consumes the trackable *verdict*, which is
+> why adding `handing_over` needed no Go change.
 
 ### Access ends the moment a shipment finishes
 
@@ -102,10 +112,47 @@ with the same agent (an agent may work for several agencies at once).
 
 | Mechanism | Used by | How |
 |---|---|---|
-| jovi-mall access token (HS256 JWT) | WebSocket + HTTP routes | `Sec-WebSocket-Protocol: bearer, <token>` on WS; `Authorization: Bearer <token>` on HTTP |
+| jovi-mall access token (HS256 JWT) | WebSocket + HTTP routes | see the token-source table below |
 | HMAC-SHA256 signature | inbound webhooks (`/webhooks/node`, `/webhooks/agent-actions`) | `X-Node-Signature: <hex>` over the raw body |
 | service credential | the data door (`/internal/*`) — wi-admin only | `Authorization: Bearer <GEO_TRACKER_ADMIN_TOKEN>` |
 
 The same token you use against jovi-mall works here — geo-tracker verifies it
 with the shared signing secret. Tokens are short-lived; reconnect with a fresh
 one after refresh.
+
+**Where the access token may come from, per transport.** These differ, and the
+difference bites browser dashboards:
+
+| | `Sec-WebSocket-Protocol: bearer, <token>` | `Authorization: Bearer <token>` | `access_token` cookie |
+|---|:--:|:--:|:--:|
+| `GET /ws/track` | ✅ 1st | ✅ 2nd | ✅ 3rd |
+| HTTP routes (`/tracking/*`, `/locations/*`, `/routing/*`) | — | ✅ 1st | ✅ 2nd |
+| the data door (`/internal/*`) | — | ✅ **only** | ❌ never |
+
+A browser dashboard needs no client-side token handling on either transport: the cookie is
+same-site and rides automatically. Native clients send the header. When both are present the
+header wins, so a client that chooses a token gets the one it chose.
+
+> ### ✅ Fixed 2026-09-08: the cookie now authorizes on the HTTP routes too
+>
+> **This corrects advice that stood on three pages of this document.** They told browser
+> clients to *"always send the header on HTTP"*. That was a **workaround for a bug**, now
+> fixed — not a property of the design. If you implemented it, you can remove it; sending
+> the header does no harm.
+>
+> `/tracking/*` and `/locations/*` forward your token to jovi-mall to resolve what you
+> may see, and they used to re-read it **only from the `Authorization` header**.
+> Cookie-only, that forwarded token was empty and the read answered **`502`** —
+> intermittently, because the resolved permission set is cached by **user id**
+> (`PERMISSION_CACHE_TTL`, default 5 min), so it worked while that cache was warm and
+> then stopped. `RequireAuth` now carries the validated token on the request context, so
+> the forwarded token is by construction the one that authenticated the request. Detail in
+> [locations.md](locations.md) and [tracking-sessions.md](tracking-sessions.md).
+>
+> ⚠ **`/routing/*` was never affected** — it authenticates and forwards nothing, so the
+> cookie always worked there. The row above previously flagged it with the other two.
+>
+> ⚠ **The data door (`/internal/*`) has NO cookie fallback and never will**, and that is
+> not the same bug. It authenticates a *service*, not a viewer; a browser holds no service
+> token, and a cookie fallback there would let a browser session reach a surface designed
+> to refuse one. See [service-data-door.md](service-data-door.md).

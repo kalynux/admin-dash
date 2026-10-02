@@ -9,8 +9,11 @@
 
 # Agent Action Audit (inbound, from jovi-mall)
 
-**Verified against source on 2026-09-08** — the route, the HMAC scheme, the four `action` and six
-`outcome` values and the `event_id` dedup against `geo-tracker/internal/modules/actionaudit/`.
+**Verified against source on 2026-09-08** — the route, the HMAC scheme, every field, the four
+`action` and six `outcome` values, the `event_id` primary-key dedup and all six statuses, against
+`geo-tracker/internal/modules/actionaudit/` (`delivery/http/routes.go`, `delivery/http/handler.go`,
+`domain/entity.go`) and `internal/platform/middleware/hmac.go`. No factual errors were found; one
+gap filled — `actorRole` is unvalidated free text, while `action` and `outcome` are closed sets.
 
 The **spatial** half of agent shipment actions. jovi-mall owns the *business*
 event — an agent (or an agency, on the agent's shipment) performing a pickup,
@@ -24,12 +27,12 @@ GPS** and writes an **immutable** record of "this action happened here".
 The audit row is **permanent** (never pruned). Separately, a **terminal** action
 here (a successful delivery/return/cancel, or a hard failure) marks the agent's
 tracking session terminal, which makes that session's *temporary* GPS
-checkpoints eligible for cleanup — see [gps-persistence.md](./gps-persistence.md).
+checkpoints eligible for cleanup — see [gps-persistence.md](gps-persistence.md).
 That is a best-effort side-effect; it never affects whether the action is
 recorded.
 
 Only jovi-mall's dispatcher calls this. It is a sibling of
-[`/webhooks/node`](./webhooks.md) (the tracking-permission webhook), not a
+[`/webhooks/node`](webhooks.md) (the tracking-permission webhook), not a
 replacement — the two carry different event families to different effects.
 
 ## Authentication
@@ -38,7 +41,7 @@ HMAC-SHA256 over the **raw request body**, hex-encoded, in `X-Node-Signature` �
 the same scheme and shared secret (`WEBHOOK_HMAC_SECRET`) as `/webhooks/node`. A
 missing/mismatched signature is `401`; an unset secret rejects every request with
 `503`. The same 1 MiB body cap applies, refused with `413` before the signature
-is computed — see [webhooks.md](./webhooks.md#authentication) for why.
+is computed — see [webhooks.md](webhooks.md#authentication) for why.
 
 ---
 
@@ -64,7 +67,7 @@ is computed — see [webhooks.md](./webhooks.md#authentication) for why.
 | `agentId` | **Required.** The agent the action is attributed to, and whose latest GPS is captured. |
 | `action` | **Required.** `pickup` \| `delivery` \| `return` \| `cancel`. An unknown value is `400`. |
 | `outcome` | **Required.** `attempt` \| `success` \| `failure` \| `validation_failure` \| `authorization_failure` \| `system_failure`. Unknown ⇒ `400`. |
-| `actorRole` | Who triggered it: `agent` (the agent's own COD delivery) or `agency` (an agency-driven lifecycle transition on the agent's shipment). |
+| `actorRole` | Who triggered it: `agent` (the agent's own COD delivery) or `agency` (an agency-driven lifecycle transition on the agent's shipment). **Not validated** — unlike `action` and `outcome` it is a free TEXT column, stored verbatim and never checked against a set, so an unrecognised value is recorded rather than rejected. If you read audit rows back (via the [service data door](service-data-door.md)), treat it as an open string with two known values, not an enum. |
 | `shipmentId`, `reason` | Optional context, recorded as-is. |
 | `occurredAt` | When the action happened (jovi-mall's clock). Defaults to receipt time if absent. |
 

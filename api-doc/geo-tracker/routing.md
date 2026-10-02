@@ -9,19 +9,20 @@
 
 # Routing, Geocoding & ETA
 
-**Verified against source on 2026-09-08** — all five routes, the capability matrix, the chain rules
-and every response shape against `geo-tracker/internal/modules/routing/`. **One defect fixed**: an
-empty matrix request returns `{"cells": null}`, not `{"cells": []}`. One claim ruled out:
-`ROUTING_PROVIDER` defaults to `chain`, not `osrm`.
+**Verified against source on 2026-09-08** — all five routes, the capability matrix, the chain's
+failover/stop rules, every request and response shape (including the PascalCase `MatrixCell` and
+`Place` fields, which have no JSON tags and really are capitalised) and all four statuses, against
+`geo-tracker/internal/modules/routing/` (`delivery/http/routes.go`, `delivery/http/handler.go`,
+`domain/entity.go`, `provider/factory.go`, `provider/chain.go`) and
+`internal/platform/config/config.go`. One defect fixed: an empty matrix request returns
+`{"cells": null}`, not `{"cells": []}`. One widely-repeated claim RULED OUT: `ROUTING_PROVIDER`
+defaults to `chain`, not `osrm`.
 
 On-demand access to the active routing provider. Every endpoint is
 **provider-agnostic**: the response shape is identical no matter which backend
 `ROUTING_PROVIDER` selects (`chain` | `osrm` | `locationiq` | `geoapify` |
 `mapbox` | `google`). Switching providers is a config change; clients never
 notice.
-
-`chain` has no row of its own: its capabilities are the **union** of its members'
-— see *The provider chain* below.
 
 ## Base path
 
@@ -43,9 +44,71 @@ notice.
 | `mapbox` | ✅ | ✅ | ✅ | ✅ |
 | `google` | ✅ | ✅ | ✅ | ✅ |
 
-OSRM is a pure routing engine. Calling a geocoding endpoint while it is active
-returns **`501 Not Implemented`** (`{"error":"active provider does not support geocode"}`)
-— a clear, expected answer, not a server fault.
+`chain` has no row of its own: its capabilities are the **union** of its members'
+— see *The provider chain* below.
+
+OSRM is a pure routing engine. Calling a geocoding endpoint while it is the only
+active provider returns **`501 Not Implemented`** — a clear, expected answer, not
+a server fault.
+
+## The provider chain (`ROUTING_PROVIDER=chain`)
+
+`chain` is **not a vendor**. It is the ordered failover list in
+`ROUTING_PROVIDER_CHAIN` (default `geoapify,locationiq,osrm`), and it is the
+intended production setting: both live providers sit on free tiers measured in a
+few thousand calls a day, so the chain adds their allowances together rather than
+leaving the service down when one runs out.
+
+> **`chain` is also the DEFAULT value of `ROUTING_PROVIDER`** —
+> `config.go:335`, `getEnv("ROUTING_PROVIDER", "chain")`. Several documents
+> elsewhere in the platform state that the default is `osrm` and that geocoding
+> therefore `501`s out of the box; that is **not what the code does**, and it was
+> ruled out against source on 2026-09-08.
+>
+> What is true, and is probably where that belief came from: **a chain member
+> with no credential is skipped** (with a warning), and only `osrm` needs none.
+> So on a laptop with neither `GEOAPIFY_API_KEY` nor `LOCATIONIQ_API_KEY` set the
+> chain collapses to OSRM alone and geocoding does return `501` — because of the
+> missing keys, not because of the default provider. Set either key and the same
+> default config geocodes.
+
+**Nothing about the request or response shape changes.** A client cannot tell
+which member answered, and there is no field naming one — that attribution lives
+in `geotracker_routing_provider_calls_total{provider,capability,outcome}` and in
+the service log.
+
+**What the chain moves past, and what it stops on:**
+
+| The member's answer | Chain does |
+|---|---|
+| `429` — out of quota, over the per-second cap | ask the next member |
+| `5xx`, timeout, DNS, unparseable body | ask the next member |
+| an **empty** answer (no route, no place) | ask the next member |
+| the capability is unsupported (OSRM geocoding) | ask the next member |
+| any other `4xx` — malformed request | **stop**, surface the error |
+| `401` / `403` — the credential was rejected | **stop**, surface the error |
+
+The last two are deliberate. A malformed request will be just as malformed at the
+next provider, and a rejected key is a configuration fault an operator must see —
+routing quietly around it is how a deployment runs for months on half the
+capacity it is paying for.
+
+⚠ **Two consequences for clients:**
+
+1. **Geocoding works under a chain that ends in OSRM.** OSRM's `501` is treated as
+   "this member cannot", so the members that can are still asked. `501` reaches a
+   client only when **no** member supports the capability.
+2. **When every member fails, the call fails** — `502`, as before. geo-tracker
+   does **not** substitute a straight-line estimate. jovi-mall's auto-dispatch
+   already degrades to its own haversine ranking on an error, and a tracking ETA
+   is a number shown to a customer waiting for a delivery: it is either real or
+   absent, never a guess wearing a road-routing response shape.
+
+**A partial matrix is returned, not retried.** If one source is unroutable and
+the rest are fine, that cell comes back zero and the chain does not move on —
+re-asking the whole matrix at the next provider would spend a second allowance to
+reorder candidates nobody was going to pick. Only a matrix with **no** usable
+cell falls over.
 
 ---
 
@@ -107,10 +170,12 @@ Pairwise distances/durations between every source and every target.
 An empty `sources` or `targets` short-circuits without calling the provider — but
 what comes back is **`{"cells": null}`**, not `{"cells": []}`. The short-circuit
 returns a zero-valued matrix whose `Cells` is a nil slice, and Go marshals a nil
-slice as `null` (`routing/provider/chain.go:273`; there is no normalising layer).
+slice as `null` (`routing/provider/chain.go:273`; there is no normalising layer —
+`httpx.WriteJSON` encodes the value as-is).
 
 > ⚠ **Guard the field before you index it.** `cells.length` throws on this
-> response. Treat `cells` as `Cell[][] | null` everywhere, not just here.
+> response. Treat `cells` as `Cell[][] | null` everywhere, not just here: `null`
+> is also what you get for any other nil grid the active provider produces.
 
 ---
 
@@ -133,77 +198,14 @@ slice as `null` (`routing/provider/chain.go:273`; there is no normalising layer)
 
 ---
 
-## The provider chain (`ROUTING_PROVIDER=chain`)
-
-> **Added to this mirror 2026-09-06 (DOC-PROGRAM Phase 4).** The chain shipped on the backend and
-> this page still listed five providers; a reader here could not tell that the production setting
-> is a sixth value, or that OSRM's `501` no longer means what it used to.
-
-`chain` is **not a vendor**. It is the ordered failover list in
-`ROUTING_PROVIDER_CHAIN` (default `geoapify,locationiq,osrm`), and it is the
-intended production setting: both live providers sit on free tiers measured in a
-few thousand calls a day, so the chain adds their allowances together rather than
-leaving the service down when one runs out.
-
-> **`chain` is also the DEFAULT value of `ROUTING_PROVIDER`** —
-> `internal/platform/config/config.go:335`, `getEnv("ROUTING_PROVIDER", "chain")`.
-> Several documents elsewhere in the platform state that the default is `osrm` and
-> that geocoding therefore `501`s out of the box; that is **not what the code
-> does**, and it was ruled out against source on 2026-09-08.
->
-> What is true, and is probably where that belief came from: **a chain member with
-> no credential is skipped** (with a warning), and only `osrm` needs none. So on a
-> host with neither `GEOAPIFY_API_KEY` nor `LOCATIONIQ_API_KEY` set the chain
-> collapses to OSRM alone and geocoding does return `501` — because of the missing
-> keys, not because of the default provider.
-
-**Nothing about the request or response shape changes.** A client cannot tell
-which member answered, and there is no field naming one — that attribution lives
-in `geotracker_routing_provider_calls_total{provider,capability,outcome}` and in
-the service log.
-
-**What the chain moves past, and what it stops on:**
-
-| The member's answer | Chain does |
-|---|---|
-| `429` — out of quota, over the per-second cap | ask the next member |
-| `5xx`, timeout, DNS, unparseable body | ask the next member |
-| an **empty** answer (no route, no place) | ask the next member |
-| the capability is unsupported (OSRM geocoding) | ask the next member |
-| any other `4xx` — malformed request | **stop**, surface the error |
-| `401` / `403` — the credential was rejected | **stop**, surface the error |
-
-The last two are deliberate. A malformed request will be just as malformed at the
-next provider, and a rejected key is a configuration fault an operator must see —
-routing quietly around it is how a deployment runs for months on half the
-capacity it is paying for.
-
-⚠ **Two consequences for clients:**
-
-1. **Geocoding works under a chain that ends in OSRM.** OSRM's `501` is treated as
-   "this member cannot", so the members that can are still asked. **`501` reaches a
-   client only when NO member supports the capability** — so the `501` example above
-   describes OSRM configured *alone*, not OSRM inside a chain.
-2. **When every member fails, the call fails** — `502`, as before. geo-tracker
-   does **not** substitute a straight-line estimate. jovi-mall's auto-dispatch
-   already degrades to its own haversine ranking on an error, and a tracking ETA
-   is a number shown to a customer waiting for a delivery: it is either real or
-   absent, never a guess wearing a road-routing response shape.
-
-**A partial matrix is returned, not retried.** If one source is unroutable and
-the rest are fine, that cell comes back zero and the chain does not move on —
-re-asking the whole matrix at the next provider would spend a second allowance to
-reorder candidates nobody was going to pick. Only a matrix with **no** usable
-cell falls over.
-
 ## Errors
 
 | Status | Meaning |
 |---|---|
 | `400` | Malformed body, missing `q`, or invalid `lat`/`lng` |
 | `401` | Missing/invalid token |
-| `501` | The active provider doesn't support this capability (e.g. OSRM geocoding) |
-| `502` | The upstream provider failed or returned no result |
+| `501` | No active provider supports this capability (e.g. a chain of OSRM alone, asked to geocode) |
+| `502` | The provider failed, or returned no result. Under a chain: **every member** did |
 
 ---
 

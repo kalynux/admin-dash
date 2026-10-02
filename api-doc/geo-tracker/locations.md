@@ -9,49 +9,61 @@
 
 # Agent Location (read)
 
-**Verified against source on 2026-09-08** — route, the PascalCase response shape and the 10-minute
-TTL against `geo-tracker/internal/modules/location/`. **Two defects fixed**: the live position is
-gated on Tracking Allow alone (not an active session), and a cookie-authenticated browser gets a
-`502` here.
+**Verified against source on 2026-09-08** — route, the PascalCase response shape, the 10-minute
+position TTL and every status, against `geo-tracker/internal/modules/location/`
+(`delivery/http/routes.go`, `delivery/http/handler.go`, `domain/entity.go`,
+`repository/redis_repository.go`). Two defects fixed: this page had the live position gated on an
+active tracking session (it is gated on Tracking Allow alone —
+`session/service/service.go:492`), and did not warn that a cookie-authenticated browser
+gets a `502` here.
+
+**Updated 2026-09-08 (session S9).** That second defect was a **bug in this service, not in this
+page**, and it is now **fixed**. The warning that stood here — *"send the header anyway, the
+cookie is not enough"* — was a workaround for it. The cookie now works on this route, and the
+section below says so.
 
 Last-known position for one agent, for callers that don't need a live stream
 (a dashboard, or support tooling). This is the **live** position (Redis, updated
 on every fix). GPS **ingestion** happens over the WebSocket, not here — see
-[tracking-websocket.md](./tracking-websocket.md). For the *historical* trail (the
+[tracking-websocket.md](tracking-websocket.md). For the *historical* trail (the
 downsampled checkpoint history), see
-[gps-persistence.md](./gps-persistence.md) and
+[gps-persistence.md](gps-persistence.md) and
 `GET /tracking/sessions/{agentID}/checkpoints`.
 
 ## Authentication & authorization
 
-`Authorization: Bearer <jovi-mall access token>`.
+A **jovi-mall access token**, by either of two routes. **Either credential works**, exactly as
+on the WebSocket: the `Authorization` header
+(native clients) **or** the httpOnly `access_token` cookie the browser sends automatically on a
+same-site request (browser dashboards, which cannot set the header). The header wins when both
+are present.
 
-> ### ⚠ Browser dashboards: send the header anyway — the cookie is not enough here
+> ### ✅ Fixed 2026-09-08: the cookie now works on this route
 >
-> geo-tracker's HTTP middleware *will* authenticate you from the httpOnly
-> `access_token` cookie, exactly as the WebSocket does. **But this endpoint then
-> forwards a token to jovi-mall to resolve what you may see, and it reads that
-> token only from the `Authorization` header**
-> (`location/delivery/http/handler.go` → `bearerToken`, which does not look at
-> the cookie).
+> **If you implemented a workaround for this, you can remove it** — though sending
+> the header does no harm and remains correct for native clients.
 >
-> With no `Authorization` header the forwarded token is empty, jovi-mall answers
-> `401`, and you get **`502`** — not a `401`, and not a `404`.
+> **What used to happen.** The middleware authenticated you from the cookie, but this
+> endpoint then re-read the token from the request to forward it to jovi-mall — and it
+> read **only** the `Authorization` header. Cookie-only, the forwarded token was empty,
+> jovi-mall answered `401`, and you got **`502 AUTHZ_UPSTREAM_UNAVAILABLE`** — not a
+> `401`, and not a `404`.
 >
-> It is worse than a clean failure, because the permission set is cached in Redis
-> **keyed by user id, not by token** (`PERMISSION_CACHE_TTL`, default 5 minutes).
-> So a cookie-only request *succeeds* whenever that user happens to have a warm
-> cache entry — from a WebSocket connect, or an earlier request that did send the
-> header — and starts failing when it expires. **The same call works and then
-> stops working with nothing changed.**
+> **Why it looked intermittent.** The permission set is cached in Redis **keyed by user
+> id, not by token** (`PERMISSION_CACHE_TTL`, default 5 minutes). So a cookie-only
+> request *succeeded* whenever that user had a warm cache entry — from a WebSocket
+> connect, or an earlier header-bearing request — and started failing when it expired.
+> The same call worked and then stopped, with nothing changed.
 >
-> So: on every geo-tracker **HTTP** read, send `Authorization: Bearer <token>`,
-> even from a browser that also carries the cookie. The cookie-only path is
-> reliable on `/ws/track` and nowhere else.
+> **The fix.** `RequireAuth` now puts the token it validated on the request context
+> (`middleware.TokenFromContext`), so what gets forwarded is by construction the token
+> that authenticated the request, whichever transport carried it. Pinned by
+> `internal/platform/middleware/auth_test.go`, whose source scan fails if any handler
+> goes back to reading the header directly.
 
 Authentication alone is **not** sufficient: this endpoint enforces the same
 per-agent visibility rules as the WebSocket (see
-[README.md](./README.md#authorization-model)). You may only read an agent whose
+[README.md](README.md#authorization-model)). You may only read an agent whose
 live location you are currently entitled to see — a vendor, or an agency with
 no active shipment involving that agent, gets `404`.
 
@@ -91,16 +103,17 @@ the last fix).
 >
 > The live position is persisted and broadcast when the agent's **Tracking
 > Allow** is on, and on **no other condition**
-> (`session/service/service.go:492`, `Persist: pres.Device.TrackingAllow()`).
-> Tracking Allow means `trackingEnabled == true` **and** neither
-> `locationEnabled` nor `locationPermissionGranted` explicitly `false`.
+> (`tracking/service/service.go` → `session/service/service.go:492`,
+> `Persist: pres.Device.TrackingAllow()`). Tracking Allow means
+> `trackingEnabled == true` **and** neither `locationEnabled` nor
+> `locationPermissionGranted` explicitly `false`.
 >
 > **An opted-in agent with no delivery at all returns a position here.** That is
 > the designed behaviour, not a leak: reading an idle agent's position is how the
 > platform finds the one nearest a pickup.
 >
 > The **durable GPS trail** is the gate that needs a shipment — see
-> [gps-persistence.md](./gps-persistence.md). Do not reason about one from the
+> [gps-persistence.md](gps-persistence.md). Do not reason about one from the
 > other.
 
 | Status | Meaning |

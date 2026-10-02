@@ -10,7 +10,8 @@
 # Rate limits
 
 **Verified against source on 2026-09-08** — every number and the whole exempt-path list against
-`geo-tracker/internal/platform/middleware/ratelimit.go` and `internal/platform/config/config.go`.
+`geo-tracker/internal/platform/middleware/ratelimit.go`,
+`internal/platform/config/config.go` and `internal/modules/tracking/delivery/ws/handler.go`.
 No corrections were needed.
 
 **New in Phase 16.** There was no limiting of any kind before — including, notably, no cap on
@@ -21,7 +22,7 @@ inbound WebSocket frames.
 **600 requests per minute per IP address**, with a burst allowance of 60.
 
 Refusals are the standard envelope with `code: "RATE_LIMIT_EXCEEDED"` and
-`category: "rate_limit"` — see [errors/README.md](./errors/README.md).
+`category: "rate_limit"` — see [errors/README.md](errors/README.md).
 
 **Never limited:** `/healthz`, `/readyz`, `/metrics`, `POST /webhooks/node`,
 `POST /webhooks/agent-actions`. The two webhooks are HMAC-authenticated peer traffic from

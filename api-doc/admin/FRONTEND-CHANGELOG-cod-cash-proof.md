@@ -4,7 +4,7 @@
 > is additive
 >
 > The rule behind it, across every app:
-> [jovi-mall/api-doc/FRONTEND-CHANGELOG-cod-cash-proof.md](../../jovi-mall/api-doc/FRONTEND-CHANGELOG-cod-cash-proof.md) ·
+> `backend/jovi-mall/api-doc/FRONTEND-CHANGELOG-cod-cash-proof.md` (— not mirrored in this repository) ·
 > Full contract: [api/cod.md](./api/cod.md)
 
 Agents and agencies must now attach **one photo** (a receipt, a transfer screenshot, or the

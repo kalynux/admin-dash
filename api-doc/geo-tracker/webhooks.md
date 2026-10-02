@@ -10,10 +10,12 @@
 # Inbound Webhooks (from jovi-mall)
 
 **Verified against source on 2026-09-08** — the `X-Node-Signature` scheme, the 1 MiB pre-signature
-cap, every field, all six `type` values and the four `shipmentTerminal` values against
-`geo-tracker/internal/modules/webhook/` and `internal/platform/middleware/hmac.go`. **One defect
-fixed**: the admin route that writes `tracking.allowed` was cited at `/api/admin/...`, deleted at
-Phase 5 Part E; it is `/api/internal/admin/...`.
+cap, every request field, all six `type` values, the four `shipmentTerminal` values and all six
+response statuses, against `geo-tracker/internal/modules/webhook/`
+(`delivery/http/routes.go`, `delivery/http/handler.go`, `domain/entity.go`) and
+`internal/platform/middleware/hmac.go`. One defect fixed: the admin route that writes
+`tracking.allowed` was cited at `/api/admin/...`, which Phase 5 Part E deleted
+(`jovi-mall/src/api/index.ts:401-402`); it is `/api/internal/admin/...`.
 
 The only entry point jovi-mall uses to push lifecycle events into geo-tracker.
 It carries two distinct responsibilities:

@@ -53,7 +53,7 @@ token, no second base URL.
 | **Auth** (login, MFA, own session) | 11 routes under `/auth` | **None** — every route acts on the caller's own identity | `AdminProfile` · `Session` · `MfaEnrolment { secret, otpauthUri }` |
 | **Permissions** | 3 routes under `/permissions` | `catalog` + `me` are *self*; `tiers` needs `permissions.read` | `PermissionCatalog { families[], permissions[], total: 110 }` · `MyPermissions { adminId, tier, tierLabel, permissions[] }` · `TierMatrix` |
 | **Approvals** (four eyes) | 5 routes under `/approvals` | `approvals.read`; approve/reject are **dynamic** (the pending action's own permission); withdraw is *self* | `Approval { id, action, description, status, requestedBy, requestedByTier(Label), targetType, targetId, payload, approverId, decidedAt, decisionNote, failureReason, expiresAt, createdAt }` |
-| **Shipments** | 6 routes under `/shipments` | `shipments.read` · `shipments.reassign` · `shipments.cancel` (+ `agents.read`, `audit.read`) | `Shipment` + `assignment`, `statusHistory[]`, `handover`, `deliveryFailures[]`, `rejection`, `cod`, `offers[]`, `items[]`, `tracking.outbox` · `ShipmentOffer` |
+| **Shipments** | 10 routes under `/shipments` | `shipments.read` · `shipments.reassign` · `shipments.cancel` (+ `agents.read`, `audit.read`) | `Shipment` + `assignment`, `statusHistory[]`, `handover`, `deliveryFailures[]`, `rejection`, `cod`, `offers[]`, `items[]`, `tracking.outbox` · `ShipmentOffer` |
 | **COD** | 16 routes under `/cod` | `cod.overview.read` · `cod.holders.read` · `cod.remittances.read/confirm/reject` · `cod.deposits.read/create/confirm/reject` · `cod.discrepancies.read/resolve` · `cod.trust.adjust` (+ `agents.read`) | `CodHolder` · `Remittance` + `cashMovements[]` · `Deposit` + `cashMovements[]` · `Discrepancy` + `deposit`, `trustEvents[]` · `TrustEvent` |
 | **Billing** | 8 routes under `/billing` | `billing.plans.read` · `billing.plans.manage` · `billing.plans.delete` · `billing.subscriptions.assign` | `PricingPlan { role, code, name, price, currency, termDays, creditAllowance, limits{}, isActive, sortOrder, archivedAt }` · `Subscription { owner, plan, status, startedAt, expiresAt, assignedBy, paymentReference, allowanceGranted }` |
 | **Money** | 14 routes under `/money` | `money.earnings.read` · `money.payouts.read` · `money.payouts.mark_paid` · `money.payouts.reject` · `money.payouts.destination.read` · `money.payments.read` (+ `audit.read`) | `EarningsLedgerEntry` · `Allocation` + `movements`, `siblings` · `Payout` + `destination{masked,full}` · `PaymentTransaction` · `Refund` |
@@ -331,7 +331,9 @@ the point is a person's residence and is not projected), `kyc`, `ban`, `tracking
 **Write shapes (all strict bodies):**
 - `PUT /status` — `status` required; `reason` (3–500) **required when `suspended`, refused otherwise**.
 - `PUT /kyc` — `status` required; optional `reference` (≤200); `rejectionReason` (3–500) **required
-  when `rejected`**. Moving off `verified` makes the agent undispatchable immediately.
+  when `rejected`**. Moving off `verified` closes the agent's COD pool and refuses them COD
+  shipments immediately; since 2026-09-27 KYC gates **COD only** — an unverified agent can contract
+  and take prepaid work (it used to make them undispatchable).
 - `PUT /tracking` — `allowed` required; `reason` (3–500) **required when disabling**. Disabling
   blocks new dispatch and suppresses the live position, but does **not** close tracking sessions or
   revoke existing watchers — state both halves.
@@ -1030,6 +1032,8 @@ The `note` (1–500) on approve/reject is **the field a later audit review actua
 | GET | `/shipments/:shipmentId/offers` | `shipments.read` **+** `agents.read` | direct | — |
 | GET | `/shipments/:shipmentId/activity` | `shipments.read` **+** `audit.read` | direct | — |
 | POST | `/shipments/:shipmentId/reassign` | `shipments.reassign` | **delegated** | ✅ |
+| POST | `/shipments/:shipmentId/assign-agent` | `shipments.reassign` | **delegated** | ✅ |
+| POST | `/shipments/:shipmentId/move-agency` | `shipments.reassign` | **delegated** | ✅ |
 | POST | `/shipments/:shipmentId/cancel` | `shipments.cancel` | **delegated** | ✅ |
 
 **No status transition exists, deliberately** — driving `picked_up → in_transit → delivered` is the

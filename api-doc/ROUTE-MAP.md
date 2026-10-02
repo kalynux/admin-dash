@@ -1,4 +1,26 @@
-# Route map — all 265 wi-admin routes
+# Route map — all 270 wi-admin routes
+
+✅ **265 → 270 on 2026-10-03, MEASURED — the recipe printed `TOTAL 271`**, and a path-by-path
+diff of its output against this table found exactly these five missing and nothing extra. Two
+changes landed upstream on 2026-10-02, both **uncommitted** in `backend/admin` when this was run
+and both **not deployed** (each ships after jovi-mall). Permission and audit cells were read from
+`agencies/routes/agency.routes.ts` and `shipments/routes/shipment.routes.ts`.
+
+| Added | Permission | Audit action | From |
+|---|---|---|---|
+| `GET /agencies/:agencyId/cod-limit` | `agencies.read` | — | [COD limits](admin/FRONTEND-CHANGELOG-cod-limits.md) |
+| `PUT /agencies/:agencyId/cod-limit` | `agencies.cod_limit.set` | `agencies.cod_limit.set` | [COD limits](admin/FRONTEND-CHANGELOG-cod-limits.md) |
+| `POST /agencies/:agencyId/cod-limit/release` | `agencies.cod_limit.set` | `agencies.cod_limit.release` | [COD limits](admin/FRONTEND-CHANGELOG-cod-limits.md) |
+| `POST /shipments/:shipmentId/assign-agent` | `shipments.reassign` | `shipments.agent.assign` | [delivery region & force](admin/FRONTEND-CHANGELOG-delivery-region-and-force.md) |
+| `POST /shipments/:shipmentId/move-agency` | `shipments.reassign` | `shipments.agency.move` | [delivery region & force](admin/FRONTEND-CHANGELOG-delivery-region-and-force.md) |
+
+`authz:matrix` printed **128 / 106 / 40**: `agencies.cod_limit.set` is the 128th name (tiers 1–2),
+and Support's 39 → 40 is the delivery-region change granting it `shipments.reassign`. ⚠ **The COD-limit
+brief says 268 routes and 128 / 106 / 39** — it was written before the delivery-region change
+shared the same upstream working tree; the figures here are the measured ones.
+⚠ **The two `/shipments` routes have no service function in `src/` yet** — no brief covers
+them for this dashboard, so the "every route has a service function" line is false until they are
+built.
 
 ✅ **264 → 265 on 2026-09-30 (later the same day), MEASURED — the recipe printed `TOTAL 266`.** The one
 addition is `POST /money/payouts/:payoutId/resolve-unknown`, the manual exit for a payout stuck in
@@ -162,8 +184,8 @@ failure is not caught, so with the audit store down nothing is disclosed. See
 ```bash
 cd backend/admin
 node -r ts-node/register/transpile-only -r dotenv/config \
-    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 266 (2026-09-30, resolve-unknown)
-npm run authz:matrix                                                      # 127 / 105 / 39 (2026-09-30, payment routing)
+    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 271 (2026-10-03, COD limits + delivery region)
+npm run authz:matrix                                                      # 128 / 106 / 40 (2026-10-03)
 ```
 
 ✅ **`authz:matrix` and the contract agree again: 124 / 104 / 38**, re-derived from source on
@@ -185,7 +207,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 
 ---
 
-## The 265 routes, by namespace
+## The 270 routes, by namespace
 
 ### `/support` — 19 routes
 
@@ -428,13 +450,16 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/orders/:orderId/timeline` | `orders.read` | — | [`orders.md`](admin/api/orders.md) |
 | GET | `/orders/disputes` | `orders.disputes.read` | — | [`orders.md`](admin/api/orders.md) |
 
-### `/agencies` — 10 routes
+### `/agencies` — 13 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
 | GET | `/agencies/` | `agencies.read` | — | [`agencies.md`](admin/api/agencies.md) |
 | GET | `/agencies/:agencyId` | `agencies.read` | — | [`agencies.md`](admin/api/agencies.md) |
 | GET | `/agencies/:agencyId/activity` | `agencies.read` + `audit.read` | — | [`agencies.md`](admin/api/agencies.md) |
+| GET | `/agencies/:agencyId/cod-limit` | `agencies.read` | — | [`agencies.md`](admin/api/agencies.md) |
+| PUT | `/agencies/:agencyId/cod-limit` | `agencies.cod_limit.set` | ✅ agencies.cod_limit.set | [`agencies.md`](admin/api/agencies.md) |
+| POST | `/agencies/:agencyId/cod-limit/release` | `agencies.cod_limit.set` | ✅ agencies.cod_limit.release | [`agencies.md`](admin/api/agencies.md) |
 | GET | `/agencies/:agencyId/agents` | `agencies.read` + `agents.read` | — | [`agencies.md`](admin/api/agencies.md) |
 | GET | `/agencies/:agencyId/contract-history` | `agencies.read` | — | [`agencies.md`](admin/api/agencies.md) |
 | GET | `/agencies/:agencyId/verification` | `agencies.read` | — | [`verification.md`](admin/api/verification.md) |
@@ -459,15 +484,17 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/dev-tools/workers` | `system.workers.read` | — | [`dev-tools.md`](admin/api/dev-tools.md) |
 | POST | `/dev-tools/workers/:workerKey/run` | `developer_tools.workers.trigger` | ✅ developer_tools.workers.trigger | [`dev-tools.md`](admin/api/dev-tools.md) |
 
-### `/shipments` — 8 routes
+### `/shipments` — 10 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
 | GET | `/shipments/` | `shipments.read` | — | [`shipments.md`](admin/api/shipments.md) |
 | GET | `/shipments/:shipmentId` | `shipments.read` | — | [`shipments.md`](admin/api/shipments.md) |
+| POST | `/shipments/:shipmentId/assign-agent` | `shipments.reassign` | ✅ shipments.agent.assign | [`shipments.md`](admin/api/shipments.md) |
 | GET | `/shipments/:shipmentId/activity` | `shipments.read` + `audit.read` | — | [`shipments.md`](admin/api/shipments.md) |
 | POST | `/shipments/:shipmentId/cancel` | `shipments.cancel` | ✅ shipments.cancel | [`shipments.md`](admin/api/shipments.md) |
 | GET | `/shipments/:shipmentId/offers` | `shipments.read` + `agents.read` | — | [`shipments.md`](admin/api/shipments.md) |
+| POST | `/shipments/:shipmentId/move-agency` | `shipments.reassign` | ✅ shipments.agency.move | [`shipments.md`](admin/api/shipments.md) |
 | POST | `/shipments/:shipmentId/reassign` | `shipments.reassign` | ✅ shipments.reassign | [`shipments.md`](admin/api/shipments.md) |
 | GET | `/shipments/:shipmentId/tracking-events` | `shipments.tracking.read` | — | [`shipments.md`](admin/api/shipments.md) |
 | GET | `/shipments/:shipmentId/tracking-trail` | `shipments.tracking.read` | ✅ shipments.tracking.trail.read | [`shipments.md`](admin/api/shipments.md) |

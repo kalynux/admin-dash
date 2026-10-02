@@ -6,12 +6,13 @@
 > Start at [`_CONTEXT.md`](./_CONTEXT.md) · what you *can* call is in
 > [`ROUTE-MAP.md`](../ROUTE-MAP.md).
 >
-> **Re-copied from the backend page on 2026-09-22.** The stamp below is
+> **Re-copied from the backend page on 2026-10-03.** The stamp below is
 > that page’s, and the only deliberate differences here are this banner and the outbound
 > references flattened to plain text because their targets are not mirrored into this folder.
 <!-- /CONTEXT-BANNER -->
-
 # COD pool from the plan, and the agent's emergency contact for administrators — cross-role
+
+> ⚠ **PARTLY SUPERSEDED 2026-10-02** — the plan **no longer** sets an agent's COD pool. Every verified agent without an administrator pin gets **500 000**, `pool.source` is `"default"` (was `"plan"`) and `pool.planCode` is always `null`. Plan cards must stop advertising `max_cod_pool` as a benefit. Everything else here (KYC gate, "carry less", the admin pin) still holds. See [FRONTEND-CHANGELOG-cod-limits.md](FRONTEND-CHANGELOG-cod-limits.md).
 
 > **Date:** 2026-09-21 · **Breaking:** one endpoint, admin dashboard only (a required `reason`)
 

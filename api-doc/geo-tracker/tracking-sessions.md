@@ -9,9 +9,17 @@
 
 # Tracking Sessions & Lifecycle (read)
 
-**Verified against source on 2026-09-08** — all six routes, every response field, the nine lifecycle
-states, the fifteen triggers and both `limit` default/ceiling pairs, against
-`geo-tracker/internal/modules/session/`. No factual errors; the cookie-vs-bearer trap was added.
+**Verified against source on 2026-09-08** — all six routes, every response field, the nine
+lifecycle states, the fifteen triggers, the three eligibility reasons, the two checkpoint kinds,
+the `limit` defaults/ceilings (50/500 and 100/1000) and every status, against
+`geo-tracker/internal/modules/session/` (`delivery/http/routes.go`, `delivery/http/handler.go`,
+`domain/entity.go`, `domain/lifecycle.go`, `service/service.go`) and
+`internal/platform/config/config.go`. No factual errors were found; three gaps were filled — the
+cookie-vs-bearer trap, the full `trigger` enum, and which fields are absent rather than null.
+
+**Updated 2026-09-08 (session S9).** The cookie-vs-bearer trap was a **bug in this service, not
+in this page**, and it is now **fixed**. The warning it produced was a workaround; the cookie
+works on all six routes below.
 
 A **tracking session is the complete tracking lifecycle of ONE shipment**. It
 opens when jovi-mall reports the shipment active for an agent and closes only
@@ -52,7 +60,7 @@ healthy state of an idle agent, not an error.
 
 **Tracking Allow is locked during a delivery.** jovi-mall only dispatches to
 agents who have granted it, so an attempt to switch it off while a shipment is
-active is *rejected* (see [tracking-websocket.md](./tracking-websocket.md)).
+active is *rejected* (see [tracking-websocket.md](tracking-websocket.md)).
 Physically losing GPS is different and is never rejected — geo-tracker cannot
 stop a phone's battery dying, so that lands in `location_disabled`, an impairment
 *inside* the session.
@@ -90,7 +98,7 @@ state, and the current GPS it surfaces. It owns **no** orders, shipments,
 payments or users — those stay in jovi-mall. It holds a shipment's **id** so a
 session can be scoped to it, and nothing else about the shipment: which statuses
 count as trackable or terminal is jovi-mall's policy, pushed here as a verdict
-(see [webhooks.md](./webhooks.md)).
+(see [webhooks.md](webhooks.md)).
 
 "Eligibility" below is **not** the authorization policy (who may *watch* an agent
 — jovi-mall's, enforced at subscribe time); it is the geo-tracker-owned question
@@ -98,29 +106,37 @@ count as trackable or terminal is jovi-mall's policy, pushed here as a verdict
 
 ## Authentication & authorization
 
-> ### ⚠ Browser dashboards: the header is required here, unlike on the socket
->
-> geo-tracker's HTTP middleware will authenticate you from the httpOnly
-> `access_token` cookie. **But these endpoints then forward a token to jovi-mall
-> to resolve what you may see, and they read that token only from the
-> `Authorization` header** (`session/delivery/http/handler.go` → `bearerToken`).
->
-> Cookie-only, the forwarded token is empty, jovi-mall answers `401`, and you get
-> **`502`** — not `401`, not `404`. And because the resolved permission set is
-> cached in Redis **keyed by user id, not by token** (`PERMISSION_CACHE_TTL`,
-> default 5 minutes), a cookie-only call *succeeds* while that user has a warm
-> entry from a WebSocket connect or an earlier header-bearing request, then starts
-> failing when it expires. **The same call works and later stops, with nothing
-> changed.**
->
-> Always send `Authorization: Bearer <token>` on these routes, even from a browser
-> that also carries the cookie.
-
-`Authorization: Bearer <jovi-mall access token>`. Authentication alone is not
+A **jovi-mall access token**, by either of two routes. Authentication alone is not
 sufficient: every endpoint enforces the same per-agent visibility rules as the
-WebSocket (see [README.md](./README.md#authorization-model)). A caller who may
+WebSocket (see [README.md](README.md#authorization-model)). A caller who may
 not see the agent gets `404` — deliberately indistinguishable from "no such
 agent".
+
+**Either credential works**, exactly as on the WebSocket: the `Authorization` header
+(native clients) **or** the httpOnly `access_token` cookie the browser sends automatically on a
+same-site request (browser dashboards, which cannot set the header). The header wins when both
+are present.
+
+> ### ✅ Fixed 2026-09-08: the cookie now works on these routes
+>
+> **If you implemented a workaround for this, you can remove it** — though sending
+> the header does no harm and remains correct for native clients.
+>
+> **What used to happen.** The middleware authenticated you from the cookie, but these
+> endpoints then re-read the token from the request to forward it to jovi-mall — and
+> read **only** the `Authorization` header. This affected **all six routes on this
+> page**: they share one `subject()` helper. Cookie-only, the forwarded token was
+> empty, jovi-mall answered `401`, and you got **`502`** — not `401`, not `404`.
+>
+> **Why it looked intermittent.** The resolved permission set is cached in Redis
+> **keyed by user id, not by token** (`PERMISSION_CACHE_TTL`, default 5 minutes), so a
+> cookie-only call *succeeded* while that user had a warm entry from a WebSocket
+> connect or an earlier header-bearing request, then failed when it expired. The same
+> call worked and later stopped, with nothing changed.
+>
+> **The fix.** `RequireAuth` now puts the token it validated on the request context
+> (`middleware.TokenFromContext`), so what gets forwarded is by construction the token
+> that authenticated the request. Same fix as [locations.md](locations.md).
 
 ---
 
@@ -164,6 +180,14 @@ shipment.
   agent's phone dropped twice, **not** three deliveries.
 - An idle opted-in agent returns `trackingAllow: true`, a live `position`, and
   `"sessions": []`. An agent with no Tracking Allow returns no `position`.
+- **The `sessions[]` entries here carry no `agentId`** — it would repeat the
+  top-level one, and the field is `omitempty`. The entries returned by
+  `GET /tracking/sessions` (the collection) **do** carry it, because there is no
+  enclosing agent there. Same object name, one field's difference; if you share a
+  type between the two calls, make `agentId` optional.
+- Every `omitempty` field above is **absent, not null**, when it has no value:
+  `connectionId`, `position`, `positionAt`, `lastHeartbeatAt`, `lastUpdatedAt`
+  and each `device.*` flag. `device` itself is always present, possibly as `{}`.
 
 ---
 
@@ -199,6 +223,23 @@ as one narrative across every reconnect it survived.
 
 This is the durable tracking-state history (Postgres, **permanent**, never
 pruned) — distinct from the GPS **checkpoint** trail below, which is temporary.
+
+**`trigger` is a closed set of 15.** You need the whole list to render a
+timeline; treat an unrecognised value as a state change with no special
+presentation.
+
+| Group | Values |
+|---|---|
+| Shipment (jovi-mall's verdicts — the only ones that open or close a session) | `shipment_activated` · `shipment_terminal` · `shipment_released` |
+| Connection | `connect` · `disconnect` · `expire` |
+| Heartbeat | `heartbeat` · `heartbeat_missed` · `heartbeat_lost` |
+| Device — GPS | `location_disabled` · `location_enabled` |
+| Device — Tracking Allow | `tracking_disabled` · `tracking_enabled` |
+| App | `app_background` · `app_foreground` |
+
+`reason` is free-text prose for an operator (`"connection closed"`,
+`"shipment became active"`). **Never branch on it** — branch on `trigger`.
+It is omitted when empty.
 
 ```json
 [
@@ -249,7 +290,7 @@ delivery, and either yields that delivery's **whole** trail, continuous across
 every reconnect (the cursor survives with the session).
 
 These are **temporary** — retention-cleaned once their shipment ends. For the
-full strategy, see [gps-persistence.md](./gps-persistence.md).
+full strategy, see [gps-persistence.md](gps-persistence.md).
 
 ```json
 [

@@ -9,9 +9,14 @@
 
 # GPS Persistence (the hybrid strategy)
 
-**Verified against source on 2026-09-08** — the three tiers, both checkpoint rules and all five
-configuration defaults against `geo-tracker/internal/modules/session/` and
-`internal/platform/config/config.go`. No corrections were needed.
+**Verified against source on 2026-09-08** — the three tiers, both checkpoint rules, the trail's
+read route and its `limit` default/ceiling, the cleanup and partition-roll behaviour, all five
+configuration defaults and the four metrics, against
+`geo-tracker/internal/modules/session/` (`domain/entity.go`, `service/service.go`,
+`repository/`), `internal/modules/location/repository/redis_repository.go`,
+`internal/platform/config/config.go` and `internal/platform/metrics/metrics.go`. No corrections
+were needed — including the Tracking-Allow-only gate on tier 1, which this page states correctly
+and `locations.md` did not.
 
 geo-tracker receives an agent's GPS every few seconds. It does **not** store
 every fix. This document describes what is kept, where, for how long, and how it
@@ -24,8 +29,8 @@ There are three tiers, by durability and purpose.
 The current position is written to Redis (`loc:current:<agentID>`) on **every**
 accepted fix, with a short TTL. This is what the live map shows and what the
 WebSocket broadcasts fan out. It is read by customers, agencies, and admins (per
-the usual [authorization model](./README.md#authorization-model)) via the
-tracking WebSocket and `GET /locations/{agentID}` (see [locations.md](./locations.md)).
+the usual [authorization model](README.md#authorization-model)) via the
+tracking WebSocket and `GET /locations/{agentID}` (see [locations.md](locations.md)).
 
 Losing it is not acceptable, so it is never behind a batched/best-effort writer.
 It is also not durable by design — a restart re-learns each position from the
@@ -87,9 +92,9 @@ Response: an array of
 Two Postgres trails are **permanent** and are never touched by any cleanup:
 
 - **`agent_action_audit`** — the immutable spatial audit of agent shipment
-  actions (see [agent-action-audit.md](./agent-action-audit.md)).
+  actions (see [agent-action-audit.md](agent-action-audit.md)).
 - **`tracking_state_history`** — the tracking-lifecycle transition history (see
-  [tracking-sessions.md](./tracking-sessions.md)).
+  [tracking-sessions.md](tracking-sessions.md)).
 
 ## Cleanup — when checkpoints go away
 

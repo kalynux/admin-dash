@@ -9,9 +9,13 @@
 
 # The service-caller data door (`/internal/*`)
 
-**Verified against source on 2026-09-08** — the four routes, four scopes, presence-only default,
-reason bounds and both `limit` pairs against `geo-tracker/internal/modules/serviceaccess/`. The
-claim that `tracking_audit` is written by nothing was re-checked by source scan and still holds.
+**Verified against source on 2026-09-08** — all four routes, the four scopes and the
+presence-only default, the reason bounds (3–200), every failure status and code, both `limit`
+default/ceiling pairs (1000/5000 and 200/1000), the `withheld` closed set and the `truncated`
+flag, against `geo-tracker/internal/modules/serviceaccess/`
+(`delivery/http/routes.go`, `delivery/http/handler.go`, `delivery/http/middleware.go`,
+`domain/entity.go`). The claim that `tracking_audit` is written by nothing was re-checked by
+source scan and still holds — it appears only in `0001_init.sql`. No corrections were needed.
 
 **geo-tracker's second authorization path.** Everything else in this service
 answers one question — *may this **viewer** see this **agent**?* — resolved by
@@ -23,7 +27,7 @@ by configuration.
 > surface. It exists because a wi-admin administrator deliberately holds no
 > jovi-mall `users` row, so the viewer path cannot resolve them at all: it does a
 > `findById` on `users` and finds nothing. See
-> [`admin/docs/ADR-020`](../docs/ADR-020-ADMIN-DATA-DOOR.md) for the
+> `admin/docs/ADR-020` (not mirrored here — `backend/admin/docs/ADR-020-ADMIN-DATA-DOOR.md`) for the
 > decision, the alternative that was rejected, and the four constraints this
 > design is bounded by.
 
@@ -160,7 +164,7 @@ are running.
 *is this agent's phone actually reporting* — the operational question — while
 disclosing nothing about where they are. An empty `sessions` array on a
 connected, opted-in agent is **normal**: that is an idle agent, locatable but not
-tracked. See [tracking-sessions.md](./tracking-sessions.md) § The two independent
+tracked. See [tracking-sessions.md](tracking-sessions.md) § The two independent
 gates.
 
 ---
@@ -286,7 +290,7 @@ this service is not entitled to make.
 **Checkpoints are temporary.** They are pruned `CHECKPOINT_RETENTION` after the
 shipment ends, and whole partitions are dropped at
 `CHECKPOINT_PARTITION_RETENTION`. An old delivery answers with its sessions and
-an empty `checkpoints` array — see [gps-persistence.md](./gps-persistence.md).
+an empty `checkpoints` array — see [gps-persistence.md](gps-persistence.md).
 
 ---
 
@@ -330,7 +334,7 @@ returned whole).
 
 Several `connections` rows on one session mean one delivery whose agent's phone
 dropped and came back — not several deliveries. The state vocabulary is
-documented in [tracking-sessions.md](./tracking-sessions.md) § Lifecycle states.
+documented in [tracking-sessions.md](tracking-sessions.md) § Lifecycle states.
 
 Unlike checkpoints, `tracking_state_history` is **permanent** and never pruned,
 so an old delivery still answers with its transitions.
