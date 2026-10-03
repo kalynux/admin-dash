@@ -3,13 +3,22 @@ import { describe, expect, it } from 'vitest';
 import {
     countAgencies,
     deactivateAgency,
+    getAgencyCodLimit,
     listAgencies,
     listAgencyRoster,
     reactivateAgency,
+    readCodLimitBounds,
     rejectAgency,
+    releaseAgencyCodLimit,
+    setAgencyCodLimit,
     verifyAgency,
 } from '@/services/agencies.service';
-import { agencyFixture, rosterEntryFixture } from '@/test/agency-fixtures';
+import {
+    agencyCodLimitFixture,
+    agencyFixture,
+    pinnedAgencyCodLimitFixture,
+    rosterEntryFixture,
+} from '@/test/agency-fixtures';
 import { errorResponse, stubFetch, successResponse } from '@/test/utils';
 import { ApiError } from '@/types/api.types';
 
@@ -255,5 +264,83 @@ describe('the four writes', () => {
                 error.platformCode === 'DELIVERY_AGENCY_VERIFICATION_CONFLICT' &&
                 error.details?.currentVerification === 'verified',
         );
+    });
+});
+
+/**
+ * The COD limit (2026-10-02). One read and two writes, all delegated; both
+ * write bodies are `.strict()`, so an extra key is a `400`, not an ignored field.
+ */
+describe('the COD limit', () => {
+    const AGENCY = '6650bb22cc33dd44ee55ff66';
+
+    it('reads it from /cod-limit', async () => {
+        const calls = stubFetch(() => successResponse(agencyCodLimitFixture()));
+
+        const result = await getAgencyCodLimit(AGENCY);
+
+        expect(calls[0].method).toBe('GET');
+        expect(latest(calls).pathname).toBe(`/api/v1/agencies/${AGENCY}/cod-limit`);
+        expect(result.exposure.total).toBe(730000);
+    });
+
+    it('pins with a PUT carrying exactly maxAmount and reason', async () => {
+        const calls = stubFetch(() => successResponse(pinnedAgencyCodLimitFixture()));
+
+        const result = await setAgencyCodLimit(AGENCY, {
+            maxAmount: 1500000,
+            reason: 'Long-standing partner, remits daily',
+        });
+
+        expect(calls[0].method).toBe('PUT');
+        expect(latest(calls).pathname).toBe(`/api/v1/agencies/${AGENCY}/cod-limit`);
+        expect(JSON.parse(calls[0].body ?? '{}')).toEqual({
+            maxAmount: 1500000,
+            reason: 'Long-standing partner, remits daily',
+        });
+        expect(result.source).toBe('override');
+    });
+
+    it('releases with a POST carrying only the reason', async () => {
+        const calls = stubFetch(() => successResponse(agencyCodLimitFixture()));
+
+        await releaseAgencyCodLimit(AGENCY, { reason: 'Partnership review closed' });
+
+        expect(calls[0].method).toBe('POST');
+        expect(latest(calls).pathname).toBe(`/api/v1/agencies/${AGENCY}/cod-limit/release`);
+        expect(JSON.parse(calls[0].body ?? '{}')).toEqual({ reason: 'Partnership review closed' });
+    });
+
+    /**
+     * jovi-mall owns the ceiling and answers `400 VALIDATION_ERROR` with
+     * `{ requested, min, max }`, which wi-admin relays as a delegated refusal —
+     * so the code is in `details.platformCode`, not `error.code`.
+     */
+    it('surfaces the ceiling as a delegated validation refusal with its bounds', async () => {
+        stubFetch(() =>
+            errorResponse(400, 'PLATFORM_OPERATION_REJECTED', {
+                category: 'validation',
+                details: {
+                    platformCode: 'VALIDATION_ERROR',
+                    requested: 200000000,
+                    min: 0,
+                    max: 100000000,
+                },
+            }),
+        );
+
+        const error = await setAgencyCodLimit(AGENCY, { maxAmount: 200000000, reason: 'Too much' })
+            .then(() => null)
+            .catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).platformCode).toBe('VALIDATION_ERROR');
+        expect(readCodLimitBounds((error as ApiError).details)).toEqual({ min: 0, max: 100000000 });
+    });
+
+    /** The bounds travel only when jovi-mall marks the category client-safe. */
+    it('reads absent bounds as null rather than as zero', () => {
+        expect(readCodLimitBounds(undefined)).toEqual({ min: null, max: null });
+        expect(readCodLimitBounds({ max: '100' })).toEqual({ min: null, max: null });
     });
 });

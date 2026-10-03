@@ -3,8 +3,10 @@ import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
+import { AgencyPicker } from '@/components/agencies/AgencyPicker';
 import { FormField } from '@/components/common/FormField';
 import { AgentPicker } from '@/components/shipments/AgentPicker';
+import { ForcePushNotice } from '@/components/shipments/ForcePushNotice';
 import { AuthFormError } from '@/components/auth/AuthFormError';
 import { InlineLoader } from '@/components/common/Loading';
 import { Button } from '@/components/ui/button';
@@ -20,6 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
+import { resolveErrorMessage } from '@/lib/errors';
 import { pickFieldErrors } from '@/lib/field-errors';
 import { notify } from '@/lib/notify';
 import {
@@ -33,14 +36,18 @@ import {
     PLATFORM_CODE_SHIPMENT_REASSIGN_SAME_AGENT,
     PLATFORM_CODE_SHIPMENT_REJECTION_NOT_ALLOWED,
     PLATFORM_CODE_SHIPMENT_STATUS_CONFLICT,
+    assignShipmentAgent,
     cancelShipment,
+    moveShipmentAgency,
     reassignShipment,
 } from '@/services/shipments.service';
 import { ApiError } from '@/types/api.types';
 import {
     SHIPMENT_PLATFORM_REJECTION_REASON,
+    isForceablePush,
     isPostPickup,
     shipmentDisplayName,
+    type MoveShipmentAgencyResult,
     type ShipmentDetail,
 } from '@/types/shipments.types';
 
@@ -66,6 +73,13 @@ const NOTE_MAX = 200;
 const LABEL_MAX = 200;
 const PICKUP_NOTE_MAX = 500;
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
+
+/** What "Push anyway" does on the two agent pushes (`shipments.md` § Forcing). */
+const FORCE_AGENT_CONSEQUENCE =
+    'Pushing anyway skips every eligibility and contract check except an active contract with the agency. The agent still has to accept the offer. The push is audited as forced.';
+/** What "Push anyway" does on `move-agency`. */
+const FORCE_AGENCY_CONSEQUENCE =
+    'Pushing anyway skips the destination agency being inactive and the cash-on-delivery limits. The move is audited as forced.';
 
 // ─── Reassign ─────────────────────────────────────────────────────────────────
 
@@ -169,6 +183,8 @@ function ReassignForm({
 }) {
     const [formError, setFormError] = useState<unknown>(null);
     const [forcedManual, setForcedManual] = useState<string | null>(null);
+    /** A forceable refusal, and the agent it was about — a different pick voids it. */
+    const [refusal, setRefusal] = useState<{ error: ApiError; agentId: string } | null>(null);
     const [showPickup, setShowPickup] = useState(false);
 
     const postPickup = isPostPickup(shipment);
@@ -197,8 +213,11 @@ function ReassignForm({
     const mode = useWatch({ control, name: 'mode' });
     const agentId = useWatch({ control, name: 'agentId' });
 
-    async function onSubmit(values: ReassignValues) {
+    async function onSubmit(values: ReassignValues, force = false) {
         setFormError(null);
+        setRefusal(null);
+        // `force` means nothing on an auto-reassign, so it is never sent there.
+        const forcing = force && values.mode === 'manual';
         try {
             const pickup =
                 values.pickupLabel || values.pickupNote
@@ -215,8 +234,9 @@ function ReassignForm({
                 ...(values.mode === 'manual' ? { agentId: values.agentId } : {}),
                 reason: values.reason,
                 ...pickup,
+                ...(forcing ? { force: true } : {}),
             });
-            notify.success('Shipment reassigned', {
+            notify.success(forcing ? 'Shipment reassigned, past its checks' : 'Shipment reassigned', {
                 description:
                     values.mode === 'auto'
                         ? 'Re-offered down a fresh ranking. The new agent’s tracking starts only when they accept.'
@@ -232,6 +252,13 @@ function ReassignForm({
                 }
                 if (fieldErrors.agentId) {
                     setError('agentId', { message: fieldErrors.agentId });
+                    return;
+                }
+
+                // A named agent the platform objected to on a rule `force` waives:
+                // say what, and offer to push anyway.
+                if (values.mode === 'manual' && isForceablePush(error, forcing)) {
+                    setRefusal({ error, agentId: values.agentId });
                     return;
                 }
 
@@ -329,7 +356,7 @@ function ReassignForm({
     }
 
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit((values) => onSubmit(values))} className="space-y-4">
             <div className="space-y-2">
                 <Label>How to choose the replacement</Label>
                 <RadioGroup
@@ -475,6 +502,15 @@ function ReassignForm({
                 )}
             </div>
 
+            {refusal && mode === 'manual' && refusal.agentId === agentId ? (
+                <ForcePushNotice
+                    error={refusal.error}
+                    consequence={FORCE_AGENT_CONSEQUENCE}
+                    isSubmitting={isSubmitting}
+                    onForce={() => void handleSubmit((values) => onSubmit(values, true))()}
+                />
+            ) : null}
+
             {formError ? <AuthFormError error={formError} /> : null}
 
             <DialogFooter>
@@ -484,6 +520,467 @@ function ReassignForm({
                 <Button type="submit" disabled={isSubmitting}>
                     {isSubmitting ? <InlineLoader /> : null}
                     Reassign
+                </Button>
+            </DialogFooter>
+        </form>
+    );
+}
+
+// ─── Assign to agent ──────────────────────────────────────────────────────────
+
+const reasonField = z
+    .string()
+    .trim()
+    .min(REASON_MIN, `Give at least ${REASON_MIN} characters`)
+    .max(REASON_MAX, `Use at most ${REASON_MAX} characters`);
+
+const assignSchema = z.object({
+    agentId: z
+        .string()
+        .trim()
+        .regex(OBJECT_ID, 'Choose an agent, or paste a 24-character agent id'),
+    reason: reasonField,
+});
+
+type AssignValues = z.infer<typeof assignSchema>;
+
+/**
+ * `POST /shipments/:shipmentId/assign-agent` · `shipments.reassign` (2026-10-02).
+ *
+ * Offer a shipment **with no agent** to a named agent of its agency — `reassign`
+ * is for one an agent already holds. Sent without `force` first; a refusal on a
+ * rule `force` waives comes back as `ForcePushNotice` with "Push anyway". The one
+ * rule force never waives — an active contract with the agency — lands on the
+ * agent field instead, because the remedy is a different agent.
+ */
+export function AssignAgentDialog({
+    shipment,
+    open,
+    onOpenChange,
+    onDone,
+    canSearchAgents,
+}: {
+    shipment: ShipmentDetail;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onDone: () => void;
+    /** `agents.read`. `shipments.reassign` does not imply it. */
+    canSearchAgents: boolean;
+}) {
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>Assign {shipmentDisplayName(shipment)} to an agent</DialogTitle>
+                    <DialogDescription>
+                        Offer this shipment to an agent of {shipment.agency.name ?? 'its agency'}.
+                        The agent still has to accept.
+                    </DialogDescription>
+                </DialogHeader>
+                <AssignForm
+                    shipment={shipment}
+                    canSearchAgents={canSearchAgents}
+                    onCancel={() => onOpenChange(false)}
+                    onDone={() => {
+                        onOpenChange(false);
+                        onDone();
+                    }}
+                />
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function AssignForm({
+    shipment,
+    canSearchAgents,
+    onCancel,
+    onDone,
+}: {
+    shipment: ShipmentDetail;
+    canSearchAgents: boolean;
+    onCancel: () => void;
+    onDone: () => void;
+}) {
+    const [formError, setFormError] = useState<unknown>(null);
+    const [refusal, setRefusal] = useState<{ error: ApiError; agentId: string } | null>(null);
+
+    const {
+        register,
+        handleSubmit,
+        setError,
+        setValue,
+        control,
+        formState: { errors, isSubmitting },
+    } = useForm<AssignValues>({
+        resolver: zodResolver(assignSchema),
+        defaultValues: { agentId: '', reason: '' },
+    });
+
+    const agentId = useWatch({ control, name: 'agentId' });
+
+    async function onSubmit(values: AssignValues, force = false) {
+        setFormError(null);
+        setRefusal(null);
+        try {
+            const { result } = await assignShipmentAgent(shipment.id, {
+                agentId: values.agentId,
+                reason: values.reason,
+                ...(force ? { force: true } : {}),
+            });
+            notify.success(
+                result.autoAccepted ? 'Agent assigned (auto-accepted)' : 'Offer sent to agent',
+                {
+                    description: force
+                        ? 'Pushed past the eligibility checks. The push is audited as forced.'
+                        : result.autoAccepted
+                          ? undefined
+                          : 'The shipment is theirs once they accept.',
+                },
+            );
+            onDone();
+        } catch (error) {
+            if (error instanceof ApiError) {
+                const fieldErrors = pickFieldErrors(error, ['agentId', 'reason'] as const);
+                if (fieldErrors.reason) {
+                    setError('reason', { message: fieldErrors.reason });
+                    return;
+                }
+                if (fieldErrors.agentId) {
+                    setError('agentId', { message: fieldErrors.agentId });
+                    return;
+                }
+
+                if (isForceablePush(error, force)) {
+                    setRefusal({ error, agentId: values.agentId });
+                    return;
+                }
+
+                switch (error.platformCode) {
+                    case 'AGENT_MEMBERSHIP_NOT_APPROVED':
+                        // Never forceable: the remedy is a different agent.
+                        setError('agentId', { message: resolveErrorMessage(error) });
+                        return;
+                    case 'SHIPMENT_ALREADY_HAS_AGENT':
+                    case PLATFORM_CODE_SHIPMENT_STATUS_CONFLICT:
+                    case PLATFORM_CODE_SHIPMENT_REASSIGNMENT_CONFLICT:
+                        notify.warning('The shipment moved while this was open', {
+                            description: `${resolveErrorMessage(error)} Reloading what it says now.`,
+                        });
+                        onDone();
+                        return;
+                    default:
+                        break;
+                }
+            }
+            setFormError(error);
+        }
+    }
+
+    return (
+        <form onSubmit={handleSubmit((values) => onSubmit(values))} className="space-y-4">
+            {canSearchAgents ? (
+                <AgentPicker
+                    value={agentId}
+                    onChange={(next) => setValue('agentId', next, { shouldValidate: true })}
+                    error={errors.agentId?.message}
+                />
+            ) : (
+                <FormField
+                    id="assign-agent-id-only"
+                    label="Agent id"
+                    error={errors.agentId?.message}
+                    hint="The agent directory needs its own permission, which this account does not hold. Copy an id from the offer trail, or ask the agency desk."
+                >
+                    {(field) => (
+                        <Input
+                            className="font-mono"
+                            placeholder="24-character agent id"
+                            autoComplete="off"
+                            {...field}
+                            {...register('agentId')}
+                        />
+                    )}
+                </FormField>
+            )}
+
+            <FormField id="assign-reason" label="Reason" error={errors.reason?.message}>
+                {(field) => (
+                    <Textarea
+                        rows={3}
+                        maxLength={REASON_MAX}
+                        placeholder="Why this agent, and why by hand"
+                        {...field}
+                        {...register('reason')}
+                    />
+                )}
+            </FormField>
+
+            {refusal && refusal.agentId === agentId ? (
+                <ForcePushNotice
+                    error={refusal.error}
+                    consequence={FORCE_AGENT_CONSEQUENCE}
+                    isSubmitting={isSubmitting}
+                    onForce={() => void handleSubmit((values) => onSubmit(values, true))()}
+                />
+            ) : null}
+
+            {formError ? <AuthFormError error={formError} /> : null}
+
+            <DialogFooter>
+                <Button type="button" variant="outline" onClick={onCancel}>
+                    Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? <InlineLoader /> : null}
+                    Send offer
+                </Button>
+            </DialogFooter>
+        </form>
+    );
+}
+
+// ─── Move to another agency ───────────────────────────────────────────────────
+
+const moveSchema = z.object({
+    agencyId: z
+        .string()
+        .trim()
+        .regex(OBJECT_ID, 'Choose an agency, or paste a 24-character agency id'),
+    reason: reasonField,
+});
+
+type MoveValues = z.infer<typeof moveSchema>;
+
+/**
+ * `POST /shipments/:shipmentId/move-agency` · `shipments.reassign` (2026-10-02).
+ *
+ * Push a shipment **with no agent** to a different delivery agency. The caller
+ * receives the result rather than a bare "done", because what happens next
+ * depends on it: `destinationShipmentId` can be a **different shipment** (the
+ * source may have been emptied and deleted), and `dispatched: false` means it is
+ * still `pending` and needs the order dispatched. `ShipmentDetail` navigates and
+ * says so.
+ */
+export function MoveAgencyDialog({
+    shipment,
+    open,
+    onOpenChange,
+    onMoved,
+    onStale,
+    canSearchAgencies,
+}: {
+    shipment: ShipmentDetail;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    onMoved: (result: MoveShipmentAgencyResult) => void;
+    /** The shipment moved under the dialog — reload it. */
+    onStale: () => void;
+    /** `agencies.read`. `shipments.reassign` does not imply it. */
+    canSearchAgencies: boolean;
+}) {
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="max-h-[85vh] overflow-y-auto">
+                <DialogHeader>
+                    <DialogTitle>Move {shipmentDisplayName(shipment)} to another agency</DialogTitle>
+                    <DialogDescription>
+                        Every item moves, and any open offer at{' '}
+                        {shipment.agency.name ?? 'the current agency'} is withdrawn first.
+                    </DialogDescription>
+                </DialogHeader>
+                <MoveForm
+                    shipment={shipment}
+                    canSearchAgencies={canSearchAgencies}
+                    onCancel={() => onOpenChange(false)}
+                    onMoved={(result) => {
+                        onOpenChange(false);
+                        onMoved(result);
+                    }}
+                    onStale={() => {
+                        onOpenChange(false);
+                        onStale();
+                    }}
+                />
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function MoveForm({
+    shipment,
+    canSearchAgencies,
+    onCancel,
+    onMoved,
+    onStale,
+}: {
+    shipment: ShipmentDetail;
+    canSearchAgencies: boolean;
+    onCancel: () => void;
+    onMoved: (result: MoveShipmentAgencyResult) => void;
+    onStale: () => void;
+}) {
+    const [formError, setFormError] = useState<unknown>(null);
+    const [refusal, setRefusal] = useState<{ error: ApiError; agencyId: string } | null>(null);
+    const [blocked, setBlocked] = useState<string | null>(null);
+
+    const {
+        register,
+        handleSubmit,
+        setError,
+        setValue,
+        control,
+        formState: { errors, isSubmitting },
+    } = useForm<MoveValues>({
+        resolver: zodResolver(moveSchema),
+        defaultValues: { agencyId: '', reason: '' },
+    });
+
+    const agencyId = useWatch({ control, name: 'agencyId' });
+
+    async function onSubmit(values: MoveValues, force = false) {
+        setFormError(null);
+        setRefusal(null);
+        setBlocked(null);
+        try {
+            const { result } = await moveShipmentAgency(shipment.id, {
+                agencyId: values.agencyId,
+                reason: values.reason,
+                ...(force ? { force: true } : {}),
+            });
+            notify.success(
+                result.dispatched
+                    ? 'Shipment moved and dispatched to the new agency'
+                    : 'Shipment moved to the new agency',
+            );
+            onMoved(result);
+        } catch (error) {
+            if (error instanceof ApiError) {
+                const fieldErrors = pickFieldErrors(error, ['agencyId', 'reason'] as const);
+                if (fieldErrors.reason) {
+                    setError('reason', { message: fieldErrors.reason });
+                    return;
+                }
+                if (fieldErrors.agencyId) {
+                    setError('agencyId', { message: fieldErrors.agencyId });
+                    return;
+                }
+
+                if (isForceablePush(error, force)) {
+                    setRefusal({ error, agencyId: values.agencyId });
+                    return;
+                }
+
+                switch (error.platformCode) {
+                    case 'DELIVERY_AGENCY_NOT_FOUND':
+                        setError('agencyId', { message: resolveErrorMessage(error) });
+                        return;
+                    case PLATFORM_CODE_SHIPMENT_REASSIGNMENT_NOT_ALLOWED:
+                        /*
+                          Wrong status, or already with that agency. Never forceable.
+                          Said here rather than through `AuthFormError`: the platform
+                          copy for this code is the reassign sentence, and the
+                          resolver prefers it over any message set on the error.
+                        */
+                        setBlocked(
+                            values.agencyId === shipment.agency.id
+                                ? 'The shipment is already with that agency.'
+                                : 'This shipment cannot be moved at its current status — only pending, assigned or rejected shipments can.',
+                        );
+                        return;
+                    case 'SHIPMENT_ALREADY_HAS_AGENT':
+                    case PLATFORM_CODE_SHIPMENT_STATUS_CONFLICT:
+                        notify.warning('The shipment moved while this was open', {
+                            description: `${resolveErrorMessage(error)} Reloading what it says now.`,
+                        });
+                        onStale();
+                        return;
+                    default:
+                        break;
+                }
+            }
+            setFormError(error);
+        }
+    }
+
+    return (
+        <form onSubmit={handleSubmit((values) => onSubmit(values))} className="space-y-4">
+            {canSearchAgencies ? (
+                <AgencyPicker
+                    value={agencyId}
+                    onChange={(next) => setValue('agencyId', next, { shouldValidate: true })}
+                    error={errors.agencyId?.message}
+                    excludeId={shipment.agency.id}
+                    idFieldId="move-agency-id"
+                    searchFieldId="move-agency-search"
+                    label="Find the destination agency"
+                />
+            ) : (
+                <FormField
+                    id="move-agency-id-only"
+                    label="Agency id"
+                    error={errors.agencyId?.message}
+                    hint="The agency directory needs its own permission, which this account does not hold."
+                >
+                    {(field) => (
+                        <Input
+                            className="font-mono"
+                            placeholder="24-character agency id"
+                            autoComplete="off"
+                            {...field}
+                            {...register('agencyId')}
+                        />
+                    )}
+                </FormField>
+            )}
+
+            <FormField id="move-reason" label="Reason" error={errors.reason?.message}>
+                {(field) => (
+                    <Textarea
+                        rows={3}
+                        maxLength={REASON_MAX}
+                        placeholder="Why this shipment is changing agency"
+                        {...field}
+                        {...register('reason')}
+                    />
+                )}
+            </FormField>
+
+            {shipment.status === 'pending' ? (
+                <p className="text-muted-foreground rounded-lg border px-3 py-2 text-xs">
+                    The vendor has not dispatched this shipment yet, so it will stay{' '}
+                    <strong>pending</strong> at the new agency. Dispatch the order afterwards if it
+                    should go out.
+                </p>
+            ) : null}
+
+            {refusal && refusal.agencyId === agencyId ? (
+                <ForcePushNotice
+                    error={refusal.error}
+                    consequence={FORCE_AGENCY_CONSEQUENCE}
+                    isSubmitting={isSubmitting}
+                    onForce={() => void handleSubmit((values) => onSubmit(values, true))()}
+                />
+            ) : null}
+
+            {blocked ? (
+                <p
+                    role="alert"
+                    className="border-destructive/40 bg-destructive/10 text-destructive rounded-lg border p-3 text-sm"
+                >
+                    {blocked}
+                </p>
+            ) : null}
+
+            {formError ? <AuthFormError error={formError} /> : null}
+
+            <DialogFooter>
+                <Button type="button" variant="outline" onClick={onCancel}>
+                    Cancel
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? <InlineLoader /> : null}
+                    Move shipment
                 </Button>
             </DialogFooter>
         </form>
@@ -621,7 +1118,7 @@ function CancelForm({
     }
 
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit((values) => onSubmit(values))} className="space-y-4">
             <div className="border-warning/30 bg-warning/10 space-y-2 rounded-lg border px-3 py-2 text-sm">
                 <p className="font-medium">What this does.</p>
                 <p>

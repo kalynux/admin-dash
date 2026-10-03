@@ -1538,13 +1538,13 @@ const TIER_2_EXCLUSIONS: readonly string[] = [
     'users.roles.manage',
 ];
 
-/** Admin — the operational level, including the money. 105 of 127. */
+/** Admin — the operational level, including the money. 106 of 128. */
 export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
     (name) => !TIER_2_EXCLUSIONS.includes(name) && !name.startsWith('developer_tools.'),
 );
 
 /**
- * Support. **39 of 127**, and every one of them is routed — Support holds none
+ * Support. **40 of 128**, and every one of them is routed — Support holds none
  * of the four `†` permissions, so a Support administrator can use everything
  * they hold. That is new: the set was 24 with twelve unusable before Phase 5
  * built the `support` and `content` surfaces.
@@ -1578,6 +1578,10 @@ export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
  *
  * ⚠ **38 → 39 on 2026-09-27**: `money.statements.send`, held by every tier —
  * "send me my statement" arrives as a ticket, and Support answers it.
+ *
+ * ⚠ **39 → 40 on 2026-10-02**: `shipments.reassign` (owner decision — every tier
+ * may push, and force-push, a shipment). `permissions.md` marks it ● for Support,
+ * and its tier table says 40 since the 2026-10-03 correction.
  */
 export const TIER_3_PERMISSIONS: readonly string[] = [
     'agents.read',
@@ -1616,6 +1620,7 @@ export const TIER_3_PERMISSIONS: readonly string[] = [
     'users.bot_memory.reset',
     'vendors.read',
     'shipments.read',
+    'shipments.reassign',
     'shipments.tracking.read',
     'audit.read',
     'notifications.read',

@@ -12,7 +12,7 @@
  * sends. Where those differ the fixture follows the server and says so.
  */
 
-import type { Agency, AgencyDetail } from '@/types/agencies.types';
+import type { Agency, AgencyCodLimit, AgencyDetail } from '@/types/agencies.types';
 import type { RosterEntry } from '@/types/contracts.types';
 
 // ─── Agencies ─────────────────────────────────────────────────────────────────
@@ -251,4 +251,47 @@ export function bannedRosterEntryFixture(overrides: Partial<RosterEntry> = {}): 
  */
 export function orphanRosterEntryFixture(overrides: Partial<RosterEntry> = {}): RosterEntry {
     return rosterEntryFixture({ id: '6651cc33dd44ee55ff66aa79', agent: null, ...overrides });
+}
+
+// ─── COD limit (2026-10-02) ───────────────────────────────────────────────────
+
+/** An agency on the platform default, comfortably inside it. `agencies.md` § cod-limit. */
+export function agencyCodLimitFixture(overrides: Partial<AgencyCodLimit> = {}): AgencyCodLimit {
+    return {
+        agencyId: '6650bb22cc33dd44ee55ff66',
+        limit: 1000000,
+        source: 'default',
+        defaultLimit: 1000000,
+        exposure: {
+            inFlight: 420000,
+            inFlightCount: 6,
+            collectedUnremitted: 310000,
+            collectedCount: 4,
+            total: 730000,
+        },
+        headroom: 270000,
+        overLimit: false,
+        override: null,
+        ...overrides,
+    };
+}
+
+/** The worked example from `agencies.md`: an administrator's pin above the default. */
+export function pinnedAgencyCodLimitFixture(
+    overrides: Partial<AgencyCodLimit> = {},
+): AgencyCodLimit {
+    return agencyCodLimitFixture({
+        limit: 1500000,
+        source: 'override',
+        headroom: 770000,
+        override: {
+            amount: 1500000,
+            reason: 'Long-standing partner, remits daily',
+            setAt: '2026-10-02T09:00:00.000Z',
+            setByUserId: '6650aa11bb22cc33dd44ee55',
+            setBySource: 'admin',
+            setByName: 'Ada Admin',
+        },
+        ...overrides,
+    });
 }

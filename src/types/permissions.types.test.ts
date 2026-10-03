@@ -127,10 +127,17 @@ describe('the permission catalogue matches api-doc/admin/api/permissions.md', ()
         // ⚠ **Moved 125 → 127 on 2026-09-30**, by executing `authz:matrix` —
         // 127 / 105 / 39: `developer_tools.payments.read` / `.set`, the
         // payment-routing switch. Tier 1 only, so only the first total moved.
-        expect(PERMISSION_NAMES.length).toBe(127);
+        //
+        // ⚠ **Moved 127 → 128 on 2026-10-02** — 128 / 106 / 40 by `authz:matrix`:
+        // `agencies.cod_limit.set` (tiers 1–2), and `shipments.reassign` granted
+        // to Support. `permissions.md` first shipped saying Support was
+        // "39 of 128" while its own matrix marked the grant; the prose
+        // assertion below went red, the page was corrected upstream on
+        // 2026-10-03 and re-copied — the same hand-off as 2026-09-27.
+        expect(PERMISSION_NAMES.length).toBe(128);
         expect(UNROUTED_PERMISSION_NAMES.length).toBe(4);
         expect(PERMISSION_FAMILIES.length).toBe(21);
-        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(123);
+        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(124);
     });
 
     /**

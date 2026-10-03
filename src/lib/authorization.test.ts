@@ -132,9 +132,15 @@ describe('the tier fixtures match the documented levels', () => {
         //
         // ⚠ **125 → 127 on 2026-09-30**, by executing `authz:matrix`: the two
         // `developer_tools.payments.*` names, tier 1 only — tiers 2 and 3 unmoved.
-        expect(TIER_1_PERMISSIONS.length).toBe(127);
-        expect(TIER_2_PERMISSIONS.length).toBe(105);
-        expect(TIER_3_PERMISSIONS.length).toBe(39);
+        //
+        // ⚠ **127 / 105 / 39 → 128 / 106 / 40 on 2026-10-03**, by executing
+        // `authz:matrix` against two uncommitted 2026-10-02 changes: the COD-limit
+        // round's `agencies.cod_limit.set` (`financial`, tiers 1–2), and the
+        // delivery-region round granting Support `shipments.reassign`.
+        // ⚠ `permissions.md` says 128 / 106 / **39** — it predates the second.
+        expect(TIER_1_PERMISSIONS.length).toBe(128);
+        expect(TIER_2_PERMISSIONS.length).toBe(106);
+        expect(TIER_3_PERMISSIONS.length).toBe(40);
     });
 
     it('withholds from Admin exactly what the doc says it withholds', () => {
@@ -163,6 +169,8 @@ describe('the tier fixtures match the documented levels', () => {
             'cod.deposits.confirm',
             'cod.remittances.confirm',
             'agents.cod_threshold.set',
+            // Its agency twin (2026-10-02): `financial`, so never Support.
+            'agencies.cod_limit.set',
             'orders.refund',
             'audit.export',
             'administrators.read',
@@ -175,17 +183,18 @@ describe('the tier fixtures match the documented levels', () => {
         expect(heldFixture(3).has('money.payments.read')).toBe(true);
     });
 
-    it('leaves Support holding 39 permissions, every one of them usable', () => {
+    it('leaves Support holding 40 permissions, every one of them usable', () => {
         // 24 held / 12 usable before Phase 5 built the `support` and `content`
         // surfaces; 29 until `files.content.read` was granted to all three tiers
         // at BR-011; 30 until `support.automation.lookup` arrived with
         // `/automation` (ADR-022 D-7); 31 until the 2026-09-22 re-derivation
         // (two triage names, the bot-memory reset, four COD/payout reads); 38 until
-        // `money.statements.send` (2026-09-27). Support holds none of the four `†` names,
+        // `money.statements.send` (2026-09-27); 39 until `shipments.reassign`
+        // (2026-10-02). Support holds none of the four `†` names,
         // so there is nothing in their set they cannot reach.
         const unrouted = new Set<string>(UNROUTED_PERMISSION_NAMES);
         const usable = TIER_3_PERMISSIONS.filter((name) => !unrouted.has(name));
-        expect(usable.length).toBe(39);
+        expect(usable.length).toBe(40);
     });
 
     it('gives Support file resolution, but not the orphan listing', () => {

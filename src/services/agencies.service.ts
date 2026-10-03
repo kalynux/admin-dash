@@ -1,5 +1,6 @@
 /**
- * `/agencies` — the eight endpoints of the delivery-agency surface.
+ * `/agencies` — the delivery-agency surface (eight endpoints, plus the three
+ * COD-limit routes of 2026-10-02 at the end of the writes).
  *
  * Sources: `api-doc/admin/api/agencies.md`, `api-doc/docs/ADR-009-DELIVERY-NETWORK.md`,
  * `backend/admin/src/modules/agencies/`, and — for the delegated writes' real
@@ -36,6 +37,7 @@ import type {
     Agency,
     AgencyActivityQuery,
     AgencyCascadeResult,
+    AgencyCodLimit,
     AgencyDetail,
     AgencyListQuery,
     CascadeCounts,
@@ -43,6 +45,8 @@ import type {
     PlatformAgency,
     ReactivateAgencyBody,
     RejectAgencyBody,
+    ReleaseAgencyCodLimitBody,
+    SetAgencyCodLimitBody,
 } from '@/types/agencies.types';
 import type {
     ContractEvent,
@@ -389,6 +393,91 @@ export async function reactivateAgency(
         counts: toCascadeCounts(result.meta),
         message: result.message,
     };
+}
+
+// ─── COD limit (2026-10-02) — one read, two writes, all delegated ────────────
+
+/**
+ * `GET /agencies/:agencyId/cod-limit` · `agencies.read` (Support holds it).
+ * Not audited.
+ *
+ * ⚠ **Delegated, unlike the other reads on this surface**: the exposure counts
+ * in-flight COD shipments and collected-unremitted cash, a verdict jovi-mall
+ * computes and wi-admin never re-derives. So a failure here can be
+ * `PLATFORM_OPERATION_REJECTED` or `SERVICE_DEPENDENCY_UNAVAILABLE` — and against
+ * a jovi-mall older than 2026-10-02 the route does not exist upstream at all.
+ */
+export function getAgencyCodLimit(
+    agencyId: string,
+    options?: RequestOptions,
+): Promise<AgencyCodLimit> {
+    return api.get<AgencyCodLimit>(
+        `/agencies/${encodeURIComponent(agencyId)}/cod-limit`,
+        options,
+    );
+}
+
+/**
+ * `PUT /agencies/:agencyId/cod-limit` · `agencies.cod_limit.set` (`financial`,
+ * never Support) — **PIN** the agency's limit over the 1 000 000 default, above
+ * or below it, until `releaseAgencyCodLimit`. Audited `agencies.cod_limit.set`.
+ *
+ * A pin below what the agency already holds is **accepted** — the answer then
+ * reads `overLimit: true` and the next vendor dispatch is refused. No client
+ * maximum: jovi-mall owns it, see `SetAgencyCodLimitBody`.
+ *
+ * Answers the same `AgencyCodLimit` as the read. The agency is notified
+ * (`cod.limit.pinned`) **without** the reason or the administrator's name.
+ */
+export function setAgencyCodLimit(
+    agencyId: string,
+    body: SetAgencyCodLimitBody,
+    options?: RequestOptions,
+): Promise<AgencyCodLimit> {
+    return api.put<AgencyCodLimit>(
+        `/agencies/${encodeURIComponent(agencyId)}/cod-limit`,
+        body,
+        options,
+    );
+}
+
+/**
+ * `POST /agencies/:agencyId/cod-limit/release` · `agencies.cod_limit.set` — the
+ * pin's own permission, its **own** audit action (`agencies.cod_limit.release`),
+ * because jovi-mall clears the pin entirely and the audit row is then the only
+ * record it existed. Back to the default. Notifies the agency (`cod.limit.released`).
+ */
+export function releaseAgencyCodLimit(
+    agencyId: string,
+    body: ReleaseAgencyCodLimitBody,
+    options?: RequestOptions,
+): Promise<AgencyCodLimit> {
+    return api.post<AgencyCodLimit>(
+        `/agencies/${encodeURIComponent(agencyId)}/cod-limit/release`,
+        body,
+        options,
+    );
+}
+
+/**
+ * `details.max` / `details.min` off a refused pin, when they arrived.
+ *
+ * A pin above jovi-mall's ceiling (100 000 000) is `400` with
+ * `details: { requested, min, max }`, relayed as `PLATFORM_OPERATION_REJECTED`
+ * whose `details.platformCode` is `VALIDATION_ERROR` — jovi-mall's spelling of
+ * the same word as wi-admin's own code. So the dialog compares it against
+ * `CODE_VALIDATION_ERROR` rather than a `PLATFORM_CODE_*` constant, which
+ * `error-catalog.test.ts` would read as "needs jovi-mall copy".
+ *
+ * ⚠ The bounds ride along **only** when jovi-mall marks the category client-safe
+ * (`platform.client.ts`), so this tolerates their absence.
+ */
+export function readCodLimitBounds(
+    details: Record<string, unknown> | undefined,
+): { min: number | null; max: number | null } {
+    const num = (value: unknown) =>
+        typeof value === 'number' && Number.isFinite(value) ? value : null;
+    return { min: num(details?.min), max: num(details?.max) };
 }
 
 // ─── Delegated failure codes ──────────────────────────────────────────────────

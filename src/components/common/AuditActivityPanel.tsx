@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { History } from 'lucide-react';
 
 import { AuditStatusBadge } from '@/components/audit/AuditStatusBadge';
@@ -143,6 +143,13 @@ export interface AuditActivityPanelProps {
      * like any other filter.
      */
     initialAction?: string;
+    /**
+     * Something more to say under a row's action, from the domain that mounts
+     * the feed. The list row carries no `payload`, so a feed that needs a fact
+     * recorded there — the shipment feed's *"forced"* — fetches it per row
+     * through this slot rather than this component learning any one domain.
+     */
+    renderActionExtra?: (entry: AuditEntry) => ReactNode;
 }
 
 /** The `<Select>` sentinel for "no filter". Radix refuses an empty item value. */
@@ -176,6 +183,7 @@ export function AuditActivityPanel({
     emptyTitle,
     emptyDescription,
     initialAction,
+    renderActionExtra,
 }: AuditActivityPanelProps) {
     const vocabulary = useAuditActionVocabulary({
         prefix: actionPrefix,
@@ -270,6 +278,7 @@ export function AuditActivityPanel({
                         {entry.actionSummary ? (
                             <p className="text-muted-foreground text-xs">{entry.actionSummary}</p>
                         ) : null}
+                        {renderActionExtra?.(entry)}
                     </div>
                 ),
             },
@@ -335,7 +344,7 @@ export function AuditActivityPanel({
                 ),
             },
         ],
-        [timeZone, offeredLabels],
+        [timeZone, offeredLabels, renderActionExtra],
     );
 
     return (

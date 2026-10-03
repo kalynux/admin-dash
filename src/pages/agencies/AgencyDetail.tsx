@@ -6,6 +6,7 @@ import { AccountPanel } from '@/components/accounts/AccountPanel';
 import { AccountStatementButton } from '@/components/accounts/AccountStatementDialog';
 import { AgencyActivityPanel } from '@/components/agencies/AgencyActivityPanel';
 import { AgencyCascadeNotice } from '@/components/agencies/AgencyCascadeNotice';
+import { AgencyCodLimitPanel } from '@/components/agencies/AgencyCodLimitPanel';
 import {
     AgencyKycPanel,
     AgencyOverviewPanel,
@@ -46,10 +47,11 @@ const OBJECT_ID = /^[0-9a-f]{24}$/i;
  * `GET /agencies/:agencyId` — one delivery agency, and everything an
  * administrator may do to it.
  *
- * ── Seven tabs, three of them conditional ─────────────────────────────────────
- * Overview, Verification, Terms and Contract history all read what
- * `agencies.read` already bought, which the module gate required. Three ask for
- * more, and each is **omitted** rather than rendered and then refusing — a tab
+ * ── Eight tabs, three of them conditional ─────────────────────────────────────
+ * Overview, Verification, Terms, Cash on delivery and Contract history all read
+ * what `agencies.read` already bought (the COD limit, 2026-10-02, is read with
+ * `agencies.read` alone; only its pin and release need more), which the module
+ * gate required. Three ask for more, and each is **omitted** rather than rendered and then refusing — a tab
  * whose only content is a denial teaches people the screen is broken:
  *
  *  - **Roster** additionally needs `agents.read`: its rows carry agent names,
@@ -238,6 +240,7 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
                     <TabsTrigger value="overview">Overview</TabsTrigger>
                     <TabsTrigger value="verification">Verification</TabsTrigger>
                     <TabsTrigger value="terms">Terms</TabsTrigger>
+                    <TabsTrigger value="cod">Cash on delivery</TabsTrigger>
                     {canSeeRoster ? <TabsTrigger value="roster">Roster</TabsTrigger> : null}
                     <TabsTrigger value="history">Contract history</TabsTrigger>
                     {canSeeAccount ? <TabsTrigger value="account">Account</TabsTrigger> : null}
@@ -297,6 +300,10 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
 
                 <TabsContent value="terms">
                     <AgencyPoliciesPanel agency={record} />
+                </TabsContent>
+
+                <TabsContent value="cod">
+                    <AgencyCodLimitPanel agency={record} timeZone={timeZone} />
                 </TabsContent>
 
                 {canSeeRoster ? (

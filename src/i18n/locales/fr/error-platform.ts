@@ -25,6 +25,31 @@ const platform = {
     AGENT_NOT_ELIGIBLE_FOR_ASSIGNMENT:
         'La plateforme refuse d’affecter cette livraison à cet agent pour le moment.',
 
+    AGENT_MEMBERSHIP_NOT_APPROVED:
+        'Cet agent n’a pas de contrat actif avec l’agence de la livraison. C’est obligatoire, même en forçant.',
+    SHIPMENT_ALREADY_HAS_AGENT:
+        'Un agent détient déjà cette livraison. Utilisez plutôt « Réattribuer ».',
+    SHIPMENT_ALREADY_HAS_PENDING_OFFER:
+        'Cette livraison est déjà proposée à un agent. Attendez sa réponse ou l’expiration de l’offre.',
+    SHIPMENT_NOT_OFFERABLE:
+        'Cette livraison ne peut pas être proposée à un agent dans son état actuel.',
+    DELIVERY_AGENCY_NOT_ACTIVE: 'Cette agence n’est pas active.',
+    COD_AGENCY_LIMIT_EXCEEDED:
+        'L’agence dépasserait le montant de paiement à la livraison qu’elle peut détenir.',
+    CONTRACT_COVERAGE_REGION_NOT_COVERED:
+        'Le contrat de l’agent ne couvre pas la région de destination de cette livraison.',
+    AGENT_AT_CAPACITY: 'Cet agent transporte déjà autant de livraisons qu’il le peut.',
+    AGENT_TRACKING_NOT_ALLOWED: 'Le suivi de position est désactivé pour cet agent.',
+    AGENT_DEVICE_LOCATION_DISABLED: 'La localisation est désactivée sur le téléphone de cet agent.',
+    AGENT_DEVICE_STATE_UNKNOWN:
+        'La plateforme n’a pas eu de nouvelles récentes du téléphone de cet agent.',
+    COD_ORDER_AMOUNT_EXCEEDS_LIMIT:
+        'Le montant à encaisser sur cette commande dépasse ce que cet agent peut transporter.',
+    COD_AGENT_EXPOSURE_EXCEEDED:
+        'Cet agent détient déjà autant d’espèces qu’il en a le droit.',
+    COD_AGENT_TRUST_TOO_LOW:
+        'Cet agent n’est pas encore autorisé à transporter des paiements à la livraison.',
+
     // ─── Commandes et remboursements ─────────────────────────────────────────
     ORDER_ALREADY_CANCELLED: 'Cette commande est déjà annulée.',
     ORDER_CANCEL_REQUIRES_REFUND:

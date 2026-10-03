@@ -72,6 +72,7 @@ export function offerFixture(overrides: Partial<ShipmentOffer> = {}): ShipmentOf
         respondedAt: '2026-08-12T11:02:00.000Z',
         rejectionReason: null,
         createdAt: '2026-08-12T11:00:00.000Z',
+        adminOverride: null,
         ...overrides,
     };
 }

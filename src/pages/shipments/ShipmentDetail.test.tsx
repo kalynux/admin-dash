@@ -101,6 +101,11 @@ function detail(options: StubOptions & { held?: ReadonlySet<string>; id?: string
     return calls;
 }
 
+/** The writes among the recorded calls. */
+function writes<T extends { method: string }>(calls: readonly T[]): T[] {
+    return calls.filter((call) => call.method !== 'GET');
+}
+
 describe('the record', () => {
     it('refuses a non-hex id without issuing a request', async () => {
         const calls = detail({ id: 'not-an-id' });
@@ -366,15 +371,24 @@ describe('reassigning', () => {
      * Since 2026-09-27 an unverified agent is refused a **COD** shipment only,
      * under its own code rather than `AGENT_NOT_ELIGIBLE_FOR_ASSIGNMENT` — so the
      * message names the cash, never the agent's right to work.
+     *
+     * Since 2026-10-02 the KYC verdict is one `force` waives, so the refusal
+     * arrives with "Push anyway", and pushing resends the same body plus
+     * `force: true`.
      */
-    it('says an unverified agent cannot carry cash on delivery', async () => {
-        detail({
+    it('says an unverified agent cannot carry cash on delivery, and offers to push anyway', async () => {
+        let attempts = 0;
+        const calls = detail({
             held: new Set(['shipments.read', 'shipments.reassign']),
-            write: () =>
-                errorResponse(422, 'PLATFORM_OPERATION_REJECTED', {
-                    category: 'business_rule',
-                    details: { platformCode: 'AGENT_KYC_NOT_VERIFIED' },
-                }),
+            write: () => {
+                attempts += 1;
+                return attempts === 1
+                    ? errorResponse(422, 'PLATFORM_OPERATION_REJECTED', {
+                          category: 'business_rule',
+                          details: { platformCode: 'AGENT_KYC_NOT_VERIFIED' },
+                      })
+                    : successResponse({ status: 'assigned' });
+            },
         });
 
         await userEvent.click(await screen.findByRole('button', { name: /reassign/i }));
@@ -385,8 +399,19 @@ describe('reassigning', () => {
         await userEvent.click(dialog.getByRole('button', { name: /^reassign$/i }));
 
         expect(
-            await dialog.findByText("This agent isn't verified and can't carry cash on delivery."),
+            await dialog.findByText('This agent isn’t verified and can’t carry cash on delivery.'),
         ).toBeInTheDocument();
+        expect(dialog.getByText('AGENT_KYC_NOT_VERIFIED')).toBeInTheDocument();
+
+        await userEvent.click(dialog.getByRole('button', { name: /push anyway/i }));
+        await waitFor(() => expect(writes(calls)).toHaveLength(2));
+        const bodies = writes(calls).map((call) => JSON.parse(call.body as string));
+        expect(bodies[0]).not.toHaveProperty('force');
+        expect(bodies[1]).toMatchObject({
+            agentId: '6660112233445566778899aa',
+            reason: 'Vehicle broke down',
+            force: true,
+        });
     });
 
     /** Compare-and-set miss: reload, never force. */

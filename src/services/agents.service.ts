@@ -376,7 +376,7 @@ export function setAgentStatus(
  * contracts, and in-flight shipments they already hold are unaffected.
  *
  * ⚠ **It also moves the COD pool (2026-09-21)**: `verified` opens it from the
- * plan, anything else closes it to 0, and the answer carries the result as
+ * 500 000 default (the plan until 2026-10-02), anything else closes it to 0, and the answer carries the result as
  * `codPool` beside `kyc` — jovi-mall's `{ agentId, kyc, codPool }`, forwarded
  * untyped. It was typed `PlatformAgent` here, which it never was.
  */
@@ -420,7 +420,7 @@ export function setAgentTracking(
  *
  * ⚠ **BREAKING on 2026-09-21: `reason` is required.** A body without it is a
  * `400 VALIDATION_ERROR`, and the old body was *set the pool* where this one
- * *pins* it over the plan until `releaseAgentCodThreshold`. See
+ * *pins* it over the 500 000 default (the plan, until 2026-10-02) until `releaseAgentCodThreshold`. See
  * `SetCodThresholdBody`. A pin on an unverified agent is stored and the pool
  * stays 0 until the verdict — the answer says so by its `maxThreshold`.
  *
@@ -457,11 +457,11 @@ export function setAgentCodThreshold(
  * the same permission as the pin, its **own** audit action
  * (`agents.cod_threshold.release`). New on 2026-09-21.
  *
- * Drops the pin: the agent goes back to the plan's value, or 0 while unverified.
+ * Drops the pin: the agent goes back to the 500 000 default, or 0 while unverified.
  * jovi-mall clears the pin off the agent entirely, so the audit row is the only
  * record it existed — the `ban` / `unban` reasoning.
  *
- * ⚠ **Refused with `AGENT_COD_THRESHOLD_BELOW_ALLOCATED`** when the plan's value
+ * ⚠ **Refused with `AGENT_COD_THRESHOLD_BELOW_ALLOCATED`** when the default
  * is below what contracts already hold: the pin was holding the pool up, and
  * releasing it would over-commit it. The remedy is to lower the slices first, or
  * to pin a smaller value instead.
@@ -573,7 +573,7 @@ export const PLATFORM_CODE_COD_OUT_OF_BOUNDS = 'AGENT_COD_THRESHOLD_OUT_OF_BOUND
 
 /**
  * `409` on the pin or the release (2026-09-21). The pool changed between
- * jovi-mall's read and its write — a plan sync or another administrator landed
+ * jovi-mall's read and its write — a pool sync or another administrator landed
  * first. Re-read and retry; nothing was written.
  */
 export const PLATFORM_CODE_COD_POOL_CONFLICT = 'AGENT_COD_POOL_CONFLICT';

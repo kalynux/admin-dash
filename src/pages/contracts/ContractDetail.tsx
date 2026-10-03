@@ -27,6 +27,7 @@ import {
     CONTRACT_SUSPENDABLE_FROM,
     CONTRACT_TERMINABLE_FROM,
     coverageRegionsLabel,
+    feeSplitLabel,
     type ContractDetail as Contract,
 } from '@/types/contracts.types';
 
@@ -349,9 +350,9 @@ export function ContractDetail() {
                                 {record.terms.feeSplit ? (
                                     <span className="text-sm">
                                         {/* `model` decides which amount is meaningful. */}
-                                        {record.terms.feeSplit.model === 'percentage'
-                                            ? `${record.terms.feeSplit.agentSharePercent ?? '—'}% to the agent`
-                                            : `${formatMoney(record.terms.feeSplit.agentFlatFee ?? 0, currency)} flat to the agent`}
+                                        {feeSplitLabel(record.terms.feeSplit, (amount) =>
+                                            formatMoney(amount, currency),
+                                        )}
                                     </span>
                                 ) : (
                                     <NotSet />

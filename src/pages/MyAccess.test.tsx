@@ -67,7 +67,7 @@ const catalog = {
             summary: 'Configure which events raise an administrator alert',
         }),
     ],
-    total: 125,
+    total: 128,
 };
 
 function renderPage(tier: 1 | 2 | 3) {
@@ -131,7 +131,7 @@ describe('MyAccess', () => {
 
     it('counts what the caller holds against the catalogue total', async () => {
         renderPage(3);
-        expect(await screen.findByText(/39 of 125 permissions/i)).toBeInTheDocument();
+        expect(await screen.findByText(/40 of 128 permissions/i)).toBeInTheDocument();
     });
 
     it('surfaces a permission newer than this build rather than hiding it', async () => {

@@ -108,7 +108,7 @@ describe('the route total is the sum of its parts', () => {
         );
     });
 
-    it('holds the 265 routes on the service as of 2026-09-30', () => {
+    it('holds the 270 routes on the service as of 2026-10-03', () => {
         // Pinned deliberately, and it is the assertion that fires when the
         // backend ships a route group. A change here is not a failure to fix by
         // editing this number: it means a route arrived, and something in `src/`
@@ -146,7 +146,12 @@ describe('the route total is the sum of its parts', () => {
         //
         // ⚠ 264 → 265 later on 2026-09-30, measured (`TOTAL 266`):
         // `POST /money/payouts/:payoutId/resolve-unknown`.
-        expect(totalDeclared).toBe(265);
+        //
+        // ⚠ 265 → 270 on 2026-10-03, measured (`TOTAL 271`), from two 2026-10-02
+        // changes still uncommitted upstream: the agency COD limit (`GET`/`PUT
+        // /agencies/:agencyId/cod-limit`, `POST …/release`) and the delivery-region
+        // round's `POST /shipments/:shipmentId/{assign-agent,move-agency}`.
+        expect(totalDeclared).toBe(270);
     });
 });
 

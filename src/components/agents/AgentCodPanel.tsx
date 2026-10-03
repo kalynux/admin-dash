@@ -14,6 +14,7 @@ import { formatCount, formatInstantInZone } from '@/lib/format';
 import { resolvePartyName } from '@/lib/party';
 import { getCodAllocation } from '@/services/agents.service';
 import {
+    AGENT_COD_POOL_DEFAULT,
     codPoolSourceLabel,
     type AgentDetail,
     type CodAllocationSlice,
@@ -24,8 +25,9 @@ import {
  * `GET /agents/:agentId/cod-allocation` — the agent's cash pool and its slices.
  *
  * ── The pool is automatic (2026-09-21) ────────────────────────────────────────
- * `0` until the agent's identity is verified, then their plan's `max_cod_pool`,
- * unless an administrator pinned another value — and the agent may carry less.
+ * `0` until the agent's identity is verified, then the 500 000 default — the
+ * same for every agent since 2026-10-02, whatever their plan — unless an
+ * administrator pinned another value; and the agent may carry less.
  * The provenance (`cod.pool`) and the pin (`cod.poolOverride`) come from the
  * **detail** this panel is handed, which always carries them; the allocation
  * adds the one figure only it has, `overAllocatedBy`.
@@ -188,8 +190,10 @@ export function AgentCodPanel({
                                     The most cash on delivery the agent may carry across every
                                     agency — what every gate acts on, and what each contract slice
                                     comes out of. Nobody types it in: it is 0 until their identity
-                                    is verified, then their plan&apos;s amount, unless an
-                                    administrator pinned another. No currency accompanies this
+                                    is verified, then the{' '}
+                                    {formatCount(AGENT_COD_POOL_DEFAULT)} default — the same for
+                                    every agent, whatever their plan — unless an administrator
+                                    pinned another. No currency accompanies this
                                     figure anywhere, so it is shown as a plain number.
                                 </InfoHint>
                             }
@@ -252,8 +256,8 @@ export function AgentCodPanel({
                                 /*
                                   The one number that explains a headroom of 0,
                                   which otherwise reads as a bug. Only an
-                                  automatic change produces it — a plan downgrade
-                                  or a withdrawn verdict — because the platform
+                                  automatic change produces it — a pool the
+                                  platform lowered, or a withdrawn verdict — because the platform
                                   cannot rewrite what agencies agreed.
                                 */
                                 <p
@@ -336,8 +340,8 @@ function PinSummary({ pin, timeZone }: { pin: CodPoolOverride; timeZone: string 
             </p>
             {pin.reason ? <p className="text-muted-foreground">“{pin.reason}”</p> : null}
             <p className="text-muted-foreground text-xs">
-                It replaces the plan&apos;s amount until released, and applies only while the
-                agent&apos;s identity is verified.
+                It replaces the {formatCount(AGENT_COD_POOL_DEFAULT)} default until released,
+                and applies only while the agent&apos;s identity is verified.
             </p>
         </div>
     );

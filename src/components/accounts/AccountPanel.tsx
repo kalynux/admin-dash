@@ -16,6 +16,7 @@ import { useAsyncData } from '@/hooks/use-async-data';
 import { bytesToMegabytes, formatCount, formatInstantInZone, formatMoney } from '@/lib/format';
 import { getOwnerAccount } from '@/services/accounts.service';
 import type { AccountOwnerType, OwnerAccount } from '@/types/accounts.types';
+import { AGENT_COD_POOL_DEFAULT } from '@/types/agents.types';
 
 interface AccountPanelProps {
     ownerType: AccountOwnerType;
@@ -301,33 +302,39 @@ function PlanCard({
                         </Definition>
 
                         {/*
-                          Agents only, and labelled as the PLAN's figure: the
+                          Agents only, and labelled as the PLAN's figure — which
+                          has been DORMANT since 2026-10-02: every verified agent
+                          gets the same 500 000 default whatever their plan. The
                           pool an agent can actually carry is on the agent's Cash
-                          tab, after identity verification, a pin, or their own
-                          lower choice. Two numbers that share a name are how an
-                          operator ends up quoting the wrong one.
+                          tab. Two numbers that share a name are how an operator
+                          ends up quoting the wrong one, so this one says it is
+                          unused, and null/0 no longer reads as "no cash".
                         */}
                         {ownerType === 'agent' ? (
                             <Definition
                                 label="COD pool on this plan"
                                 hint={
                                     <InfoHint label="About the plan's COD pool">
-                                        What the plan grants once the agent&apos;s identity is
-                                        verified. It is not necessarily what they carry: an
-                                        administrator can pin another amount and the agent can
-                                        choose less. The agent&apos;s own pool is on their Cash
-                                        tab.
+                                        Not used since 2026-10-02: every verified agent gets the
+                                        same {formatCount(AGENT_COD_POOL_DEFAULT)} default
+                                        whatever their plan, unless an administrator pins another
+                                        amount. The agent&apos;s own pool is on their Cash tab.
                                     </InfoHint>
                                 }
                             >
                                 {!hasPlan ? (
                                     <NotSet>No active plan</NotSet>
-                                ) : entitlements.maxCodPool === null ||
-                                  entitlements.maxCodPool === 0 ? (
-                                    // ⚠ Never "Not limited": for this limit `null` is 0.
-                                    <span>0 — no cash on delivery</span>
                                 ) : (
-                                    formatCount(entitlements.maxCodPool)
+                                    <span className="flex flex-wrap items-center gap-2">
+                                        {entitlements.maxCodPool === null ? (
+                                            <NotSet>Not set</NotSet>
+                                        ) : (
+                                            <span className="text-muted-foreground tabular-nums">
+                                                {formatCount(entitlements.maxCodPool)}
+                                            </span>
+                                        )}
+                                        <Badge variant="outline">Not in use</Badge>
+                                    </span>
                                 )}
                             </Definition>
                         ) : null}

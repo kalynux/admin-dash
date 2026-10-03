@@ -161,8 +161,8 @@ export function agentDetailFixture(overrides: Partial<AgentDetail> = {}): AgentD
             maxThreshold: 150000,
             pool: {
                 ceiling: 500000,
-                source: 'plan',
-                planCode: 'agent_free',
+                source: 'default',
+                planCode: null,
                 selfLimited: true,
                 syncedAt: '2026-09-21T09:30:00.000Z',
             },
@@ -228,8 +228,8 @@ export function codAllocationFixture(overrides: Partial<CodAllocation> = {}): Co
         overAllocatedBy: 0,
         pool: {
             ceiling: 500000,
-            source: 'plan',
-            planCode: 'agent_free',
+            source: 'default',
+            planCode: null,
             selfLimited: true,
             syncedAt: '2026-09-21T09:30:00.000Z',
         },

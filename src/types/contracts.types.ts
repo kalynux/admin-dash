@@ -169,13 +169,56 @@ export interface ContractRemittanceTerms {
  * symbol to print from the contract alone.
  */
 export interface ContractFeeSplit {
-    /** `percentage` · `flat` — **it decides which amount below is meaningful**. */
-    model: 'percentage' | 'flat' | (string & {});
-    /** 0–100. Set when `model` is `percentage`. */
+    /**
+     * `percentage` · `flat` · `monthly_salary` (2026-10-02) — **it decides which
+     * amount below is meaningful**. A value under another model may be stale (a
+     * partial patch keeps it) and is ignored. Open, per the standing enum rule.
+     */
+    model: 'percentage' | 'flat' | 'monthly_salary' | (string & {}) | null;
+    /** 0–100. Meaningful when `model` is `percentage`. */
     agentSharePercent: number | null;
-    /** Set when `model` is `flat`. */
+    /** Per delivery. Meaningful when `model` is `flat`. */
     agentFlatFee: number | null;
+    /**
+     * Per MONTH. Meaningful when `model` is `monthly_salary` (2026-10-02).
+     *
+     * ⛔ **Never a platform payment.** The agency pays it off-platform: jovi-mall
+     * pays the agent 0 per delivery, writes no agent allocation, and nothing
+     * schedules, tracks or pays the salary — it is stored only so both parties
+     * see what they agreed (`contracts.md`).
+     */
+    agentMonthlySalary: number | null;
     currency: string | null;
+}
+
+/**
+ * The fee split as one line. **Only the amount `model` names is read** — the
+ * other two may hold a stale value from before a model change.
+ *
+ * An unknown model is said to be one, never routed into the flat branch: before
+ * 2026-10-02 this was a two-way `percentage`/everything-else split, which is
+ * exactly how a salary would have rendered as a flat fee per delivery.
+ */
+export function feeSplitLabel(
+    feeSplit: ContractFeeSplit,
+    formatAmount: (amount: number) => string,
+): string {
+    switch (feeSplit.model) {
+        case 'percentage':
+            return `${feeSplit.agentSharePercent ?? '—'}% to the agent`;
+        case 'flat':
+            return feeSplit.agentFlatFee === null
+                ? 'Flat fee to the agent (amount not set)'
+                : `${formatAmount(feeSplit.agentFlatFee)} flat to the agent`;
+        case 'monthly_salary':
+            return feeSplit.agentMonthlySalary === null
+                ? 'Salaried (amount not set) — the agency pays off-platform'
+                : `Salaried — ${formatAmount(feeSplit.agentMonthlySalary)} / month (agency pays off-platform)`;
+        case null:
+            return 'No pay model set';
+        default:
+            return `Other (${feeSplit.model})`;
+    }
 }
 
 // ─── The core, shared by both directions ──────────────────────────────────────

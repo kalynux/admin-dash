@@ -382,8 +382,16 @@ export interface AgentEmergencyContact {
  * (`agent-cod-pool.ts`) and every client is told not to re-derive it — a screen
  * may *say* where the number came from and must decide nothing from it. Open,
  * per the standing enum rule.
+ *
+ * ⚠ **`default` replaced `plan` on 2026-10-02** (ADR-A09): every verified agent
+ * gets the same 500 000, whatever plan they hold. `plan` stays in the union
+ * because an agent jovi-mall has not re-synced since may still read it, and
+ * `codPoolSourceLabel` renders it as `default`.
  */
-export type CodPoolSource = 'not_verified' | 'override' | 'plan' | (string & {});
+export type CodPoolSource = 'not_verified' | 'override' | 'default' | 'plan' | (string & {});
+
+/** Every verified agent's pool when no administrator has pinned one (2026-10-02). */
+export const AGENT_COD_POOL_DEFAULT = 500_000;
 
 /**
  * Where `maxThreshold` comes from — `cod.pool` on the detail, `pool` on the
@@ -391,15 +399,19 @@ export type CodPoolSource = 'not_verified' | 'override' | 'plan' | (string & {})
  *
  * ```
  * ceiling = 0                       while KYC is not `verified` (wins even over a pin)
- *         = an administrator's pin  when one is set, above OR below the plan
- *         = plan.max_cod_pool       otherwise
+ *         = an administrator's pin  when one is set, above OR below the default
+ *         = 500 000, the default    otherwise (since 2026-10-02 — it was the plan's max_cod_pool)
  * ```
  */
 export interface CodPool {
     /** The most `maxThreshold` can be right now. */
     ceiling: number;
     source: CodPoolSource;
-    /** The plan read, when `source` is `plan`; `null` otherwise. */
+    /**
+     * ⚠ **Deprecated — always `null` since 2026-10-02**: the plan no longer sets
+     * the pool. A stale value may survive until the agent's next sync, so it is
+     * never displayed.
+     */
     planCode: string | null;
     /** The agent chose to carry **less** than the ceiling, from the agent app. */
     selfLimited: boolean;
@@ -412,8 +424,8 @@ export interface CodPool {
 }
 
 /**
- * An administrator's pin on the pool. It outranks the plan in both directions,
- * survives plan changes and an unverified spell, and never outranks KYC.
+ * An administrator's pin on the pool. It overrides the 500 000 default in both
+ * directions, survives an unverified spell, and never outranks KYC.
  *
  * ⚠ `amount` is `number | null` on the **detail** (wi-admin maps it with
  * `?? null`) and always a number on the **allocation**, which drops a pin with
@@ -616,8 +628,8 @@ export interface CodAllocation {
     headroom: number;
     /**
      * `allocated - maxThreshold` when contracts hold **more** than the pool, else
-     * `0` (2026-09-21). Only an automatic change produces it — a plan downgrade,
-     * or KYC withdrawn — because the platform cannot rewrite what agencies agreed.
+     * `0` (2026-09-21). Only an automatic change produces it — a pool lowered
+     * by the platform, or KYC withdrawn — because the platform cannot rewrite what agencies agreed.
      * While it is above 0 no slice can be raised, and jovi-mall caps every
      * dispatch at the pool. **It is what explains a `headroom` of 0** that
      * otherwise reads as a bug.
@@ -630,7 +642,7 @@ export interface CodAllocation {
 
 /**
  * `codPool` on the answer to `PUT /agents/:agentId/kyc` — the pool the verdict
- * just produced (2026-09-21): `verified` opens it from the plan, any other
+ * just produced (2026-09-21): `verified` opens it (to the 500 000 default since 2026-10-02), any other
  * verdict closes it to 0.
  *
  * jovi-mall's `describeCodPool`, forwarded **untyped** by wi-admin — which is
@@ -789,8 +801,8 @@ export interface CodLimitBreakdown {
     agentPool: number | null;
     /**
      * `true` when the agent's **pool**, not this agency's slice, set `base`.
-     * Normally false (slices sum to at most the pool); true after a plan
-     * downgrade or a withdrawn KYC verdict left contracts holding more than the
+     * Normally false (slices sum to at most the pool); true after the pool
+     * was lowered or a withdrawn KYC verdict left contracts holding more than the
      * pool. Then raising the slice cannot help.
      */
     poolBinds: boolean;
@@ -1031,9 +1043,10 @@ export interface SetAgentTrackingBody {
  * `PUT /agents/:agentId/cod-threshold` — **PIN** the agent's whole COD pool.
  *
  * ⚠ **BREAKING on 2026-09-21: `reason` is required, and this no longer SETS the
- * pool.** The pool is derived — `0` until KYC is `verified`, then the plan's
- * `max_cod_pool` — and this writes an administrator's pin that replaces the
- * plan's value, above or below it, until `POST …/cod-threshold/release`. A pin
+ * pool.** The pool is derived — `0` until KYC is `verified`, then the 500 000
+ * default (the plan's `max_cod_pool` until 2026-10-02) — and this writes an
+ * administrator's pin that replaces the default, above or below it, until
+ * `POST …/cod-threshold/release`. A pin
  * does **not** outrank KYC: on an unverified agent it is stored and the pool
  * stays 0 until the verdict.
  *
@@ -1056,7 +1069,7 @@ export interface SetCodThresholdBody {
 
 /**
  * `POST /agents/:agentId/cod-threshold/release` — drop the pin; the agent goes
- * back to their plan's value (or 0 while unverified). **Strict.**
+ * back to the 500 000 default (or 0 while unverified). **Strict.**
  */
 export interface ReleaseCodThresholdBody {
     /** Required. 3–500 characters. */
@@ -1286,11 +1299,16 @@ export function statusChangeNeedsReason(status: AgentStatus): boolean {
  * ⛔ Nothing may branch on `source`; the rule is jovi-mall's. This turns the
  * label into words and does no more. An unknown source is shown raw rather than
  * guessed at, per the standing enum rule.
+ *
+ * ⚠ **`plan` is the legacy spelling of `default`** (2026-10-02) and gets the
+ * same words: an agent not yet re-synced still reads it, and the plan no longer
+ * decides anything. `planCode` is deprecated and deliberately not shown.
  */
-export function codPoolSourceLabel(pool: Pick<CodPool, 'source' | 'planCode'>): string {
+export function codPoolSourceLabel(pool: Pick<CodPool, 'source'>): string {
     switch (pool.source) {
+        case 'default':
         case 'plan':
-            return pool.planCode ? `From the ${pool.planCode} plan` : 'From their plan';
+            return 'Default (verified)';
         case 'override':
             return 'Pinned by an administrator';
         case 'not_verified':

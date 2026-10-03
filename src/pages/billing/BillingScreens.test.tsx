@@ -179,22 +179,28 @@ describe('the plan detail', () => {
         expect(await screen.findByText(/not defined by a vendor plan/i)).toBeInTheDocument();
     });
 
-    it("shows an agent tier's COD pool", async () => {
+    /**
+     * Dormant since 2026-10-02 (ADR-A09): every verified agent gets the 500 000
+     * default whatever their plan, so the stored figure is shown and marked unused.
+     */
+    it("shows an agent tier's COD pool as stored, marked not used", async () => {
         renderDetail(agentPlanFixture());
 
         expect(await screen.findByText('500,000')).toBeInTheDocument();
+        expect(screen.getByText('Not used since 2026-10-02')).toBeInTheDocument();
     });
 
     /**
-     * ⚠ The one limit that fails CLOSED (2026-09-21): on an agent tier `null` is
-     * no cash on delivery, and jovi-mall reads it as 0. A shared "not limited"
-     * rendering would tell an operator the opposite of what the platform does.
+     * From 2026-09-21 a `null` here meant no cash on delivery for the whole tier.
+     * Since 2026-10-02 it moves nobody, so saying "no cash on delivery" would now
+     * be the false reading.
      */
-    it('reports an agent tier with no COD pool as no cash on delivery, never unlimited', async () => {
+    it('no longer reads an empty agent-tier COD pool as no cash on delivery', async () => {
         const plan = agentPlanFixture();
         renderDetail(agentPlanFixture({ limits: { ...plan.limits, maxCodPool: null } }));
 
-        expect(await screen.findByText('0 — no cash on delivery')).toBeInTheDocument();
+        expect(await screen.findByText('Not used since 2026-10-02')).toBeInTheDocument();
+        expect(screen.queryByText(/no cash on delivery/i)).not.toBeInTheDocument();
     });
 
     it('renders a 404 as a refusal', async () => {

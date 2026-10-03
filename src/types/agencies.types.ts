@@ -567,3 +567,101 @@ export function canDeactivateAgency(agency: Pick<Agency, 'status'>): boolean {
 export function canReactivateAgency(agency: Pick<Agency, 'status'>): boolean {
     return agency.status === 'inactive';
 }
+
+// ─── COD limit (2026-10-02) ───────────────────────────────────────────────────
+
+/**
+ * Which rule produced the agency's COD limit. `default` is the platform's
+ * 1 000 000; `override` is an administrator's pin. Open, per the standing enum
+ * rule — an unknown value is shown raw.
+ */
+export type AgencyCodLimitSource = 'default' | 'override' | (string & {});
+
+/** The platform's limit for an agency nobody has pinned. Display only — `defaultLimit` on the wire is what is true. */
+export const AGENCY_COD_LIMIT_DEFAULT = 1_000_000;
+
+/**
+ * The cash an agency holds that has not reached the platform. **Computed by
+ * jovi-mall** (`CodLimitsService.report`) and forwarded; wi-admin never
+ * re-derives it, and neither does this client.
+ */
+export interface AgencyCodExposure {
+    /** COD shipments the agency holds (`assigned` → `agent_delivered`) whose cash is not collected. */
+    inFlight: number;
+    inFlightCount: number;
+    /** Collected cash not yet settled by a confirmed remittance or a direct-to-platform deposit. */
+    collectedUnremitted: number;
+    collectedCount: number;
+    total: number;
+}
+
+/**
+ * An administrator's pin. jovi-mall clears it entirely on release, so after that
+ * the audit row (`agencies.cod_limit.release`) is the only record it existed.
+ */
+export interface AgencyCodLimitOverride {
+    amount: number;
+    reason: string;
+    setAt: string;
+    setByUserId: string | null;
+    /** `admin` · `platform`. Open. */
+    setBySource: string;
+    setByName: string | null;
+}
+
+/**
+ * `GET /agencies/:agencyId/cod-limit`, and the answer to both writes
+ * (2026-10-02, ADR-A09). The most cash on delivery the agency may hold that has
+ * not reached the platform.
+ */
+export interface AgencyCodLimit {
+    agencyId: string;
+    limit: number;
+    source: AgencyCodLimitSource;
+    /** The platform default, 1 000 000 — read from here, never assumed. */
+    defaultLimit: number;
+    exposure: AgencyCodExposure;
+    /** `max(0, limit − exposure.total)`, server-side. Not recomputed here. */
+    headroom: number;
+    /**
+     * `exposure.total > limit`. ⚠ **Can be true, and the screen must show it**:
+     * after a vendor's forced dispatch, after a pin below current holdings, or
+     * after two dispatches raced (the limit is check-then-act — G-1). While true,
+     * the next vendor dispatch to this agency is refused until cash comes back.
+     */
+    overLimit: boolean;
+    override: AgencyCodLimitOverride | null;
+}
+
+/**
+ * `PUT /agencies/:agencyId/cod-limit` — **pin** the limit. **Strict.**
+ *
+ * wi-admin checks only "non-negative integer". jovi-mall owns the ceiling
+ * (100 000 000) and refuses above it with `details: { requested, min, max }` —
+ * which is why no maximum is hard-coded here. `0` stops the agency taking COD.
+ */
+export interface SetAgencyCodLimitBody {
+    maxAmount: number;
+    /** Required. Stored on the pin and in the audit payload; **not** sent to the agency. */
+    reason: string;
+}
+
+/** `POST /agencies/:agencyId/cod-limit/release` — back to the default. **Strict.** */
+export interface ReleaseAgencyCodLimitBody {
+    reason: string;
+}
+
+/**
+ * Where the limit came from, as words — **display only**, never a branch beyond
+ * offering Release on a pin.
+ */
+export function agencyCodLimitSourceLabel(source: AgencyCodLimitSource): string {
+    switch (source) {
+        case 'default':
+            return 'Platform default';
+        case 'override':
+            return 'Pinned';
+        default:
+            return source;
+    }
+}

@@ -8,7 +8,7 @@
  * draw that line themselves: `GET /permissions/catalog` requires no permission
  * because "the vocabulary is what a dashboard is written against"
  * (`authorization.md`), while `permissions.md` says in as many words *"Do not
- * hard-code the matrix below into the dashboard"*. So the 127 **names** live
+ * hard-code the matrix below into the dashboard"*. So the 128 **names** live
  * here as literal types — a typo becomes a compile error rather than a module
  * that silently never renders — and **who holds what** comes only from
  * `GET /permissions/me`, never from this file.
@@ -22,7 +22,14 @@ import type { AdminTier } from '@/types/auth.types';
 // ─── The catalogue ────────────────────────────────────────────────────────────
 
 /**
- * All 127 permissions, `family.resource.action`, in the doc's own family order.
+ * All 128 permissions, `family.resource.action`, in the doc's own family order.
+ *
+ * The 128th is `agencies.cod_limit.set` (2026-10-02, `financial`, tiers 1–2) —
+ * it guards `PUT /agencies/:agencyId/cod-limit` and `POST …/cod-limit/release`,
+ * which this dashboard has **no screen or service function for yet** (the
+ * cod-limits changelog was not part of the round that took it). It arrived in
+ * the same `permissions.md` copy as `shipments.reassign` reaching Support, so
+ * it is declared to keep the vocabulary diff honest, and nothing asks for it.
  *
  * The 126th and 127th are `developer_tools.payments.read` and
  * `developer_tools.payments.set` (2026-09-30, the payment-routing switch —
@@ -89,6 +96,7 @@ export const PERMISSION_NAMES = [
     'agencies.verify',
     'agencies.deactivate',
     'agencies.reactivate',
+    'agencies.cod_limit.set',
 
     // billing
     'billing.plans.read',
@@ -385,14 +393,14 @@ export const PERMISSION_FAMILIES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Any of the 127. Use for what the *server* may send us. */
+/** Any of the 128. Use for what the *server* may send us. */
 export type PermissionName = (typeof PERMISSION_NAMES)[number];
 
 /** One of the four `†`. */
 export type UnroutedPermissionName = (typeof UNROUTED_PERMISSION_NAMES)[number];
 
 /**
- * The 123 that gate a real endpoint — 127 less the four `†`. **Use for what *our code* asks for** — nav
+ * The 124 that gate a real endpoint — 128 less the four `†`. **Use for what *our code* asks for** — nav
  * items, `<Can>`, `RequirePermission` — so that gating a screen on a permission
  * whose endpoint does not exist is a `tsc` error.
  */

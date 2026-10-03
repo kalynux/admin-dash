@@ -9,10 +9,12 @@ import { renderWithProviders, stubFetch, successResponse, type FetchCall } from 
 import type { Plan } from '@/types/billing.types';
 
 /**
- * The plan form's handling of `maxCodPool` (2026-09-21) — the one limit that
- * fails CLOSED. `null` on an agent tier is no cash on delivery, and a change to it
- * re-syncs every agent on the tier at once, so it is sent more carefully than
- * the other limits: agent tiers only, and on an edit only when it moved.
+ * The plan form's handling of `maxCodPool`. From 2026-09-21 it was every
+ * verified agent's pool on the tier and a change re-synced them all; since
+ * 2026-10-02 (ADR-A09) every verified agent gets the same 500 000 default and the
+ * field is **dormant** — stored, accepted, and moving nobody. So it is shown
+ * read-only and labelled, and it is never sent: a box that saves and changes
+ * nothing reads as a lever.
  */
 function editPlan(plan: Plan) {
     const calls = stubFetch((call: FetchCall) => {
@@ -43,19 +45,34 @@ async function save(calls: FetchCall[]) {
     return JSON.parse(patch.body ?? '{}') as Record<string, unknown>;
 }
 
-describe('the COD pool on an agent plan', () => {
-    it('is offered, filled with the stored amount', async () => {
+describe('the COD pool on an agent plan — dormant since 2026-10-02', () => {
+    it('shows the stored amount read-only, labelled as not used', async () => {
         editPlan(agentPlanFixture());
 
-        expect(await screen.findByRole('textbox', { name: /^cod pool/i })).toHaveValue('500000');
-        expect(screen.getByText(/empty or 0 means no cash on delivery/i)).toBeInTheDocument();
+        const field = await screen.findByRole('textbox', { name: /^cod pool/i });
+        expect(field).toHaveValue('500000');
+        expect(field).toHaveAttribute('readonly');
+        expect(screen.getByText(/not used since 2026-10-02/i)).toBeInTheDocument();
     });
 
-    /**
-     * An unrelated edit must not carry it: sending even the unchanged value
-     * would be a write to the one field whose change reaches every agent.
-     */
-    it('is not sent when an unrelated field changes', async () => {
+    it('cannot be typed into', async () => {
+        editPlan(agentPlanFixture());
+
+        const field = await screen.findByRole('textbox', { name: /^cod pool/i });
+        await userEvent.type(field, '9');
+        expect(field).toHaveValue('500000');
+    });
+
+    /** No re-sync warning survives: editing the plan moves no agent's pool. */
+    it('says nothing about agents getting a new pool', async () => {
+        editPlan(agentPlanFixture());
+
+        await screen.findByRole('textbox', { name: /^cod pool/i });
+        expect(screen.queryByText(/agents on this plan will get/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(/closes cash on delivery/i)).not.toBeInTheDocument();
+    });
+
+    it('is never sent, even when the plan is saved', async () => {
         const { calls } = editPlan(agentPlanFixture());
 
         const name = await screen.findByLabelText(/^name$/i);
@@ -65,43 +82,6 @@ describe('the COD pool on an agent plan', () => {
 
         expect(body.name).toBe('Agent Standard');
         expect(body).not.toHaveProperty('maxCodPool');
-    });
-
-    it('is sent when it changes, after saying agents get it now', async () => {
-        const { calls } = editPlan(agentPlanFixture());
-
-        const field = await screen.findByRole('textbox', { name: /^cod pool/i });
-        await userEvent.clear(field);
-        await userEvent.type(field, '1000000');
-
-        expect(screen.getByText(/agents on this plan will get the new cod pool/i)).toBeInTheDocument();
-        const body = await save(calls);
-        expect(body.maxCodPool).toBe(1000000);
-    });
-
-    /** Emptying it is not "lifting a limit" — it closes COD for the whole tier. */
-    it('warns loudly that emptying it closes cash on delivery, and sends null', async () => {
-        const { calls } = editPlan(agentPlanFixture());
-
-        await userEvent.clear(await screen.findByRole('textbox', { name: /^cod pool/i }));
-
-        expect(
-            screen.getByText(/closes cash on delivery for every agent on this plan/i),
-        ).toBeInTheDocument();
-        const body = await save(calls);
-        expect(body.maxCodPool).toBeNull();
-    });
-
-    it('refuses a fraction', async () => {
-        const { calls } = editPlan(agentPlanFixture());
-
-        const field = await screen.findByRole('textbox', { name: /^cod pool/i });
-        await userEvent.clear(field);
-        await userEvent.type(field, '1000.5');
-        await userEvent.click(screen.getByRole('button', { name: /save changes/i }));
-
-        expect(await screen.findByText(/enter a whole amount/i)).toBeInTheDocument();
-        expect(calls.some((call) => call.method === 'PATCH')).toBe(false);
     });
 });
 

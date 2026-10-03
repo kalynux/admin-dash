@@ -129,6 +129,26 @@ export function ShipmentOffersPanel({
                                 {offer.createdBy.name ?? offer.createdBy.role ?? 'unknown'}
                             </p>
                         ) : null}
+                        {/* An administrator's force (`force: true`); `null` on every other offer. */}
+                        {offer.adminOverride ? (
+                            <div className="space-y-0.5">
+                                <Badge
+                                    variant="outline"
+                                    className="border-warning/30 bg-warning/10 text-warning"
+                                >
+                                    Forced by an administrator
+                                </Badge>
+                                <p className="text-muted-foreground text-xs">
+                                    {offer.adminOverride.byName ?? 'Unknown administrator'}
+                                    {offer.adminOverride.at
+                                        ? `, ${formatInstantInZone(offer.adminOverride.at, timeZone)}`
+                                        : ''}
+                                </p>
+                                {offer.adminOverride.reason ? (
+                                    <p className="text-xs">“{offer.adminOverride.reason}”</p>
+                                ) : null}
+                            </div>
+                        ) : null}
                     </div>
                 ),
             },

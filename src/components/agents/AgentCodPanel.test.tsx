@@ -167,7 +167,8 @@ describe('AgentCodPanel', () => {
 
 /**
  * The pool became automatic on 2026-09-21 — `0` until KYC is verified, then the
- * plan's amount, unless an administrator pinned another — and the panel's job is
+ * 500 000 default (the plan's amount until 2026-10-02), unless an administrator
+ * pinned another — and the panel's job is
  * to say where the number came from, never to decide anything from it.
  */
 describe('where the pool comes from', () => {
@@ -188,16 +189,33 @@ describe('where the pool comes from', () => {
         );
     }
 
-    it('names the plan, and says when the agent chose to carry less', async () => {
+    it('names the default, and says when the agent chose to carry less', async () => {
         renderWith(agentDetailFixture());
 
-        expect(await screen.findByText('From the agent_free plan')).toBeInTheDocument();
+        expect(await screen.findByText('Default (verified)')).toBeInTheDocument();
         expect(
             screen.getByText(/the agent chose to carry less than their 500,000 limit/i),
         ).toBeInTheDocument();
     });
 
-    it('labels a zero pool as unverified rather than as a plan', async () => {
+    /**
+     * `plan` is the pre-2026-10-02 spelling of `default`, still read by an agent
+     * jovi-mall has not re-synced. It must not name a plan — the plan no longer
+     * decides the pool — and a stale `planCode` must not leak through.
+     */
+    it('renders a legacy `plan` source as the default, without the plan code', async () => {
+        const base = agentDetailFixture();
+        renderWith(
+            agentDetailFixture({
+                cod: { ...base.cod, pool: { ...base.cod.pool, source: 'plan', planCode: 'agent_free' } },
+            }),
+        );
+
+        expect(await screen.findByText('Default (verified)')).toBeInTheDocument();
+        expect(screen.queryByText(/agent_free/)).not.toBeInTheDocument();
+    });
+
+    it('labels a zero pool as unverified rather than as the default', async () => {
         const base = agentDetailFixture();
         renderWith(
             agentDetailFixture({
@@ -233,7 +251,7 @@ describe('where the pool comes from', () => {
     it('draws no pin block when there is no pin', async () => {
         renderWith(agentDetailFixture());
 
-        await screen.findByText('From the agent_free plan');
+        await screen.findByText('Default (verified)');
         expect(screen.queryByText('Pinned')).not.toBeInTheDocument();
     });
 

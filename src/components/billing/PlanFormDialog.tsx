@@ -26,11 +26,12 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { InfoHint } from '@/components/ui/info-hint';
 import { pickFieldErrors } from '@/lib/field-errors';
-import { bytesToMegabytes, megabytesToBytes } from '@/lib/format';
+import { bytesToMegabytes, formatCount, megabytesToBytes } from '@/lib/format';
 import { resolveErrorMessage } from '@/lib/errors';
 import { notify } from '@/lib/notify';
 import { createPlan, updatePlan } from '@/services/billing.service';
 import { ApiError } from '@/types/api.types';
+import { AGENT_COD_POOL_DEFAULT } from '@/types/agents.types';
 import {
     PLAN_ROLES,
     PLATFORM_CODE_PLAN_CODE_EXISTS,
@@ -55,23 +56,21 @@ import {
  * spreading a form object, for the same reason `MarkPaidDialog` builds its body
  * literally: a spread is how a stray key reaches a strict schema.
  *
- * ── `null` clears, an omitted key leaves alone — on six keys only ─────────────
- * `termDays`, `maxActiveProducts`, `maxStorageBytes`, `commissionPercent`,
- * `maxUnterminatedShipments` and `maxCodPool` accept `null`. `null` on anything
- * else is a `400`, which is why the empty-string → `null` conversion below is
- * applied to those six and to nothing else.
+ * ── `null` clears, an omitted key leaves alone ───────────────────────────────
+ * `termDays`, `maxActiveProducts`, `maxStorageBytes`, `commissionPercent` and
+ * `maxUnterminatedShipments` accept `null`. `null` on anything else is a `400`,
+ * which is why the empty-string → `null` conversion below is applied to those
+ * and to nothing else. (`maxCodPool` accepts it too, and is never sent — below.)
  *
- * ── ⚠ `maxCodPool` is the one limit that fails CLOSED (2026-09-21) ─────────────
- * On an agent tier, `null` means **no cash on delivery**, not "not limited" — so
- * the empty box says so rather than borrowing the other limits' hint. And it is
- * sent more carefully than they are:
- *
- * - **agent tiers only.** It is `null` on every vendor and agency plan and means
- *   nothing there, so the field is neither shown nor sent.
- * - **on an edit, only when it changed.** Editing it re-syncs every agent on the
- *   tier at once, so an unrelated rename must not carry it — and the form says
- *   before saving that the new amount reaches agents immediately, and louder when
- *   it would close cash on delivery for the whole tier.
+ * ── ⚠ `maxCodPool` is DORMANT since 2026-10-02 — shown, never sent ─────────────
+ * From 2026-09-21 an agent tier's `maxCodPool` *was* the COD pool of every
+ * verified agent on it, and editing it re-synced them all at once. ADR-A09 gave
+ * every verified agent the same 500 000 default instead, so the field no longer
+ * moves any agent's pool and editing it re-syncs nothing (`billing.md`). It is
+ * still stored and still accepted, which is exactly why it is not editable here:
+ * a box that saves and changes nothing reads as a lever. It is rendered
+ * read-only on agent tiers so an operator who remembers it finds it labelled,
+ * and it is **left out of every body** — create and edit alike.
  */
 
 const CODE_PATTERN = /^[a-z0-9_-]+$/;
@@ -123,10 +122,6 @@ const schema = z.object({
         { message: 'A commission is a percentage between 0 and 100' },
     ),
     maxUnterminatedShipments: clearableNumber,
-    /** Integer only — wi-admin's schema is `.int()`, and a fraction of a franc is not cash. */
-    maxCodPool: clearableNumber.refine((value) => value === null || Number.isInteger(value), {
-        message: 'Enter a whole amount, or leave it empty for no cash on delivery',
-    }),
     liveTrackingEnabled: z.boolean(),
     isActive: z.boolean(),
 });
@@ -142,7 +137,6 @@ const SERVER_FIELDS = [
     'termDays',
     'creditAllowance',
     'commissionPercent',
-    'maxCodPool',
 ] as const;
 
 interface PlanFormDialogProps {
@@ -215,7 +209,6 @@ function PlanForm({
             ),
             commissionPercent: numberField(plan?.limits.commissionPercent),
             maxUnterminatedShipments: numberField(plan?.limits.maxUnterminatedShipments),
-            maxCodPool: numberField(plan?.limits.maxCodPool),
             liveTrackingEnabled: plan?.limits.liveTrackingEnabled ?? false,
             isActive: plan?.isActive ?? true,
         },
@@ -227,16 +220,9 @@ function PlanForm({
     const role = useWatch({ control, name: 'role' });
     const liveTrackingEnabled = useWatch({ control, name: 'liveTrackingEnabled' });
     const isActive = useWatch({ control, name: 'isActive' });
-    const codPoolInput = useWatch({ control, name: 'maxCodPool' });
 
     const isAgentPlan = (plan?.role ?? role) === 'agent';
     const storedCodPool = plan?.limits.maxCodPool ?? null;
-    const typedCodPool = parseClearable(codPoolInput);
-    // `undefined` while the box holds something that is not a number yet — the
-    // schema will say so; the warning waits for a value it can describe.
-    const codPoolChanged =
-        editing && isAgentPlan && typedCodPool !== undefined && typedCodPool !== storedCodPool;
-    const closesCod = codPoolChanged && (typedCodPool ?? 0) === 0 && (storedCodPool ?? 0) > 0;
 
     async function onSubmit(values: PlanFormOutput) {
         setFormError(null);
@@ -247,24 +233,13 @@ function PlanForm({
          * spread of the form object would send `maxStorageMb`, which is this
          * form's unit rather than the API's, and be a 400.
          */
-        /*
-         * `maxCodPool` is added only where it means something and only when it
-         * moves: agent tiers alone, and on an edit only if it changed, because a
-         * change re-syncs every agent on the tier. Compared against the stored
-         * value exactly — `0` and `null` both mean "no COD" but are different
-         * values, and jovi-mall treats a move between them as a change too.
-         */
-        const agentPlan = (plan?.role ?? values.role) === 'agent';
-        const sendCodPool =
-            agentPlan && (!plan || values.maxCodPool !== (plan.limits.maxCodPool ?? null));
-
         const limits = {
             maxActiveProducts: values.maxActiveProducts,
             maxStorageBytes:
                 values.maxStorageMb === null ? null : megabytesToBytes(values.maxStorageMb),
             commissionPercent: values.commissionPercent,
             maxUnterminatedShipments: values.maxUnterminatedShipments,
-            ...(sendCodPool ? { maxCodPool: values.maxCodPool } : {}),
+            // ⛔ No `maxCodPool` — dormant since 2026-10-02; see the header.
             liveTrackingEnabled: values.liveTrackingEnabled,
             isActive: values.isActive,
         };
@@ -501,41 +476,26 @@ function PlanForm({
                         <Label htmlFor="plan-cod-pool" className="flex items-center gap-1">
                             COD pool
                             <InfoHint label="About the COD pool">
-                                The cash on delivery an agent on this tier may carry across every
-                                agency, once their identity is verified. Unlike the other limits,{' '}
-                                <strong>empty means no cash on delivery</strong> — not unlimited.
+                                Until 2026-10-02 this was the cash on delivery a verified agent on
+                                this tier could carry. Every verified agent now gets the same{' '}
+                                {formatCount(AGENT_COD_POOL_DEFAULT)} default whatever their plan,
+                                so this value moves nobody&apos;s pool. To change one agent&apos;s
+                                pool, pin it on the agent&apos;s Cash tab.
                             </InfoHint>
                         </Label>
                         <Input
                             id="plan-cod-pool"
-                            inputMode="numeric"
-                            {...register('maxCodPool')}
+                            readOnly
+                            aria-describedby="plan-cod-pool-note"
+                            value={storedCodPool === null ? '' : String(storedCodPool)}
+                            placeholder="—"
                         />
-                        {errors.maxCodPool ? (
-                            <p className="text-destructive text-sm">{errors.maxCodPool.message}</p>
-                        ) : (
-                            <p className="text-muted-foreground text-xs">
-                                Empty or 0 means no cash on delivery.
-                            </p>
-                        )}
+                        <p id="plan-cod-pool-note" className="text-muted-foreground text-xs">
+                            Not used since 2026-10-02 — saving this plan leaves it as it is.
+                        </p>
                     </div>
                 ) : null}
             </div>
-
-            {codPoolChanged ? (
-                <p
-                    role="status"
-                    className={
-                        closesCod
-                            ? 'border-destructive/30 bg-destructive/10 rounded-lg border px-3 py-2 text-sm'
-                            : 'border-warning/30 bg-warning/10 rounded-lg border px-3 py-2 text-sm'
-                    }
-                >
-                    {closesCod
-                        ? 'This closes cash on delivery for every agent on this plan, as soon as you save.'
-                        : 'Agents on this plan will get the new COD pool as soon as you save — no reassignment is needed. An agent with a pinned pool keeps their pin.'}
-                </p>
-            ) : null}
 
             <div className="flex flex-wrap gap-6">
                 <div className="flex items-center gap-2">
@@ -584,16 +544,4 @@ function PlanForm({
 /** An absent limit is an empty box, which submits back as `null` to clear it. */
 function numberField(value: number | null | undefined): string {
     return value === null || value === undefined ? '' : String(value);
-}
-
-/**
- * What a clearable box currently says: `null` for empty, the number, or
- * `undefined` for text that is not one yet — the same reading the schema's
- * `clearableNumber` makes, for the live warnings that cannot wait for submit.
- */
-function parseClearable(value: string | undefined): number | null | undefined {
-    const trimmed = (value ?? '').trim();
-    if (trimmed === '') return null;
-    const parsed = Number(trimmed);
-    return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
 }

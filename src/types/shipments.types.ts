@@ -40,6 +40,7 @@
  */
 
 import type { ActorStamp } from '@/types/actor.types';
+import { ApiError, CODE_PLATFORM_REJECTED } from '@/types/api.types';
 import type { AuditStatus } from '@/types/audit.types';
 import type { FileDetail } from '@/types/files.types';
 
@@ -256,6 +257,24 @@ export interface ShipmentOffer {
     respondedAt: string | null;
     rejectionReason: string | null;
     createdAt: string | null;
+    /**
+     * An administrator's `force: true` — who, why and when (2026-10-02).
+     * Recorded whenever force was asked for, even if no rule was waived;
+     * `null` otherwise.
+     *
+     * Projected by `toShipmentOfferDto` since 2026-10-03, so it is on both reads
+     * — the detail's embedded `offers` and `GET /shipments/:id/offers`. The
+     * administrator's user id is deliberately not served: it resolves in no
+     * jovi-mall collection, so `byName` is the snapshot that names them.
+     */
+    adminOverride: ShipmentOfferAdminOverride | null;
+}
+
+/** Recorded on an offer whenever an administrator forced it, not only when a rule was waived. */
+export interface ShipmentOfferAdminOverride {
+    byName: string | null;
+    reason: string | null;
+    at: string | null;
 }
 
 /**
@@ -402,6 +421,69 @@ export interface ReassignShipmentBody {
      * `HandoverPickupService` owns.
      */
     pickupLocation?: { label?: string; note?: string };
+    /**
+     * Push past the replacement's eligibility checks (2026-10-02). **Only
+     * meaningful with an `agentId`** — the platform ignores it on an
+     * auto-reassign, so the dialog never sends it there. See `isForceablePush`.
+     */
+    force?: boolean;
+}
+
+/**
+ * `POST /shipments/:shipmentId/assign-agent` — offer a shipment **with no agent**
+ * to a named agent of its agency. Strict body.
+ */
+export interface AssignShipmentAgentBody {
+    agentId: string;
+    /** Required. 3–500 characters. */
+    reason: string;
+    /** Skips every eligibility and contract gate except an active contract. */
+    force?: boolean;
+}
+
+/**
+ * `POST /shipments/:shipmentId/assign-agent` → `{ offer, shipment, autoAccepted }`.
+ *
+ * `offer` and `shipment` are **jovi-mall's** shapes passed through, documented by
+ * name only, so nothing here reads them beyond `autoAccepted` — the screen
+ * refetches instead, as it does after a reassignment.
+ */
+export interface AssignShipmentAgentResult {
+    offer?: unknown;
+    shipment?: unknown;
+    autoAccepted?: boolean;
+}
+
+/** `POST /shipments/:shipmentId/move-agency` — push a shipment with no agent to another agency. */
+export interface MoveShipmentAgencyBody {
+    /** The destination. */
+    agencyId: string;
+    /** Required. 3–500 characters. */
+    reason: string;
+    /** Skips an inactive destination and the COD limits. */
+    force?: boolean;
+}
+
+/**
+ * `POST /shipments/:shipmentId/move-agency` → this.
+ *
+ * ⚠ **`destinationShipmentId` can differ from `shipmentId`**: the items join the
+ * destination agency's open shipment for that order when it has one, and the
+ * emptied source shipment is **deleted** — so the screen navigates to the
+ * destination, never reloads the id it started on.
+ *
+ * ⚠ **`dispatched: false`** means the shipment was `pending` (the vendor never
+ * dispatched it) and stays `pending` at the new agency — it is on nobody's board
+ * until `POST /orders/:orderId/dispatch` sends it.
+ */
+export interface MoveShipmentAgencyResult {
+    shipmentId: string;
+    previousAgencyId: string;
+    agencyId: string;
+    destinationShipmentId: string;
+    itemsMoved: number;
+    dispatched: boolean;
+    forced: boolean;
 }
 
 /**
@@ -437,12 +519,67 @@ export const SHIPMENT_MAX_RANGE_DAYS = 366;
 /** The server-side cap on the offer trail, on both endpoints that serve it. */
 export const SHIPMENT_OFFER_CAP = 50;
 
-export const SHIPMENT_AUDIT_ACTIONS = ['shipments.reassign', 'shipments.cancel'] as const;
+export const SHIPMENT_AUDIT_ACTIONS = [
+    'shipments.reassign',
+    'shipments.agent.assign',
+    'shipments.agency.move',
+    'shipments.cancel',
+] as const;
 
 export const SHIPMENT_AUDIT_ACTION_LABELS: Record<string, string> = {
     'shipments.reassign': 'Reassigned to a different agent',
+    'shipments.agent.assign': 'Offered to a named agent',
+    'shipments.agency.move': 'Moved to another agency',
     'shipments.cancel': 'Cancelled and returned for re-routing',
 };
+
+/**
+ * The three pushes whose audit payload records `force` (2026-10-02). The list
+ * row carries no payload, so the activity feed reads each of these rows' detail
+ * to say whether it was forced.
+ */
+export const SHIPMENT_PUSH_AUDIT_ACTIONS: readonly string[] = [
+    'shipments.reassign',
+    'shipments.agent.assign',
+    'shipments.agency.move',
+];
+
+/** `move-agency` refuses outside these with `SHIPMENT_REASSIGNMENT_NOT_ALLOWED`. */
+export const SHIPMENT_MOVABLE_STATUSES: readonly string[] = ['pending', 'assigned', 'rejected'];
+
+/**
+ * Refusals `force: true` cannot get past, so "Push anyway" is never offered on them.
+ *
+ * ── A deny-list, deliberately ─────────────────────────────────────────────────
+ * The forceable set is *"every eligibility / contract code"* (`shipments.md`) —
+ * open-ended, and jovi-mall adds rules without asking. What force can NOT skip is
+ * small and named: an active contract with the agency, an agent already holding
+ * the shipment, a wrong status, a lost race, a missing record. An unknown code
+ * therefore earns one forced retry, and a forced request that is refused again is
+ * never offered a second one (see `isForceablePush`), so the worst case is one
+ * wasted round trip — where an allow-list would silently withhold the lever the
+ * day a new eligibility rule ships.
+ */
+export const NEVER_FORCEABLE_PLATFORM_CODES: readonly string[] = [
+    // An active contract between the agent and the shipment's agency is always required.
+    'AGENT_MEMBERSHIP_NOT_APPROVED',
+    'SHIPMENT_ALREADY_HAS_AGENT',
+    'SHIPMENT_ALREADY_HAS_PENDING_OFFER',
+    // Wrong status, on each of the three routes.
+    'SHIPMENT_NOT_OFFERABLE',
+    'SHIPMENT_REASSIGNMENT_NOT_ALLOWED',
+    'SHIPMENT_NOT_REASSIGNABLE',
+    'SHIPMENT_REASSIGN_REQUIRES_MANUAL_AGENT',
+    'SHIPMENT_REASSIGN_SAME_AGENT',
+    // Compare-and-set misses: reload, never force.
+    'SHIPMENT_REASSIGNMENT_CONFLICT',
+    'SHIPMENT_STATUS_CONFLICT',
+    // A partial success on auto-reassign — the shipment is now unassigned.
+    'SHIPMENT_NO_ELIGIBLE_AGENTS',
+    'SHIPMENT_NOT_FOUND',
+    'AGENT_NOT_FOUND',
+    'DELIVERY_AGENCY_NOT_FOUND',
+];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -482,6 +619,42 @@ export function isPostPickup(shipment: Pick<Shipment, 'status'>): boolean {
         shipment.status === 'failed' ||
         shipment.status === 'returned'
     );
+}
+
+/**
+ * Whether "Assign to agent" and "Move to another agency" apply at all: both
+ * routes take a shipment **with no agent**, and refuse one that has an agent with
+ * `SHIPMENT_ALREADY_HAS_AGENT` — `reassign` is the action for that one.
+ */
+export function hasNoAgent(shipment: Pick<Shipment, 'agent'>): boolean {
+    return shipment.agent === null;
+}
+
+/**
+ * Whether `move-agency` can take this status. Disables the control rather than
+ * hiding it, like cancel: hidden reads as "you may not", which is a different
+ * and wrong message from "not at this point in the delivery".
+ */
+export function canMoveShipmentAgency(shipment: Pick<Shipment, 'status'>): boolean {
+    return SHIPMENT_MOVABLE_STATUSES.includes(shipment.status);
+}
+
+/**
+ * Whether a refused push may be retried with `force: true` — the "Push anyway"
+ * offer, on all three routes.
+ *
+ * Only a delegated refusal (`PLATFORM_OPERATION_REJECTED`) at **409 or 422**,
+ * carrying a `platformCode`, and not one force cannot skip. `alreadyForced` is
+ * the request that failed: a forced push refused again is not offered again —
+ * force has nothing left to waive.
+ */
+export function isForceablePush(error: unknown, alreadyForced: boolean): boolean {
+    if (alreadyForced) return false;
+    if (!(error instanceof ApiError)) return false;
+    if (error.code !== CODE_PLATFORM_REJECTED) return false;
+    if (error.status !== 409 && error.status !== 422) return false;
+    const code = error.platformCode;
+    return typeof code === 'string' && code.length > 0 && !NEVER_FORCEABLE_PLATFORM_CODES.includes(code);
 }
 
 /** Whether the offer trail hit its server-side cap. */

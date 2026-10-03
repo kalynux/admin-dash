@@ -1,5 +1,5 @@
 /**
- * `/shipments` — the six endpoints of the shipment-administration surface.
+ * `/shipments` — the eight endpoints of the shipment-administration surface.
  *
  * Sources: `api-doc/admin/api/shipments.md`, `api-doc/docs/ADR-010-ORDERS-AND-SHIPMENTS.md`,
  * `backend/admin/src/modules/shipments/`, and `backend/jovi-mall/src/core/
@@ -42,7 +42,11 @@ import type { InstantRange } from '@/lib/datetime';
 import type { Paginated } from '@/types/api.types';
 import type { AuditEntry } from '@/types/audit.types';
 import type {
+    AssignShipmentAgentBody,
+    AssignShipmentAgentResult,
     CancelShipmentBody,
+    MoveShipmentAgencyBody,
+    MoveShipmentAgencyResult,
     ReassignShipmentBody,
     Shipment,
     ShipmentActivityQuery,
@@ -217,7 +221,7 @@ export async function countHeldShipments(options?: RequestOptions): Promise<numb
     return Number(page.meta.total ?? 0);
 }
 
-// ─── Writes — both delegated, both audited, both CSRF-protected ───────────────
+// ─── Writes — all delegated, all audited, all CSRF-protected ───────────────
 
 /**
  * `POST /shipments/:shipmentId/reassign` · `shipments.reassign`.
@@ -249,6 +253,57 @@ export async function reassignShipment(
         options,
     );
     return { message: result.message };
+}
+
+/**
+ * `POST /shipments/:shipmentId/assign-agent` · `shipments.reassign` (2026-10-02).
+ *
+ * Offer a shipment **with no agent** to a named agent of its agency. jovi-mall
+ * resolves the agency from the shipment and runs the agency's manual pick, so
+ * without `force` every eligibility and contract rule applies. With
+ * `force: true` only one refusal remains — `AGENT_MEMBERSHIP_NOT_APPROVED`, no
+ * active contract with that agency — and **the agent still has to accept**.
+ *
+ * Send without `force` first; see `isForceablePush` for when to offer it.
+ */
+export async function assignShipmentAgent(
+    shipmentId: string,
+    body: AssignShipmentAgentBody,
+    options?: RequestOptions,
+): Promise<{ result: AssignShipmentAgentResult; message: string | undefined }> {
+    const response = await api.mutate<AssignShipmentAgentResult | null>(
+        'POST',
+        `/shipments/${encodeURIComponent(shipmentId)}/assign-agent`,
+        body,
+        options,
+    );
+    return { result: response.data ?? {}, message: response.message };
+}
+
+/**
+ * `POST /shipments/:shipmentId/move-agency` · `shipments.reassign` (2026-10-02).
+ *
+ * Push a shipment **with no agent** to a different delivery agency. Every item
+ * moves (the platform's own item-move, attributed to the administrator on the
+ * order timeline) and pending offers at the old agency are withdrawn first.
+ * `force: true` skips an inactive destination and the COD limits — never an agent
+ * already holding it, nor a status outside `pending` / `assigned` / `rejected`.
+ *
+ * ⚠ The answer names `destinationShipmentId`, which **can be a different
+ * shipment**: the source may have been emptied and deleted. Navigate to it.
+ */
+export async function moveShipmentAgency(
+    shipmentId: string,
+    body: MoveShipmentAgencyBody,
+    options?: RequestOptions,
+): Promise<{ result: MoveShipmentAgencyResult; message: string | undefined }> {
+    const response = await api.mutate<MoveShipmentAgencyResult>(
+        'POST',
+        `/shipments/${encodeURIComponent(shipmentId)}/move-agency`,
+        body,
+        options,
+    );
+    return { result: response.data, message: response.message };
 }
 
 /**

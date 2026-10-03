@@ -1,6 +1,6 @@
 # Permissions and administrator levels
 
-⚠ **Re-measured against source 2026-10-02: 128 permissions across 21 families, tier totals 128 / 106 / 39.** One new name, `agencies.cod_limit.set` (`financial`), granted by name in the tier-2 money block and therefore **not** to Support — it guards `PUT /agencies/:agencyId/cod-limit` and `POST …/cod-limit/release` ([the changelog](../FRONTEND-CHANGELOG-cod-limits.md)). Measured with `TIER_GRANTS` from `src/modules/authorization/domain/tier-grants.ts`.
+⚠ **Re-measured against source 2026-10-02: 128 permissions across 21 families, tier totals 128 / 106 / 40.** One new name, `agencies.cod_limit.set` (`financial`), granted by name in the tier-2 money block and therefore **not** to Support — it guards `PUT /agencies/:agencyId/cod-limit` and `POST …/cod-limit/release` ([the changelog](../FRONTEND-CHANGELOG-cod-limits.md)). Measured with `TIER_GRANTS` from `src/modules/authorization/domain/tier-grants.ts`.
 
 ⚠ **Re-measured against source 2026-09-30: 127 permissions across 21 families, tier totals 127 / 105 / 39.** Two new names, both in `developer_tools` and therefore **tier 1 only** (the family rule; tiers 2 and 3 are unchanged): `developer_tools.payments.read` and `developer_tools.payments.set` (**destructive**), for the payment-routing switch at `GET` / `PUT /dev-tools/payments` (jovi-mall ADR-A08; [dev-tools.md](dev-tools.md#put-dev-toolspayments)). Like `developer_tools.maintenance.set`, the switch is **not** behind `dev_tools.enabled`. The permission and a fail-closed audit row are its gates. `npm run authz:matrix` prints this matrix.
 
@@ -31,7 +31,7 @@ Design records: [`../../docs/ADR-003-GRANULAR-PERMISSIONS.md`](../../docs/ADR-00
 |---|---|---|---|
 | **1** | Developer | 128 of 128 | Everything, including the developer tools and every escalation-flagged action |
 | **2** | Admin | 106 of 128 | The operational tier — runs the platform day to day, including the money |
-| **3** | Support | 39 of 128 | Ticket work, the lookups needed to answer a ticket, sending an account holder their statement, editorial write on articles and bylines, resetting the customer bot's memory of a chat, and **pre-screening** a declared COD handover or a payout request. Nothing destructive, publishing stays a level above, and the one `financial` permission it holds cannot send money anywhere |
+| **3** | Support | 40 of 128 | Ticket work, the lookups needed to answer a ticket, sending an account holder their statement, editorial write on articles and bylines, resetting the customer bot's memory of a chat, and **pre-screening** a declared COD handover or a payout request. Nothing destructive, publishing stays a level above, and the one `financial` permission it holds cannot send money anywhere |
 
 A level is an administrator's **entire** authorization state. `tier` appears on the profile
 returned by `GET /auth/me`.

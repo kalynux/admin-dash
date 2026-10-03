@@ -297,6 +297,7 @@ answered.
       "expiresAt": "2026-08-12T11:05:00.000Z",
       "respondedAt": "2026-08-12T11:02:00.000Z",
       "rejectionReason": null,
+      "adminOverride": null,
       "createdAt": "2026-08-12T11:00:00.000Z"
     },
     {
@@ -311,6 +312,7 @@ answered.
       "expiresAt": "2026-08-12T10:35:00.000Z",
       "respondedAt": "2026-08-12T10:33:00.000Z",
       "rejectionReason": "too_far",
+      "adminOverride": null,
       "createdAt": "2026-08-12T10:30:00.000Z"
     }
   ]
@@ -323,6 +325,7 @@ answered.
 | `sessionId` | **`null` for a manual offer**; set when it came from an auto-assignment session |
 | `createdBy` | `{ role, userId, name }` on a manually created offer; `null` otherwise |
 | `expiresAt` | Offers time out |
+| `adminOverride` | `{ byName, reason, at }` — set when an administrator pushed this offer with `force: true`; recorded even if no rule was waived. `null` otherwise. Also on the embedded `offers` of `GET /shipments/:shipmentId` |
 
 ---
 

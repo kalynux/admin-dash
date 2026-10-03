@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Ban, Shuffle } from 'lucide-react';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Ban, Building2, Shuffle, UserPlus } from 'lucide-react';
 
 import { ShipmentActivityPanel } from '@/components/shipments/ShipmentActivityPanel';
 import { ShipmentOffersPanel } from '@/components/shipments/ShipmentOffersPanel';
@@ -10,7 +10,9 @@ import {
     ShipmentOverviewPanel,
 } from '@/components/shipments/ShipmentProfilePanels';
 import {
+    AssignAgentDialog,
     CancelShipmentDialog,
+    MoveAgencyDialog,
     ReassignShipmentDialog,
 } from '@/components/shipments/ShipmentWriteDialogs';
 import { ShipmentTrackingPanel } from '@/components/shipments/ShipmentTrackingPanel';
@@ -28,7 +30,13 @@ import { humaniseEnum } from '@/lib/format';
 import { getShipment } from '@/services/shipments.service';
 import { useAdmin, useCan } from '@/store';
 import { ApiError, CODE_CLIENT_INVALID_ID } from '@/types/api.types';
-import { canCancelShipment, shipmentDisplayName } from '@/types/shipments.types';
+import {
+    canCancelShipment,
+    canMoveShipmentAgency,
+    hasNoAgent,
+    shipmentDisplayName,
+    type MoveShipmentAgencyResult,
+} from '@/types/shipments.types';
 import { CopyableId } from '@/components/common/CopyableId';
 
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
@@ -48,8 +56,12 @@ const OBJECT_ID = /^[0-9a-f]{24}$/i;
  * reasons. **Activity** needs `audit.read`. Each is omitted rather than rendered
  * and then refusing.
  *
- * ── Two writes, and no third ──────────────────────────────────────────────────
- * Reassign and cancel. There is deliberately **no status transition**: driving a
+ * ── Four writes, and no status transition ─────────────────────────────────────
+ * Reassign and cancel, plus — on a shipment with **no agent** — assign to a named
+ * agent and move to another agency (2026-10-02). All three pushes are gated on
+ * `shipments.reassign` alone, which **every tier holds**, Support included; no
+ * tier is consulted here. Each sends without `force` first and offers "Push
+ * anyway" on a refusal force can waive. There is deliberately **no status transition**: driving a
  * delivery through `picked_up → in_transit → delivered` is the agent's job and the
  * agency desk's, and an admin transition would need a third actor carrying neither
  * an agency nor an agent id — which would strip both ownership predicates out of
@@ -68,7 +80,8 @@ export function ShipmentDetail() {
     /** Validated before the fetching component mounts — a malformed id is a `400`. */
     if (!OBJECT_ID.test(shipmentId)) return <InvalidShipmentId />;
 
-    return <ShipmentDetailScreen shipmentId={shipmentId} />;
+    // Keyed: a move can land on a different shipment, and that one starts fresh.
+    return <ShipmentDetailScreen key={shipmentId} shipmentId={shipmentId} />;
 }
 
 function InvalidShipmentId() {
@@ -97,7 +110,13 @@ function ShipmentDetailScreen({ shipmentId }: { shipmentId: string }) {
 
     const [tab, setTab] = useState('overview');
     const [reassigning, setReassigning] = useState(false);
+    const [assigning, setAssigning] = useState(false);
+    const [moving, setMoving] = useState(false);
     const [cancelling, setCancelling] = useState(false);
+    const navigate = useNavigate();
+    const location = useLocation();
+    const moved = readMovedState(location.state);
+    const [movedDismissed, setMovedDismissed] = useState<string | null>(null);
     const [reloadToken, setReloadToken] = useState(0);
 
     const shipment = useAsyncData(`/shipments/${shipmentId}#${reloadToken}`, (signal) =>
@@ -106,6 +125,17 @@ function ShipmentDetailScreen({ shipmentId }: { shipmentId: string }) {
 
     function reconcile() {
         setReloadToken((current) => current + 1);
+    }
+
+    /**
+     * After `move-agency`: go to `destinationShipmentId`, which can be a
+     * different shipment — the source may have been emptied and deleted, so
+     * history is replaced rather than pushed and Back never lands on a 404.
+     */
+    function afterMove(result: MoveShipmentAgencyResult, orderId: string | null) {
+        const state: MovedState = { moved: { ...result, orderId } };
+        navigate(`/dashboard/shipments/${result.destinationShipmentId}`, { replace: true, state });
+        if (result.destinationShipmentId === shipmentId) reconcile();
     }
 
     if (shipment.isLoading) {
@@ -140,6 +170,8 @@ function ShipmentDetailScreen({ shipmentId }: { shipmentId: string }) {
     */
     const canSeeTracking = can('shipments.tracking.read');
     const cancellable = canCancelShipment(record);
+    const agentless = hasNoAgent(record);
+    const movable = canMoveShipmentAgency(record);
 
     return (
         <PageContainer
@@ -157,6 +189,42 @@ function ShipmentDetailScreen({ shipmentId }: { shipmentId: string }) {
                             Reassign
                         </Button>
                     </Can>
+
+                    {/*
+                      Both need a shipment with no agent — with one, Reassign is the
+                      action — so they are absent rather than disabled there. Gated on
+                      the permission alone: Support holds it too.
+                    */}
+                    {agentless ? (
+                        <Can permission="shipments.reassign">
+                            <Button variant="outline" size="sm" onClick={() => setAssigning(true)}>
+                                <UserPlus className="size-4" />
+                                Assign to agent
+                            </Button>
+                            <span className="inline-flex items-center gap-1">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={!movable}
+                                    onClick={() => setMoving(true)}
+                                >
+                                    <Building2 className="size-4" />
+                                    Move to another agency
+                                </Button>
+                                {!movable ? (
+                                    <InfoHint label="Why moving is unavailable">
+                                        Only a <strong>pending</strong>, <strong>assigned</strong> or{' '}
+                                        <strong>rejected</strong> shipment can change agency. This one
+                                        is at{' '}
+                                        <strong>
+                                            {humaniseEnum(record.status) ?? 'an unknown status'}
+                                        </strong>
+                                        .
+                                    </InfoHint>
+                                ) : null}
+                            </span>
+                        </Can>
+                    ) : null}
 
                     <Can permission="shipments.cancel">
                         {/*
@@ -190,6 +258,15 @@ function ShipmentDetailScreen({ shipmentId }: { shipmentId: string }) {
             }
         >
             <BackLink />
+
+            {moved && movedDismissed !== location.key ? (
+                <MovedNotice
+                    moved={moved}
+                    currentShipmentId={record.id}
+                    canOpenOrder={can('orders.read')}
+                    onDismiss={() => setMovedDismissed(location.key)}
+                />
+            ) : null}
 
             <Tabs value={tab} onValueChange={setTab} className="space-y-4">
                 <TabsList>
@@ -248,6 +325,21 @@ function ShipmentDetailScreen({ shipmentId }: { shipmentId: string }) {
                 onDone={reconcile}
                 canSearchAgents={can('agents.read')}
             />
+            <AssignAgentDialog
+                shipment={record}
+                open={assigning}
+                onOpenChange={setAssigning}
+                onDone={reconcile}
+                canSearchAgents={can('agents.read')}
+            />
+            <MoveAgencyDialog
+                shipment={record}
+                open={moving}
+                onOpenChange={setMoving}
+                onMoved={(result) => afterMove(result, record.orderId)}
+                onStale={reconcile}
+                canSearchAgencies={can('agencies.read')}
+            />
             <CancelShipmentDialog
                 shipment={record}
                 open={cancelling}
@@ -255,6 +347,88 @@ function ShipmentDetailScreen({ shipmentId }: { shipmentId: string }) {
                 onDone={reconcile}
             />
         </PageContainer>
+    );
+}
+
+// ─── After a move ─────────────────────────────────────────────────────────────
+
+interface MovedState {
+    moved: MoveShipmentAgencyResult & { orderId: string | null };
+}
+
+/** Navigation state is untyped and survives reloads, so it is read defensively. */
+function readMovedState(state: unknown): MovedState['moved'] | null {
+    if (typeof state !== 'object' || state === null || !('moved' in state)) return null;
+    const moved = (state as { moved: unknown }).moved;
+    if (typeof moved !== 'object' || moved === null) return null;
+    const candidate = moved as Partial<MovedState['moved']>;
+    return typeof candidate.destinationShipmentId === 'string' &&
+        typeof candidate.dispatched === 'boolean'
+        ? (candidate as MovedState['moved'])
+        : null;
+}
+
+/**
+ * What `move-agency` did, on the shipment it landed on.
+ *
+ * ⚠ **`dispatched: false` is not a failure** — the shipment was `pending`
+ * (the vendor never dispatched it) and stays `pending` at the new agency, on
+ * nobody's board until the order is dispatched. That is a separate write,
+ * `POST /orders/:orderId/dispatch` under `orders.intervene`, and it lives on
+ * the order screen, so this links there.
+ */
+function MovedNotice({
+    moved,
+    currentShipmentId,
+    canOpenOrder,
+    onDismiss,
+}: {
+    moved: MovedState['moved'];
+    currentShipmentId: string;
+    canOpenOrder: boolean;
+    onDismiss: () => void;
+}) {
+    const merged = moved.destinationShipmentId !== moved.shipmentId;
+    const tone = moved.dispatched
+        ? 'border-success/30 bg-success/10'
+        : 'border-warning/40 bg-warning/10';
+
+    return (
+        <div role="status" className={`space-y-1.5 rounded-lg border px-3 py-2 text-sm ${tone}`}>
+            <p className="font-medium">
+                Moved to another agency{moved.forced ? ', forced past its checks' : ''}.{' '}
+                {moved.itemsMoved === 1 ? '1 item moved.' : `${moved.itemsMoved} items moved.`}
+            </p>
+            {merged && currentShipmentId === moved.destinationShipmentId ? (
+                <p className="text-xs">
+                    The items joined this agency&apos;s existing shipment for the order, so you are
+                    now looking at that one. The original shipment was emptied and removed.
+                </p>
+            ) : null}
+            {moved.dispatched ? (
+                <p className="text-xs">
+                    It has been dispatched and is on the new agency&apos;s board.
+                </p>
+            ) : (
+                <p className="text-xs">
+                    <strong>The shipment is still pending.</strong> The vendor never dispatched it,
+                    so it is on no agency&apos;s board yet.{' '}
+                    {moved.orderId && canOpenOrder ? (
+                        <Link
+                            to={`/dashboard/orders/${moved.orderId}`}
+                            className="font-medium underline"
+                        >
+                            Dispatch it from the order
+                        </Link>
+                    ) : (
+                        'Dispatch the order to send it.'
+                    )}
+                </p>
+            )}
+            <Button variant="ghost" size="sm" onClick={onDismiss}>
+                Dismiss
+            </Button>
+        </div>
     );
 }
 

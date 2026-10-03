@@ -54,6 +54,7 @@ import { ApiError } from '@/types/api.types';
 import {
     AGENT_STATUSES,
     agentDisplayName,
+    AGENT_COD_POOL_DEFAULT,
     codPoolSourceLabel,
     statusChangeNeedsReason,
     type AgentDetail,
@@ -423,11 +424,11 @@ function TrackingForm({
 /**
  * ── Why "pin" and not "set" ───────────────────────────────────────────────────
  * Since 2026-09-21 nobody types the pool in. jovi-mall derives it — `0` until the
- * agent's identity is verified, then their plan's `max_cod_pool` — and this
- * write stores an administrator's **pin** that replaces the plan's value, above
- * or below it, until somebody releases it. Calling that "set" would tell an
- * operator their number is the pool; it is an override of the pool's rule, and
- * the next plan change will not move it.
+ * agent's identity is verified, then the 500 000 default every agent shares
+ * (their plan's `max_cod_pool` until 2026-10-02) — and this write stores an
+ * administrator's **pin** that replaces the default, above or below it, until
+ * somebody releases it. Calling that "set" would tell an operator their number
+ * is the pool; it is an override of the pool's rule.
  *
  * ── The amount is a string, parsed at submit ──────────────────────────────────
  * A number input hands back `''` when cleared, and coercing that to `0` would
@@ -475,8 +476,9 @@ export function PinCodPoolDialog({
                 <DialogHeader>
                     <DialogTitle>Pin the COD pool for {agentDisplayName(agent)}</DialogTitle>
                     <DialogDescription>
-                        A pin replaces the amount the agent&apos;s plan gives them — above or below
-                        it — until an administrator releases it. Plan changes do not move it.
+                        A pin replaces the {formatCount(AGENT_COD_POOL_DEFAULT)} default every
+                        verified agent gets — above or below it — until an administrator releases
+                        it.
                     </DialogDescription>
                 </DialogHeader>
                 <PinForm
@@ -515,8 +517,8 @@ function PinForm({
     } = useForm<PinValues>({
         resolver: zodResolver(pinSchema),
         // Only an existing pin pre-fills. Pre-filling the current pool would make
-        // "pin exactly what the plan gives" the default, which is a pin that
-        // silently stops following the plan — an override nobody meant.
+        // "pin exactly the default" the default, which is a pin that silently
+        // stops following the default — an override nobody meant.
         defaultValues: { maxThreshold: pinned == null ? '' : String(pinned), reason: '' },
     });
 
@@ -606,7 +608,7 @@ function PinForm({
                     <Textarea
                         rows={3}
                         maxLength={REASON_MAX}
-                        placeholder="Why this agent's pool should differ from their plan"
+                        placeholder="Why this agent's pool should differ from the default"
                         {...field}
                         {...register('reason')}
                     />
@@ -629,7 +631,7 @@ function PinForm({
 }
 
 /**
- * `POST /agents/:agentId/cod-threshold/release` — back to the plan.
+ * `POST /agents/:agentId/cod-threshold/release` — back to the default.
  *
  * Offered only while a pin exists (the caller checks `cod.poolOverride`). The
  * pin's reason and author are shown before the choice because jovi-mall clears
@@ -654,8 +656,8 @@ export function ReleaseCodPoolDialog({
                 <DialogHeader>
                     <DialogTitle>Release the pin on {agentDisplayName(agent)}&apos;s pool?</DialogTitle>
                     <DialogDescription>
-                        The pool goes back to the amount the agent&apos;s plan gives them — or 0
-                        while their identity is not verified.
+                        The pool goes back to the {formatCount(AGENT_COD_POOL_DEFAULT)} default —
+                        or 0 while their identity is not verified.
                     </DialogDescription>
                 </DialogHeader>
                 <ReleaseForm
@@ -708,7 +710,7 @@ function ReleaseForm({
             if (error instanceof ApiError) {
                 /*
                   ⚠ The one refusal a release has that a pin does not explain:
-                  the plan's value is below what the contracts hold, so the pin
+                  the default is below what the contracts hold, so the pin
                   was what held the pool up. Said in the release's own words,
                   because the catalogued sentence is written for a number the
                   operator typed — and here they typed none.
@@ -742,8 +744,8 @@ function ReleaseForm({
             {heldUp !== null ? (
                 <div className="border-destructive/30 bg-destructive/10 space-y-2 rounded-lg border px-3 py-2 text-sm">
                     <p>
-                        The plan&apos;s value is below what this agent&apos;s contracts already
-                        hold — the pin was holding the pool up. Lower the contract slices first, or
+                        The {formatCount(AGENT_COD_POOL_DEFAULT)} default is below what this
+                        agent&apos;s contracts already hold — the pin was holding the pool up. Lower the contract slices first, or
                         pin a smaller value instead.
                     </p>
                     <BlockingContracts contracts={heldUp} allocation={allocation} />
@@ -755,7 +757,7 @@ function ReleaseForm({
                     <Textarea
                         rows={3}
                         maxLength={REASON_MAX}
-                        placeholder="Why the plan's value applies again"
+                        placeholder="Why the default applies again"
                         {...field}
                         {...register('reason')}
                     />

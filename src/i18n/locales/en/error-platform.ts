@@ -58,6 +58,35 @@ const platform = {
     SHIPMENT_REJECTION_NOT_ALLOWED: 'This shipment cannot be cancelled in its current state.',
     AGENT_NOT_ELIGIBLE_FOR_ASSIGNMENT: 'The platform will not dispatch to that agent right now.',
 
+    // ─── Pushing a shipment: assign-agent, move-agency, forced reassign ──────
+    /*
+      Two groups (2026-10-02). The first five are refusals `force: true` cannot
+      get past, so their copy names the remedy and never hints at "Push anyway".
+      The rest are the eligibility and limit checks force DOES waive — each says
+      what is wrong in plain words, because "Push anyway" sits right under it and
+      the operator has to know what they are overriding.
+    */
+    AGENT_MEMBERSHIP_NOT_APPROVED:
+        'This agent has no active contract with the shipment’s agency. That is required even when pushing.',
+    SHIPMENT_ALREADY_HAS_AGENT: 'An agent already holds this shipment. Use Reassign instead.',
+    SHIPMENT_ALREADY_HAS_PENDING_OFFER:
+        'This shipment is already on offer to an agent. Wait for the answer, or let the offer expire.',
+    SHIPMENT_NOT_OFFERABLE: 'This shipment cannot be offered to an agent at its current status.',
+    DELIVERY_AGENCY_NOT_ACTIVE: 'That agency is not active.',
+    COD_AGENCY_LIMIT_EXCEEDED:
+        'This would take the agency over the cash on delivery it is allowed to hold.',
+    CONTRACT_COVERAGE_REGION_NOT_COVERED:
+        'The agent’s contract does not cover the region this shipment is going to.',
+    AGENT_AT_CAPACITY: 'This agent is already carrying as many shipments as they can.',
+    AGENT_TRACKING_NOT_ALLOWED: 'This agent has location tracking turned off.',
+    AGENT_DEVICE_LOCATION_DISABLED: 'Location is switched off on this agent’s phone.',
+    AGENT_DEVICE_STATE_UNKNOWN: 'The platform has not heard from this agent’s phone recently.',
+    COD_ORDER_AMOUNT_EXCEEDS_LIMIT:
+        'The cash to collect on this order is more than this agent may carry.',
+    COD_AGENT_EXPOSURE_EXCEEDED:
+        'This agent is already holding as much cash on delivery as they are allowed.',
+    COD_AGENT_TRUST_TOO_LOW: 'This agent is not yet trusted to carry cash on delivery.',
+
     // ─── Orders and refunds ──────────────────────────────────────────────────
     ORDER_ALREADY_CANCELLED: 'This order is already cancelled.',
     ORDER_CANCEL_REQUIRES_REFUND:

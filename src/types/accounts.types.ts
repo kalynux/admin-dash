@@ -193,8 +193,9 @@ export interface PlanEntitlements {
     maxStorageBytes: number | null;
     maxUnterminatedShipments: number | null;
     /**
-     * Agent plans only (2026-09-21): the COD pool **the plan** grants a
-     * KYC-verified agent. `null` for vendors and agencies, and for "no active
+     * Agent plans only: the plan's `maxCodPool` — ⚠ **not in use since
+     * 2026-10-02**, when every verified agent got the same 500 000 default
+     * whatever their plan. `null` for vendors and agencies, and for "no active
      * plan".
      *
      * ⚠ **The plan's number, not the agent's pool.** The pool an agent can

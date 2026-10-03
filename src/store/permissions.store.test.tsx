@@ -69,7 +69,7 @@ describe('loading the set', () => {
 
         await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('ready'));
         expect(calls.filter((call) => call.url.includes('/permissions/me'))).toHaveLength(1);
-        expect(screen.getByTestId('count')).toHaveTextContent('105');
+        expect(screen.getByTestId('count')).toHaveTextContent('106');
         expect(screen.getByTestId('label')).toHaveTextContent('Admin');
     });
 
@@ -112,7 +112,7 @@ describe('loading the set', () => {
         await userEvent.click(screen.getByRole('button', { name: 'reload' }));
 
         await waitFor(() => expect(screen.getByTestId('status')).toHaveTextContent('ready'));
-        expect(screen.getByTestId('count')).toHaveTextContent('39');
+        expect(screen.getByTestId('count')).toHaveTextContent('40');
     });
 });
 
@@ -135,11 +135,11 @@ describe('a level change', () => {
         });
 
         render(<MovableLevel initial={2} />);
-        await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('105'));
+        await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('106'));
 
         await userEvent.click(screen.getByRole('button', { name: 'demote' }));
 
-        await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('39'));
+        await waitFor(() => expect(screen.getByTestId('count')).toHaveTextContent('40'));
         expect(calls.filter((call) => call.url.includes('/permissions/me'))).toHaveLength(2);
     });
 });

@@ -29,6 +29,31 @@ two before it closed with Phase F on 2026-08-27 (`GET /files/library`, `POST /fi
 pins the services against the map — so take it by grepping each ROUTE-MAP path in
 `src/services`, not by reading it here.
 
+✅ **COD limits built 2026-10-03 — agency COD limit, agent pool `default`, `monthly_salary`.**
+Contract: [FRONTEND-CHANGELOG-cod-limits.md](api-doc/admin/FRONTEND-CHANGELOG-cod-limits.md)
+(jovi-mall ADR-A09); **not deployed, upstream uncommitted, jovi-mall deploys first.**
+`GET`/`PUT /agencies/:agencyId/cod-limit` + `POST …/release` are `getAgencyCodLimit` /
+`setAgencyCodLimit` / `releaseAgencyCodLimit` and the agency's **Cash on delivery** tab
+(`AgencyCodLimitPanel`, Pin/Release dialogs in `AgencyWriteDialogs`). Read on `agencies.read`
+(Support sees it); write on **`agencies.cod_limit.set`** (`financial`, the 128th name, tiers 1–2,
+buttons hidden from Support). ⚠ **`overLimit: true` is real** (forced dispatch, a pin below
+holdings, a race) and renders as a red alert. ⚠ **No client maximum** — jovi-mall's ceiling
+arrives as `PLATFORM_OPERATION_REJECTED` with `details.platformCode: "VALIDATION_ERROR"` and
+`details.max` *only when client-safe*; compare against `CODE_VALIDATION_ERROR`, never a
+`PLATFORM_CODE_*` constant (`error-catalog.test.ts` reads that prefix as "needs jovi-mall copy").
+⚠ **Agent pool: `default` (500 000 for every verified agent) replaced `plan`**; legacy `plan`
+renders as *"Default (verified)"* and `planCode` is never shown. ⚠ **Plan `maxCodPool` is
+DORMANT** — read-only in `PlanFormDialog`, **never sent**, and `null` no longer reads as "no
+cash on delivery" anywhere. `feeSplitLabel()` renders `monthly_salary` as *"Salaried — X / month
+(agency pays off-platform)"* and an unknown model as *"Other (…)"*, never the flat branch.
+Measured the same day: `dump-routes.js` **`TOTAL 271` = 270 routes**, `authz:matrix`
+**128 / 106 / 40** — the extra Support grant (`shipments.reassign`) and the two
+`/shipments/:id/{assign-agent,move-agency}` routes are the parallel **delivery-region** round,
+built by another session in this worktree. ⚠ `permissions.md` says Support **39 of 128** while
+the matrix grants 40, so `permissions.types.test`'s prose check is red until upstream fixes it.
+⚠ The re-copy left `dashboard/backend-requests/BR-003-…md` alone — this repo's copy carries a
+2026-09-05 note upstream does not.
+
 ✅ **Article body JSON import/export built 2026-10-01 — client only, no backend change.** The file
 is the body exactly as stored: a bare array of the nine blocks. `ArticleBodyJson` (Copy · Download ·
 Import) sits on the Body label of **both** the create and translation dialogs. ⚠ **An import
