@@ -108,7 +108,7 @@ describe('the route total is the sum of its parts', () => {
         );
     });
 
-    it('holds the 270 routes on the service as of 2026-10-03', () => {
+    it('holds the 283 routes on the service as of 2026-10-04', () => {
         // Pinned deliberately, and it is the assertion that fires when the
         // backend ships a route group. A change here is not a failure to fix by
         // editing this number: it means a route arrived, and something in `src/`
@@ -151,7 +151,23 @@ describe('the route total is the sum of its parts', () => {
         // changes still uncommitted upstream: the agency COD limit (`GET`/`PUT
         // /agencies/:agencyId/cod-limit`, `POST …/release`) and the delivery-region
         // round's `POST /shipments/:shipmentId/{assign-agent,move-agency}`.
-        expect(totalDeclared).toBe(270);
+        //
+        // ⚠ 270 → 273 on 2026-10-04, measured (`TOTAL 274`): role closure —
+        // `GET /users/:userId/closure-requests` and `POST`/`DELETE
+        // /users/:userId/roles/:role/closure` (jovi-mall ADR-A10, `users.close`).
+        //
+        // ⚠ 273 → 278 the same day, measured (`TOTAL 279`): the new `/categories`
+        // group — two reads on `catalog.categories.read`, rename/merge/delete on
+        // `catalog.categories.manage`.
+        //
+        // ⚠ 278 → 281 later that day, measured (`TOTAL 282`): the delivery-fee
+        // refund queue — two reads on `money.payments.read` and the settle on
+        // `orders.refund` (jovi-mall ADR-A11 W-E2, customer-paid delivery).
+        //
+        // ⚠ 281 → 283 the same day, measured (`TOTAL 284`): the money-split round —
+        // `GET /money/earnings/platform/summary` (`money.earnings.read`, strict) and
+        // `GET /money/orders/:orderId/split` (the new `money.splits.read`, every tier).
+        expect(totalDeclared).toBe(283);
     });
 });
 

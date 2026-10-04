@@ -27,6 +27,8 @@ export function orderFixture(overrides: Partial<Order> = {}): Order {
         customerName: 'Amina B.',
         currency: 'XAF',
         totalAmount: 27500,
+        // The shop pays: the default terms, and the one an older order reads as.
+        deliveryPayer: 'vendor',
         paymentMethod: 'cash_on_delivery',
         paymentStatus: 'pending',
         fulfillmentStatus: 'processing',
@@ -53,7 +55,9 @@ export function disputedOrderFixture(overrides: Partial<Order> = {}): Order {
 export function orderDetailFixture(overrides: Partial<OrderDetail> = {}): OrderDetail {
     return {
         ...orderFixture(),
-        priceBreakdown: { base: 25000, tax: 1250, discount: 0, total: 27500 },
+        priceBreakdown: { base: 25000, delivery: 0, tax: 1250, discount: 0, total: 27500 },
+        deliveryPayerReason: 'shop_always',
+        freeDeliveryShortfall: null,
         paymentIntentId: 'pi_9f2b8c1a',
         // **`null` when never disputed** — absent entirely, not a block of nulls.
         dispute: null,
@@ -75,6 +79,8 @@ export function orderDetailFixture(overrides: Partial<OrderDetail> = {}): OrderD
                 quantity: 3,
                 price: 2500,
                 currency: 'XAF',
+                weightGrams: 1000,
+                weightSource: 'variant',
                 // Resolved live against the listing's current media, and
                 // **batched** for the whole array — three reads however many
                 // lines the order has. Public tree, so it renders from `url`.
@@ -98,7 +104,6 @@ export function orderDetailFixture(overrides: Partial<OrderDetail> = {}): OrderD
                     // find `shipmentId` at all.
                     trackingNumber: 'WM-2026-0088412',
                     status: 'assigned',
-                    freeDelivery: false,
                     hold: null,
                     pickup: {
                         source: 'vendor_address',
@@ -108,6 +113,14 @@ export function orderDetailFixture(overrides: Partial<OrderDetail> = {}): OrderD
                 },
             },
         ],
+        // A COD order whose fee never moved: no checkout charge, nothing owed.
+        deliveryFee: {
+            payments: { checkout: null, deliveryTopUps: [], deliveryTopUpsPaid: 0 },
+            proposals: [],
+            refunds: [],
+            owedManually: 0,
+            returned: 0,
+        },
         ...overrides,
     };
 }

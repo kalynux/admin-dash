@@ -8,7 +8,7 @@
  * draw that line themselves: `GET /permissions/catalog` requires no permission
  * because "the vocabulary is what a dashboard is written against"
  * (`authorization.md`), while `permissions.md` says in as many words *"Do not
- * hard-code the matrix below into the dashboard"*. So the 128 **names** live
+ * hard-code the matrix below into the dashboard"*. So the 132 **names** live
  * here as literal types — a typo becomes a compile error rather than a module
  * that silently never renders — and **who holds what** comes only from
  * `GET /permissions/me`, never from this file.
@@ -22,7 +22,25 @@ import type { AdminTier } from '@/types/auth.types';
 // ─── The catalogue ────────────────────────────────────────────────────────────
 
 /**
- * All 128 permissions, `family.resource.action`, in the doc's own family order.
+ * All 132 permissions, `family.resource.action`, in the doc's own family order.
+ *
+ * The 132nd is `money.splits.read` (2026-10-04, unflagged, **every tier,
+ * Support included**) — one order's money split, `GET
+ * /money/orders/:orderId/split`, which answers a vendor's *"why did I get this
+ * amount?"* ticket. 132 / 110 / 42, measured with `npm run authz:matrix`.
+ *
+ * The 130th and 131st are the **`catalog`** family (2026-10-04, the 22nd —
+ * `categories.md`): `catalog.categories.read` (every tier, Support included)
+ * and `catalog.categories.manage` (`destructive`, tiers 1–2 — rename, merge and
+ * delete on the shared product-category list; a merge has no undo).
+ * 131 / 109 / 41, measured with `npm run authz:matrix`.
+ *
+ * The 129th is `users.close` (2026-10-04, `destructive`, tiers 1–2 — jovi-mall
+ * ADR-A10): ask a user to close ONE role, which they confirm or decline in
+ * their own app. 129 / 107 / 40, measured with `npm run authz:matrix`. ⚠ Taken
+ * from source before `permissions.md` published it — the page upstream still
+ * says 128 — so the doc-diffing assertions in `permissions.types.test.ts` are
+ * red until it is corrected there and re-copied, exactly as on 2026-09-27.
  *
  * The 128th is `agencies.cod_limit.set` (2026-10-02, `financial`, tiers 1–2) —
  * it guards `PUT /agencies/:agencyId/cod-limit` and `POST …/cod-limit/release`,
@@ -130,6 +148,8 @@ export const PERMISSION_NAMES = [
     // Every tier, Support included (owner decision 2026-09-27). Named `send`,
     // but it covers the download as well as the email.
     'money.statements.send',
+    // Every tier, Support included (2026-10-04) — one order's money split.
+    'money.splits.read',
 
     // orders
     'orders.read',
@@ -232,6 +252,9 @@ export const PERMISSION_NAMES = [
     // as a ticket and this is the remedy, and it touches nothing the platform
     // keeps about the person. Not a precedent for the writes around it.
     'users.bot_memory.reset',
+    // Asks; never closes. The user confirms in their own app within 7 days, so
+    // there is no confirm anywhere on this dashboard. `destructive`, tiers 1–2.
+    'users.close',
     'users.roles.manage', // †
 
     // vendors
@@ -240,6 +263,12 @@ export const PERMISSION_NAMES = [
     'vendors.suspend',
     'vendors.products.manage',
     'vendors.settings.manage',
+
+    // catalog — the shared product-category list (2026-10-04). Its own family:
+    // a category belongs to no vendor, and a merge rewrites many vendors'
+    // products at once.
+    'catalog.categories.read',
+    'catalog.categories.manage',
 
     // shipments
     'shipments.read',
@@ -360,7 +389,10 @@ export const UNROUTED_PERMISSION_NAMES = [
 ] as const;
 
 /**
- * The 21 families, in the matrix's declaration order.
+ * The 22 families, in the matrix's declaration order.
+ *
+ * `catalog` is the 22nd, added 2026-10-04 for the shared product-category list
+ * and placed after `vendors`, where `permissions.md` puts it.
  *
  * `employees` is the 21st, added 2026-09-14 with ADR-023 and inserted after
  * `administrators` because that is where the matrix puts it — the guard diffs
@@ -380,6 +412,7 @@ export const PERMISSION_FAMILIES = [
     'messaging',
     'users',
     'vendors',
+    'catalog',
     'shipments',
     'administrators',
     'employees',
@@ -393,14 +426,14 @@ export const PERMISSION_FAMILIES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Any of the 128. Use for what the *server* may send us. */
+/** Any of the 131. Use for what the *server* may send us. */
 export type PermissionName = (typeof PERMISSION_NAMES)[number];
 
 /** One of the four `†`. */
 export type UnroutedPermissionName = (typeof UNROUTED_PERMISSION_NAMES)[number];
 
 /**
- * The 124 that gate a real endpoint — 128 less the four `†`. **Use for what *our code* asks for** — nav
+ * The 127 that gate a real endpoint — 131 less the four `†`. **Use for what *our code* asks for** — nav
  * items, `<Can>`, `RequirePermission` — so that gating a screen on a permission
  * whose endpoint does not exist is a `tsc` error.
  */

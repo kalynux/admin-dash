@@ -203,6 +203,82 @@ describe('Configuration', () => {
 });
 
 describe('Platform logs', () => {
+    const vendorLine = {
+        at: '2026-10-04T10:00:00.000Z',
+        level: 'error',
+        msg: 'conflict 409 ORDER_STATE_CONFLICT',
+        requestId: 'req-vendor',
+        actorId: 'a1'.repeat(12),
+        actorSource: 'platform',
+        actorRole: 'vendor',
+        actorName: 'Ama Mensah',
+        actorProfileId: 'b2'.repeat(12),
+    };
+
+    function logCalls(calls: FetchCall[]) {
+        return calls.filter((call) => call.url.includes('/system/platform/logs'));
+    }
+
+    it('applies ?actorId= from the address, so a party page can link straight here', async () => {
+        const calls = stubDevTools();
+        renderWithProviders(<PlatformLogs />, {
+            route: `/dashboard/dev-tools/logs?actorId=${'b2'.repeat(12)}`,
+            auth: { status: 'authenticated', admin: adminFixture({ timezone: 'Africa/Douala' }) },
+            permissions: { held: heldFixture(1) },
+        });
+
+        await waitFor(() => expect(logCalls(calls).length).toBeGreaterThan(0));
+        expect(logCalls(calls)[0].url).toContain(`actorId=${'b2'.repeat(12)}`);
+    });
+
+    it('names who wrote each line and narrows to them on a click', async () => {
+        const calls = stubDevTools((call) =>
+            call.url.includes('/system/platform/logs')
+                ? successResponse(platformLogsFixture({ entries: [vendorLine] }))
+                : undefined,
+        );
+        render(<PlatformLogs />);
+
+        await userEvent.click(
+            await screen.findByRole('button', { name: /Ama Mensah · Vendor.*show only this person/i }),
+        );
+
+        // The USER id, which every line carries — not the profile id.
+        await waitFor(() =>
+            expect(logCalls(calls).at(-1)?.url).toContain(`actorId=${'a1'.repeat(12)}`),
+        );
+    });
+
+    it('never sends a half-typed id — the service would answer 400', async () => {
+        const calls = stubDevTools();
+        render(<PlatformLogs />);
+
+        await screen.findByText(/free text/i);
+        await userEvent.type(
+            screen.getByRole('searchbox', { name: /filter by user, vendor/i }),
+            'abc123',
+        );
+
+        expect(await screen.findByText(/24 characters of 0–9 and a–f/i)).toBeInTheDocument();
+        expect(logCalls(calls).some((call) => call.url.includes('actorId'))).toBe(false);
+    });
+
+    it('labels the ids in the entry by namespace, never "Administrator" for a platform user', async () => {
+        stubDevTools((call) =>
+            call.url.includes('/system/platform/logs')
+                ? successResponse(platformLogsFixture({ entries: [vendorLine] }))
+                : undefined,
+        );
+        render(<PlatformLogs />);
+
+        await userEvent.click(await screen.findByRole('button', { name: /show full entry/i }));
+        const dialog = await screen.findByRole('dialog');
+
+        expect(within(dialog).getByText('User id')).toBeInTheDocument();
+        expect(within(dialog).getByText('Vendor id')).toBeInTheDocument();
+        expect(within(dialog).queryByText('Administrator')).not.toBeInTheDocument();
+    });
+
     it('warns that log lines can carry personal data', async () => {
         stubDevTools();
         render(<PlatformLogs />);

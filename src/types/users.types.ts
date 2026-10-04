@@ -374,6 +374,235 @@ export interface UserActivityQuery {
     sort?: string;
 }
 
+// ─── Role closure (jovi-mall ADR-A10) ─────────────────────────────────────────
+
+/**
+ * The roles a closure may be requested for — `:role` in the path. A **pinned**
+ * enum, unlike `UserRole`: wi-admin's `RoleClosureParamsSchema` refuses anything
+ * else with a `400`, so this is a request vocabulary, not a rendering one.
+ */
+export const CLOSABLE_ROLES = ['customer', 'vendor', 'agency', 'agent'] as const;
+export type ClosableRole = (typeof CLOSABLE_ROLES)[number];
+
+export function isClosableRole(role: string): role is ClosableRole {
+    return (CLOSABLE_ROLES as readonly string[]).includes(role);
+}
+
+/** The reason is required and **shown to the user**, verbatim, in their notice. */
+export const ROLE_CLOSURE_REASON_MIN = 3;
+export const ROLE_CLOSURE_REASON_MAX = 500;
+
+/** How long the user has to answer (jovi-mall `ROLE_CLOSURE_REQUEST_TTL_DAYS`). */
+export const ROLE_CLOSURE_TTL_DAYS = 7;
+
+/**
+ * Where a request stands. ⚠ **Already effective** — a stored `pending` past
+ * `expiresAt` arrives as `expired` (`toRoleClosureDto`), so the client does no
+ * expiry maths of its own. String-widened: render an unknown value raw.
+ */
+export type RoleClosureStatus =
+    | 'pending'
+    | 'confirmed'
+    | 'declined'
+    | 'cancelled'
+    | 'expired'
+    | (string & {});
+
+export const ROLE_CLOSURE_STATUS_LABELS: Record<string, string> = {
+    pending: 'Waiting for the user',
+    confirmed: 'Closed by the user',
+    declined: 'Declined by the user',
+    cancelled: 'Withdrawn',
+    expired: 'Expired unanswered',
+};
+
+/** What the user forfeits by confirming. Shown to them first; never blocks. */
+export interface RoleClosureWarning {
+    /** `prepaid_plan_forfeited` · `credit_balance_forfeited` — open; render raw. */
+    code: string;
+    planCode: string | null;
+    expiresAt: string | null;
+    amount: number | null;
+}
+
+/**
+ * Who answered or withdrew it. `source` names the identity space of `id`:
+ * `platform` is the user themselves, `admin` an administrator's withdrawal.
+ */
+export interface RoleClosureResolver {
+    id: string;
+    source: string;
+    name: string | null;
+}
+
+/** What a confirmation did. `null` on every status but `confirmed`. */
+export interface RoleClosureOutcome {
+    closedAt: string;
+    /** It was their last role, so the whole account closed (ADR-A02). */
+    accountClosed: boolean;
+    /** Contracts and vendor↔agency connections ended with the role. */
+    endedRelationships: number;
+}
+
+/**
+ * One request — the same shape from `GET …/closure-requests` (wi-admin's
+ * `toRoleClosureDto`) and from the delegated `POST`/`DELETE` (jovi-mall's
+ * `toAdminRoleClosureDto`), checked field for field against both on 2026-10-04.
+ * ⚠ **No `blockers` and no `canConfirm`** — those are on the user's own view
+ * only; an administrator learns about blockers from the `422` instead.
+ */
+export interface RoleClosureRequest {
+    id: string;
+    userId: string;
+    role: ClosableRole | (string & {});
+    roleEntityId: string;
+    status: RoleClosureStatus;
+    /** The administrator's words, which the user was shown verbatim. */
+    reason: string;
+    requestedBy: { id: string; name: string | null };
+    requestedAt: string;
+    expiresAt: string;
+    warnings: RoleClosureWarning[];
+    resolvedAt: string | null;
+    resolvedBy: RoleClosureResolver | null;
+    /** The user's optional note when they declined. */
+    declineNote: string | null;
+    outcome: RoleClosureOutcome | null;
+}
+
+/** `POST /users/:userId/roles/:role/closure` — strict. */
+export interface RequestRoleClosureBody {
+    reason: string;
+}
+
+/**
+ * One reason the role cannot close yet — an item of `details.blockers` on the
+ * `422 ROLE_CLOSURE_BLOCKED`. `amount`/`currency` only on the money blockers.
+ */
+export interface RoleClosureBlocker {
+    code: string;
+    count: number;
+    amount?: number;
+    currency?: string;
+}
+
+/**
+ * The blocker codes, worded from the *Blocker codes* table of
+ * `api-doc/jovi-mall/me/role-closure.md`: what holds the role open, and what
+ * settles it. jovi-mall calls the vocabulary closed, but an unknown code still
+ * renders by its raw name — a new blocker must never hide the checklist.
+ */
+export const ROLE_CLOSURE_BLOCKER_LABELS: Record<string, { what: string; settle: string }> = {
+    orders_in_flight: { what: 'Orders still in progress', settle: 'The orders finish' },
+    bookings_upcoming: {
+        what: 'Upcoming bookings',
+        settle: 'The bookings are finished or cancelled',
+    },
+    vendor_orders_in_flight: {
+        what: 'Shop orders still in progress',
+        settle: 'The orders are fulfilled or cancelled',
+    },
+    vendor_bookings_open: {
+        what: 'Open bookings on the shop',
+        settle: 'The bookings are completed, cancelled or settled',
+    },
+    cod_collections_pending: {
+        what: 'Cash-on-delivery parcels not yet settled',
+        settle: 'The parcels are delivered or returned',
+    },
+    payout_request_held: {
+        what: 'A payout request is open',
+        settle: 'The payout is paid or rejected',
+    },
+    earnings_balance: {
+        what: 'Earnings balance not yet withdrawn',
+        settle: 'The balance is withdrawn',
+    },
+    earnings_allocations_held: {
+        what: 'Earnings still in their hold period',
+        settle: 'The hold period ends',
+    },
+    agency_stock_held: {
+        what: 'Stock held at an agency',
+        settle: 'The stock is collected or counted to zero',
+    },
+    storage_invoices_open: {
+        what: 'Unpaid storage statements',
+        settle: 'The storage statements are settled',
+    },
+    negotiations_open: {
+        what: 'Open price negotiations',
+        settle: 'Open haggles and unspent price locks expire',
+    },
+    stock_requests_pending: {
+        what: 'Stock requests awaiting an answer',
+        settle: 'They are answered or withdrawn',
+    },
+    shipments_unterminated: {
+        what: 'Shipments not yet finished (failed ones count)',
+        settle: 'The shipments finish',
+    },
+    cod_cash_held: {
+        what: 'Cash-on-delivery cash in hand',
+        settle: 'The cash is remitted or deposited',
+    },
+    cod_remittances_declared: {
+        what: 'Remittances awaiting the platform',
+        settle: 'The platform confirms or rejects them',
+    },
+    cod_discrepancies_open: {
+        what: 'Open cash-on-delivery discrepancies',
+        settle: 'The discrepancy is resolved',
+    },
+    shipments_active: {
+        what: 'Shipments in the agent’s hands',
+        settle: 'They are delivered or handed back',
+    },
+    shipments_handover_held: {
+        what: 'A parcel awaiting handover',
+        settle: 'The replacement agent collects it',
+    },
+    offers_pending: {
+        what: 'Delivery offers awaiting an answer',
+        settle: 'The offers are accepted or declined',
+    },
+    cod_deposits_declared: {
+        what: 'Deposits awaiting the agency',
+        settle: 'The agency confirms or rejects them',
+    },
+};
+
+/**
+ * `details.blockers` off a `ROLE_CLOSURE_BLOCKED` refusal, or `[]`.
+ *
+ * ⚠ **Conditional, so tolerated rather than trusted**: wi-admin forwards
+ * jovi-mall's `details` only through its detail policy, and a malformed item is
+ * skipped rather than allowed to take the checklist down.
+ */
+export function roleClosureBlockersOf(details: Record<string, unknown> | undefined): RoleClosureBlocker[] {
+    const raw = details?.blockers;
+    if (!Array.isArray(raw)) return [];
+    const blockers: RoleClosureBlocker[] = [];
+    for (const item of raw) {
+        if (!item || typeof item !== 'object') continue;
+        const { code, count, amount, currency } = item as Record<string, unknown>;
+        if (typeof code !== 'string') continue;
+        blockers.push({
+            code,
+            count: typeof count === 'number' ? count : 0,
+            ...(typeof amount === 'number' ? { amount } : {}),
+            ...(typeof currency === 'string' ? { currency } : {}),
+        });
+    }
+    return blockers;
+}
+
+/** The two forfeits a confirmation carries. Unknown codes render raw. */
+export const ROLE_CLOSURE_WARNING_LABELS: Record<string, string> = {
+    prepaid_plan_forfeited: 'Remaining paid plan time is forfeited',
+    credit_balance_forfeited: 'Credit balance is forfeited',
+};
+
 // ─── Vocabulary ───────────────────────────────────────────────────────────────
 
 /** The `?role=` allowlist. `admin` is absent by contract, not by omission. */
@@ -411,9 +640,10 @@ export const USER_MAX_RANGE_DAYS = 366;
 /**
  * The `users.*` audit actions, for the activity feed's filter.
  *
- * Six today (`backend/admin/src/modules/audit/domain/audit.catalog.ts`); the
+ * Eight today (`backend/admin/src/modules/audit/domain/audit.catalog.ts`); the
  * sixth, `users.bot_memory.reset`, arrived on 2026-09-22 and shares its name
- * with the permission that guards it — the service names several that way.
+ * with the permission that guards it — the service names several that way —
+ * and `users.close.request` / `users.close.cancel` on 2026-10-04 (role closure).
  * The backend **derives** its own filter from the catalog so it widens
  * automatically; this list cannot, so it is a filter vocabulary only — an
  * incoming row naming a seventh action still renders, because nothing here
@@ -426,10 +656,16 @@ export const USER_AUDIT_ACTIONS = [
     'users.password_reset_link.send',
     'users.login_link.send',
     'users.bot_memory.reset',
+    'users.close.request',
+    'users.close.cancel',
 ] as const;
 
 /**
- * How the six read to a person. Falls back to the raw name for anything new.
+ * How the eight read to a person. Falls back to the raw name for anything new.
+ *
+ * ⚠ The two closure actions are the **administrator's** half only. The user's
+ * confirm or decline is not an administrator action, so it never appears in
+ * this feed — it is on the request itself, in the closure-requests panel.
  *
  * ⚠ The two sends are flagged **sensitive** server-side and record the channel
  * and the reason — **never the token, the link, or the full address**. The trail
@@ -443,6 +679,8 @@ export const USER_AUDIT_ACTION_LABELS: Record<string, string> = {
     'users.password_reset_link.send': 'Password-reset link sent',
     'users.login_link.send': 'Sign-in link sent',
     'users.bot_memory.reset': 'Bot memory reset',
+    'users.close.request': 'Role closure requested',
+    'users.close.cancel': 'Role closure request withdrawn',
 };
 
 // ─── Display helpers ──────────────────────────────────────────────────────────

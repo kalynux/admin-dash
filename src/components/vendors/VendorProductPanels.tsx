@@ -1,5 +1,6 @@
 import { ImageOff } from 'lucide-react';
 
+import { CategoryChips } from '@/components/categories/CategoryChips';
 import { CopyableValue } from '@/components/common/CopyableValue';
 import { Definition, DefinitionList, NotSet } from '@/components/common/DefinitionList';
 import { ImageBox, ImageBoxNotice, IMAGE_BOX_RATIO } from '@/components/files/ImageBox';
@@ -66,7 +67,10 @@ export function ProductIdentityPanel({ product, timeZone }: PanelProps) {
 
                     <Definition label="Title">{product.title || <NotSet />}</Definition>
 
-                    <Definition label="Category">{product.category || <NotSet />}</Definition>
+                    <Definition label={product.categories?.length === 1 ? 'Category' : 'Categories'}>
+                        {/* Primary first; the deprecated `category` string is not read. */}
+                        <CategoryChips categories={product.categories ?? []} empty="None" />
+                    </Definition>
 
                     <Definition label="Type">
                         <span className="capitalize">{product.type}</span>

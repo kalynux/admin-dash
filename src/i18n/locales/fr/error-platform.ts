@@ -130,6 +130,25 @@ const platform = {
     AUTH_PROFILE_NOT_FOUND:
         'Ce compte n’a jamais utilisé le bot : il n’y a aucune mémoire à réinitialiser.',
 
+    // ─── Fermeture d'un rôle (jovi-mall ADR-A10) ──────────────────────────────
+    ROLE_CLOSURE_BLOCKED:
+        'Ce rôle ne peut pas encore être fermé : du travail ou de l’argent y est encore rattaché. Rien n’a été envoyé.',
+    ROLE_CLOSURE_ALREADY_PENDING:
+        'Une demande de fermeture de ce rôle attend déjà la réponse de l’utilisateur.',
+    ROLE_CLOSURE_ROLE_NOT_HELD: 'Cet utilisateur ne détient pas ce rôle.',
+    ROLE_CLOSED: 'Ce rôle est déjà fermé. La fermeture d’un rôle est définitive.',
+    ROLE_CLOSURE_REQUEST_NOT_FOUND:
+        'Aucune demande n’est en attente : l’utilisateur a peut-être répondu avant vous.',
+
+    // ─── Liste partagée des catégories de produits (2026-10-04) ───────────────
+    CATEGORY_NAME_TAKEN: 'Une autre catégorie porte déjà ce nom. Fusionnez plutôt avec elle.',
+    CATEGORY_IN_USE:
+        'Des produits utilisent encore cette catégorie : elle ne peut pas être supprimée. Fusionnez-la plutôt.',
+    CATEGORY_MERGE_INVALID: 'Choisissez une autre catégorie, qui existe toujours.',
+    CATEGORY_NAME_INVALID: 'De 2 à 60 caractères, dont au moins une lettre ou un chiffre.',
+    CATEGORY_NOT_FOUND:
+        'Cette catégorie vient d’être modifiée par quelqu’un d’autre. Actualisez la liste.',
+
     // ─── Téléphone d'un administrateur (code WhatsApp) ────────────────────────
     /* Voir le fichier anglais : les six arrivent depuis le 2026-09-15 (BR-025 § 2). */
     PHONE_VERIFICATION_NO_TARGET:
@@ -205,6 +224,14 @@ const platform = {
         'Quelqu’un d’autre a modifié le routage des paiements avant vous. Rien n’a été enregistré : rechargez, regardez ce qui a changé, puis décidez à nouveau.',
     PAYMENT_SETTINGS_INVALID:
         'Ces réglages de paiement enfreignent une règle de routage : rien n’a été enregistré.',
+
+    // ─── Remboursements de frais de livraison ────────────────────────────────
+    DELIVERY_FEE_REFUND_NOT_SETTLEABLE:
+        'Ce remboursement n’est plus dû — il a déjà été réglé, ou un autre administrateur est passé avant vous. Rechargez pour le voir.',
+    DELIVERY_FEE_REFUND_ALREADY_COVERED:
+        'Un remboursement de la commande entière a déjà rendu cet argent. Le payer à nouveau paierait le client deux fois — réglez-le plutôt comme couvert par le remboursement de la commande.',
+    DELIVERY_FEE_REFUND_NOT_COVERED:
+        'Rien d’autre n’a rendu cet argent : il est toujours dû. Envoyez-le au client, puis indiquez comment vous l’avez payé.',
 };
 
 export default platform;

@@ -21,8 +21,78 @@ import { InfoHint } from '@/components/ui/info-hint';
 import { formatCount, formatInstantInZone, formatMoney, humaniseEnum } from '@/lib/format';
 import { resolvePartyName } from '@/lib/party';
 import { isPlatformActor } from '@/types/actor.types';
+import { deliveryPayerLabel } from '@/types/orders.types';
 import type { CanPredicate } from '@/store';
 import { SHIPMENT_OFFER_CAP, type ShipmentDetail } from '@/types/shipments.types';
+
+/**
+ * How the agency's fee was built at checkout (jovi-mall ADR-A11).
+ *
+ * ⛔ **Display only, and never summed here.** `deliveryFeeSnapshot` is the
+ * number; these are the server's own parts of it, printed as given. `null` on a
+ * shipment from before the formula, which renders no card at all rather than a
+ * card of blanks.
+ */
+function FeeComponentsCard({ shipment }: { shipment: ShipmentDetail }) {
+    const parts = shipment.feeComponents;
+    if (!parts) return null;
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>How the fee was built</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                {parts.flatFallback ? (
+                    <p className="text-muted-foreground text-sm">
+                        The agency had no pricing policy, so the platform&apos;s flat fallback
+                        fee was charged.
+                    </p>
+                ) : null}
+                <DefinitionList>
+                    <Definition label="Base (first kg)">
+                        {formatMoney(parts.pickupBase, null)}
+                    </Definition>
+                    <Definition label="Extra weight">
+                        {formatMoney(parts.weightExtra, null)}
+                        <span className="text-muted-foreground">
+                            {' '}
+                            · {formatCount(parts.kg)} kg billed ({formatCount(parts.weightGrams)} g)
+                        </span>
+                    </Definition>
+                    <Definition label="Out-of-region surcharge">
+                        {formatMoney(parts.regionSurcharge, null)}
+                        <span className="text-muted-foreground">
+                            {' '}
+                            · {parts.outOfRegion ? 'drop-off outside the pickup region' : 'same region'}
+                        </span>
+                    </Definition>
+                    <Definition label="Storage">{formatMoney(parts.storage, null)}</Definition>
+                    <Definition
+                        label="Agency ceiling"
+                        hint={
+                            <InfoHint label="About the ceiling">
+                                An agency may cap one shipment&apos;s fee. When the cap applied, the
+                                fee charged is lower than these parts add up to.
+                            </InfoHint>
+                        }
+                    >
+                        {parts.capApplied ? (
+                            <Badge
+                                variant="outline"
+                                className="border-warning/30 bg-warning/10 text-warning"
+                            >
+                                Applied — the fee was capped
+                            </Badge>
+                        ) : (
+                            'Not reached'
+                        )}
+                    </Definition>
+                </DefinitionList>
+            </CardContent>
+        </Card>
+    );
+}
 
 /** Identity, the order it belongs to, and the two parties. */
 export function ShipmentOverviewPanel({
@@ -76,12 +146,12 @@ export function ShipmentOverviewPanel({
                             {formatCount(shipment.itemCount)}
                         </Definition>
                         <Definition
-                            label="Delivery fee"
+                            label="Delivery fee (to the agency)"
                             hint={
                                 <InfoHint label="About the fee">
-                                    A snapshot taken when the shipment was created. No currency
-                                    accompanies it anywhere in the record, so it is shown as a plain
-                                    number.
+                                    What the agency is paid for this run, set at checkout. No
+                                    currency accompanies it anywhere in the record, so it is shown
+                                    as a plain number.
                                 </InfoHint>
                             }
                         >
@@ -91,6 +161,52 @@ export function ShipmentOverviewPanel({
                                 formatMoney(shipment.deliveryFeeSnapshot, null)
                             )}
                         </Definition>
+                        <Definition
+                            label="Delivery paid by"
+                            hint={
+                                <InfoHint label="About who pays">
+                                    Decided at checkout from the shop&apos;s delivery terms. A
+                                    shipment from before customers could pay delivery was paid by
+                                    the shop.
+                                </InfoHint>
+                            }
+                        >
+                            {deliveryPayerLabel(shipment.deliveryPayer ?? null)}
+                        </Definition>
+                        <Definition
+                            label="Charged to the customer"
+                            hint={
+                                <InfoHint label="Why this can differ from the fee">
+                                    What the customer paid for this run — 0 when the shop pays. It
+                                    differs from the agency&apos;s fee while a fee change is waiting
+                                    for the customer&apos;s money.
+                                </InfoHint>
+                            }
+                        >
+                            {shipment.customerDeliveryFee === null ||
+                            shipment.customerDeliveryFee === undefined ? (
+                                <NotSet />
+                            ) : (
+                                formatMoney(shipment.customerDeliveryFee, null)
+                            )}
+                        </Definition>
+                        {shipment.customerFeeRefundable ? (
+                            <Definition
+                                label="Owed back to the customer"
+                                hint={
+                                    <InfoHint label="About money owed back">
+                                        Delivery money the platform holds that belongs to the
+                                        customer — a customer-paid return&apos;s unspent fee, or
+                                        what they paid above the final fee. The refund itself is on
+                                        the order&apos;s Delivery fee tab.
+                                    </InfoHint>
+                                }
+                            >
+                                <span className="text-warning font-medium">
+                                    {formatMoney(shipment.customerFeeRefundable, null)}
+                                </span>
+                            </Definition>
+                        ) : null}
                         <Definition label="Held">
                             {shipment.held ? (
                                 <Badge
@@ -151,6 +267,8 @@ export function ShipmentOverviewPanel({
                     </DefinitionList>
                 </CardContent>
             </Card>
+
+            <FeeComponentsCard shipment={shipment} />
 
             <Card>
                 <CardHeader>
@@ -666,8 +784,24 @@ export function ShipmentCodPanel({
                     <Definition label="State">
                         <span className="capitalize">{humaniseEnum(cod.status) ?? '—'}</span>
                     </Definition>
-                    <Definition label="Expected">
+                    <Definition
+                        label="Expected"
+                        hint={
+                            <InfoHint label="About the expected cash">
+                                All the cash the rider collects: the goods, plus the delivery fee
+                                when the customer pays delivery. Both parts are the platform&apos;s
+                                figures.
+                            </InfoHint>
+                        }
+                    >
                         {formatMoney(cod.expectedAmount, cod.currency)}
+                        {cod.deliveryFeeAmount ? (
+                            <span className="text-muted-foreground">
+                                {' '}
+                                · goods {formatMoney(cod.itemsAmount, cod.currency)} + delivery{' '}
+                                {formatMoney(cod.deliveryFeeAmount, cod.currency)}
+                            </span>
+                        ) : null}
                     </Definition>
                     <Definition label="Collected">
                         {formatInstantInZone(cod.collectedAt, timeZone) ?? 'Not yet'}

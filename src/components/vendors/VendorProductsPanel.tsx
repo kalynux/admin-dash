@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { PackageX, RotateCcw } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
+import { CategoryChips } from '@/components/categories/CategoryChips';
 import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import { EmptyState } from '@/components/common/DataState';
@@ -240,11 +241,14 @@ export function VendorProductsPanel({
                             {product.title ?? product.id}
                         </Link>
                         <p className="text-muted-foreground truncate text-xs">
-                            {[product.category, product.type, product.mode]
-                                .filter(Boolean)
-                                .join(' · ')}
+                            {[product.type, product.mode].filter(Boolean).join(' · ')}
                             {product.hasVariants ? ' · variants' : ''}
                         </p>
+                        {/*
+                          The shared-list categories (2026-10-04), primary first.
+                          ⚠ The deprecated `category` string on the wire is not read.
+                        */}
+                        <CategoryChips categories={product.categories ?? []} className="mt-1" />
                     </div>
                 ),
             },

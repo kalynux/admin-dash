@@ -245,7 +245,7 @@ function VendorProductDetailScreen({
  * The detail record, as the two write dialogs' `VendorProduct` prop.
  *
  * ⚠ **A shape adapter, not a claim that the two projections are the same.** They
- * disagree in both directions — the list types `title`, `slug` and `category` as
+ * disagree in both directions — the list types `title` and `slug` as
  * nullable and the detail does not; the detail carries `media`, `pricing`,
  * `inventory`, `storage`, `variants`, `tags` and a `deliveryAgency.status` the row
  * has no room for. What the dialogs and the two predicates actually read is
@@ -260,7 +260,7 @@ function asListRow(product: VendorProductDetailRecord): VendorProduct {
         id: product.id,
         title: product.title,
         slug: product.slug,
-        category: product.category,
+        categories: product.categories ?? [],
         type: product.type,
         status: product.status,
         mode: product.mode,

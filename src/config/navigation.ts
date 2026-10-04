@@ -16,6 +16,7 @@ import {
     ShieldCheck,
     ShoppingCart,
     Store,
+    Tags,
     Truck,
     UserCog,
     Users,
@@ -319,6 +320,20 @@ export const NAV_SECTIONS: NavSection[] = [
                 implemented: true,
                 phase: 9,
             },
+            {
+                /**
+                 * The shared product-category list (2026-10-04). On the read, so
+                 * Support reaches it; rename, merge and delete are gated per
+                 * button on `catalog.categories.manage` inside the screen.
+                 */
+                id: 'categories',
+                label: 'Categories',
+                icon: Tags,
+                path: '/dashboard/categories',
+                permission: 'catalog.categories.read',
+                implemented: true,
+                phase: 9,
+            },
         ],
     },
     {
@@ -572,6 +587,25 @@ export const NAV_SECTIONS: NavSection[] = [
                         id: 'money-refunds',
                         label: 'Refunds',
                         path: '/dashboard/money/refunds',
+                        permission: 'money.payments.read',
+                        implemented: true,
+                        phase: 11,
+                    },
+                    {
+                        /**
+                         * Delivery money owed back to a customer that the gateway
+                         * could not return (jovi-mall ADR-A11, 2026-10-04).
+                         *
+                         * Gated on the **read**, `money.payments.read`, so Support
+                         * sees it — answering *"where is my delivery refund"* is
+                         * theirs. The one write, Settle, is `orders.refund` and is
+                         * gated inside the screen, never here: a nav entry keyed
+                         * on the write would hide the queue from the tier that
+                         * answers the tickets.
+                         */
+                        id: 'money-delivery-fee-refunds',
+                        label: 'Delivery-fee refunds',
+                        path: '/dashboard/money/delivery-fee-refunds',
                         permission: 'money.payments.read',
                         implemented: true,
                         phase: 11,

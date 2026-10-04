@@ -888,6 +888,20 @@ export function VendorSettingsPanel({ vendor }: { vendor: VendorDetail }) {
                         {settings.notifyDaysBeforeExpiry === 1 ? 'day' : 'days'}{' '}
                         <span className="text-muted-foreground">· read-only</span>
                     </Definition>
+
+                    <Definition
+                        label="Delivery terms"
+                        hint={
+                            <InfoHint label="About delivery terms">
+                                Who pays delivery for this shop&apos;s part of a basket. The vendor
+                                sets it in their own dashboard; there is no administrator write,
+                                and the settings request refuses it.
+                            </InfoHint>
+                        }
+                    >
+                        <DeliveryTermsValue terms={settings.deliveryTerms} />{' '}
+                        <span className="text-muted-foreground">· read-only</span>
+                    </Definition>
                 </DefinitionList>
 
                 <p className="text-muted-foreground text-xs leading-relaxed">
@@ -897,6 +911,24 @@ export function VendorSettingsPanel({ vendor }: { vendor: VendorDetail }) {
             </CardContent>
         </Card>
     );
+}
+
+/**
+ * `settings.deliveryTerms` in words. Absent on an older wi-admin, which reads as
+ * the documented default — the shop pays — rather than as a blank.
+ */
+function DeliveryTermsValue({ terms }: { terms: VendorDetail['settings']['deliveryTerms'] | undefined }) {
+    const mode = terms?.mode ?? 'always';
+    if (mode === 'always') return <>Free delivery — the shop always pays</>;
+    if (mode === 'never') return <>The customer always pays delivery</>;
+    if (mode === 'above') {
+        return terms?.freeAboveAmount === null || terms?.freeAboveAmount === undefined ? (
+            <>Free above an amount (amount not set)</>
+        ) : (
+            <>Free from {formatMoney(terms.freeAboveAmount, 'XAF')} of this shop&apos;s goods</>
+        );
+    }
+    return <>{mode}</>;
 }
 
 function VerifiedMark({

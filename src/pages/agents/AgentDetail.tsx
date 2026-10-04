@@ -27,6 +27,7 @@ import {
 import { ReviewAgentVerificationDialog } from '@/components/verification/ReviewAgentVerificationDialog';
 import { VerificationPanel } from '@/components/verification/VerificationPanel';
 import { Can } from '@/components/auth/Can';
+import { PartyLogsLink } from '@/components/system/PartyLogsLink';
 import { AgentTrustPanel } from '@/components/cod/AgentTrustPanel';
 import { TrustAdjustmentDialog } from '@/components/cod/TrustAdjustmentDialog';
 import { ErrorState } from '@/components/common/DataState';
@@ -246,6 +247,8 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
                         ownerId={record.id}
                         timeZone={timeZone}
                     />
+
+                    <PartyLogsLink userId={record.userId} />
 
                     <Can permission="agents.status.set">
                         <Button variant="outline" size="sm" onClick={() => setSettingStatus(true)}>

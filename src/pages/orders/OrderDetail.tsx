@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Ban, Scale, Send, Undo2 } from 'lucide-react';
+import { ArrowLeft, Ban, HandCoins, Scale, Send, Undo2 } from 'lucide-react';
 
 import { OrderActivityPanel } from '@/components/orders/OrderActivityPanel';
+import { OrderDeliveryFeePanel } from '@/components/orders/OrderDeliveryFeePanel';
+import { OrderMoneySplitPanel } from '@/components/orders/OrderMoneySplitPanel';
 import {
     OrderItemsPanel,
     OrderOverviewPanel,
@@ -24,6 +26,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { resolveTimeZone } from '@/lib/datetime';
+import { formatMoney } from '@/lib/format';
 import { getOrder } from '@/services/orders.service';
 import { useAdmin, useCan } from '@/store';
 import { ApiError, CODE_CLIENT_INVALID_ID } from '@/types/api.types';
@@ -41,9 +44,11 @@ const OBJECT_ID = /^[0-9a-f]{24}$/i;
 /**
  * `GET /orders/:orderId` — one order, and the four interventions.
  *
- * ── Five tabs, two of them conditional ────────────────────────────────────────
- * Overview, Items and Timeline read what `orders.read` already bought, which the
- * module gate required. **Shipments** additionally needs `shipments.read` — an
+ * ── Seven tabs, three of them conditional ─────────────────────────────────────
+ * Overview, Items, Delivery fee and Timeline read what `orders.read` already
+ * bought, which the module gate required. **Money** needs `money.splits.read`
+ * (every tier holds it — Support answers "why did I get this amount?") and is
+ * its own delegated read. **Shipments** additionally needs `shipments.read` — an
  * order's payload carries no shipments, so that tab is a separate read against a
  * separate surface. **Activity** needs `audit.read`, or it would be a second door
  * onto the audit trail bypassing the permission governing it.
@@ -107,7 +112,7 @@ function InvalidOrderId() {
  * need the permission check the link's *author* cannot make, and landing on a
  * tab that is not there is worse than landing on Overview.
  */
-const LINKABLE_TABS = ['overview', 'items', 'timeline'];
+const LINKABLE_TABS = ['overview', 'items', 'delivery-fee', 'timeline'];
 
 function OrderDetailScreen({ orderId }: { orderId: string }) {
     const admin = useAdmin();
@@ -181,8 +186,11 @@ function OrderDetailScreen({ orderId }: { orderId: string }) {
     }
 
     const record = order.data;
+    const owedManually = record.deliveryFee?.owedManually ?? 0;
     const canSeeShipments = can('shipments.read');
     const canSeeActivity = can(['orders.read', 'audit.read'], 'all');
+    // Every tier holds it today, but it is a separate grant on a separate read.
+    const canSeeMoney = can('money.splits.read');
 
     return (
         <PageContainer
@@ -254,10 +262,39 @@ function OrderDetailScreen({ orderId }: { orderId: string }) {
                 />
             ) : null}
 
+            {/*
+              The call to action the changelog asks for: delivery money a person
+              must still send. Shown to every reader — Support answers "where is
+              my delivery refund" — and the Settle button inside the tab is what
+              `orders.refund` gates.
+            */}
+            {owedManually > 0 && tab !== 'delivery-fee' ? (
+                <div
+                    role="status"
+                    className="border-warning/40 bg-warning/10 flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 text-sm"
+                >
+                    <p className="flex items-start gap-2">
+                        <HandCoins className="text-warning mt-0.5 size-4 shrink-0" />
+                        <span>
+                            <strong className="font-medium">
+                                {formatMoney(owedManually, record.currency)}
+                            </strong>{' '}
+                            of delivery money is owed back to the customer and must be sent by
+                            hand.
+                        </span>
+                    </p>
+                    <Button variant="outline" size="sm" onClick={() => setTab('delivery-fee')}>
+                        {can('orders.refund') ? 'Review and settle' : 'Review'}
+                    </Button>
+                </div>
+            ) : null}
+
             <Tabs value={tab} onValueChange={setTab} className="space-y-4">
                 <TabsList>
                     <TabsTrigger value="overview">Overview</TabsTrigger>
                     <TabsTrigger value="items">Items</TabsTrigger>
+                    <TabsTrigger value="delivery-fee">Delivery fee</TabsTrigger>
+                    {canSeeMoney ? <TabsTrigger value="money">Money</TabsTrigger> : null}
                     <TabsTrigger value="timeline">Timeline</TabsTrigger>
                     {canSeeShipments ? (
                         <TabsTrigger value="shipments">Shipments</TabsTrigger>
@@ -277,6 +314,25 @@ function OrderDetailScreen({ orderId }: { orderId: string }) {
                         focusItemId={focusItemId}
                     />
                 </TabsContent>
+
+                <TabsContent value="delivery-fee">
+                    <OrderDeliveryFeePanel
+                        order={record}
+                        timeZone={timeZone}
+                        can={can}
+                        onChanged={reconcile}
+                    />
+                </TabsContent>
+
+                {canSeeMoney ? (
+                    <TabsContent value="money">
+                        <OrderMoneySplitPanel
+                            orderId={record.id}
+                            timeZone={timeZone}
+                            reloadToken={reloadToken}
+                        />
+                    </TabsContent>
+                ) : null}
 
                 <TabsContent value="timeline">
                     <OrderTimelinePanel

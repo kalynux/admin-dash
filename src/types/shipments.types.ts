@@ -43,6 +43,7 @@ import type { ActorStamp } from '@/types/actor.types';
 import { ApiError, CODE_PLATFORM_REJECTED } from '@/types/api.types';
 import type { AuditStatus } from '@/types/audit.types';
 import type { FileDetail } from '@/types/files.types';
+import type { DeliveryPayer } from '@/types/orders.types';
 
 // ─── Status vocabularies ──────────────────────────────────────────────────────
 
@@ -116,10 +117,44 @@ export interface Shipment {
     /** Frozen by the agency-deactivation cascade. */
     held: boolean;
     itemCount: number;
-    /** No currency accompanies this figure. Format the number, print no symbol. */
+    /**
+     * What the **agency** is paid for the run. Written at checkout since jovi-mall
+     * ADR-A11 (2026-10-04), so rarely `null` now; `null` on older rows.
+     * No currency accompanies this figure. Format the number, print no symbol.
+     */
     deliveryFeeSnapshot: number | null;
+    /**
+     * Who pays that fee — `vendor` · `customer`. **`null` = a shipment from
+     * before ADR-A11, which the shop paid.**
+     */
+    deliveryPayer: DeliveryPayer | null;
+    /**
+     * What the **customer** was charged for the run — `0` when the shop pays.
+     * ⚠ **Deliberately separate from `deliveryFeeSnapshot`**: the two differ while
+     * a fee change waits for the customer's money. Never derive one from the
+     * other. `null` on older rows.
+     */
+    customerDeliveryFee: number | null;
     createdAt: string | null;
     updatedAt: string | null;
+}
+
+/**
+ * How the posted fee was built at checkout. **Display only** —
+ * `deliveryFeeSnapshot` is the number; nothing here is summed by this client.
+ */
+export interface ShipmentFeeComponents {
+    pickupBase: number;
+    weightExtra: number;
+    regionSurcharge: number;
+    storage: number;
+    /** The agency's per-shipment ceiling cut the formula's price. */
+    capApplied: boolean;
+    kg: number;
+    weightGrams: number;
+    outOfRegion: boolean;
+    /** The agency had no pricing policy, so the flat fallback was charged. */
+    flatFallback: boolean;
 }
 
 /** The order a shipment belongs to, as the shipment surface reports it. */
@@ -228,7 +263,12 @@ export interface ShipmentHold {
 export interface ShipmentCod {
     collectionId: string;
     status: string;
+    /** All the cash to collect: `itemsAmount + deliveryFeeAmount` (server-side). */
     expectedAmount: number;
+    /** The goods part. A collection from before ADR-A11 reads as all goods. */
+    itemsAmount: number;
+    /** The delivery fee the customer hands over in cash; `0` when the shop pays. */
+    deliveryFeeAmount: number;
     currency: string | null;
     collectedAt: string | null;
     /** `delivery_code` vs `auto_no_code` — the fact a delivery dispute turns on. */
@@ -316,6 +356,13 @@ export interface ShipmentDetail extends Shipment {
     rejection: ShipmentRejection | null;
     customerConfirmation: ShipmentCustomerConfirmation | null;
     hold: ShipmentHold | null;
+    /** `null` on older shipments. */
+    feeComponents: ShipmentFeeComponents | null;
+    /**
+     * Delivery money the platform holds that is **owed back to the customer** —
+     * a customer-paid return's unspent fee, or an overpayment. `0` = none.
+     */
+    customerFeeRefundable: number;
     cod: ShipmentCod | null;
     /** The same capped read as `GET /:id/offers`. */
     offers: ShipmentOffer[];

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, Ban, BadgeCheck, RotateCcw, RotateCw, SlidersHorizontal } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
+import { PartyLogsLink } from '@/components/system/PartyLogsLink';
 import { ErrorState } from '@/components/common/DataState';
 import { DetailSkeleton } from '@/components/common/Loading';
 import { PageContainer } from '@/components/layout/PageContainer';
@@ -224,6 +225,8 @@ function VendorDetailScreen({ vendorId }: { vendorId: string }) {
                         ownerId={record.id}
                         timeZone={timeZone}
                     />
+
+                    <PartyLogsLink userId={record.userId} />
 
                     <Can permission="vendors.settings.manage">
                         <Button

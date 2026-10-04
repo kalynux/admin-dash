@@ -52,7 +52,19 @@ export interface LogEntryView {
     level: string;
     msg: string;
     requestId: string | null;
+    /**
+     * ⚠ A **user** id when `actorSource` is `platform`, an **administrator** id when it is
+     * `admin`. Lines written before 2026-10-04 carry the id alone, so `actorSource` may be
+     * null with an id present — say so rather than guess which namespace it is in.
+     */
     actorId: string | null;
+    actorSource: string | null;
+    /** `customer` · `vendor` · `agency` · `agent` · `admin` — an open string; render unknowns raw. */
+    actorRole: string | null;
+    /** The person, read off their profile — a vendor's display name, never the shop's. */
+    actorName: string | null;
+    /** The vendor / agency / agent / customer id — the one on that party's page. */
+    actorProfileId: string | null;
     /** `console` for a bridged `console.*` call, which carries no component name. */
     source: string | null;
     method: string | null;
@@ -72,6 +84,10 @@ const KNOWN_KEYS = new Set([
     'msg',
     'requestId',
     'actorId',
+    'actorSource',
+    'actorRole',
+    'actorName',
+    'actorProfileId',
     'source',
     'method',
     'routeGroup',
@@ -113,6 +129,12 @@ export function readLogEntry(raw: Record<string, unknown>): LogEntryView {
         msg: String(raw.msg ?? ''),
         requestId: text(raw.requestId),
         actorId: text(raw.actorId),
+        actorSource: text(raw.actorSource),
+        // The error handler's own record carried the role before the line did, so an older
+        // error line still answers "who" by role.
+        actorRole: text(raw.actorRole) ?? text(http?.actorRole),
+        actorName: text(raw.actorName),
+        actorProfileId: text(raw.actorProfileId),
         source: text(raw.source),
         method: text(raw.method),
         routeGroup: text(raw.routeGroup),
@@ -138,6 +160,43 @@ export function readLogEntry(raw: Record<string, unknown>): LogEntryView {
             : null,
         extra,
     };
+}
+
+/** Platform logs, narrowed to one person — the `?actorId=` the screen reads from the address. */
+export function platformLogsPathFor(userId: string): string {
+    return `/dashboard/dev-tools/logs?${new URLSearchParams({ actorId: userId })}`;
+}
+
+const ROLE_WORDS: Record<string, string> = {
+    customer: 'Customer',
+    vendor: 'Vendor',
+    agency: 'Agency',
+    agent: 'Agent',
+    admin: 'Administrator',
+};
+
+/** A role in words; an unknown one is rendered raw rather than guessed at. */
+export function logActorRoleLabel(role: string | null): string | null {
+    if (!role) return null;
+    return ROLE_WORDS[role] ?? role;
+}
+
+/**
+ * Who wrote this line, in one phrase — or `null` for a line no actor wrote (a worker, a boot
+ * line, an anonymous request). Name first because a ticket names a person; the role beside it,
+ * because two people share a name more often than a name and a role.
+ *
+ * ⚠ An id with no `actorSource` is a line from before the platform said which namespace the id
+ * is in — so it is called "Signed-in caller", never "Administrator" (which is what the dialog
+ * said of every id until 2026-10-04, platform users included).
+ */
+export function logActorLabel(entry: LogEntryView): string | null {
+    if (!entry.actorId && !entry.actorName) return null;
+    const role =
+        logActorRoleLabel(entry.actorRole) ??
+        (entry.actorSource === 'admin' ? 'Administrator' : null);
+    if (entry.actorName) return role ? `${entry.actorName} · ${role}` : entry.actorName;
+    return role ?? 'Signed-in caller';
 }
 
 /**

@@ -27,6 +27,7 @@
 
 import { resolvePartyName, type ResolvedPartyName } from '@/lib/party';
 import type { ActorStamp } from '@/types/actor.types';
+import type { ProductCategoryRef } from '@/types/categories.types';
 import type { FileDetail } from '@/types/files.types';
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
@@ -346,6 +347,23 @@ export interface VendorSettings {
     autoCancelUnpaidDays: number;
     /** Read-only here. The PATCH rejects it by name. */
     notifyDaysBeforeExpiry: number;
+    /**
+     * Who pays delivery for this shop's part of a basket (jovi-mall ADR-A11,
+     * 2026-10-04). **Read-only** — the vendor sets it in their own dashboard and
+     * the settings `PATCH` refuses the key with a `400`. Defaults to
+     * `{ mode: 'always', freeAboveAmount: null }`.
+     */
+    deliveryTerms: VendorDeliveryTerms;
+}
+
+/**
+ * `always` — the shop pays (free delivery; **the default**) · `never` — the
+ * customer pays · `above` — free from `freeAboveAmount`, otherwise the customer
+ * pays. `freeAboveAmount` is non-null only for `above`. `mode` is open.
+ */
+export interface VendorDeliveryTerms {
+    mode: 'always' | 'never' | 'above' | (string & {});
+    freeAboveAmount: number | null;
 }
 
 /**
@@ -438,7 +456,16 @@ export interface VendorProduct {
     id: string;
     title: string | null;
     slug: string | null;
-    category: string | null;
+    /**
+     * The shared-list categories (2026-10-04), 1–5 of them in the vendor's
+     * order — **the first is the primary**. An id the list no longer holds is
+     * dropped server-side, so this may be `[]` on a product whose only category
+     * was retired.
+     *
+     * ⚠ The wire still carries a deprecated `category` (`categories[0].name`).
+     * It is deliberately **not declared**, so nothing here can read it again.
+     */
+    categories: ProductCategoryRef[];
     type: ProductType;
     status: ProductStatus;
     mode: ProductMode;
@@ -611,8 +638,8 @@ export interface ProductVariant {
  * backend rather than worked around.
  *
  * ── Not an extension of `VendorProduct` ────────────────────────────
- * The two projections genuinely disagree: the list types `title`, `slug` and
- * `category` as nullable and this one does not, and `deliveryAgency` here carries
+ * The two projections genuinely disagree: the list types `title` and `slug`
+ * as nullable and this one does not, and `deliveryAgency` here carries
  * a `status` the row has no room for. Declaring `extends VendorProduct` would
  * make one of those a lie in order to keep a keyword.
  */
@@ -622,7 +649,12 @@ export interface VendorProductDetail {
     vendorId: string;
     title: string;
     slug: string;
-    category: string;
+    /**
+     * Since 2026-10-04, from `AdminProductDetailDto` (jovi-mall resolver) — the
+     * page documents it on the list row only. Same shape and order as the row;
+     * the deprecated `category` beside it is not declared.
+     */
+    categories: ProductCategoryRef[];
     /** ⚠ Undocumented — see the note above. `[]`, never `null`. */
     tags: string[];
     type: ProductType;

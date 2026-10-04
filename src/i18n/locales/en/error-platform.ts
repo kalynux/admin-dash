@@ -190,6 +190,31 @@ const platform = {
     */
     AUTH_PROFILE_NOT_FOUND: 'This account has never used the bot, so there is no memory to reset.',
 
+    // ─── Role closure (jovi-mall ADR-A10) ─────────────────────────────────────
+    /*
+      Say "close", never "delete" (ADR-A02 D-2). The request dialog renders
+      `details.blockers` itself; these are the floor for any other path.
+    */
+    ROLE_CLOSURE_BLOCKED:
+        'This role cannot be closed yet — live work or money is still attached to it. Nothing was sent.',
+    ROLE_CLOSURE_ALREADY_PENDING:
+        'A closure request for this role is already waiting for the user’s answer.',
+    ROLE_CLOSURE_ROLE_NOT_HELD: 'This user does not hold that role.',
+    ROLE_CLOSED: 'That role is already closed. Closing a role cannot be undone.',
+    ROLE_CLOSURE_REQUEST_NOT_FOUND:
+        'Nothing is waiting to withdraw — the user may have answered first.',
+
+    // ─── The shared product-category list (2026-10-04) ────────────────────────
+    /*
+      The Categories screen turns the first two into a merge offer and never
+      shows these sentences there; they are the floor for any other path.
+    */
+    CATEGORY_NAME_TAKEN: 'Another category already has that name. Merge into it instead.',
+    CATEGORY_IN_USE: 'Products still use this category, so it cannot be deleted. Merge it instead.',
+    CATEGORY_MERGE_INVALID: 'Choose a different category that still exists.',
+    CATEGORY_NAME_INVALID: 'Use 2–60 characters, with at least one letter or digit.',
+    CATEGORY_NOT_FOUND: 'This category was just changed by someone else. Refresh the list.',
+
     // ─── An administrator's own phone (WhatsApp OTP) ──────────────────────────
     /*
       ✅ **All six arrive now.** Two of them could not until 2026-09-15: wi-admin's
@@ -369,6 +394,18 @@ const platform = {
         'Someone else changed payment routing first. Nothing was saved — reload, look at what they did, and decide again.',
     PAYMENT_SETTINGS_INVALID:
         'Those payment settings break a routing rule, so nothing was saved.',
+
+    // ─── Delivery-fee refunds (jovi-mall ADR-A11, 2026-10-04) ────────────────
+    /*
+      All three refuse a settle, at 409. The dialog branches on each and says
+      what to do next; this copy is the floor for anywhere else they surface.
+    */
+    DELIVERY_FEE_REFUND_NOT_SETTLEABLE:
+        'This refund is no longer owed — it was settled already, or another administrator got there first. Reload to see it.',
+    DELIVERY_FEE_REFUND_ALREADY_COVERED:
+        'A refund of the whole order already returned this money. Paying it again would pay the customer twice — settle it as covered by the order refund instead.',
+    DELIVERY_FEE_REFUND_NOT_COVERED:
+        'Nothing else has returned this money, so it is still owed. Send it to the customer, then record how you paid.',
 };
 
 export default platform;

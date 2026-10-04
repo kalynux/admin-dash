@@ -89,6 +89,7 @@ describe('what it sends', () => {
                     autoRedirectThresholdAmount: 500_000,
                     autoCancelUnpaidDays: 3,
                     notifyDaysBeforeExpiry: 7,
+                    deliveryTerms: { mode: 'always', freeAboveAmount: null },
                 },
             }),
         );

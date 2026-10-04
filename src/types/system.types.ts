@@ -556,6 +556,11 @@ export interface PlatformLogsQuery {
     /** The cross-service join — an audit row's `correlationId` is this value. */
     requestId?: string;
     q?: string;
+    /**
+     * One actor's lines. Matches the user id **or** the vendor / agency / agent / customer
+     * profile id, so either id from a party's page works. 24-hex, else `400`.
+     */
+    actorId?: string;
     source?: string;
     limit?: number;
     /** **A cursor, not an offset** — the capped collection evicts from the front. */

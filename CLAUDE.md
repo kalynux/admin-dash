@@ -29,6 +29,98 @@ two before it closed with Phase F on 2026-08-27 (`GET /files/library`, `POST /fi
 pins the services against the map — so take it by grepping each ROUTE-MAP path in
 `src/services`, not by reading it here.
 
+✅ **Platform earnings + the order money split built 2026-10-04 — read-only.** Contract:
+[FRONTEND-CHANGELOG-money-split.md](api-doc/admin/FRONTEND-CHANGELOG-money-split.md); `money.md`,
+`permissions.md`, `api/README.md` and `README.md` re-copied. **Upstream uncommitted in wi-admin AND
+jovi-mall, not deployed.** ⚠ **The top-level `/money/earnings/platform` figures are the COMMISSION
+account alone** — the headline is the server's `total.earned` (`platformEarningsTotal()`), both
+accounts sit beside it (`platformEarningsAccounts()`), and an older service with neither is labelled
+*commission only*, never "total". New: `getPlatformEarningsSummary` (period card, **strict** — only
+`from`/`to`), the ledger's `?account=` (default `all`; an Account column from `owner.type`,
+`platform_ai` = bargain fee), and `getOrderMoneySplit` → the order's **Money** tab
+(`OrderMoneySplitPanel`, on **`money.splits.read`** — the 132nd name, every tier). Types in
+[`money-split.types.ts`](src/types/money-split.types.ts), every vocabulary open. ⚠ **`line.amount` is
+`number | null` in jovi-mall source** (an agent's share not yet known) and the page never says so.
+⛔ **Owner's decision the same day: Admin and Support see the platform's commission and bargain fee
+on the split as RATES, never FCFA** — gated on `useIsDeveloper()` inside the panel,
+perturbation-tested. ⚠ **It hides, it does not protect**: the API sends the amounts to every tier,
+and gross − vendor net gives them away; a real boundary is a backend projection. The Earnings
+screen and tile were already Developer-only (2026-09-27). Measured: `dump-routes.js` **`TOTAL 284`
+= 283 routes**, `authz:matrix` **132 / 110 / 42**. 🔴 `permissions.md` upstream now says 132 and
+has the `money.splits.read` row — and **still no `users.close` row**, so the same two assertions
+stay red.
+
+✅ **Customer-paid delivery built 2026-10-04 — read-only fields everywhere, plus ONE write: Settle.**
+Contract: [FRONTEND-CHANGELOG-customer-paid-delivery.md](api-doc/admin/FRONTEND-CHANGELOG-customer-paid-delivery.md)
+(jovi-mall ADR-A11); `money.md`, `orders.md`, `shipments.md`, `agencies.md`, `accounts.md` and the
+integration matrix re-copied, and `api-doc/jovi-mall/error-codes.ts` re-taken (purely additive).
+**Upstream committed (`8d3cf25`), not deployed.** ⛔ **`items[].delivery.freeDelivery` is GONE** —
+not declared, and a comment says why: an absent key read as a boolean is `false`. Who paid is the
+order's `deliveryPayer`, and **`null` renders as the shop**, never "unknown". New: **Money ›
+Delivery-fee refunds** (`/dashboard/money/delivery-fee-refunds[/:refundId]`, on
+`money.payments.read` — **Support sees the queue**) and `SettleDeliveryFeeRefundDialog`, shown only
+on `settleable` rows **and** `orders.refund` (perturbation-tested: both Support tests go red if the
+gate is dropped). ⚠ `?status=` is the **queue** (`manual_required` · `settled` · `all`), a pinned
+`z.enum` — an unknown value is a `400`. ⚠ The three refusals are `details.platformCode`:
+`NOT_SETTLEABLE` → reload, `ALREADY_COVERED` → a one-click switch to `covered_by_order_refund`,
+`NOT_COVERED` → the choice is cleared. ⚠ **`remainder` ≠ `null` is money still owed** and the
+detail links to it. ⛔ **No method is pre-selected, and nothing is summed client-side** — every
+total (`owedManually`, `returned`, `deliveryTopUpsPaid`, `cod.itemsAmount`) is printed as sent.
+The order detail grew a **Delivery fee** tab (`OrderDeliveryFeePanel`) and a call to action when
+`owedManually > 0`; `orders.delivery_fee_refund.settle` joined `ORDER_AUDIT_ACTIONS`. Payments
+label `order_delivery_topup` via `paymentPurposeLabel()`. Measured: `dump-routes.js` **`TOTAL 282`
+= 281 routes**; no new permission. ⚠ Not in upstream docs yet: `audit.md` lacks the new action,
+and `orders.md` carries the `deliveryFee` field row twice.
+
+✅ **Logs name their actor and filter by them — built 2026-10-04, across all three repos.**
+jovi-mall's logger mixin now stamps `actorSource` · `actorRole` · `actorName` · `actorProfileId`
+beside `actorId` (read off the profile `requireAuth` already loaded — no new query), and
+`GET /system/logs?actorId=` matches **the user id OR the profile id**; wi-admin's
+`LogQuerySchema` forwards it (non-strict, so it had to be declared or it was stripped) and
+`system.md` documents both — re-copied here. Platform logs takes `?actorId=` from the address,
+names who wrote each row (click → narrow to them), and refuses to send a half-typed id; the
+vendor, agency, agent and user pages carry **View logs** (`PartyLogsLink`, on
+`developer_tools.logs.read`). ⚠ **The link passes the USER id** — older lines carry no profile id.
+⚠ **The entry dialog called every `actorId` "Administrator"**, and most are platform users; it now
+labels by `actorSource`. ⚠ **Deploy jovi-mall first** — its `LogQuerySchema` is `.strict()`, so an
+older one answers `400` on `actorId`. **Uncommitted in all three repos.**
+
+✅ **Product categories built 2026-10-04 — a 27th route group and a 22nd permission family.**
+Contract: [FRONTEND-CHANGELOG-product-categories.md](api-doc/admin/FRONTEND-CHANGELOG-product-categories.md);
+`categories.md` new, `permissions.md`, `vendors.md` and `api/README.md` re-copied. **Upstream
+uncommitted.** `/dashboard/categories` (Operations, on `catalog.categories.read` — **Support
+sees it**) lists, filters (`search`, `createdSource`) and sorts the shared list; a detail page
+shows `aliasKeys` under *Also matches*. Rename / Merge / Delete live in
+`components/categories/CategoryDialogs.tsx` behind **`catalog.categories.manage`**
+(`destructive`, tiers 1–2) and are **not rendered** without it. ⚠ **A refusal can become another
+action**: `CATEGORY_NAME_TAKEN` offers *Merge into ‹existingName›* (skipping to the confirmation),
+`CATEGORY_IN_USE` offers *Merge instead*; `CATEGORY_MERGE_INVALID` returns to the picker;
+`CATEGORY_NOT_FOUND` **and** wi-admin's own `404 NOT_FOUND` mean *someone else got there first*
+(`isCategoryGone`). Delete is offered only at `productCount === 0`. ⛔ **No create, ever** —
+vendors create categories by naming them. ⚠ **Vendor product rows AND the product detail carry
+`categories[]`** (primary first) rendered by `CategoryChips`; the deprecated `category` string is
+**not declared on either type**, so nothing can read it again. ⚠ Audit target type `category` is
+in source and **missing from `audit.md`** (still says 23). Measured: `authz:matrix`
+**131 / 109 / 41**, `dump-routes.js` **`TOTAL 279` = 278 routes**. 🔴 `permissions.md` lists
+the `catalog` rows but its prose still says 128 and it still lacks `users.close`, so the same
+two assertions in `permissions.types.test.ts` stay red — now on `users.close` alone.
+
+✅ **Role closure built 2026-10-04 — an administrator ASKS, only the user closes.** Contract:
+[FRONTEND-CHANGELOG-role-closure.md](api-doc/admin/FRONTEND-CHANGELOG-role-closure.md) (jovi-mall
+ADR-A10); `users.md` re-copied, jovi-mall's `me/role-closure.md` mirrored with a banner for its
+*Blocker codes*. **Not deployed, upstream uncommitted.** `listRoleClosureRequests` /
+`requestRoleClosure` / `withdrawRoleClosure`; per-role **Request closure** on `RoleProfilesPanel`
+(`users.close`, tiers 1–2, active accounts only, replaced by a *Closure requested* link while one
+is pending), `RequestRoleClosureDialog`, and `RoleClosureRequestsPanel` (on `users.read`, so
+Support sees it) with **Withdraw** on pending rows. ⛔ **No confirm button anywhere, and say
+"close", never "delete".** ⚠ Refusals branch on `details.platformCode`; `ROLE_CLOSURE_BLOCKED`
+renders `details.blockers[]` as a checklist via `roleClosureBlockersOf()` (tolerant — the
+details may not arrive), and `USER_STATUS_CONFLICT` gets its **own** words there because the
+catalog's sentence is written for suspend/restore. Measured: `authz:matrix` **129 / 107 / 40**,
+`dump-routes.js` **`TOTAL 274` = 273 routes**. 🔴 **`permissions.md` upstream still says 128 and
+has no `users.close` row**, so two assertions in `permissions.types.test.ts` are red until it is
+corrected there and re-copied — the 2026-09-27 hand-off again; do not loosen the test.
+
 ✅ **COD limits built 2026-10-03 — agency COD limit, agent pool `default`, `monthly_salary`.**
 Contract: [FRONTEND-CHANGELOG-cod-limits.md](api-doc/admin/FRONTEND-CHANGELOG-cod-limits.md)
 (jovi-mall ADR-A09); **not deployed, upstream uncommitted, jovi-mall deploys first.**
@@ -480,7 +572,7 @@ pinned upstream by `test:list-strictness` — read it there rather than copying 
 [`src/lib/query.ts`](src/lib/query.ts) for this repository's one statement of the rule. Widening
 `listQuery` service-wide is still deliberately **not** done.
 
-**`npm test` — 2753 tests in 179 files, measured on 2026-10-01** at the close of the article-JSON round (+`article-body-json.test.ts`, +`ArticleBodyJson.test.tsx`), 9 failures in `App`, `SearchInput`, `ArticleCreateDialog` and `CreateTicketDialog` with 12 node processes up; all four files passed alone (3/3, 40/40). **Before that, 2731 tests in 177 files, measured on 2026-09-30** at the close of the resolve-unknown round (+`PayoutResolveUnknown.test.tsx`), 10 failures with 33 node processes up, all in `App`, `ArticleCreateDialog` and `CreateTicketDialog`; run together alone 6 still failed, and **the same 6 fail at `HEAD` (`079588f`) in a throwaway worktree** — pre-existing, not investigated. **Before that, 2715 tests in 176 files** at the close of the payment-routing round, with 7 failures in a run sharing the machine with 32 node processes, none in a file the round touched (`App`, `ArticleCreateDialog`, `CreateTicketDialog`, `UserDetail`); re-run alone all passed but one `ArticleCreateDialog` cover test, which then passed alone on a second run — `ArticleCreateDialog.test.tsx` is the sixth file in the contention pattern. **The previous figure was 2645 tests in 171 files, measured on 2026-09-27** at the close of the bot-memory round (+`ResetBotMemoryDialog.test.tsx`, −`permissions.pending.test.ts`), with 8 failures in a run that shared the machine with a build, all in `CreateTicketDialog`, `App` and `TicketAttachmentsPanel`; re-run alone, the 3 that remain are the ones recorded below as failing at `HEAD`. **The previous figure was 2629 tests in 170 files, measured on 2026-09-22** at the close of the COD-pool
+**`npm test` — 2896 tests in 189 files, measured on 2026-10-04** at the close of the money-split round (+`OrderMoneySplitPanel.test.tsx`), 9 failures with 32 node processes up — the 2 `permissions.types` (`users.close`) plus 7 in `App`, `ArticleCreateDialog` and `CreateTicketDialog`; those three run alone left 1 (`ArticleCreateDialog`). **Before that, 2863 tests in 188 files** at the close of the customer-paid-delivery round (+`DeliveryFeeRefunds.test.tsx`, +4 service tests), 13 failures with 39 node processes up — the 2 `permissions.types` (`users.close`) plus 11 in `App`, `SearchInput`, `ArticleCreateDialog` and `CreateTicketDialog`; those four run alone left 3 (`ArticleCreateDialog` ×2, `CreateTicketDialog` ×1), none in a file the round touched. **Before that, 2832 tests in 186 files** at the close of the categories round (+`categories.service.test.ts`, +`CategoriesList.test.tsx`), 10 failures with 41 node processes up: the 2 `permissions.types` assertions red on `users.close` (upstream doc), and 8 in `App`, `SearchInput`, `ArticleCreateDialog` and `CreateTicketDialog` — **the same 9 of those fail at `HEAD` (`7131758`) in a throwaway worktree**, so pre-existing. **Before that, 2753 tests in 179 files, measured on 2026-10-01** at the close of the article-JSON round (+`article-body-json.test.ts`, +`ArticleBodyJson.test.tsx`), 9 failures in `App`, `SearchInput`, `ArticleCreateDialog` and `CreateTicketDialog` with 12 node processes up; all four files passed alone (3/3, 40/40). **Before that, 2731 tests in 177 files, measured on 2026-09-30** at the close of the resolve-unknown round (+`PayoutResolveUnknown.test.tsx`), 10 failures with 33 node processes up, all in `App`, `ArticleCreateDialog` and `CreateTicketDialog`; run together alone 6 still failed, and **the same 6 fail at `HEAD` (`079588f`) in a throwaway worktree** — pre-existing, not investigated. **Before that, 2715 tests in 176 files** at the close of the payment-routing round, with 7 failures in a run sharing the machine with 32 node processes, none in a file the round touched (`App`, `ArticleCreateDialog`, `CreateTicketDialog`, `UserDetail`); re-run alone all passed but one `ArticleCreateDialog` cover test, which then passed alone on a second run — `ArticleCreateDialog.test.tsx` is the sixth file in the contention pattern. **The previous figure was 2645 tests in 171 files, measured on 2026-09-27** at the close of the bot-memory round (+`ResetBotMemoryDialog.test.tsx`, −`permissions.pending.test.ts`), with 8 failures in a run that shared the machine with a build, all in `CreateTicketDialog`, `App` and `TicketAttachmentsPanel`; re-run alone, the 3 that remain are the ones recorded below as failing at `HEAD`. **The previous figure was 2629 tests in 170 files, measured on 2026-09-22** at the close of the COD-pool
 round (the two new files are `AssignabilityCheck.test.tsx` and `PlanFormDialog.test.tsx`), with
 **3 failures, none in a file the round touched**, and 16 node processes up. ⚠ **One of them is not
 a flake: App.test.tsx's *"lands the orders container on its index child"* failed in the full run,
@@ -621,7 +713,7 @@ machine, not the code.
 npm run dev       # 5175, strictPort
 npm run build     # tsc -b && vite build   ← the typecheck runs here
 npm run lint      # eslint .
-npm test          # vitest run — 2753 tests in 179 files (2026-10-01, after the article-JSON round). No sibling dashboard has one.
+npm test          # vitest run — 2896 tests in 189 files (2026-10-04, after the money-split round). No sibling dashboard has one.
 ```
 
 **Every phase closes the same way**: typecheck, lint, tests, build, then a written summary naming
@@ -1072,11 +1164,11 @@ level rather than refusing, `POST /money/payouts/:payoutId/reject`, which is **n
 
 ## What exists, and what does not
 
-The **26** built route groups are `/auth`, `/administrators`, `/employees`, `/geo`,
+The **27** built route groups are `/categories` (2026-10-04), `/auth`, `/administrators`, `/employees`, `/geo`,
 `/permissions`, `/approvals`, `/audit`, `/users`, `/vendors`, `/agencies`, `/agents`,
 `/contracts`, `/orders`, `/shipments`, `/cod`, `/billing`, `/money`, `/accounts`, `/support`,
 `/content`, `/messaging`, `/files`, `/system`, `/dev-tools`, `/notifications`, `/automation`
-(+ unversioned `/health/live`, `/health/ready`) — **265 routes in total** (264 → 265 later on 2026-09-30, measured: `POST /money/payouts/:payoutId/resolve-unknown`; 262 → 264 earlier that day, measured: `GET`/`PUT /dev-tools/payments`; 261 → 262 later on 2026-09-27, measured: the account statement; 256 → 261 earlier that day for the bot-memory reset and ADR-024's four triage/send routes). Every one is listed
+(+ unversioned `/health/live`, `/health/ready`) — **283 routes in total** (281 → 283 on 2026-10-04, measured: the platform summary and the order split; 278 → 281 earlier that day, measured: the three `/money/delivery-fee-refunds` routes; 273 → 278 the same day: the five `/categories` routes; 270 → 273 the same day for role closure; 264 → 265 later on 2026-09-30, measured: `POST /money/payouts/:payoutId/resolve-unknown`; 262 → 264 earlier that day, measured: `GET`/`PUT /dev-tools/payments`; 261 → 262 later on 2026-09-27, measured: the account statement; 256 → 261 earlier that day for the bot-memory reset and ADR-024's four triage/send routes). Every one is listed
 with its permission in [api-doc/ROUTE-MAP.md](api-doc/ROUTE-MAP.md), and
 `src/types/route-map.test.ts` parses that file, so the 265 and the exact composite-guard set fail
 a test rather than ageing in prose.

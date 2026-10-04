@@ -50,6 +50,9 @@ type DomainPrefix =
     | 'STRIPE'
     | 'NOTCHPAY'
     | 'MYCOOLPAY'
+    | 'CAMPAY'
+    | 'CINETPAY'
+    | 'FAPSHI'
     | 'VALIDATION';   // VALIDATION_ERROR — ZodError catch in global handler only
 
 // Compile-time check: every key must start with a known domain prefix.
@@ -166,6 +169,17 @@ export const ERROR_CODES = Object.freeze({
      * earlier meets.
      */
     AUTH_ACCOUNT_CLOSED: 'AUTH_ACCOUNT_CLOSED',
+
+    /**
+     * The token names a ROLE that has been closed (ADR-A10) — the person may still hold others.
+     *
+     * One axis down from `AUTH_ACCOUNT_CLOSED`, which is the whole account. Raised by
+     * `requireAuth` (the role entity carries `closed_at`) and by the refresh rotation (the
+     * role is no longer in `users.roles`), so a session opened as the closed role ends within
+     * one request rather than living out its 30-day refresh cookie. A client should sign the
+     * person out of THAT role and offer the others; re-authenticating as it will not help.
+     */
+    AUTH_ROLE_CLOSED: 'AUTH_ROLE_CLOSED',
 
     // ── PAYMENT ───────────────────────────────────────────────────────────────
     PAYMENT_ORDER_NOT_FOUND: 'PAYMENT_ORDER_NOT_FOUND',
@@ -296,7 +310,7 @@ export const ERROR_CODES = Object.freeze({
     /** A link was asked for on a transaction that is already settled, failed or cancelled. */
     PAYMENT_LINK_NOT_PAYABLE: 'PAYMENT_LINK_NOT_PAYABLE',
 
-    // ── NOTCHPAY / MYCOOLPAY ──────────────────────────────────────────────────
+    // ── NOTCHPAY / MYCOOLPAY / CAMPAY / CINETPAY / FAPSHI ─────────────────────
     // Raised at 5xx only, so `INTEGRATION_PREFIXES` files them as `external_service`
     // and the boundary replaces the message and drops `details`. That is deliberate:
     // the diagnostics are for our logs, and a provider's own error text is not
@@ -307,6 +321,12 @@ export const ERROR_CODES = Object.freeze({
     NOTCHPAY_UNREACHABLE: 'NOTCHPAY_UNREACHABLE',
     MYCOOLPAY_REQUEST_FAILED: 'MYCOOLPAY_REQUEST_FAILED',
     MYCOOLPAY_UNREACHABLE: 'MYCOOLPAY_UNREACHABLE',
+    CAMPAY_REQUEST_FAILED: 'CAMPAY_REQUEST_FAILED',
+    CAMPAY_UNREACHABLE: 'CAMPAY_UNREACHABLE',
+    CINETPAY_REQUEST_FAILED: 'CINETPAY_REQUEST_FAILED',
+    CINETPAY_UNREACHABLE: 'CINETPAY_UNREACHABLE',
+    FAPSHI_REQUEST_FAILED: 'FAPSHI_REQUEST_FAILED',
+    FAPSHI_UNREACHABLE: 'FAPSHI_UNREACHABLE',
 
     // ── REFUND ────────────────────────────────────────────────────────────────
     REFUND_NOT_ELIGIBLE: 'REFUND_NOT_ELIGIBLE',
@@ -858,6 +878,10 @@ export const ERROR_CODES = Object.freeze({
     // A geocoded address resolves outside the profile's registered country
     // (or its provider returned no country code, so it cannot be verified).
     ADDRESS_COUNTRY_MISMATCH: 'ADDRESS_COUNTRY_MISMATCH',
+    // A customer address whose region (or, failing that, city) names none of its
+    // country's regions. Refused so every drop-off carries a region an agency's
+    // coverage can actually match; `details.allowedRegions` is the picker.
+    ADDRESS_REGION_INVALID: 'ADDRESS_REGION_INVALID',
     // Attempt to change a profile country that is already set. Country is
     // chosen during onboarding and immutable afterwards (tax/shipping policy).
     PROFILE_COUNTRY_IMMUTABLE: 'PROFILE_COUNTRY_IMMUTABLE',
@@ -1142,6 +1166,9 @@ export const ERROR_CODES = Object.freeze({
 
     // ── DELIVERY ──────────────────────────────────────────────────────────────
     DELIVERY_AGENCY_NOT_FOUND: 'DELIVERY_AGENCY_NOT_FOUND',
+    // An administrator moved a shipment to an agency that is not `active`, without
+    // `force: true`. With force, the move goes through.
+    DELIVERY_AGENCY_NOT_ACTIVE: 'DELIVERY_AGENCY_NOT_ACTIVE',
     AGENCY_COVERAGE_AREA_INVALID: 'AGENCY_COVERAGE_AREA_INVALID',
     DELIVERY_AGENT_NOT_FOUND: 'DELIVERY_AGENT_NOT_FOUND',
     DELIVERY_AGENCY_ALREADY_EXISTS: 'DELIVERY_AGENCY_ALREADY_EXISTS',
@@ -1397,6 +1424,30 @@ export const ERROR_CODES = Object.freeze({
      */
     ACCOUNT_CLOSURE_ORDERS_IN_FLIGHT: 'ACCOUNT_CLOSURE_ORDERS_IN_FLIGHT',
 
+    // ── ROLE CLOSURE (administrator-requested, user-confirmed — ADR-A10) ─────
+    /** No pending closure request for this user + role (or for the caller's current role). */
+    ROLE_CLOSURE_REQUEST_NOT_FOUND: 'ROLE_CLOSURE_REQUEST_NOT_FOUND',
+    /**
+     * A closure request for this user + role is already waiting on the user. One at a time —
+     * a partial unique index enforces it, this is its readable face. `details.requestId`.
+     */
+    ROLE_CLOSURE_ALREADY_PENDING: 'ROLE_CLOSURE_ALREADY_PENDING',
+    /** The user does not hold the role named (or it is `admin`, which is not closable here). */
+    ROLE_CLOSURE_ROLE_NOT_HELD: 'ROLE_CLOSURE_ROLE_NOT_HELD',
+    /**
+     * Live work or money is attached to the role, so it cannot close yet (owner decision O-2).
+     * `details.blockers` is the itemised list — `[{ code, count, amount? }]` — evaluated at
+     * request time AND again at confirm, because seven days is long enough for a new order.
+     */
+    ROLE_CLOSURE_BLOCKED: 'ROLE_CLOSURE_BLOCKED',
+    /** The request passed its 7-day expiry before the user answered. Ask again. */
+    ROLE_CLOSURE_REQUEST_EXPIRED: 'ROLE_CLOSURE_REQUEST_EXPIRED',
+    /**
+     * The role was closed, and a verb tried to bring it back — reinstate, reactivate, a status
+     * write, or `addRole`. Closure is irreversible: the identifiers are gone, not archived.
+     */
+    ROLE_CLOSED: 'ROLE_CLOSED',
+
     // ── CONTACT CHANGE (self-service, `/api/me/{email,phone}`) ────────────────
     /**
      * The identifier the caller asked to move to is the one already on the account.
@@ -1572,6 +1623,110 @@ export const ERROR_CODES = Object.freeze({
     // The product stopped being stored with this agency while the request stood.
     STOCK_REQUEST_STALE: 'STOCK_REQUEST_STALE',
     STOCK_REQUEST_NO_CHANGE: 'STOCK_REQUEST_NO_CHANGE',
+
+    // ── AI LISTING COPY (`POST /api/vendor/ai/listing-copy`) ──────────────────
+    // A chosen photo is not this vendor's, not an image, deleted, or unreadable.
+    // `details.fileId`. Checked BEFORE the charge, so nothing was debited.          // 422
+    AI_COPY_IMAGE_INVALID: 'AI_COPY_IMAGE_INVALID',
+    // Switched off (`AI_COPY_ENABLED=false`) or the n8n workflow could not be
+    // reached. Everything was refunded.                                            // 503
+    AI_COPY_UNAVAILABLE: 'AI_COPY_UNAVAILABLE',
+    // The model answered and nothing it wrote was usable, or it timed out.
+    // Everything was refunded.                                                     // 502
+    AI_COPY_FAILED: 'AI_COPY_FAILED',
+
+    // ── PRODUCT CATEGORIES (one marketplace list, 1–5 per product) ────────────
+    // Each is raised at exactly ONE status (test:errors' census).
+    // A new name looks like an existing category and `confirmNew` was not sent.
+    // `details.conflicts[] = { name, suggestions[] }`. Nothing was written.        // 422
+    CATEGORY_SIMILAR_EXISTS: 'CATEGORY_SIMILAR_EXISTS',
+    // Empty after clean-up, longer than 60, or no letter/digit. `details.name`.    // 400
+    CATEGORY_NAME_INVALID: 'CATEGORY_NAME_INVALID',
+    // An `{ id }` (or an admin route's `:id`) that is not a live category.         // 404
+    CATEGORY_NOT_FOUND: 'CATEGORY_NOT_FOUND',
+    // An admin rename onto another live category's spelling. `details.existingId` —
+    // the remedy is a MERGE, not a retry.                                          // 409
+    CATEGORY_NAME_TAKEN: 'CATEGORY_NAME_TAKEN',
+    // An admin delete while live products still hold it. `details.productCount`.  // 409
+    CATEGORY_IN_USE: 'CATEGORY_IN_USE',
+    // Merging into itself, or into a category that is not live.                   // 422
+    CATEGORY_MERGE_INVALID: 'CATEGORY_MERGE_INVALID',
+
+    // ── DELIVERY-FEE PROPOSALS (agency/agent → vendor, per shipment) ───────────
+    // Each is raised at exactly ONE status (test:errors' census).
+    DELIVERY_FEE_PROPOSAL_NOT_FOUND: 'DELIVERY_FEE_PROPOSAL_NOT_FOUND',          // 404
+    // One pending proposal per shipment. Withdraw it, or wait for the vendor.   // 409
+    DELIVERY_FEE_PROPOSAL_ALREADY_PENDING: 'DELIVERY_FEE_PROPOSAL_ALREADY_PENDING',
+    // A compare-and-set miss on approve/reject/withdraw — the row exists, somebody
+    // else resolved it first. A CONFLICT, never a not-found.                    // 409
+    DELIVERY_FEE_PROPOSAL_NOT_PENDING: 'DELIVERY_FEE_PROPOSAL_NOT_PENDING',
+    // Proposals are allowed only before pickup (`assigned` / `handing_over`).   // 422
+    DELIVERY_FEE_PROPOSAL_WINDOW_CLOSED: 'DELIVERY_FEE_PROPOSAL_WINDOW_CLOSED',
+    // The agent proposed while their agency has not enabled agent proposals.     // 403
+    DELIVERY_FEE_PROPOSAL_AGENTS_NOT_ALLOWED: 'DELIVERY_FEE_PROPOSAL_AGENTS_NOT_ALLOWED',
+    // Two non-withdrawn proposals per shipment, already used.                   // 422
+    DELIVERY_FEE_PROPOSAL_LIMIT_REACHED: 'DELIVERY_FEE_PROPOSAL_LIMIT_REACHED',
+    // The proposed fee equals the fee the shipment already carries.             // 422
+    DELIVERY_FEE_PROPOSAL_NO_CHANGE: 'DELIVERY_FEE_PROPOSAL_NO_CHANGE',
+    // The fee would leave the vendor earning ≤ 0 on the shipment/order. The ONLY
+    // ceiling — the 30% delivery-cost cap does not apply to an approved fee.    // 422
+    DELIVERY_FEE_PROPOSAL_VENDOR_NET_NOT_POSITIVE: 'DELIVERY_FEE_PROPOSAL_VENDOR_NET_NOT_POSITIVE',
+    // Withdrawing a proposal you did not raise (an agent, the agency's).        // 403
+    DELIVERY_FEE_PROPOSAL_NOT_YOURS: 'DELIVERY_FEE_PROPOSAL_NOT_YOURS',
+    // Approval found the shipment no longer in the window, or the proposing agent
+    // no longer on it. The proposal stays pending; the agency may withdraw it.  // 409
+    DELIVERY_FEE_PROPOSAL_STALE: 'DELIVERY_FEE_PROPOSAL_STALE',
+    // Approval could not re-price the vendor's payment-time allocation (it was
+    // released, reversed or concurrently changed). Nothing was applied.        // 409
+    DELIVERY_FEE_PROPOSAL_SETTLEMENT_CONFLICT: 'DELIVERY_FEE_PROPOSAL_SETTLEMENT_CONFLICT',
+    // The proposal was edited since the caller loaded it (`details.currentVersion`). The
+    // vendor must re-read and answer what is current; never apply an unseen figure.  // 409
+    DELIVERY_FEE_PROPOSAL_VERSION_MISMATCH: 'DELIVERY_FEE_PROPOSAL_VERSION_MISMATCH',
+    // ── Customer-paid fee changes (ADR-A11, W-E) ──
+    // An edit would turn a customer-approval INCREASE into a decrease. Withdraw it and propose
+    // the lower fee, which then applies directly.                               // 422
+    DELIVERY_FEE_PROPOSAL_DIRECTION_CHANGED: 'DELIVERY_FEE_PROPOSAL_DIRECTION_CHANGED',
+    // The customer already approved this figure and may be paying for it: it can no longer be
+    // edited, and a live top-up payment blocks a withdrawal / rejection.        // 409
+    DELIVERY_FEE_TOPUP_IN_PROGRESS: 'DELIVERY_FEE_TOPUP_IN_PROGRESS',
+    // Paying a top-up that is not owed: not approved yet, already paid, or nothing to pay. // 409
+    DELIVERY_FEE_TOPUP_NOT_DUE: 'DELIVERY_FEE_TOPUP_NOT_DUE',
+    // A customer-paid ONLINE order whose payment is no longer simply `paid` (refunded,
+    // disputed): its delivery money cannot be moved by a fee change. `details.paymentStatus`. // 422
+    DELIVERY_FEE_PROPOSAL_ORDER_NOT_PAID: 'DELIVERY_FEE_PROPOSAL_ORDER_NOT_PAID',
+    // ── Cash for delivery (ADR-A11 § Cash for delivery, W-F) ──
+    // `deliveryFeePayment: cash_to_rider` at checkout that cannot be honoured: the order is COD,
+    // no shop part is customer-paid, or a carrying agency does not accept the fee in cash.
+    // `details.reason` (`cash_on_delivery` | `not_customer_paid` | `no_delivery_fee` |
+    // `agency_declines_cash`) + `vendorId` / `agencyIds`.                       // 422
+    DELIVERY_FEE_CASH_NOT_AVAILABLE: 'DELIVERY_FEE_CASH_NOT_AVAILABLE',
+    // ── Manual delivery-fee refunds settled by an administrator (ADR-A11, W-E2) ──
+    DELIVERY_FEE_REFUND_NOT_FOUND: 'DELIVERY_FEE_REFUND_NOT_FOUND',                  // 404
+    // Only a `manual_required` row settles — already settled, automatic, or claimed by a
+    // concurrent settle (compare-and-set miss). `details.status`.               // 409
+    DELIVERY_FEE_REFUND_NOT_SETTLEABLE: 'DELIVERY_FEE_REFUND_NOT_SETTLEABLE',
+    // A paying method on a refund a wider refund of the ORDER already returned (in part):
+    // paying again pays it twice. Mark it `covered_by_order_refund` first.
+    // `details.amount` + `stillReturnable`.                                     // 409
+    DELIVERY_FEE_REFUND_ALREADY_COVERED: 'DELIVERY_FEE_REFUND_ALREADY_COVERED',
+    // `covered_by_order_refund` on a refund the order's money still covers (or COD): it is
+    // owed and must be paid. `details.amount` + `stillReturnable`.              // 409
+    DELIVERY_FEE_REFUND_NOT_COVERED: 'DELIVERY_FEE_REFUND_NOT_COVERED',
+
+    // ── COMBINED DELIVERY-PRICE REQUESTS (customer → agency, ADR-A11 D-8) ──
+    COMBINED_DELIVERY_REQUEST_NOT_FOUND: 'COMBINED_DELIVERY_REQUEST_NOT_FOUND',      // 404
+    // Fewer than two eligible parcels, or one named that is not eligible
+    // (`details.reason`: agency · cart · status · payer · pending · limit · too_few). // 422
+    COMBINED_DELIVERY_REQUEST_INELIGIBLE: 'COMBINED_DELIVERY_REQUEST_INELIGIBLE',
+    // One open request per (checkout, agency). `details.requestId`.             // 409
+    COMBINED_DELIVERY_REQUEST_ALREADY_OPEN: 'COMBINED_DELIVERY_REQUEST_ALREADY_OPEN',
+    // Answered, declined or cancelled already — a compare-and-set miss.         // 409
+    COMBINED_DELIVERY_REQUEST_NOT_OPEN: 'COMBINED_DELIVERY_REQUEST_NOT_OPEN',
+    // The agency's answer names a parcel not in the request, twice, or a fee that is not
+    // LOWER than the current one. `details.reason` + `shipmentId`.              // 422
+    COMBINED_DELIVERY_RESPONSE_INVALID: 'COMBINED_DELIVERY_RESPONSE_INVALID',
+    // Pickup refused: a delivery-fee proposal on this shipment awaits the vendor. // 409
+    SHIPMENT_DELIVERY_FEE_PENDING: 'SHIPMENT_DELIVERY_FEE_PENDING',
 
     // ── REVIEWS & RATINGS (products AND deliveries) ───────────────────────────
     // Each is raised at EXACTLY ONE status — `test:errors` censuses every
@@ -1782,6 +1937,8 @@ export const ERROR_CODES = Object.freeze({
     // Payout EXECUTION — NotchPay transfers + tier-3 triage.
     EARNINGS_PAYOUT_NOT_SENDABLE: 'EARNINGS_PAYOUT_NOT_SENDABLE',
     EARNINGS_PAYOUT_TRANSFER_IN_FLIGHT: 'EARNINGS_PAYOUT_TRANSFER_IN_FLIGHT',
+    /** Only a payout whose transfer is in flight (`processing`) can be resolved by hand. 409. */
+    EARNINGS_PAYOUT_NOT_PROCESSING: 'EARNINGS_PAYOUT_NOT_PROCESSING',
     EARNINGS_PAYOUT_ALREADY_TRIAGED: 'EARNINGS_PAYOUT_ALREADY_TRIAGED',
     /**
      * ⚠ **"This payout's DESTINATION cannot be sent to automatically" — a bank or card row
@@ -1813,6 +1970,13 @@ export const ERROR_CODES = Object.freeze({
     COD_NOT_AVAILABLE_FOR_DIGITAL: 'COD_NOT_AVAILABLE_FOR_DIGITAL',
     COD_AGENCY_NOT_SUPPORTED: 'COD_AGENCY_NOT_SUPPORTED',
     COD_ORDER_AMOUNT_EXCEEDS_LIMIT: 'COD_ORDER_AMOUNT_EXCEEDS_LIMIT',
+    /** Checkout: a vendor on the order turned COD off in their COD terms (2026-10-02). */
+    COD_VENDOR_NOT_ACCEPTED: 'COD_VENDOR_NOT_ACCEPTED',
+    /**
+     * Dispatch / change-agency: handing this COD shipment to the agency would push it over
+     * its own cash limit or the vendor's `maxCashPerAgency`. Retry with `force: true`.
+     */
+    COD_AGENCY_LIMIT_EXCEEDED: 'COD_AGENCY_LIMIT_EXCEEDED',
     COD_COLLECTION_NOT_FOUND: 'COD_COLLECTION_NOT_FOUND',
     COD_COLLECTION_ALREADY_COLLECTED: 'COD_COLLECTION_ALREADY_COLLECTED',
     COD_COLLECTION_NOT_COLLECTIBLE: 'COD_COLLECTION_NOT_COLLECTIBLE',

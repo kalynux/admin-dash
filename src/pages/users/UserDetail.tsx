@@ -4,6 +4,7 @@ import {
     ArrowLeft,
     Ban,
     BotOff,
+    DoorClosed,
     KeyRound,
     LogIn,
     Pencil,
@@ -13,12 +14,15 @@ import {
 } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
+import { PartyLogsLink } from '@/components/system/PartyLogsLink';
 import { ErrorState } from '@/components/common/DataState';
 import { DetailSkeleton } from '@/components/common/Loading';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { EditIdentifiersDialog } from '@/components/users/EditIdentifiersDialog';
+import { RequestRoleClosureDialog } from '@/components/users/RequestRoleClosureDialog';
 import { ResetBotMemoryDialog } from '@/components/users/ResetBotMemoryDialog';
 import { RestoreUserDialog } from '@/components/users/RestoreUserDialog';
+import { RoleClosureRequestsPanel } from '@/components/users/RoleClosureRequestsPanel';
 import { RoleProfilesPanel } from '@/components/users/RoleProfilesPanel';
 import {
     SendCredentialLinkDialog,
@@ -36,11 +40,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { resolveTimeZone } from '@/lib/datetime';
 import { formatInstantInZone } from '@/lib/format';
-import { getUser } from '@/services/users.service';
+import { getUser, listRoleClosureRequests } from '@/services/users.service';
 import { useAdmin, useCan } from '@/store';
 import { ApiError, CODE_CLIENT_INVALID_ID } from '@/types/api.types';
 import { RoleBadges } from '@/components/users/RoleBadges';
-import { isMissingProfile, userDisplayName } from '@/types/users.types';
+import {
+    isClosableRole,
+    isMissingProfile,
+    userDisplayName,
+    type ClosableRole,
+} from '@/types/users.types';
 import { CopyableId } from '@/components/common/CopyableId';
 import { CopyableValue } from '@/components/common/CopyableValue';
 
@@ -119,13 +128,24 @@ function UserDetailScreen({ userId }: { userId: string }) {
     const [sending, setSending] = useState<CredentialLinkKind | null>(null);
     const [messaging, setMessaging] = useState(false);
     const [resettingBot, setResettingBot] = useState(false);
+    /** The role whose closure is being requested, or `null`. */
+    const [closingRole, setClosingRole] = useState<ClosableRole | null>(null);
     const [activityToken, setActivityToken] = useState(0);
 
     const user = useAsyncData(`/users/${userId}`, (signal) => getUser(userId, { signal }));
+    const closureRequests = useAsyncData(`/users/${userId}/closure-requests`, (signal) =>
+        listRoleClosureRequests(userId, { signal }),
+    );
 
     /** One write moves both reads: the record, and the trail that just gained a row. */
     function reconcile() {
         user.reload();
+        setActivityToken((current) => current + 1);
+    }
+
+    /** A closure write moves the request list and the trail; never the profiles. */
+    function reconcileClosures() {
+        closureRequests.reload();
         setActivityToken((current) => current + 1);
     }
 
@@ -189,6 +209,18 @@ function UserDetailScreen({ userId }: { userId: string }) {
     const hasBotMemory =
         record.roles.includes('customer') &&
         !(customerProfile && isMissingProfile(customerProfile));
+    /**
+     * Role closure (jovi-mall ADR-A10) is offered per held role, on an **active**
+     * account only — jovi-mall refuses a suspended or closed one with
+     * `USER_STATUS_CONFLICT`, so the button would have no other outcome. A role
+     * with a request already waiting shows that instead of a second button. A
+     * closed role needs no rule here: it disappears from `roles`/`profiles`.
+     */
+    const pendingRoles = new Set(
+        (closureRequests.data ?? [])
+            .filter((request) => request.status === 'pending')
+            .map((request) => request.role),
+    );
 
     return (
         <PageContainer
@@ -205,6 +237,9 @@ function UserDetailScreen({ userId }: { userId: string }) {
                         <RotateCw className="size-4" />
                         Refresh
                     </Button>
+
+                    {/* Shown on a closed account too: its old lines are still evidence. */}
+                    <PartyLogsLink userId={record.id} />
 
                     {!closed ? (
                         <Can permission="users.update">
@@ -428,7 +463,46 @@ function UserDetailScreen({ userId }: { userId: string }) {
                         </CardContent>
                     </Card>
 
-                    <RoleProfilesPanel profiles={record.profiles} timeZone={timeZone} />
+                    <RoleProfilesPanel
+                        profiles={record.profiles}
+                        timeZone={timeZone}
+                        renderActions={(profile) => {
+                            const role = profile.role;
+                            if (record.status !== 'active' || !isClosableRole(role)) return null;
+                            if (pendingRoles.has(role)) {
+                                return (
+                                    <a
+                                        href="#role-closure-requests"
+                                        className="text-muted-foreground text-xs underline underline-offset-2"
+                                    >
+                                        Closure requested
+                                    </a>
+                                );
+                            }
+                            return (
+                                <Can permission="users.close">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setClosingRole(role)}
+                                    >
+                                        <DoorClosed className="size-4" />
+                                        Request closure
+                                    </Button>
+                                </Can>
+                            );
+                        }}
+                    />
+
+                    <RoleClosureRequestsPanel
+                        userId={record.id}
+                        requests={closureRequests.data}
+                        error={closureRequests.error}
+                        isLoading={closureRequests.isLoading}
+                        onRetry={closureRequests.reload}
+                        timeZone={timeZone}
+                        onChanged={reconcileClosures}
+                    />
 
                     {/*
                       Stated in the open, not hidden behind an info icon, because three
@@ -492,6 +566,22 @@ function UserDetailScreen({ userId }: { userId: string }) {
                 onOpenChange={setResettingBot}
                 onReset={() => setActivityToken((token) => token + 1)}
             />
+            {/* Keyed on the role so a reason typed for one role never carries
+                over to another — the user reads it verbatim. */}
+            {closingRole ? (
+                <RequestRoleClosureDialog
+                    key={closingRole}
+                    user={record}
+                    role={closingRole}
+                    open
+                    onOpenChange={(next) => setClosingRole(next ? closingRole : null)}
+                    onRequested={reconcileClosures}
+                    onStale={() => {
+                        reconcile();
+                        closureRequests.reload();
+                    }}
+                />
+            ) : null}
             <SendTelegramDialog
                 user={record}
                 open={messaging}

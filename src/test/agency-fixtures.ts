@@ -123,6 +123,9 @@ export function agencyDetailFixture(overrides: Partial<AgencyDetail> = {}): Agen
                     rtoFee: 2000,
                     peakSeasonSurcharge: null,
                 },
+                // ⚠ `null` is NO ceiling, not zero.
+                maxFeePerShipment: null,
+                acceptsCashDeliveryFee: false,
                 notes: null,
             },
             returns: { payer: 'vendor', handlingFee: 750, returnWindowDays: 7, notes: null },

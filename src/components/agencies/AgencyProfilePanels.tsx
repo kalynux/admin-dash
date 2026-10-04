@@ -5,6 +5,7 @@ import { AgencyVerificationBadge } from '@/components/agencies/AgencyVerificatio
 import {
     Definition,
     DefinitionList,
+    NotApplicable,
     NotSet,
 } from '@/components/common/DefinitionList';
 import { Badge } from '@/components/ui/badge';
@@ -402,14 +403,60 @@ function PricingBlock({ pricing }: { pricing: AgencyPolicies['pricing'] }) {
                         <Definition label="Base rate, first kg">
                             <Amount value={pricing.pickupBased.baseRateFirstKg} />
                         </Definition>
-                        <Definition label="Each additional kg">
+                        <Definition
+                            label="Each additional kg"
+                            hint={
+                                <InfoHint label="About weight pricing">
+                                    Charged since 2026-10-04: a shipment&apos;s fee grows with its
+                                    weight, and an item with no recorded weight counts as 1 kg per
+                                    unit.
+                                </InfoHint>
+                            }
+                        >
                             <Amount value={pricing.pickupBased.additionalPerKg} />
                         </Definition>
-                        <Definition label="Out-of-region surcharge">
+                        <Definition
+                            label="Out-of-region surcharge"
+                            hint={
+                                <InfoHint label="About the surcharge">
+                                    Charged since 2026-10-04, on a drop-off outside the
+                                    pickup&apos;s region.
+                                </InfoHint>
+                            }
+                        >
                             <Amount value={pricing.pickupBased.outOfRegionSurcharge} />
                         </Definition>
                     </>
                 ) : null}
+
+                <Definition
+                    label="Fee ceiling per shipment"
+                    hint={
+                        <InfoHint label="About the ceiling">
+                            The most the pricing formula will post for one shipment. A fee change
+                            the payer approves may still go above it.
+                        </InfoHint>
+                    }
+                >
+                    {/* ⚠ `null` is NO ceiling, never zero. */}
+                    {pricing.maxFeePerShipment === null ||
+                    pricing.maxFeePerShipment === undefined ? (
+                        <NotApplicable>No ceiling</NotApplicable>
+                    ) : (
+                        <Amount value={pricing.maxFeePerShipment} />
+                    )}
+                </Definition>
+                <Definition
+                    label="Delivery fee in cash"
+                    hint={
+                        <InfoHint label="About cash delivery fees">
+                            Whether a customer who paid online may still pay the delivery fee in
+                            cash to the rider.
+                        </InfoHint>
+                    }
+                >
+                    {pricing.acceptsCashDeliveryFee ? 'Accepted' : 'Not accepted'}
+                </Definition>
 
                 <Definition label="Cash-on-delivery handling">
                     {pricing.additionalFees?.codHandlingFee ? (

@@ -90,6 +90,7 @@ one to a collection this size to serve a sort nobody has asked for is the wrong 
       "customerName": "Amina B.",
       "currency": "XAF",
       "totalAmount": 27500,
+      "deliveryPayer": "customer",
       "paymentMethod": "cash_on_delivery",
       "paymentStatus": "pending",
       "fulfillmentStatus": "processing",
@@ -148,7 +149,9 @@ Every list field, plus:
   "data": {
     "…all list fields…": "…",
 
-    "priceBreakdown": { "base": 25000, "tax": 1250, "discount": 0, "total": 27500 },
+    "priceBreakdown": { "base": 25000, "delivery": 2500, "tax": 0, "discount": 0, "total": 27500 },
+    "deliveryPayerReason": "threshold_not_met",
+    "freeDeliveryShortfall": 5000,
     "paymentIntentId": "pi_9f2b8c1a…",
 
     "dispute": {
@@ -179,6 +182,8 @@ Every list field, plus:
         "quantity": 3,
         "price": 2500,
         "currency": "XAF",
+        "weightGrams": 1000,
+        "weightSource": "variant",
         "image": {
           "id": "6612aabbccddeeff00112233",
           "key": "products/6660.../plantain-1kg.jpg",
@@ -194,7 +199,6 @@ Every list field, plus:
           "shipmentId": "6671aabbccddeeff00112233",
           "trackingNumber": "WM-2026-0088412",
           "status": "assigned",
-          "freeDelivery": false,
           "hold": null,
           "pickup": { "source": "vendor_address", "vendorAddressId": "6650…", "agencyAddressId": null }
         }
@@ -208,6 +212,15 @@ Every list field, plus:
 
 | Field | Notes |
 |---|---|
+| **`totalAmount`** (list and detail) | What the customer was charged: **the goods plus any delivery the customer paid** (jovi-mall ADR-A11, 2026-10-03). It is not the vendor's gross — that is `priceBreakdown.base` |
+| **`deliveryPayer`** (list and detail) | `vendor` · `customer` — who paid this order's delivery, decided **per vendor order** at checkout from the shop's delivery terms. **`null`** on a digital order and on every order placed before customer-paid delivery existed — the shop paid all of those |
+| **`priceBreakdown.delivery`** | What the customer was charged for delivery: Σ the order's shipment fees when `deliveryPayer` is `customer`, **`0`** when the shop paid (and on older orders, which never wrote it). `total = base + delivery` |
+| **`deliveryPayerReason`** | Why: `shop_always` (shop offers free delivery) · `shop_never` (shop never does) · `shop_threshold_met` / `threshold_not_met` (shop offers it above an amount) · **`cap_fallback`** (the shop would have paid, but that failed the 30% delivery-cost cap, so the customer paid). `null` where `deliveryPayer` is |
+| **`freeDeliveryShortfall`** | How much more of this shop's goods would have made delivery free at checkout. `null` when not applicable |
+| **`items[].weightGrams`** / **`weightSource`** | Per-unit weight the delivery fee was priced on, snapshotted at checkout. `weightSource`: `variant` · `shipping_config` · `default` (no weight recorded — counted as 1 kg per unit). `null` on digital lines and older orders |
+| **`deliveryFee`** (detail only) | Fee changes after checkout — top-ups, proposals, refunds owed back. **Read-only.** See [below](#deliveryfee--fee-changes-after-checkout-read-only-2026-10-04) |
+| **`deliveryFee`** (detail only) | Fee changes after checkout — top-ups, proposals, refunds owed back. **Read-only.** See [`deliveryFee`](#deliveryfee--fee-changes-after-checkout-read-only-2026-10-04) below |
+| ~~`items[].delivery.freeDelivery`~~ | **Removed 2026-10-04.** The product-level flag no longer exists upstream; who pays delivery is the order's `deliveryPayer` |
 | `dispute` | **`null` when the order has never been disputed** — absent entirely rather than a block of nulls that reads as "unknown". Present (with `active: false`) once resolved, because a resolved dispute is exactly what an administrator opens this screen for |
 | `completion.auto` | Whether the escrow released automatically or a person confirmed |
 | **`deliveryAddress`** | **Textual only.** `coordinates` and the customer's raw input are excluded by projection *and* by the mapping — the sharpest PII in the collection |
@@ -215,6 +228,52 @@ Every list field, plus:
 | **`items[].delivery.agencyName`** | The agency's **business name**, from the Magazin. `null` where the item has no agency, the agency row is gone, or the Magazin has no name — **never `display_name`**, which is the agency's contact *person* |
 | **`items[].delivery.trackingNumber`** | ⚠ **The handle an operator actually works with.** `shipmentId` is an internal id that cannot be typed into anything; [`GET /shipments`](shipments.md#get-shipments)'s `search` takes a tracking-number **prefix**, and a customer on the phone quotes a tracking number. `null` while the item is unfulfilled — the ordinary state, not an error |
 | `items[].delivery.hold` | Set when an agency deactivation put this item on hold |
+
+#### `deliveryFee` — fee changes after checkout (read-only, 2026-10-04)
+
+jovi-mall ADR-A11 W-E/W-E2. A shipment's delivery fee can move after checkout (an agency proposal,
+a change of agency, a combined-price answer). On a customer-paid order an **increase** is paid by
+the customer as a separate **top-up** payment and a **decrease** is refunded to them. This block is
+everything this order holds about that — **read-only**; administrators write none of it (owner
+decision D-11), except settling a manual refund, which lives on
+[`POST /money/delivery-fee-refunds/:refundId/settle`](money.md#post-moneydelivery-fee-refundsrefundidsettle).
+
+```jsonc
+"deliveryFee": {
+  "payments": {
+    "checkout": { "id": "66a5…", "status": "SUCCEEDED", "gateway": "NOTCHPAY", "amount": 11500, "currency": "XAF",
+                  "sharedWithOtherOrders": false, "shipmentId": null, "proposalId": null, "createdAt": "…" },
+    "deliveryTopUps": [
+      { "id": "66a6…", "status": "SUCCEEDED", "gateway": "NOTCHPAY", "amount": 700, "currency": "XAF",
+        "sharedWithOtherOrders": false, "shipmentId": "6671…", "proposalId": "6680…", "createdAt": "…" }
+    ],
+    "deliveryTopUpsPaid": 700
+  },
+  "proposals": [
+    { "id": "6680…", "shipmentId": "6671…", "agencyId": "665c…", "proposedByRole": "agency",
+      "origin": "agency", "approver": "customer", "direction": "increase",
+      "feeBefore": 1500, "proposedFee": 2200, "currency": "XAF", "reason": "Second parcel",
+      "status": "approved", "respondedByRole": "customer", "respondedAt": "…",
+      "rejectionNote": null, "withdrawalReason": null,
+      "topUp": { "amount": 700, "status": "paid", "paymentId": "66a6…", "paidAt": "…" },
+      "customerEffect": { "feeBefore": 1500, "feeAfter": 2200, "topUpAmount": 700, "refundDue": null },
+      "createdAt": "…" }
+  ],
+  "refunds": [ /* the order's whole delivery_fee_refunds ledger — the DeliveryFeeRefund shape of money.md */ ],
+  "owedManually": 0,
+  "returned": 0
+}
+```
+
+| Field | Notes |
+|---|---|
+| **`payments.checkout`** | **How the order was paid** — the settled non-top-up payment (else the latest attempt). `null` on a COD order or one never paid. `sharedWithOtherOrders: true` = a cart checkout: `amount` is the **group's** charge, not this order's share |
+| **`payments.deliveryTopUps`** | Every `order_delivery_topup` attempt, oldest first, each naming the shipment and proposal it settles |
+| `payments.deliveryTopUpsPaid` | Σ of the top-ups that succeeded. **What the customer paid for this order = the checkout share + this**; `totalAmount` already includes applied top-ups (jovi-mall grows `total_amount` and `priceBreakdown.delivery` when it applies one) |
+| `proposals[]` | Newest first. `approver`: `vendor` (vendor-paid) · `customer` (an increase the customer pays) · `none` (a customer-paid decrease, applied on creation). `origin`: `agency` · `change_agency` · `combined_request`. `status`: `pending` · `approved` · `rejected` · `withdrawn` |
+| `refunds[]` | Every delivery-fee refund row of the order — automatic and manual. A row with `settleable: true` is the one the settle button acts on |
+| **`owedManually`** | Σ `manual_required` rows — still owed, a person must send it |
+| `returned` | Σ delivery money returned: completed gateway refunds + manual rows paid by hand. A `covered_by_order_refund` settlement moved nothing and is **not** counted |
 
 #### `items[].image` — how it resolves, and when it is `null`
 
@@ -371,7 +430,7 @@ did.
 |---|---|
 | **Permission** | `orders.read` **+** `audit.read` |
 | **Sorting** | `occurredAt` only. Default `-occurredAt` |
-| **Filters** | `action` (only `orders.*`, derived from the catalog), `status`, `from`/`to` (max 366 days) |
+| **Filters** | `action` (only `orders.*`, derived from the catalog — includes `orders.delivery_fee_refund.settle`, the delivery-fee refund settled on `/money`), `status`, `from`/`to` (max 366 days) |
 | **Response** | Audit entries — see [audit.md](audit.md#get-audit) |
 
 ---

@@ -138,9 +138,19 @@ describe('the tier fixtures match the documented levels', () => {
         // round's `agencies.cod_limit.set` (`financial`, tiers 1–2), and the
         // delivery-region round granting Support `shipments.reassign`.
         // ⚠ `permissions.md` says 128 / 106 / **39** — it predates the second.
-        expect(TIER_1_PERMISSIONS.length).toBe(128);
-        expect(TIER_2_PERMISSIONS.length).toBe(106);
-        expect(TIER_3_PERMISSIONS.length).toBe(40);
+        //
+        // ⚠ **128 / 106 / 40 → 129 / 107 / 40 on 2026-10-04**, by executing
+        // `authz:matrix`: `users.close` (`destructive`, tiers 1–2, never Support).
+        //
+        // ⚠ **129 / 107 / 40 → 131 / 109 / 41 the same day**: the `catalog`
+        // family — `.categories.read` held by every tier, `.categories.manage`
+        // (`destructive`) by tiers 1–2.
+        //
+        // ⚠ **131 / 109 / 41 → 132 / 110 / 42 the same day**: `money.splits.read`,
+        // one order's money split, held by every tier.
+        expect(TIER_1_PERMISSIONS.length).toBe(132);
+        expect(TIER_2_PERMISSIONS.length).toBe(110);
+        expect(TIER_3_PERMISSIONS.length).toBe(42);
     });
 
     it('withholds from Admin exactly what the doc says it withholds', () => {
@@ -171,6 +181,12 @@ describe('the tier fixtures match the documented levels', () => {
             'agents.cod_threshold.set',
             // Its agency twin (2026-10-02): `financial`, so never Support.
             'agencies.cod_limit.set',
+            // `destructive` (2026-10-04): Support sees closure requests on
+            // `users.read` and can neither ask for nor withdraw one.
+            'users.close',
+            // `destructive` (2026-10-04): Support reads the category list and
+            // can rename, merge or delete nothing on it.
+            'catalog.categories.manage',
             'orders.refund',
             'audit.export',
             'administrators.read',
@@ -183,18 +199,18 @@ describe('the tier fixtures match the documented levels', () => {
         expect(heldFixture(3).has('money.payments.read')).toBe(true);
     });
 
-    it('leaves Support holding 40 permissions, every one of them usable', () => {
+    it('leaves Support holding 42 permissions, every one of them usable', () => {
         // 24 held / 12 usable before Phase 5 built the `support` and `content`
         // surfaces; 29 until `files.content.read` was granted to all three tiers
         // at BR-011; 30 until `support.automation.lookup` arrived with
         // `/automation` (ADR-022 D-7); 31 until the 2026-09-22 re-derivation
         // (two triage names, the bot-memory reset, four COD/payout reads); 38 until
         // `money.statements.send` (2026-09-27); 39 until `shipments.reassign`
-        // (2026-10-02). Support holds none of the four `†` names,
+        // (2026-10-02); 40 until `catalog.categories.read` and 41 until `money.splits.read` (both 2026-10-04). Support holds none of the four `†` names,
         // so there is nothing in their set they cannot reach.
         const unrouted = new Set<string>(UNROUTED_PERMISSION_NAMES);
         const usable = TIER_3_PERMISSIONS.filter((name) => !unrouted.has(name));
-        expect(usable.length).toBe(40);
+        expect(usable.length).toBe(42);
     });
 
     it('gives Support file resolution, but not the orphan listing', () => {

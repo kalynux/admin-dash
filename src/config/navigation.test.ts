@@ -330,7 +330,7 @@ describe('permittedSections', () => {
         ).toEqual([
             ['overview', ['home', 'notifications']],
             ['directories', ['users', 'vendors', 'agencies', 'agents']],
-            ['operations', ['orders', 'shipments']],
+            ['operations', ['orders', 'shipments', 'categories']],
             ['support', ['support-tickets', 'content']],
             ['finance', ['cod', 'money']],
             ['administration', ['audit']],

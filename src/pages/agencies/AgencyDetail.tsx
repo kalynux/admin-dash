@@ -20,6 +20,7 @@ import {
 import { ReviewAgencyVerificationDialog } from '@/components/verification/ReviewAgencyVerificationDialog';
 import { VerificationPanel } from '@/components/verification/VerificationPanel';
 import { Can } from '@/components/auth/Can';
+import { PartyLogsLink } from '@/components/system/PartyLogsLink';
 import { ContractHistoryPanel } from '@/components/contracts/ContractHistoryPanel';
 import { ErrorState } from '@/components/common/DataState';
 import { DetailSkeleton } from '@/components/common/Loading';
@@ -196,6 +197,8 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
                         ownerId={record.id}
                         timeZone={timeZone}
                     />
+
+                    <PartyLogsLink userId={record.userId} />
 
                     <Can permission="agencies.reactivate">
                         {canReactivateAgency(record) ? (

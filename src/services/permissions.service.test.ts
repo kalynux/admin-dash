@@ -23,7 +23,7 @@ describe('fetchMyPermissions', () => {
         expect(calls[0].url).toContain('/permissions/me');
         expect(result.tier).toBe(2);
         expect(result.tierLabel).toBe('Admin');
-        expect(result.permissions).toHaveLength(106);
+        expect(result.permissions).toHaveLength(110);
     });
 
     it('sends no CSRF header — it is a safe method', () => {
@@ -48,12 +48,14 @@ describe('the flags this service deliberately does not set', () => {
         // aged out in a background tab would land on a broken shell.
         expect(calls).toHaveLength(3);
         expect(calls[1].url).toContain('/auth/refresh');
-        // Tier 1 holds all of them — 128 since `agencies.cod_limit.set`
+        // Tier 1 holds all of them — 132 since `money.splits.read`; 131 since the `catalog` family and
+        // 129 since `users.close` (both 2026-10-04);
+        // 128 since `agencies.cod_limit.set`
         // (2026-10-02); 127 since the `developer_tools.payments.*`
         // pair (2026-09-30); 125 since `money.statements.send` (2026-09-27);
         // 124 from the 2026-09-22 re-derivation, which added
         // the two ADR-024 `triage` names and `users.bot_memory.reset`.
-        expect(result.permissions).toHaveLength(128);
+        expect(result.permissions).toHaveLength(132);
     });
 
     it('lets a scoped session announce itself rather than swallowing the refusal', async () => {

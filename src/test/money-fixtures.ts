@@ -8,7 +8,7 @@
  */
 
 import type { CashLedgerEntry, CreditLedgerEntry } from '@/types/accounts.types';
-import type { Payout, PayoutDestination } from '@/types/money.types';
+import type { DeliveryFeeRefund, Payout, PayoutDestination } from '@/types/money.types';
 
 /**
  * A masked destination, as every endpoint but the audited disclosure sends one.
@@ -299,6 +299,7 @@ export function paymentFixture(overrides: Record<string, unknown> = {}) {
             bookingId: null,
             cartId: null,
             purpose: 'primary',
+            deliveryTopup: null,
         },
         payer: { id: '665b112233445566778899bb', kind: 'customer_or_user' },
         gateway: 'NOTCHPAY',
@@ -337,6 +338,238 @@ export function refundFixture(overrides: Record<string, unknown> = {}) {
         initiatedBy: { id: '665b112233445566778899bb', role: 'vendor' },
         createdAt: '2026-08-13T10:00:00.000Z',
         completedAt: '2026-08-13T10:05:00.000Z',
+        ...overrides,
+    };
+}
+
+/**
+ * A delivery-fee refund the gateway could not make: a COD order's fee was
+ * lowered after the customer paid it in cash, so a person must send 1 500 back.
+ * `settleable` is the flag the Settle button reads.
+ */
+export function deliveryFeeRefundFixture(
+    overrides: Partial<DeliveryFeeRefund> = {},
+): DeliveryFeeRefund {
+    return {
+        id: '6700aabbccddeeff00112233',
+        orderId: '6670aabbccddeeff00112233',
+        orderNumber: 'ORD-2026-008841',
+        shipmentId: '6671aabbccddeeff00112233',
+        customerId: '665f1c2a9b3e4a91c7d2e5f0',
+        vendorId: '6650aa11bb22cc33dd44ee55',
+        amount: 1500,
+        currency: 'XAF',
+        status: 'manual_required',
+        cause: 'fee_decrease',
+        // Operator-facing — never shown to the customer.
+        note: 'The order was paid in cash at delivery — there is no charge to refund',
+        ticketId: '6701aabbccddeeff00112233',
+        settleable: true,
+        refundTransactionIds: [],
+        settledAt: null,
+        settlement: null,
+        createdAt: '2026-10-04T10:00:00.000Z',
+        updatedAt: '2026-10-04T10:00:00.000Z',
+        ...overrides,
+    };
+}
+
+/** The same row after an administrator recorded sending it by mobile money. */
+export function settledDeliveryFeeRefundFixture(
+    overrides: Partial<DeliveryFeeRefund> = {},
+): DeliveryFeeRefund {
+    return deliveryFeeRefundFixture({
+        status: 'completed',
+        settleable: false,
+        settledAt: '2026-10-04T12:00:00.000Z',
+        settlement: {
+            method: 'mobile_money',
+            reference: 'MP241004.1234.A56789',
+            note: 'Sent to the order’s MTN number',
+            settledBy: { id: 'ad01aabbccddeeff00112233', source: 'admin', name: 'Awa N.' },
+            settledAt: '2026-10-04T12:00:00.000Z',
+        },
+        ...overrides,
+    });
+}
+
+// ─── The order money split (2026-10-04) ───────────────────────────────────────
+
+const SPLIT_ORDER_ID = '6670aabbccddeeff00112233';
+const SPLIT_VENDOR_ID = '6650aa11bb22cc33dd44ee55';
+const SPLIT_AGENCY_ID = '6650aa11bb22cc33dd44ee66';
+const SPLIT_SHIPMENT_ID = '6680aabbccddeeff00112233';
+
+/** A line as the wire carries it; every field present, `null` where absent. */
+export function moneyLineFixture(overrides: Record<string, unknown> = {}) {
+    return {
+        role: 'vendor_net',
+        beneficiary: { type: 'vendor', id: SPLIT_VENDOR_ID, name: 'Chez Ama' },
+        amount: 52450,
+        status: 'projected',
+        allocationId: null,
+        holdReleaseAt: null,
+        releasedAt: null,
+        requiresCashSettlement: false,
+        cashSettledAt: null,
+        waitingOn: [],
+        ...overrides,
+    };
+}
+
+export function goodsBasisFixture(overrides: Record<string, unknown> = {}) {
+    return {
+        gross: 65000,
+        bargainFee: {
+            percent: 30,
+            amount: 4500,
+            lines: [
+                {
+                    orderItemId: '6690aabbccddeeff00112233',
+                    title: 'Phone — Black',
+                    unitPrice: 65000,
+                    floorPrice: 50000,
+                    quantity: 1,
+                    uplift: 15000,
+                    fee: 4500,
+                },
+            ],
+        },
+        commission: { percent: 10, base: 60500, amount: 6050 },
+        deliveryFeeCharged: 2000,
+        codHandlingFee: 0,
+        vendorNet: 52450,
+        ...overrides,
+    };
+}
+
+export function deliveryBasisFixture(overrides: Record<string, unknown> = {}) {
+    return {
+        fee: 2000,
+        feeSource: 'snapshot',
+        payer: 'vendor',
+        customerPaid: 0,
+        vendorBorne: 2000,
+        outcome: 'expected',
+        earnedFee: 2000,
+        codHandlingFee: 0,
+        agentCut: null,
+        agentSplit: null,
+        refundToVendor: 0,
+        refundToCustomer: 0,
+        ...overrides,
+    };
+}
+
+export function splitShipmentFixture(overrides: Record<string, unknown> = {}) {
+    return {
+        id: SPLIT_SHIPMENT_ID,
+        trackingNumber: 'DLX-261004-0001',
+        status: 'pending',
+        agencyId: SPLIT_AGENCY_ID,
+        agencyName: 'Douala Express',
+        agentId: null,
+        agentName: null,
+        ...overrides,
+    };
+}
+
+/**
+ * `GET /money/orders/:orderId/split` — **money.md's own worked example**:
+ * prepaid, before payment, sold at 65 000 over a 50 000 minimum, vendor on a
+ * 10% plan, vendor pays a 2 000 delivery. Every figure is the server's.
+ */
+export function orderMoneySplitFixture(overrides: Record<string, unknown> = {}) {
+    return {
+        order: {
+            id: SPLIT_ORDER_ID,
+            orderNumber: 'ORD-2026-000123',
+            vendorId: SPLIT_VENDOR_ID,
+            vendorName: 'Chez Ama',
+            customerId: '6640aa11bb22cc33dd44ee55',
+            currency: 'XAF',
+            orderType: 'physical',
+            paymentMethod: 'mobile_money',
+            paymentStatus: 'AWAITING_PAYMENT',
+            fulfillmentStatus: 'pending',
+            deliveryPayer: 'vendor',
+            completedAt: null,
+            createdAt: '2026-10-04T09:00:00.000Z',
+        },
+        charged: { items: 65000, delivery: 0, deliveryInCash: 0, total: 65000 },
+        sections: [
+            {
+                key: 'payment',
+                moment: 'payment',
+                source: { type: 'order', id: SPLIT_ORDER_ID },
+                state: 'projected',
+                noneReason: null,
+                shipment: null,
+                goods: goodsBasisFixture(),
+                delivery: null,
+                lines: [
+                    moneyLineFixture(),
+                    moneyLineFixture({
+                        role: 'commission',
+                        beneficiary: { type: 'platform', id: null, name: null },
+                        amount: 6050,
+                    }),
+                    moneyLineFixture({
+                        role: 'bargain_fee',
+                        beneficiary: { type: 'platform_ai', id: null, name: null },
+                        amount: 4500,
+                    }),
+                ],
+                notes: ['commission_rate_may_change'],
+            },
+            {
+                key: `shipment:${SPLIT_SHIPMENT_ID}`,
+                moment: 'delivery',
+                source: { type: 'shipment', id: SPLIT_SHIPMENT_ID },
+                state: 'projected',
+                noneReason: null,
+                shipment: splitShipmentFixture(),
+                goods: null,
+                delivery: deliveryBasisFixture(),
+                lines: [
+                    moneyLineFixture({
+                        role: 'delivery_agency',
+                        beneficiary: { type: 'agency', id: SPLIT_AGENCY_ID, name: 'Douala Express' },
+                        amount: 2000,
+                    }),
+                ],
+                notes: ['agent_not_assigned'],
+            },
+        ],
+        totals: {
+            platform: { commission: 6050, bargainFee: 4500, total: 10550 },
+            vendor: 52450,
+            agencies: 2000,
+            agents: 0,
+            customerRefunds: 0,
+            reversed: 0,
+        },
+        reconciliation: { charged: 65000, distributed: 65000, difference: 0, complete: true },
+        estimated: true,
+        holdDays: 7,
+        bargainFeePercent: 30,
+        ...overrides,
+    };
+}
+
+/** `GET /money/earnings/platform/summary` — money.md's worked example. */
+export function platformSummaryFixture(overrides: Record<string, unknown> = {}) {
+    return {
+        from: '2026-10-01T00:00:00.000Z',
+        to: null,
+        currencies: [
+            {
+                currency: 'XAF',
+                commission: { held: 6050, released: 1000, reversed: 0, earned: 7050, count: 3 },
+                bargainFee: { held: 4500, released: 0, reversed: 300, earned: 4500, count: 1 },
+                total: { held: 10550, released: 1000, reversed: 300, earned: 11550, count: 4 },
+            },
+        ],
         ...overrides,
     };
 }

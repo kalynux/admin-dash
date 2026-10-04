@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     detailsWereDropped,
+    logActorLabel,
     logEntryHeadline,
     readLogEntry,
     wasCutAtWrite,
@@ -86,5 +87,49 @@ describe('what jovi-mall cut when it wrote the line', () => {
         expect(detailsWereDropped({ truncated: true, bytes: 90210 })).toBe(true);
         expect(detailsWereDropped({ attempt: 2 })).toBe(false);
         expect(detailsWereDropped(null)).toBe(false);
+    });
+});
+
+describe('who wrote the line', () => {
+    const base = { at: '2026-10-04T10:00:00.000Z', level: 'error', msg: 'x' };
+
+    it('reads the actor detail the platform stamps beside actorId', () => {
+        const entry = readLogEntry({
+            ...base,
+            actorId: 'a'.repeat(24),
+            actorSource: 'platform',
+            actorRole: 'vendor',
+            actorName: 'Ama Mensah',
+            actorProfileId: 'b'.repeat(24),
+        });
+        expect(entry.actorProfileId).toBe('b'.repeat(24));
+        expect(entry.extra).toEqual({});
+        expect(logActorLabel(entry)).toBe('Ama Mensah · Vendor');
+    });
+
+    it('takes the role from the error record on a line written before the name was stamped', () => {
+        const entry = readLogEntry({
+            ...base,
+            actorId: 'a'.repeat(24),
+            httpError: { code: 'X', actorRole: 'customer' },
+        });
+        expect(logActorLabel(entry)).toBe('Customer');
+    });
+
+    /** 🔴 The dialog called every id "Administrator", platform users included. */
+    it('never calls an id of unknown namespace an administrator', () => {
+        expect(logActorLabel(readLogEntry({ ...base, actorId: 'a'.repeat(24) }))).toBe(
+            'Signed-in caller',
+        );
+        expect(
+            logActorLabel(readLogEntry({ ...base, actorId: 'a'.repeat(24), actorSource: 'admin' })),
+        ).toBe('Administrator');
+    });
+
+    it('renders an unknown role raw, and names nobody on an anonymous line', () => {
+        expect(
+            logActorLabel(readLogEntry({ ...base, actorId: 'a'.repeat(24), actorRole: 'courier' })),
+        ).toBe('courier');
+        expect(logActorLabel(readLogEntry(base))).toBeNull();
     });
 });

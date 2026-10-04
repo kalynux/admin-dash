@@ -32,6 +32,9 @@ export function shipmentFixture(overrides: Partial<Shipment> = {}): Shipment {
         held: false,
         itemCount: 3,
         deliveryFeeSnapshot: 1500,
+        // The shop pays, so the customer was charged nothing for the run.
+        deliveryPayer: 'vendor',
+        customerDeliveryFee: 0,
         createdAt: '2026-08-12T10:30:00.000Z',
         updatedAt: '2026-08-12T11:02:00.000Z',
         ...overrides,
@@ -82,6 +85,9 @@ export function codBlockFixture(overrides: Partial<ShipmentCod> = {}): ShipmentC
         collectionId: '6674aabbccddeeff00112233',
         status: 'pending',
         expectedAmount: 27500,
+        // All goods: the shop pays delivery on this order.
+        itemsAmount: 27500,
+        deliveryFeeAmount: 0,
         currency: 'XAF',
         collectedAt: null,
         verificationMethod: 'delivery_code',
@@ -143,6 +149,18 @@ export function shipmentDetailFixture(
         rejection: null,
         customerConfirmation: null,
         hold: null,
+        feeComponents: {
+            pickupBase: 1500,
+            weightExtra: 0,
+            regionSurcharge: 0,
+            storage: 0,
+            capApplied: false,
+            kg: 1,
+            weightGrams: 900,
+            outOfRegion: false,
+            flatFallback: false,
+        },
+        customerFeeRefundable: 0,
         cod: codBlockFixture(),
         offers: [offerFixture()],
         items: [

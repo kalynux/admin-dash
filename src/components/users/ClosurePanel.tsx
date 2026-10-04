@@ -19,7 +19,9 @@ interface ClosurePanelProps {
  * for `SuspensionPanel`.
  *
  * ── This is not a suspension with a different word ────────────────────────────
- * **The owner did it, not an administrator.** There is no reason, no actor and
+ * **The owner did it, not an administrator** — since jovi-mall ADR-A10 an
+ * administrator can *ask* (closing the last role closes the account), but only
+ * the owner's own confirmation closes anything. There is no reason, no actor and
  * no reinstatement, and that is why this panel takes a bare instant rather than
  * a block: there is nothing else to show, and inventing a "Closed by" row would
  * imply somebody here decided it.
@@ -44,9 +46,11 @@ export function ClosurePanel({ closedAt, timeZone }: ClosurePanelProps) {
             <AlertTitle>This account was closed by its owner</AlertTitle>
             <AlertDescription className="space-y-2">
                 <p>
-                    An administrator did not do this and cannot undo it. There is no reinstatement
-                    for a closure, and nothing can be done to the account from here: it cannot be
-                    suspended, sent a link or a message, or given new login details.
+                    The owner closed it themselves — on their own, or by confirming an
+                    administrator&rsquo;s request to close their last role (listed under Closure
+                    requests). Nobody can undo it. There is no reinstatement for a closure, and
+                    nothing can be done to the account from here: it cannot be suspended, sent a
+                    link or a message, or given new login details.
                 </p>
 
                 <dl className="grid gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">

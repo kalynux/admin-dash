@@ -131,7 +131,7 @@ describe('MyAccess', () => {
 
     it('counts what the caller holds against the catalogue total', async () => {
         renderPage(3);
-        expect(await screen.findByText(/40 of 128 permissions/i)).toBeInTheDocument();
+        expect(await screen.findByText(/42 of 128 permissions/i)).toBeInTheDocument();
     });
 
     it('surfaces a permission newer than this build rather than hiding it', async () => {

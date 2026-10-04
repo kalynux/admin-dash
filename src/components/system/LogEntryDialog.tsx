@@ -14,6 +14,8 @@ import {
 import { formatInstantInZone } from '@/lib/format';
 import {
     detailsWereDropped,
+    logActorLabel,
+    logActorRoleLabel,
     wasCutAtWrite,
     type LogEntryView,
 } from '@/lib/log-entry';
@@ -75,6 +77,17 @@ function EntryBody({ entry, timeZone }: { entry: LogEntryView; timeZone: string 
             : null;
 
     const request = [entry.method, entry.path ?? entry.routeGroup].filter(Boolean).join(' ');
+
+    // Name the id by its namespace, never by assumption: until 2026-10-04 this said
+    // "Administrator" of every id, and most of them belong to platform users.
+    const actor = logActorLabel(entry);
+    const idLabel =
+        entry.actorSource === 'admin'
+            ? 'Administrator id'
+            : entry.actorSource === 'platform'
+              ? 'User id'
+              : 'Caller id';
+    const profileLabel = `${logActorRoleLabel(entry.actorRole) ?? 'Profile'} id`;
     const hasExtra = Object.keys(entry.extra).length > 0;
 
     return (
@@ -176,13 +189,24 @@ function EntryBody({ entry, timeZone }: { entry: LogEntryView; timeZone: string 
                     </Field>
                 ) : null}
 
-                {http?.actorRole || entry.actorId ? (
+                {actor || entry.actorRole ? (
                     <Field label="Caller">
-                        {http?.actorRole ? <span className="block">{http.actorRole}</span> : null}
+                        <span className="block">
+                            {actor ?? logActorRoleLabel(entry.actorRole)}
+                        </span>
                         {entry.actorId ? (
                             <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
-                                Administrator
-                                <CopyableValue value={entry.actorId} label="administrator id" />
+                                {idLabel}
+                                <CopyableValue value={entry.actorId} label={idLabel.toLowerCase()} />
+                            </span>
+                        ) : null}
+                        {entry.actorProfileId ? (
+                            <span className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                                {profileLabel}
+                                <CopyableValue
+                                    value={entry.actorProfileId}
+                                    label={profileLabel.toLowerCase()}
+                                />
                             </span>
                         ) : null}
                     </Field>

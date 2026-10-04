@@ -147,7 +147,19 @@ export function orderColumns({
             header: 'Total',
             // Not sortable: no index backs `total_amount`.
             className: 'text-sm tabular-nums',
-            cell: (order) => formatMoney(order.totalAmount, order.currency),
+            /*
+              Since 2026-10-04 the total includes delivery when the customer paid
+              it, so a customer-paid row says so — otherwise two orders for the
+              same goods read as differently priced.
+            */
+            cell: (order) => (
+                <div className="space-y-0.5">
+                    <p>{formatMoney(order.totalAmount, order.currency)}</p>
+                    {order.deliveryPayer === 'customer' ? (
+                        <p className="text-muted-foreground text-xs">incl. delivery</p>
+                    ) : null}
+                </div>
+            ),
         },
         {
             id: 'flags',

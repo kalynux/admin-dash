@@ -36,11 +36,13 @@ import { AuditExportsModule } from '@/pages/audit/AuditExportsModule';
 import { AuditModule } from '@/pages/audit/AuditModule';
 import { UsersModule } from '@/pages/users/UsersModule';
 import { VendorsModule } from '@/pages/vendors/VendorsModule';
+import { CategoriesModule } from '@/pages/categories/CategoriesModule';
 import { AgenciesModule } from '@/pages/agencies/AgenciesModule';
 import { AgentsModule } from '@/pages/agents/AgentsModule';
 import { DisputesQueue } from '@/pages/orders/DisputesQueue';
 import { AccountsModule } from '@/pages/accounts/AccountsModule';
 import { AllocationsModule } from '@/pages/money/AllocationsModule';
+import { DeliveryFeeRefundsModule } from '@/pages/money/DeliveryFeeRefundsModule';
 import { BillingModule } from '@/pages/billing/BillingModule';
 import { CodModule } from '@/pages/cod/CodModule';
 import { DepositsModule } from '@/pages/cod/DepositsModule';
@@ -180,6 +182,8 @@ const SCREENS: Record<string, ReactNode> = {
     'orders-all': <OrdersModule />,
     'orders-disputes': <DisputesQueue />,
     shipments: <ShipmentsModule />,
+    /** Childless, mounted at `categories/*` — owns `:categoryId` and its own 404. */
+    categories: <CategoriesModule />,
     /**
      * A childless module, mounted at `accounts/*`, so it owns `:ownerType/:ownerId`
      * and its own 404 like the four directories above.
@@ -198,6 +202,7 @@ const SCREENS: Record<string, ReactNode> = {
     'money-allocations': <AllocationsModule />,
     'money-payments': <PaymentsModule />,
     'money-refunds': <RefundsModule />,
+    'money-delivery-fee-refunds': <DeliveryFeeRefundsModule />,
     /**
      * Billing declares an index child, so the generator mounts `BillingModule` at
      * both `index` and `*` — which is what keeps `/dashboard/billing` on the

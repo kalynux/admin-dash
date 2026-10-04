@@ -52,6 +52,45 @@ export interface PlatformEarnings {
     requested: number;
     /** Defaults to `XAF`. A plain amount in this currency — **never divide by 100**. */
     currency: string;
+    /**
+     * The platform's **two** accounts (2026-10-04, money-split changelog).
+     *
+     * ⚠ **The top-level four above are the COMMISSION account alone** — kept
+     * there so an older client keeps working, and understating what the
+     * platform made by the whole bargain fee, which lives in a second singleton
+     * (`platform_ai`). Optional because a wi-admin that predates the change
+     * omits it; the screen then says so rather than calling commission "total".
+     */
+    accounts?: {
+        commission: PlatformEarningsAccount;
+        bargainFee: PlatformEarningsAccount;
+    };
+    /**
+     * Both accounts together. **`total.earned` is the headline** — what the
+     * platform has made to date, net of reversals.
+     *
+     * `null` when the two accounts hold different currencies: the server never
+     * sums across currencies, and neither does this client — the two accounts
+     * are shown side by side instead. Absent on an older wi-admin.
+     */
+    total?: PlatformEarningsTotal | null;
+}
+
+/** One of the two platform accounts — the same four balances as the top level. */
+export interface PlatformEarningsAccount {
+    pending: number;
+    available: number;
+    reserve: number;
+    requested: number;
+    currency: string;
+}
+
+export interface PlatformEarningsTotal {
+    pending: number;
+    available: number;
+    /** All four sub-balances of both accounts. Summed by the server, never here. */
+    earned: number;
+    currency: string;
 }
 
 /**
@@ -69,6 +108,99 @@ export function isPlatformEarnings(value: unknown): value is PlatformEarnings {
         typeof record.reserve === 'number' &&
         typeof record.requested === 'number'
     );
+}
+
+function isAccountShape(value: unknown): value is PlatformEarningsAccount {
+    return isPlatformEarnings(value);
+}
+
+/**
+ * The two accounts, or `null` when this wi-admin does not send them (it
+ * predates 2026-10-04) or sends them in a shape this client does not know.
+ * Checked separately from `isPlatformEarnings` so an older service still
+ * renders its commission balance.
+ */
+export function platformEarningsAccounts(
+    payload: PlatformEarnings,
+): NonNullable<PlatformEarnings['accounts']> | null {
+    const accounts = payload.accounts;
+    if (typeof accounts !== 'object' || accounts === null) return null;
+    return isAccountShape(accounts.commission) && isAccountShape(accounts.bargainFee)
+        ? accounts
+        : null;
+}
+
+/** `total`, or `null` — absent, a cross-currency `null`, or an unknown shape. */
+export function platformEarningsTotal(payload: PlatformEarnings): PlatformEarningsTotal | null {
+    const total = payload.total;
+    if (typeof total !== 'object' || total === null) return null;
+    return typeof total.earned === 'number' &&
+        typeof total.pending === 'number' &&
+        typeof total.available === 'number'
+        ? total
+        : null;
+}
+
+/**
+ * `GET /money/earnings/platform/summary` — what the platform earned in
+ * `[from, to)`. A **direct read**: the sum of the platform's allocation records,
+ * dated by when each split ran. Shape from wi-admin
+ * `money/domain/platform-earnings.ts`.
+ *
+ * ⚠ **Strict**: `from` and `to` are the only keys it accepts, and any other is a
+ * `400` — so nothing else is ever sent to it.
+ */
+export interface PlatformEarningsSummary {
+    /** Echoed back; `null` when that bound was not sent. */
+    from: string | null;
+    to: string | null;
+    /** One entry per currency, ordered by code. `[]` when nothing was earned in the window. */
+    currencies: PlatformEarnedSummary[];
+}
+
+export interface PlatformEarnedSummary {
+    currency: string;
+    commission: PlatformAccountFigures;
+    bargainFee: PlatformAccountFigures;
+    total: PlatformAccountFigures;
+}
+
+export interface PlatformAccountFigures {
+    /** Earned, still in escrow. */
+    held: number;
+    /** Earned and final. */
+    released: number;
+    /** Taken back by a refund. **Not** part of `earned`. */
+    reversed: number;
+    /** `held + released` — computed by the server. */
+    earned: number;
+    /** Allocations behind `earned`. */
+    count: number;
+}
+
+export interface PlatformEarningsSummaryQuery {
+    from?: string;
+    to?: string;
+}
+
+/**
+ * `?account=` on the platform ledger (2026-10-04). **The default is `all`**, so
+ * bargain-fee rows now appear in a feed that used to be commission only. A
+ * pinned enum — this vocabulary is wi-admin's own, unlike the ledger's other
+ * terms — so an unknown value is a `400`, and the select offers these three only.
+ */
+export const PLATFORM_LEDGER_ACCOUNTS = ['all', 'commission', 'bargain_fee'] as const;
+export type PlatformLedgerAccount = (typeof PLATFORM_LEDGER_ACCOUNTS)[number];
+
+/**
+ * Which platform account a ledger row belongs to, read off its `owner.type`:
+ * `platform` is the commission, `platform_ai` the bargain fee. Anything else is
+ * rendered raw — the ledger is pinned to those two, so it would be news.
+ */
+export function platformAccountLabel(ownerType: string | null | undefined): string {
+    if (ownerType === 'platform') return 'Commission';
+    if (ownerType === 'platform_ai') return 'Bargain fee';
+    return ownerType ? ownerType : 'Unknown';
 }
 
 // ─── The earnings directory ───────────────────────────────────────────────────
@@ -941,6 +1073,8 @@ export const LEDGER_SORT_KEYS = ['createdAt', 'amount'] as const;
 export const LEDGER_SORT_DEFAULT = '-createdAt';
 
 export interface PlatformLedgerQuery {
+    /** Omitted means `all` — the server's default. */
+    account?: PlatformLedgerAccount;
     entryType?: string;
     reasonCode?: string;
     sourceType?: string;
@@ -1069,8 +1203,26 @@ export interface Payment {
         orderIds: string[];
         bookingId: string | null;
         cartId: string | null;
-        /** Defaults to `primary`; not nullable. */
+        /**
+         * Defaults to `primary`; not nullable. `booking_balance` · and, since
+         * 2026-10-04, **`order_delivery_topup`** — a higher delivery fee the
+         * customer approved after checkout. Open: render an unknown value raw.
+         */
         purpose: string;
+        /**
+         * Top-ups only — the shipment and fee proposal the payment settles, and
+         * when jovi-mall applied it (`appliedAt: null` = paid, not yet applied).
+         * **`null` on every other row.**
+         *
+         * ⚠ A top-up links by `orderId` exactly like a single-order payment, so
+         * `?orderId=` returns it too and **the first row is not the checkout
+         * charge**. Tell them apart by `purpose` — {@link isDeliveryTopUp}.
+         */
+        deliveryTopup: {
+            shipmentId: string | null;
+            proposalId: string | null;
+            appliedAt: string | null;
+        } | null;
     };
     /** `kind` is a hard-coded constant, always this exact string. */
     payer: { id: string; kind: 'customer_or_user' };
@@ -1218,3 +1370,193 @@ export interface RefundListQuery {
  * may be truncation, and the screen says so.
  */
 export const MONEY_EMBEDDED_LIMIT = 50;
+
+// ─── Delivery-fee top-ups and refunds (jovi-mall ADR-A11 W-E2, 2026-10-04) ────
+
+/** `settles.purpose` on a delivery top-up payment. */
+export const PAYMENT_PURPOSE_DELIVERY_TOPUP = 'order_delivery_topup';
+
+/** Is this payment a delivery top-up rather than the order's checkout charge? */
+export function isDeliveryTopUp(payment: Pick<Payment, 'settles'>): boolean {
+    return payment.settles.purpose === PAYMENT_PURPOSE_DELIVERY_TOPUP;
+}
+
+/** A payment's purpose, in words. An unknown one renders raw. */
+export function paymentPurposeLabel(purpose: string): string {
+    if (purpose === PAYMENT_PURPOSE_DELIVERY_TOPUP) return 'Delivery top-up';
+    if (purpose === 'primary') return 'Checkout';
+    if (purpose === 'booking_balance') return 'Booking balance';
+    return purpose;
+}
+
+/**
+ * One row of `delivery_fee_refunds` — delivery money owed back to a customer.
+ *
+ * money.md § delivery-fee refunds; the shape is wi-admin's
+ * `DeliveryFeeRefundDto` (`money/read-models/delivery-fee.dto.ts`), which is
+ * jovi-mall's `AdminDeliveryFeeRefundDto` field for field.
+ *
+ * ⚠ **`settleable` is the one flag the settle button reads** — never `status`.
+ * ⚠ **`note` is operator-facing**: it says why the gateway could not refund
+ * (a COD order, mobile money…). Never put it in front of the customer.
+ */
+export interface DeliveryFeeRefund {
+    id: string;
+    orderId: string;
+    orderNumber: string | null;
+    shipmentId: string | null;
+    /** A `customers._id` — resolves in no user directory, like an order's. */
+    customerId: string;
+    vendorId: string;
+    amount: number;
+    currency: string;
+    /**
+     * `manual_required` (owed — a person must send it) · `completed` ·
+     * `processing` · `failed` (the last two only on automatic rows). Open.
+     */
+    status: DeliveryFeeRefundStatus;
+    /** `fee_decrease` · `rto_leftover` (a returned parcel's unspent fee) · `sweep`. Open. */
+    cause: string;
+    note: string | null;
+    /** The HIGH ticket a manual row opened; settling resolves it. */
+    ticketId: string | null;
+    settleable: boolean;
+    refundTransactionIds: string[];
+    settledAt: string | null;
+    /** Set when an **administrator** settled a manual row; `null` on every automatic row. */
+    settlement: DeliveryFeeRefundSettlement | null;
+    createdAt: string | null;
+    updatedAt: string | null;
+}
+
+export type DeliveryFeeRefundStatus =
+    | 'manual_required'
+    | 'processing'
+    | 'completed'
+    | 'failed'
+    | (string & {});
+
+export interface DeliveryFeeRefundSettlement {
+    method: DeliveryFeeRefundMethod | (string & {});
+    reference: string | null;
+    note: string | null;
+    /** `id` is a wi-admin administrator id when `source` is `admin`. */
+    settledBy: { id: string; source: string | null; name: string | null };
+    settledAt: string | null;
+}
+
+/**
+ * The settle body's `method` — **pinned**, unlike the read vocabularies: wi-admin
+ * validates it as a `z.enum` and this client writes it, so a value outside the
+ * set is a request that cannot succeed.
+ *
+ * The first four mean **the money was sent by hand**; `covered_by_order_refund`
+ * means **nothing moved** — a refund of the whole order already returned it.
+ */
+export const DELIVERY_FEE_REFUND_METHODS = [
+    'mobile_money',
+    'cash',
+    'bank',
+    'other',
+    'covered_by_order_refund',
+] as const;
+export type DeliveryFeeRefundMethod = (typeof DELIVERY_FEE_REFUND_METHODS)[number];
+
+export const DELIVERY_FEE_REFUND_METHOD_LABELS: Record<DeliveryFeeRefundMethod, string> = {
+    mobile_money: 'Mobile money',
+    cash: 'Cash',
+    bank: 'Bank transfer',
+    other: 'Other',
+    covered_by_order_refund: 'Covered by a refund of the whole order',
+};
+
+/** An unknown method renders raw. */
+export function deliveryFeeRefundMethodLabel(method: string): string {
+    return (DELIVERY_FEE_REFUND_METHOD_LABELS as Record<string, string>)[method] ?? method;
+}
+
+const DELIVERY_FEE_REFUND_CAUSE_LABELS: Record<string, string> = {
+    fee_decrease: 'Fee lowered after payment',
+    rto_leftover: "Returned parcel's unspent fee",
+    sweep: 'Reconciliation sweep',
+};
+
+export function deliveryFeeRefundCauseLabel(cause: string): string {
+    return DELIVERY_FEE_REFUND_CAUSE_LABELS[cause] ?? cause;
+}
+
+/**
+ * The queue filter — **wi-admin's** vocabulary, not the row status, and the
+ * one pinned `z.enum` on this list (an unknown value is a `400`).
+ * `manual_required` is the default: still owed.
+ */
+export const DELIVERY_FEE_REFUND_QUEUES = ['manual_required', 'settled', 'all'] as const;
+export type DeliveryFeeRefundQueue = (typeof DELIVERY_FEE_REFUND_QUEUES)[number];
+export const DELIVERY_FEE_REFUND_QUEUE_DEFAULT: DeliveryFeeRefundQueue = 'manual_required';
+
+export const DELIVERY_FEE_REFUND_SORT_KEYS = ['createdAt', 'amount'] as const;
+export const DELIVERY_FEE_REFUND_SORT_DEFAULT = '-createdAt';
+
+export interface DeliveryFeeRefundListQuery {
+    status?: DeliveryFeeRefundQueue;
+    orderId?: string;
+    vendorId?: string;
+    customerId?: string;
+    sort?: string;
+    page?: number;
+    limit?: number;
+}
+
+/** `POST /money/delivery-fee-refunds/:refundId/settle` — `.strict()`. */
+export interface SettleDeliveryFeeRefundBody {
+    method: DeliveryFeeRefundMethod;
+    /** ≤ 200. Omit when blank — `""` is a `400` (`min(1)`). */
+    reference?: string;
+    /** ≤ 1000. Lands on the ticket. Omit when blank. */
+    note?: string;
+}
+
+export const SETTLE_REFERENCE_MAX = 200;
+export const SETTLE_NOTE_MAX = 1000;
+
+/**
+ * The settle answer: both halves are wi-admin's own re-read after the write.
+ *
+ * ⚠ **`remainder` ≠ `null` means part is still owed** — `covered_by_order_refund`
+ * covered only some of it, and jovi-mall opened a NEW `manual_required` row for
+ * the rest. Pay that one by hand. `refund` is typed nullable because the
+ * controller is: a re-read that found nothing answers `null`.
+ */
+export interface SettleDeliveryFeeRefundResult {
+    refund: DeliveryFeeRefund | null;
+    remainder: DeliveryFeeRefund | null;
+}
+
+/**
+ * The three settle refusals — **jovi-mall's**, so each arrives as
+ * `details.platformCode` on `409 PLATFORM_OPERATION_REJECTED`, never as
+ * `error.code`.
+ */
+/** Settled already, automatic, or another administrator won the race — reload. */
+export const PLATFORM_CODE_DELIVERY_FEE_REFUND_NOT_SETTLEABLE = 'DELIVERY_FEE_REFUND_NOT_SETTLEABLE';
+/** A refund of the whole order already returned it — settle `covered_by_order_refund`. */
+export const PLATFORM_CODE_DELIVERY_FEE_REFUND_ALREADY_COVERED =
+    'DELIVERY_FEE_REFUND_ALREADY_COVERED';
+/** `covered_by_order_refund` on money nothing returned — send it and use a paying method. */
+export const PLATFORM_CODE_DELIVERY_FEE_REFUND_NOT_COVERED = 'DELIVERY_FEE_REFUND_NOT_COVERED';
+
+export type DeliveryFeeRefundRefusal = 'not_settleable' | 'already_covered' | 'not_covered';
+
+/** Which of the three settle refusals this is, or `null` for anything else. */
+export function deliveryFeeRefundRefusalOf(error: unknown): DeliveryFeeRefundRefusal | null {
+    if (isPlatformCode(error, PLATFORM_CODE_DELIVERY_FEE_REFUND_NOT_SETTLEABLE)) {
+        return 'not_settleable';
+    }
+    if (isPlatformCode(error, PLATFORM_CODE_DELIVERY_FEE_REFUND_ALREADY_COVERED)) {
+        return 'already_covered';
+    }
+    if (isPlatformCode(error, PLATFORM_CODE_DELIVERY_FEE_REFUND_NOT_COVERED)) {
+        return 'not_covered';
+    }
+    return null;
+}

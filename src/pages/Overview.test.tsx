@@ -296,15 +296,30 @@ describe('a failed tile does not take down the page', () => {
         expect(screen.queryByText('5')).not.toBeInTheDocument();
     });
 
-    it('renders the real platform figures when the shape is the documented one', async () => {
+    it('headlines what the platform made — total.earned, bargain fee included', async () => {
         renderOverview(1);
 
-        const earnings = platformEarningsFixture();
         expect(await screen.findByText('Platform earnings')).toBeInTheDocument();
+        // The server's `total.earned` (13 140 500), not the commission-only top level.
+        expect(screen.getByText('Earned to date')).toBeInTheDocument();
+        expect(screen.getByText(/13,140,500/)).toBeInTheDocument();
+        expect(screen.getByText('Bargain fee — available')).toBeInTheDocument();
+        expect(screen.getByText(/1,200,000/)).toBeInTheDocument();
+    });
+
+    it('labels an older service’s balance as commission only', async () => {
+        const legacy = platformEarningsFixture();
+        delete legacy.accounts;
+        delete legacy.total;
+        renderOverview(1, (call) =>
+            call.url.includes('/money/earnings/platform') ? successResponse(legacy) : null,
+        );
+
+        expect(await screen.findByText(/commission only/i)).toBeInTheDocument();
+        expect(screen.queryByText('Earned to date')).not.toBeInTheDocument();
         // `reserve` and `requested`, not the prose's `reserved`/`withdrawn`.
-        expect(screen.getByText('Reserved')).toBeInTheDocument();
-        expect(screen.getByText('Requested')).toBeInTheDocument();
-        expect(earnings.requested).toBe(0);
+        expect(screen.getByText('Commission — reserved')).toBeInTheDocument();
+        expect(screen.getByText('Commission — requested')).toBeInTheDocument();
     });
 
     it('shows the platform earnings tile to the Developer tier only', async () => {

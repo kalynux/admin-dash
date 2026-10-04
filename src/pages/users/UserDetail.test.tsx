@@ -37,6 +37,7 @@ function stubDetail(record: UserDetailRecord = userDetailFixture(), activity = [
                 meta: { ...auditMetaFixture({ total: activity.length, pages: 1 }) },
             });
         }
+        if (call.url.includes('/closure-requests')) return successResponse([]);
         if (call.url.includes(`/users/${USER_ID}`)) return successResponse(record);
         throw new Error(`unexpected request: ${call.method} ${call.url}`);
     });
@@ -468,6 +469,7 @@ describe('resetting the bot’s memory', () => {
                 activityReads += 1;
                 return successResponse([], { meta: { ...auditMetaFixture({ total: 0, pages: 0 }) } });
             }
+            if (call.url.includes('/closure-requests')) return successResponse([]);
             if (call.url.includes(`/users/${USER_ID}`)) {
                 detailReads += 1;
                 return successResponse(userDetailFixture({ roles: ['customer'] }));
@@ -587,6 +589,7 @@ describe('after a write', () => {
             if (call.url.includes('/activity')) {
                 return successResponse([], { meta: { ...auditMetaFixture({ total: 0, pages: 0 }) } });
             }
+            if (call.url.includes('/closure-requests')) return successResponse([]);
             if (call.url.includes(`/users/${USER_ID}`)) {
                 detailReads += 1;
                 return successResponse(

@@ -931,6 +931,8 @@ export function vendorDetailFixture(overrides: Partial<VendorDetail> = {}): Vend
             autoRedirectThresholdAmount: null,
             autoCancelUnpaidDays: 3,
             notifyDaysBeforeExpiry: 7,
+            // The documented default for a shop that never set its terms.
+            deliveryTerms: { mode: 'always', freeAboveAmount: null },
         },
         defaultDeliveryAgencyId: '665c0011223344556677889a',
         counts: {
@@ -979,7 +981,8 @@ export function vendorProductFixture(overrides: Partial<VendorProduct> = {}): Ve
         id: '66601122334455667788990a',
         title: 'Plantain — 1 kg',
         slug: 'plantain-1kg',
-        category: 'produce',
+        // vendors.md's worked row. The deprecated `category` string is not declared.
+        categories: [{ id: '66ff0c1e2a4b5c6d7e8f9a03', name: 'Produce', slug: 'produce' }],
         type: 'physical',
         status: 'active',
         mode: 'simple',
@@ -1069,7 +1072,7 @@ export function vendorProductDetailFixture(
         vendorId: '6650aa11bb22cc33dd44ee55',
         title: 'Plantain — 1 kg',
         slug: 'plantain-1kg',
-        category: 'produce',
+        categories: [{ id: '66ff0c1e2a4b5c6d7e8f9a03', name: 'Produce', slug: 'produce' }],
         tags: ['produce', 'fresh'],
         type: 'physical',
         status: 'active',
@@ -1471,6 +1474,10 @@ export function codOverviewFixture(overrides: Partial<CodOverview> = {}): CodOve
  * `money.md`'s prose names — see `types/money.types.ts` for the three sources
  * that settle it. `requested` is structurally `0`: the platform never pays
  * itself out.
+ *
+ * Since 2026-10-04 the top level is the **commission** account alone, and
+ * `accounts` + `total` carry both. `total` is the server's own sum — the
+ * figures below are fixed, never derived, the way the wire would carry them.
  */
 export function platformEarningsFixture(
     overrides: Partial<PlatformEarnings> = {},
@@ -1481,6 +1488,23 @@ export function platformEarningsFixture(
         reserve: 450_000,
         requested: 0,
         currency: 'XAF',
+        accounts: {
+            commission: {
+                pending: 2_310_000,
+                available: 8_640_500,
+                reserve: 450_000,
+                requested: 0,
+                currency: 'XAF',
+            },
+            bargainFee: {
+                pending: 540_000,
+                available: 1_200_000,
+                reserve: 0,
+                requested: 0,
+                currency: 'XAF',
+            },
+        },
+        total: { pending: 2_850_000, available: 9_840_500, earned: 13_140_500, currency: 'XAF' },
         ...overrides,
     };
 }
@@ -1538,13 +1562,13 @@ const TIER_2_EXCLUSIONS: readonly string[] = [
     'users.roles.manage',
 ];
 
-/** Admin — the operational level, including the money. 106 of 128. */
+/** Admin — the operational level, including the money. 110 of 132. */
 export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
     (name) => !TIER_2_EXCLUSIONS.includes(name) && !name.startsWith('developer_tools.'),
 );
 
 /**
- * Support. **40 of 128**, and every one of them is routed — Support holds none
+ * Support. **42 of 132**, and every one of them is routed — Support holds none
  * of the four `†` permissions, so a Support administrator can use everything
  * they hold. That is new: the set was 24 with twelve unusable before Phase 5
  * built the `support` and `content` surfaces.
@@ -1582,6 +1606,13 @@ export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
  * ⚠ **39 → 40 on 2026-10-02**: `shipments.reassign` (owner decision — every tier
  * may push, and force-push, a shipment). `permissions.md` marks it ● for Support,
  * and its tier table says 40 since the 2026-10-03 correction.
+ *
+ * ⚠ **40 → 41 on 2026-10-04**: `catalog.categories.read` — Support may look at
+ * the shared category list ("why is my product under Shoes?" is a ticket), and
+ * holds no `catalog.categories.manage`.
+ *
+ * ⚠ **41 → 42 on 2026-10-04**: `money.splits.read` — one order's money split,
+ * the per-order answer to a vendor's "why did I get this amount?" ticket.
  */
 export const TIER_3_PERMISSIONS: readonly string[] = [
     'agents.read',
@@ -1591,6 +1622,7 @@ export const TIER_3_PERMISSIONS: readonly string[] = [
     'money.payouts.read',
     'money.payouts.triage',
     'money.statements.send',
+    'money.splits.read',
     'cod.overview.read',
     'cod.remittances.read',
     'cod.deposits.read',
@@ -1619,6 +1651,7 @@ export const TIER_3_PERMISSIONS: readonly string[] = [
     'users.read',
     'users.bot_memory.reset',
     'vendors.read',
+    'catalog.categories.read',
     'shipments.read',
     'shipments.reassign',
     'shipments.tracking.read',

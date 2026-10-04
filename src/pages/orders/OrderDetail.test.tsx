@@ -14,6 +14,7 @@ import {
     resolvedDisputeOrderFixture,
     timelineEntryFixture,
 } from '@/test/order-fixtures';
+import { orderMoneySplitFixture } from '@/test/money-fixtures';
 import { shipmentFixture, shipmentListMetaFixture } from '@/test/shipment-fixtures';
 import { errorResponse, renderWithProviders, stubFetch, successResponse } from '@/test/utils';
 import {
@@ -68,6 +69,14 @@ function stubDetail({
         }
         if (call.url.includes('/shipments')) {
             return successResponse([shipmentFixture()], { meta: shipmentListMetaFixture() });
+        }
+        // Before the order branch: `/money/orders/:id/split` contains `/orders/:id`.
+        if (call.url.includes(`/money/orders/${ORDER_ID}/split`)) {
+            return successResponse(orderMoneySplitFixture());
+        }
+        // Before the order branch: `/money/orders/:id/split` contains `/orders/:id`.
+        if (call.url.includes(`/money/orders/${ORDER_ID}/split`)) {
+            return successResponse(orderMoneySplitFixture());
         }
         if (call.url.includes(`/orders/${ORDER_ID}`)) {
             return successResponse(detail);
@@ -142,6 +151,26 @@ describe('the record', () => {
 });
 
 describe('tabs and permissions', () => {
+    it('offers the Money tab on money.splits.read, and reads the split only when opened', async () => {
+        const calls = detail({ held: new Set(['orders.read', 'money.splits.read']) });
+
+        const tab = await screen.findByRole('tab', { name: /^money$/i });
+        expect(calls.some((call) => call.url.includes('/split'))).toBe(false);
+
+        await userEvent.click(tab);
+        expect(await screen.findByText('Who gets what')).toBeInTheDocument();
+        expect(calls.some((call) => call.url.includes(`/money/orders/${ORDER_ID}/split`))).toBe(
+            true,
+        );
+    });
+
+    it('omits the Money tab without money.splits.read', async () => {
+        detail({ held: new Set(['orders.read']) });
+
+        await screen.findByRole('tab', { name: /overview/i });
+        expect(screen.queryByRole('tab', { name: /^money$/i })).not.toBeInTheDocument();
+    });
+
     it('omits Shipments without shipments.read and Activity without audit.read', async () => {
         detail({ held: new Set(['orders.read']) });
 

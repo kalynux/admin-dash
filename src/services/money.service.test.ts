@@ -2,10 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
     getAllocation,
+    getDeliveryFeeRefund,
     getPayment,
+    getOrderMoneySplit,
     getPayout,
+    getPlatformEarningsSummary,
     getPlatformLedger,
     listAllocations,
+    listDeliveryFeeRefunds,
     listEarningsAccounts,
     listPayments,
     listPayoutActivity,
@@ -16,16 +20,20 @@ import {
     triagePayout,
     rejectPayout,
     revealPayoutDestination,
+    settleDeliveryFeeRefund,
 } from '@/services/money.service';
 import { approvalFixture, auditEntryFixture, auditMetaFixture } from '@/test/fixtures';
 import {
     allocationDetailFixture,
     allocationFixture,
+    deliveryFeeRefundFixture,
     ledgerEntryFixture,
     paymentDetailFixture,
     paymentFixture,
     payoutFixture,
+    orderMoneySplitFixture,
     payoutListMetaFixture,
+    platformSummaryFixture,
     refundFixture,
 } from '@/test/money-fixtures';
 import { errorResponse, stubFetch, successResponse, type FetchCall } from '@/test/utils';
@@ -359,6 +367,17 @@ describe('getPlatformLedger', () => {
         expect(query.get('sort')).toBe('-amount');
     });
 
+    it('sends `account` when one is picked, and nothing when it is not', async () => {
+        const calls = stubFetch(() => successResponse([], { meta: payoutListMetaFixture() }));
+
+        await getPlatformLedger({ account: 'bargain_fee' });
+        await getPlatformLedger();
+
+        expect(queryOf(calls[0]).get('account')).toBe('bargain_fee');
+        // Omitted means `all` — the server's default since 2026-10-04.
+        expect(queryOf(calls[1]).get('account')).toBeNull();
+    });
+
     it('sends no owner parameter — the scope is pinned server-side', async () => {
         // The repository hard-pins owner_type/owner_id before any filter, so
         // there is nothing to send and no way to widen it.
@@ -369,6 +388,44 @@ describe('getPlatformLedger', () => {
         const query = queryOf(calls[0]);
         expect(query.get('ownerId')).toBeNull();
         expect(query.get('ownerType')).toBeNull();
+    });
+});
+
+describe('getPlatformEarningsSummary', () => {
+    it('sends from and to and nothing else — the endpoint is strict', async () => {
+        const calls = stubFetch(() => successResponse(platformSummaryFixture()));
+
+        await getPlatformEarningsSummary({
+            from: '2026-10-01T00:00:00.000Z',
+            to: '2026-11-01T00:00:00.000Z',
+            // A stray key a caller might spread in: a `400` if it reached the wire.
+            ...({ page: 1 } as object),
+        });
+
+        expect(calls[0].method).toBe('GET');
+        expect(calls[0].url).toContain('/money/earnings/platform/summary');
+        expect([...queryOf(calls[0]).keys()].sort()).toEqual(['from', 'to']);
+    });
+
+    it('sends no parameter at all for all time', async () => {
+        const calls = stubFetch(() => successResponse(platformSummaryFixture()));
+
+        await getPlatformEarningsSummary();
+
+        expect([...queryOf(calls[0]).keys()]).toEqual([]);
+    });
+});
+
+describe('getOrderMoneySplit', () => {
+    it('GETs the order’s split and hands back the payload untouched', async () => {
+        const split = orderMoneySplitFixture();
+        const calls = stubFetch(() => successResponse(split));
+
+        const result = await getOrderMoneySplit('6670aabbccddeeff00112233');
+
+        expect(calls[0].method).toBe('GET');
+        expect(calls[0].url).toContain('/money/orders/6670aabbccddeeff00112233/split');
+        expect(result).toEqual(split);
     });
 });
 
@@ -614,5 +671,85 @@ describe('triagePayout', () => {
         await triagePayout('66a2aabbccddeeff00112233', 'fine');
 
         expect(JSON.parse(calls[0].body ?? '{}')).not.toHaveProperty('verdict');
+    });
+});
+
+describe('delivery-fee refunds', () => {
+    it('lists the queue at the documented path with every filter', async () => {
+        const calls = stubFetch(() =>
+            successResponse([deliveryFeeRefundFixture()], {
+                meta: { total: 1, page: 1, limit: 20, pages: 1 },
+            }),
+        );
+
+        const page = await listDeliveryFeeRefunds({
+            status: 'settled',
+            orderId: '6670aabbccddeeff00112233',
+            vendorId: '6650aa11bb22cc33dd44ee55',
+            customerId: '665f1c2a9b3e4a91c7d2e5f0',
+            sort: '-amount',
+            page: 2,
+        });
+
+        expect(page.data[0].settleable).toBe(true);
+        expect(calls[0].method).toBe('GET');
+        expect(new URL(calls[0].url, 'http://localhost').pathname).toMatch(
+            /\/money\/delivery-fee-refunds$/,
+        );
+        const query = queryOf(calls[0]);
+        expect(query.get('status')).toBe('settled');
+        expect(query.get('orderId')).toBe('6670aabbccddeeff00112233');
+        expect(query.get('vendorId')).toBe('6650aa11bb22cc33dd44ee55');
+        expect(query.get('customerId')).toBe('665f1c2a9b3e4a91c7d2e5f0');
+        expect(query.get('sort')).toBe('-amount');
+    });
+
+    it('reads one row by id', async () => {
+        const calls = stubFetch(() => successResponse(deliveryFeeRefundFixture()));
+
+        await getDeliveryFeeRefund('6700aabbccddeeff00112233');
+
+        expect(calls[0].url).toContain('/money/delivery-fee-refunds/6700aabbccddeeff00112233');
+    });
+
+    it('settles with a strict literal: no amount, and blank strings omitted', async () => {
+        const calls = stubFetch(() =>
+            successResponse(
+                { refund: deliveryFeeRefundFixture({ settleable: false }), remainder: null },
+                { message: 'Delivery-fee refund marked settled' },
+            ),
+        );
+
+        const result = await settleDeliveryFeeRefund('6700aabbccddeeff00112233', {
+            method: 'cash',
+            reference: '   ',
+            note: ' Handed over at the shop ',
+        });
+
+        expect(calls[0].method).toBe('POST');
+        expect(calls[0].url).toContain('/money/delivery-fee-refunds/6700aabbccddeeff00112233/settle');
+        // `.strict()` with `min(1)`: `""` would be a 400, so a blank is left out.
+        expect(JSON.parse(calls[0].body ?? '{}')).toEqual({
+            method: 'cash',
+            note: 'Handed over at the shop',
+        });
+        expect(result.message).toBe('Delivery-fee refund marked settled');
+        expect(result.data.remainder).toBeNull();
+    });
+
+    it('surfaces a refusal with its platform code', async () => {
+        stubFetch(() =>
+            errorResponse(409, 'PLATFORM_OPERATION_REJECTED', {
+                category: 'conflict',
+                details: { platformCode: 'DELIVERY_FEE_REFUND_ALREADY_COVERED' },
+            }),
+        );
+
+        const error = await settleDeliveryFeeRefund('6700aabbccddeeff00112233', {
+            method: 'mobile_money',
+        }).catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(ApiError);
+        expect((error as ApiError).platformCode).toBe('DELIVERY_FEE_REFUND_ALREADY_COVERED');
     });
 });

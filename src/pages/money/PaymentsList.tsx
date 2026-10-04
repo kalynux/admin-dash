@@ -29,17 +29,19 @@ import {
     resolveDayFilter,
     resolveTimeZone,
 } from '@/lib/datetime';
-import { formatCount, formatInstantInZone, formatMoney, humaniseEnum } from '@/lib/format';
+import { formatCount, formatInstantInZone, formatMoney } from '@/lib/format';
 import { withQuery } from '@/lib/query';
 import { listPayments } from '@/services/money.service';
 import { useAdmin } from '@/store';
 import {
     MONEY_MAX_RANGE_DAYS,
     PAYMENT_METHODS,
+    PAYMENT_PURPOSE_DELIVERY_TOPUP,
     PAYMENT_SORT_DEFAULT,
     PAYMENT_STATUSES,
     type Payment,
     type PaymentListQuery,
+    paymentPurposeLabel,
 } from '@/types/money.types';
 
 /**
@@ -337,8 +339,8 @@ function SettlesCell({ payment }: { payment: Payment }) {
         return (
             <div className="space-y-0.5">
                 <p className="text-xs">{formatCount(orderIds.length)} orders</p>
-                <p className="text-muted-foreground text-xs capitalize">
-                    {humaniseEnum(purpose) ?? '—'}
+                <p className="text-muted-foreground text-xs">
+                    <PurposeLabel purpose={purpose} />
                 </p>
             </div>
         );
@@ -359,9 +361,25 @@ function SettlesCell({ payment }: { payment: Payment }) {
                 /* The cell's own gap text, not `NotSet` — unchanged. */
                 <p className="text-muted-foreground text-xs">Nothing linked</p>
             )}
-            <p className="text-muted-foreground text-xs capitalize">
-                {humaniseEnum(purpose) ?? '—'}
+            <p className="text-muted-foreground text-xs">
+                <PurposeLabel purpose={purpose} />
             </p>
         </div>
     );
+}
+
+/**
+ * What a payment was for. A delivery top-up is drawn as a badge, because
+ * `?orderId=` returns an order's top-ups beside its checkout charge and **the
+ * first row is not the checkout** — the two have to be told apart at a glance.
+ */
+function PurposeLabel({ purpose }: { purpose: string }) {
+    if (purpose === PAYMENT_PURPOSE_DELIVERY_TOPUP) {
+        return (
+            <Badge variant="outline" className="text-[11px]">
+                {paymentPurposeLabel(purpose)}
+            </Badge>
+        );
+    }
+    return <>{paymentPurposeLabel(purpose)}</>;
 }

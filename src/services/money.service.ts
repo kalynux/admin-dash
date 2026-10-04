@@ -1,8 +1,10 @@
 /**
  * `/money` — the platform's own account, the earnings directory, and payouts.
  *
- * **All seventeen `/money` routes** (this said fourteen until ADR-024's `/triage`
- * and `/send`, and `/resolve-unknown`, arrived).
+ * **Every `/money` route — twenty-two since 2026-10-04** (the platform summary
+ * and the order split). This said "seventeen" through the delivery-fee refund
+ * round, which is why it no longer tries to keep a running count: the route
+ * map's test does that.
  *
  * ── The one audited read on the service ───────────────────────────────────────
  * `revealPayoutDestination` is not an ordinary GET. It writes an audit row
@@ -18,6 +20,8 @@ import type { Approval } from '@/types/approvals.types';
 import type { DualControlResult, Paginated } from '@/types/api.types';
 import type {
     AllocationListQuery,
+    DeliveryFeeRefund,
+    DeliveryFeeRefundListQuery,
     EarningsAccountsQuery,
     EarningsAllocation,
     EarningsAllocationDetail,
@@ -29,10 +33,14 @@ import type {
     Payout,
     PayoutDestination,
     PayoutListQuery,
+    PlatformEarningsSummary,
+    PlatformEarningsSummaryQuery,
     PlatformLedgerQuery,
     Refund,
     RefundListQuery,
     ResolveUnknownPayoutBody,
+    SettleDeliveryFeeRefundBody,
+    SettleDeliveryFeeRefundResult,
 } from '@/types/money.types';
 
 /**
@@ -53,6 +61,39 @@ import type {
  */
 export function getPlatformEarnings(options?: RequestOptions): Promise<unknown> {
     return api.get<unknown>('/money/earnings/platform', options);
+}
+
+/**
+ * `GET /money/earnings/platform/summary` · `money.earnings.read` · direct read.
+ *
+ * What the platform earned in `[from, to)` — commission and bargain fee side by
+ * side, each as held / released / reversed / earned. Neither bound ⇒ all time,
+ * and there is no span cap.
+ *
+ * ⚠ **Strict**: any key but `from`/`to` is a `400`, so the query is rebuilt
+ * from those two rather than spread from whatever the caller holds.
+ */
+export function getPlatformEarningsSummary(
+    query: PlatformEarningsSummaryQuery = {},
+    options?: RequestOptions,
+): Promise<PlatformEarningsSummary> {
+    return api.get<PlatformEarningsSummary>(
+        withQuery('/money/earnings/platform/summary', { from: query.from, to: query.to }),
+        options,
+    );
+}
+
+/**
+ * `GET /money/orders/:orderId/split` · `money.splits.read` (every tier) ·
+ * **delegated**.
+ *
+ * Who gets what from one order, and on what basis — allocated where the split
+ * has run, projected where it has not. Returns `unknown` for the reason
+ * `getPlatformEarnings` does: jovi-mall's object passed through, checked by
+ * `isOrderMoneySplit` before anything renders.
+ */
+export function getOrderMoneySplit(orderId: string, options?: RequestOptions): Promise<unknown> {
+    return api.get<unknown>(`/money/orders/${encodeURIComponent(orderId)}/split`, options);
 }
 
 /**
@@ -382,12 +423,15 @@ export const PAYOUT_ACTIVITY_PERMISSIONS = ['money.payouts.read', 'audit.read'] 
 /**
  * `GET /money/earnings/platform/ledger` · `money.earnings.read` · direct read.
  *
- * The movements behind the platform's own commission account — the same account
+ * The movements behind the platform's own accounts — the same accounts
  * `getPlatformEarnings` delegates the *balance* of.
  *
  * **Scoped to the platform and only the platform.** The repository pins
- * `owner_type: 'platform'` and `owner_id: null` ahead of any filter, so there is
- * no owner parameter to send and no way to widen it. A party's own movements are
+ * `owner_type` to the platform singletons and `owner_id: null` ahead of any
+ * filter. `account` picks which singleton: `commission` (`platform`),
+ * `bargain_fee` (`platform_ai`), or `all` — **the default since 2026-10-04**,
+ * so bargain-fee rows appear unless asked otherwise. ⚠ `balancesAfter` is that
+ * row's own account, so on an `all` page it does not chain row to row. A party's own movements are
  * `GET /accounts/:ownerType/:ownerId/activity`.
  *
  * `entryType` is the filter this endpoint exists for: a `hold` is money arriving
@@ -500,4 +544,70 @@ export function listRefunds(
     options?: RequestOptions,
 ): Promise<Paginated<Refund>> {
     return api.list<Refund>(withQuery('/money/refunds', { ...query }), options);
+}
+
+// ─── Delivery-fee refunds (jovi-mall ADR-A11 W-E2, 2026-10-04) ────────────────
+
+/**
+ * `GET /money/delivery-fee-refunds` · `money.payments.read` (every tier).
+ *
+ * Delivery money owed back to a customer that the gateway could not return.
+ * ⚠ `status` is **the queue**, not the row status — `manual_required` (the
+ * server's default: still owed) · `settled` · `all` — and it is a pinned enum,
+ * so an unknown value is a `400`, not an empty page. Automatic refunds are not
+ * the queue's; they appear on the order detail.
+ */
+export function listDeliveryFeeRefunds(
+    query: DeliveryFeeRefundListQuery = {},
+    options?: RequestOptions,
+): Promise<Paginated<DeliveryFeeRefund>> {
+    return api.list<DeliveryFeeRefund>(
+        withQuery('/money/delivery-fee-refunds', { ...query }),
+        options,
+    );
+}
+
+/** `GET /money/delivery-fee-refunds/:refundId` — any row, automatic ones included. */
+export function getDeliveryFeeRefund(
+    refundId: string,
+    options?: RequestOptions,
+): Promise<DeliveryFeeRefund> {
+    return api.get<DeliveryFeeRefund>(
+        `/money/delivery-fee-refunds/${encodeURIComponent(refundId)}`,
+        options,
+    );
+}
+
+/**
+ * `POST /money/delivery-fee-refunds/:refundId/settle` · **`orders.refund`**
+ * (tiers 1–2; never Support). Delegated, audited fail-closed as
+ * `orders.delivery_fee_refund.settle` on the **order**.
+ *
+ * Built as a literal: the schema is `.strict()` with `min(1)` on both optional
+ * strings, so a blank `reference` or `note` is **omitted**, never sent as `""`.
+ * There is no `amount` — the row's amount is what is settled.
+ *
+ * `message` is returned because it is the only sentence that distinguishes a
+ * full settle from a partly-covered one (*"…the rest is still owed"*); the
+ * `remainder` row says the same in data.
+ */
+export function settleDeliveryFeeRefund(
+    refundId: string,
+    body: SettleDeliveryFeeRefundBody,
+    options?: RequestOptions,
+): Promise<{ data: SettleDeliveryFeeRefundResult; message: string | undefined }> {
+    const reference = body.reference?.trim();
+    const note = body.note?.trim();
+    return api
+        .mutate<SettleDeliveryFeeRefundResult>(
+            'POST',
+            `/money/delivery-fee-refunds/${encodeURIComponent(refundId)}/settle`,
+            {
+                method: body.method,
+                ...(reference ? { reference } : {}),
+                ...(note ? { note } : {}),
+            },
+            options,
+        )
+        .then(({ data, message }) => ({ data, message }));
 }

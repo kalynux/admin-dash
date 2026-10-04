@@ -12,11 +12,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { resolveTimeZone } from '@/lib/datetime';
-import { formatCount, formatInstantInZone, formatMoney, humaniseEnum } from '@/lib/format';
+import { formatCount, formatInstantInZone, formatMoney } from '@/lib/format';
 import { getPayment } from '@/services/money.service';
 import { useAdmin, useCan } from '@/store';
 import {
     MONEY_EMBEDDED_LIMIT,
+    paymentPurposeLabel,
     type PaymentDetail as PaymentDetailShape,
     type Refund,
 } from '@/types/money.types';
@@ -180,9 +181,44 @@ function SettlementCard({
                         <SettlesDetail payment={payment} can={can} />
                     </Definition>
 
-                    <Definition label="Purpose">
-                        <span className="capitalize">{humaniseEnum(settles.purpose) ?? '—'}</span>
+                    <Definition
+                        label="Purpose"
+                        hint={
+                            <InfoHint label="About the purpose">
+                                A delivery top-up is a later payment for a higher delivery fee the
+                                customer approved after checkout. It is linked to the order like
+                                the checkout charge, but it is not how the order was paid.
+                            </InfoHint>
+                        }
+                    >
+                        {paymentPurposeLabel(settles.purpose)}
                     </Definition>
+
+                    {settles.deliveryTopup ? (
+                        <Definition label="Top-up for">
+                            <div className="space-y-1">
+                                {settles.deliveryTopup.shipmentId ? (
+                                    <CopyableValue
+                                        value={settles.deliveryTopup.shipmentId}
+                                        label="shipment ID"
+                                        truncate={false}
+                                        to={
+                                            can('shipments.read')
+                                                ? `/dashboard/shipments/${settles.deliveryTopup.shipmentId}`
+                                                : undefined
+                                        }
+                                    />
+                                ) : (
+                                    <NotSet>No shipment recorded</NotSet>
+                                )}
+                                <p className="text-muted-foreground text-xs">
+                                    {settles.deliveryTopup.appliedAt
+                                        ? `Applied to the fee ${formatInstantInZone(settles.deliveryTopup.appliedAt, timeZone) ?? ''}`
+                                        : 'Paid, not yet applied to the fee'}
+                                </p>
+                            </div>
+                        </Definition>
+                    ) : null}
 
                     <Definition label="Payer">
                         {/*

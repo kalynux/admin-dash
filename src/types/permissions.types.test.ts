@@ -134,10 +134,26 @@ describe('the permission catalogue matches api-doc/admin/api/permissions.md', ()
         // "39 of 128" while its own matrix marked the grant; the prose
         // assertion below went red, the page was corrected upstream on
         // 2026-10-03 and re-copied — the same hand-off as 2026-09-27.
-        expect(PERMISSION_NAMES.length).toBe(128);
+        //
+        // ⚠ **Moved 128 → 129 on 2026-10-04** — 129 / 107 / 40 by `authz:matrix`:
+        // `users.close` (role closure, `destructive`, tiers 1–2). Taken from
+        // source before `permissions.md` published it, so the doc-diffing
+        // assertions in this file are red until the page is corrected upstream.
+        //
+        // ⚠ **Moved 129 → 131 on 2026-10-04** — 131 / 109 / 41 by `authz:matrix`:
+        // the `catalog` family (the 22nd), `catalog.categories.read` (every tier)
+        // and `catalog.categories.manage` (`destructive`, tiers 1–2). The page
+        // re-copied that day lists both, but its prose still says 128 and it
+        // has no `users.close` row — so the prose assertion stays red.
+        //
+        // ⚠ **Moved 131 → 132 on 2026-10-04** — 132 / 110 / 42 by `authz:matrix`:
+        // `money.splits.read` (every tier, unflagged). The page re-copied that
+        // day carries the row and says 132 / 110 / 42 in its banner — and
+        // STILL has no `users.close` row, so the same two assertions stay red.
+        expect(PERMISSION_NAMES.length).toBe(132);
         expect(UNROUTED_PERMISSION_NAMES.length).toBe(4);
-        expect(PERMISSION_FAMILIES.length).toBe(21);
-        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(124);
+        expect(PERMISSION_FAMILIES.length).toBe(22);
+        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(128);
     });
 
     /**

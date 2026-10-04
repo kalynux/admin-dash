@@ -45,7 +45,13 @@ export const AUDIT_STATUSES: readonly AuditStatus[] = [
 ];
 
 /**
- * The 23 `targetType` values, verbatim from `audit.md` (§ `targetType` values).
+ * The 24 `targetType` values, verbatim from `audit.md` (§ `targetType` values).
+ *
+ * ⚠ **`category` (2026-10-04) is from source, not the page.** The rename, merge
+ * and delete on `/categories` are audited against it and wi-admin's
+ * `AUDIT_TARGET_TYPES` declares it after `plan`, but `audit.md` still lists 23
+ * values and omits it. The filter is a pinned enum upstream, so offering it
+ * here is safe; the page is behind.
  *
  * `none` is a real member, not a placeholder for absent: an action that concerns
  * no record — a login, a health probe — records it deliberately.
@@ -75,6 +81,7 @@ export const AUDIT_TARGET_TYPES: readonly string[] = [
     'ticket',
     'article',
     'plan',
+    'category',
     'file',
     'administrator',
     'admin_session',

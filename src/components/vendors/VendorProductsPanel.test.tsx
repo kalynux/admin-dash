@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 import { VendorProductsPanel } from '@/components/vendors/VendorProductsPanel';
@@ -65,6 +65,37 @@ describe('opening a listing', () => {
             'href',
             `/dashboard/vendors/${VENDOR_ID}/products/${PRODUCT_ID}`,
         );
+    });
+});
+
+describe('the categories (2026-10-04)', () => {
+    /**
+     * Rows carry `categories[]` and a deprecated `category` string. The chips
+     * read the array; the stale string is served here deliberately, saying
+     * something the array does not, so a regression to it shows up as text.
+     */
+    it('shows every category as a chip, primary first, and never the deprecated string', async () => {
+        const row = {
+            ...vendorProductFixture({
+                categories: [
+                    { id: '66ff0c1e2a4b5c6d7e8f9a03', name: 'Produce', slug: 'produce' },
+                    { id: '66ff0c1e2a4b5c6d7e8f9a04', name: 'Fresh', slug: 'fresh' },
+                ],
+            }),
+            category: 'legacy-free-text',
+        };
+        panel([row]);
+
+        const chips = await screen.findByRole('list', { name: 'Categories' });
+        const links = within(chips).getAllByRole('link');
+        expect(links.map((link) => link.textContent)).toEqual(['Produce', 'Fresh']);
+        expect(links[0]).toHaveAttribute('href', '/dashboard/categories/66ff0c1e2a4b5c6d7e8f9a03');
+        expect(screen.queryByText(/legacy-free-text/)).not.toBeInTheDocument();
+    });
+
+    it('says so when a listing has no category left', async () => {
+        panel([vendorProductFixture({ categories: [] })]);
+        expect(await screen.findByText('No category')).toBeInTheDocument();
     });
 });
 

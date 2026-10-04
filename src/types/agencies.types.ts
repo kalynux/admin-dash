@@ -121,7 +121,9 @@ export interface AgencyPickupBasedPricing {
     /** As above: `false` is "not offered", not "offered free". */
     enabled: boolean;
     baseRateFirstKg: number;
+    /** **Charged since ADR-A11** (2026-10-04) — the fee grows with weight. */
     additionalPerKg: number;
+    /** **Charged since ADR-A11** — a drop-off outside the pickup's region. */
     outOfRegionSurcharge: number;
 }
 
@@ -142,6 +144,17 @@ export interface AgencyPoliciesPricing {
     storageBased: AgencyStorageBasedPricing;
     pickupBased: AgencyPickupBasedPricing;
     additionalFees: AgencyAdditionalFees;
+    /**
+     * Ceiling on **one shipment's posted delivery fee** (jovi-mall ADR-A11).
+     * ⚠ **`null` means no ceiling**, not zero. It caps the formula's price only —
+     * a fee proposal may exceed it, approved by whoever pays.
+     */
+    maxFeePerShipment: number | null;
+    /**
+     * Whether a customer may pay the delivery fee **in cash to the rider** on an
+     * otherwise online-paid order (ADR-A11 D-7). `false` when never set.
+     */
+    acceptsCashDeliveryFee: boolean;
     notes?: string | null;
 }
 

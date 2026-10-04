@@ -43,6 +43,7 @@
 
 import type { AuditStatus } from '@/types/audit.types';
 import type { FileDetail } from '@/types/files.types';
+import type { DeliveryFeeRefund } from '@/types/money.types';
 
 // ─── Status vocabularies ──────────────────────────────────────────────────────
 
@@ -177,8 +178,20 @@ export interface Order {
     customerId: string;
     customerName: string | null;
     currency: string;
-    /** A plain number in the account currency. **Never divide by 100.** */
+    /**
+     * What the customer was charged: **the goods plus any delivery the customer
+     * paid** (jovi-mall ADR-A11, 2026-10-04). Not the vendor's gross — that is
+     * `priceBreakdown.base`. Grows when a delivery top-up is applied. A plain
+     * number in the account currency. **Never divide by 100.**
+     */
     totalAmount: number;
+    /**
+     * Who paid this order's delivery, decided per vendor order at checkout from
+     * the shop's delivery terms. **`null` on a digital order and on every order
+     * placed before customer-paid delivery existed — the shop paid all of those**,
+     * so `null` renders as the shop, never as "unknown".
+     */
+    deliveryPayer: DeliveryPayer | null;
     /**
      * ⚠ **Nullable in practice, though every source says otherwise.**
      *
@@ -209,7 +222,13 @@ export interface Order {
 
 /** The money breakdown. Nullable object, nullable members — see drift 4. */
 export interface OrderPriceBreakdown {
+    /** The goods. */
     base: number | null;
+    /**
+     * What the customer was charged for delivery. **`0` when the shop paid**, and
+     * on older orders, which never wrote it — never `null`. `total = base + delivery`.
+     */
+    delivery: number;
     tax: number | null;
     discount: number | null;
     total: number | null;
@@ -263,6 +282,17 @@ export interface OrderItem {
     quantity: number;
     price: number;
     currency: string | null;
+    /**
+     * Grams for **one unit**, as the delivery fee was priced at checkout.
+     * `null` on digital lines and older orders.
+     */
+    weightGrams: number | null;
+    /**
+     * `variant` · `shipping_config` · `default` — and `default` means **no weight
+     * was recorded**, so the fee counted 1 kg per unit. Open: render an unknown
+     * value raw.
+     */
+    weightSource: OrderItemWeightSource | null;
     /**
      * The **primary** image of what was sold — never the gallery.
      *
@@ -322,7 +352,12 @@ export interface OrderItem {
          */
         trackingNumber: string | null;
         status: string | null;
-        freeDelivery: boolean;
+        /*
+          ⛔ `freeDelivery` was REMOVED on 2026-10-04 — the product-level flag no
+          longer exists upstream. Who paid delivery is the order's `deliveryPayer`.
+          Do not re-declare it: an absent key read as a boolean is `false`, which
+          would tell an operator every line was customer-paid.
+        */
         /** Set when an agency deactivation put this item on hold. */
         hold: { previousStatus: string | null; heldAt: string | null } | null;
         pickup: {
@@ -336,11 +371,157 @@ export interface OrderItem {
 /** `GET /orders/:orderId` — every list field, plus these. */
 export interface OrderDetail extends Order {
     priceBreakdown: OrderPriceBreakdown | null;
+    /**
+     * Why `deliveryPayer` is what it is. `null` where `deliveryPayer` is. Open —
+     * see {@link deliveryPayerReasonLabel}.
+     */
+    deliveryPayerReason: DeliveryPayerReason | null;
+    /**
+     * How much more of **this shop's** goods would have made delivery free at
+     * checkout. `null` when not applicable.
+     */
+    freeDeliveryShortfall: number | null;
     paymentIntentId: string | null;
     dispute: OrderDispute | null;
     completion: OrderCompletion | null;
     deliveryAddress: OrderDeliveryAddress | null;
     items: OrderItem[];
+    /**
+     * Delivery-fee changes after checkout — **read-only**. Typed nullable because
+     * the DTO is (`null` only when not read, which `GET /orders/:orderId` never
+     * does). Readers write `== null`, which also tolerates an older wi-admin
+     * that omits the key.
+     */
+    deliveryFee: OrderDeliveryFee | null;
+}
+
+// ─── Customer-paid delivery (jovi-mall ADR-A11, 2026-10-04) ───────────────────
+
+/**
+ * Who paid delivery. Closed at both ends (`'vendor' | 'customer' | null` in the
+ * DTO), but kept open here by the standing enum rule — an unknown value renders
+ * raw, it does not crash.
+ */
+export type DeliveryPayer = 'vendor' | 'customer' | (string & {});
+
+export type DeliveryPayerReason =
+    | 'shop_always'
+    | 'shop_never'
+    | 'shop_threshold_met'
+    | 'threshold_not_met'
+    | 'cap_fallback'
+    | (string & {});
+
+export type OrderItemWeightSource = 'variant' | 'shipping_config' | 'default' | (string & {});
+
+/**
+ * One payment linked to the order, as the order detail splits them.
+ *
+ * ⚠ **`sharedWithOtherOrders: true` means a cart checkout**, and then `amount` is
+ * the **group's** charge, not this order's share — print it with that said.
+ */
+export interface OrderPaymentRef {
+    id: string;
+    status: string;
+    gateway: string;
+    amount: number;
+    currency: string;
+    sharedWithOtherOrders: boolean;
+    /** Top-ups only: the shipment and fee proposal the payment settles. */
+    shipmentId: string | null;
+    proposalId: string | null;
+    createdAt: string | null;
+}
+
+/**
+ * A fee change on one of the order's shipments.
+ *
+ * `approver`: `vendor` (vendor-paid) · `customer` (an increase the customer
+ * pays) · `none` (a customer-paid decrease, applied on creation). `origin`:
+ * `agency` · `change_agency` · `combined_request`. `status`: `pending` ·
+ * `approved` · `rejected` · `withdrawn`. All open strings.
+ */
+export interface DeliveryFeeProposal {
+    id: string;
+    shipmentId: string;
+    agencyId: string;
+    proposedByRole: string;
+    origin: string;
+    approver: string;
+    /** `increase` · `decrease` · `null` on older rows. */
+    direction: string | null;
+    feeBefore: number;
+    proposedFee: number;
+    currency: string;
+    reason: string;
+    status: string;
+    respondedByRole: string | null;
+    respondedAt: string | null;
+    rejectionNote: string | null;
+    withdrawalReason: string | null;
+    /** An online increase the customer approved: what they must pay on top, and whether they have. */
+    topUp: { amount: number; status: string; paymentId: string | null; paidAt: string | null } | null;
+    /** What the approval did to the customer's side. `null` until applied, or on vendor-paid. */
+    customerEffect: {
+        feeBefore: number | null;
+        feeAfter: number | null;
+        topUpAmount: number | null;
+        refundDue: number | null;
+    } | null;
+    createdAt: string | null;
+}
+
+/**
+ * `GET /orders/:orderId` → `deliveryFee`. Every figure is the server's — this
+ * dashboard **adds nothing up** (the brief: never compute money here).
+ */
+export interface OrderDeliveryFee {
+    payments: {
+        /** How the order was paid. `null` on a COD order or one never paid. */
+        checkout: OrderPaymentRef | null;
+        /** Every top-up attempt, oldest first. */
+        deliveryTopUps: OrderPaymentRef[];
+        /** Σ of the top-ups that succeeded. */
+        deliveryTopUpsPaid: number;
+    };
+    /** Newest first. */
+    proposals: DeliveryFeeProposal[];
+    /** The order's whole delivery-fee refund ledger — automatic and manual rows. */
+    refunds: DeliveryFeeRefund[];
+    /** Σ `manual_required` rows — still owed, a person must send it. */
+    owedManually: number;
+    /** Delivery money returned (gateway refunds completed + manual rows paid by hand). */
+    returned: number;
+}
+
+/** The words for `deliveryPayer`. `null` is the shop — see the field. */
+export function deliveryPayerLabel(payer: DeliveryPayer | null): string {
+    if (payer === null || payer === 'vendor') return 'The shop';
+    if (payer === 'customer') return 'The customer';
+    return payer;
+}
+
+const DELIVERY_PAYER_REASON_LABELS: Record<string, string> = {
+    shop_always: 'The shop always offers free delivery',
+    shop_never: 'The shop never offers free delivery',
+    shop_threshold_met: "The basket reached the shop's free-delivery amount",
+    threshold_not_met: "The basket was below the shop's free-delivery amount",
+    cap_fallback: 'Free delivery would have broken the delivery-cost cap, so the customer paid',
+};
+
+/** An unknown reason renders raw — the standing enum rule. */
+export function deliveryPayerReasonLabel(reason: DeliveryPayerReason): string {
+    return DELIVERY_PAYER_REASON_LABELS[reason] ?? reason;
+}
+
+const WEIGHT_SOURCE_LABELS: Record<string, string> = {
+    variant: 'from the variant',
+    shipping_config: "from the product's shipping settings",
+    default: 'none recorded — counted as 1 kg',
+};
+
+export function weightSourceLabel(source: OrderItemWeightSource): string {
+    return WEIGHT_SOURCE_LABELS[source] ?? source;
 }
 
 /**
@@ -612,12 +793,16 @@ export const ORDER_MAX_RANGE_DAYS = 366;
  * Unlike the vendor feed — where `billing.subscriptions.assign_vendor` also
  * targets a vendor and cannot be filtered for — **no cross-domain action targets
  * an order**, so this filter covers its feed exactly.
+ *
+ * `orders.delivery_fee_refund.settle` is performed on `/money` but **targets the
+ * order**, so it lands on this feed (orders.md § activity, 2026-10-04).
  */
 export const ORDER_AUDIT_ACTIONS = [
     'orders.disputes.resolve',
     'orders.cancel',
     'orders.dispatch',
     'orders.refund',
+    'orders.delivery_fee_refund.settle',
 ] as const;
 
 export const ORDER_AUDIT_ACTION_LABELS: Record<string, string> = {
@@ -625,6 +810,7 @@ export const ORDER_AUDIT_ACTION_LABELS: Record<string, string> = {
     'orders.cancel': 'Cancelled the order',
     'orders.dispatch': 'Dispatched to the delivery agency',
     'orders.refund': 'Refunded the order',
+    'orders.delivery_fee_refund.settle': 'Settled a delivery-fee refund',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

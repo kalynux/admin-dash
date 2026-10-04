@@ -1,14 +1,20 @@
+import type { ReactNode } from 'react';
 import { AlertTriangle, BadgeCheck, BadgeX } from 'lucide-react';
 
 import { CopyableValue } from '@/components/common/CopyableValue';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatInstantInZone } from '@/lib/format';
-import { isMissingProfile, type UserProfile } from '@/types/users.types';
+import { isMissingProfile, type RoleProfile, type UserProfile } from '@/types/users.types';
 
 interface RoleProfilesPanelProps {
     profiles: UserProfile[];
     timeZone: string;
+    /**
+     * What may be done to one held role — today, requesting its closure. Never
+     * offered on a `missing` entry: there is no role entity to close.
+     */
+    renderActions?: (profile: RoleProfile) => ReactNode;
 }
 
 /**
@@ -35,7 +41,7 @@ interface RoleProfilesPanelProps {
  * `status` and `kycStatus` are unenumerated pass-throughs from four different
  * collections, so both render raw.
  */
-export function RoleProfilesPanel({ profiles, timeZone }: RoleProfilesPanelProps) {
+export function RoleProfilesPanel({ profiles, timeZone, renderActions }: RoleProfilesPanelProps) {
     return (
         <Card>
             <CardHeader>
@@ -144,6 +150,8 @@ export function RoleProfilesPanel({ profiles, timeZone }: RoleProfilesPanelProps
                                 <span className="text-muted-foreground text-xs">
                                     {formatInstantInZone(profile.createdAt, timeZone) ?? '—'}
                                 </span>
+
+                                {renderActions?.(profile)}
                             </div>
                         </div>
                     ),

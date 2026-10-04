@@ -28,9 +28,12 @@ import type { AuditEntry } from '@/types/audit.types';
 import type {
     BotMemoryResetBody,
     BotMemoryResetResult,
+    ClosableRole,
     CredentialLinkBody,
     CredentialLinkResult,
     PlatformUser,
+    RequestRoleClosureBody,
+    RoleClosureRequest,
     SuspendUserBody,
     UpdateUserContactBody,
     User,
@@ -325,6 +328,84 @@ export async function resetBotMemory(
     );
     return { result: data, message };
 }
+
+// ─── Role closure (jovi-mall ADR-A10) ─────────────────────────────────────────
+
+/**
+ * `GET /users/:userId/closure-requests` · `users.read` — every request to close
+ * one of this account's roles, newest first, with how the user answered.
+ *
+ * A direct read, unpaged (wi-admin returns one page of 50 — a user collects a
+ * handful in a lifetime). Support holds it: they can see that a request exists
+ * and how it was answered, which is the conversation they will be having.
+ */
+export function listRoleClosureRequests(
+    userId: string,
+    options?: RequestOptions,
+): Promise<RoleClosureRequest[]> {
+    return api.get<RoleClosureRequest[]>(
+        `/users/${encodeURIComponent(userId)}/closure-requests`,
+        options,
+    );
+}
+
+/**
+ * `POST /users/:userId/roles/:role/closure` · **`users.close`** (`destructive`,
+ * tiers 1–2) · delegated · audited `users.close.request`. Answers `201` with the
+ * request.
+ *
+ * ⛔ **This closes nothing.** It sends the user a notice; the role closes only if
+ * they confirm, signed in as that role, within seven days. There is no confirm
+ * route on wi-admin and there must never be one.
+ *
+ * Refusals arrive as `details.platformCode` — see the `PLATFORM_CODE_ROLE_*`
+ * constants below. The reason is trimmed here because the server trims it and
+ * the user reads it.
+ */
+export function requestRoleClosure(
+    userId: string,
+    role: ClosableRole,
+    body: RequestRoleClosureBody,
+    options?: RequestOptions,
+): Promise<RoleClosureRequest> {
+    return api.post<RoleClosureRequest>(
+        `/users/${encodeURIComponent(userId)}/roles/${encodeURIComponent(role)}/closure`,
+        { reason: body.reason.trim() },
+        options,
+    );
+}
+
+/**
+ * `DELETE /users/:userId/roles/:role/closure` · **`users.close`** · delegated ·
+ * audited `users.close.cancel` — withdraw the pending request. `404` with
+ * `PLATFORM_CODE_ROLE_CLOSURE_REQUEST_NOT_FOUND` when nothing is pending,
+ * including when the user answered first.
+ */
+export function withdrawRoleClosure(
+    userId: string,
+    role: ClosableRole,
+    options?: RequestOptions,
+): Promise<RoleClosureRequest> {
+    return api.delete<RoleClosureRequest>(
+        `/users/${encodeURIComponent(userId)}/roles/${encodeURIComponent(role)}/closure`,
+        undefined,
+        options,
+    );
+}
+
+/**
+ * 422 — live work or money holds the role open. `details.blockers` is the
+ * itemised list (read it with `roleClosureBlockersOf`); show it, do not retry.
+ */
+export const PLATFORM_CODE_ROLE_CLOSURE_BLOCKED = 'ROLE_CLOSURE_BLOCKED';
+/** 409 — one is already waiting. `details.requestId` / `expiresAt` name it. */
+export const PLATFORM_CODE_ROLE_CLOSURE_ALREADY_PENDING = 'ROLE_CLOSURE_ALREADY_PENDING';
+/** 422 — the user does not hold that role (or its entity is missing). */
+export const PLATFORM_CODE_ROLE_CLOSURE_ROLE_NOT_HELD = 'ROLE_CLOSURE_ROLE_NOT_HELD';
+/** 409 — that role is already closed. Closure is irreversible. */
+export const PLATFORM_CODE_ROLE_CLOSED = 'ROLE_CLOSED';
+/** 404, on withdraw — nothing is pending; the user may have answered first. */
+export const PLATFORM_CODE_ROLE_CLOSURE_REQUEST_NOT_FOUND = 'ROLE_CLOSURE_REQUEST_NOT_FOUND';
 
 // ─── The platform codes a delegated user write can carry ──────────────────────
 

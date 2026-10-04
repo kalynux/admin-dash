@@ -7,6 +7,7 @@ import { FilterBar } from '@/components/common/FilterBar';
 import { FilterField } from '@/components/common/FilterField';
 import { SearchInput } from '@/components/common/SearchInput';
 import { PageContainer } from '@/components/layout/PageContainer';
+import { LogActor } from '@/components/system/LogActor';
 import { LogEntryDialog } from '@/components/system/LogEntryDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,8 +29,11 @@ import { listPlatformLogs } from '@/services/system.service';
 import { useAdmin } from '@/store';
 import { LOG_LEVELS, LOG_QUERY_MAX, LOG_SOURCES, type PlatformLogsPage } from '@/types/system.types';
 
-const FILTER_KEYS = ['level', 'q', 'requestId', 'source'] as const;
+const FILTER_KEYS = ['level', 'q', 'requestId', 'actorId', 'source'] as const;
 const ANY = 'any';
+
+/** The service answers `400` on anything else, so a half-pasted id is never sent. */
+const OBJECT_ID = /^[a-f0-9]{24}$/i;
 
 const LEVEL_TONE: Record<string, string> = {
     fatal: 'border-destructive/40 text-destructive',
@@ -64,6 +68,12 @@ const LEVEL_TONE: Record<string, string> = {
  *
  * Paging is off `nextBefore` — a cursor, because the capped collection evicts from the front and
  * an offset would yield duplicates and gaps.
+ *
+ * ── One person's lines: `?actorId=` ──────────────────────────────────────────
+ * The ticket names a person; their page carries an id; this filter takes either the user id or
+ * the vendor / agency / agent / customer id — jovi-mall matches both. The party pages link here
+ * with it filled in (`PartyLogsLink`), and every row names who wrote it and offers to narrow to
+ * them. ⚠ Lines written before the platform stamped the profile id answer to the user id only.
  */
 export function PlatformLogs() {
     const admin = useAdmin();
@@ -72,15 +82,19 @@ export function PlatformLogs() {
     const { values, set, reset, isFiltered } = useListQueryState(FILTER_KEYS);
     const [opened, setOpened] = useState<LogEntryView | null>(null);
 
+    const actorIdTyped = values.actorId.trim();
+    const actorIdValid = actorIdTyped === '' || OBJECT_ID.test(actorIdTyped);
+
     const query = useMemo(
         () => ({
             level: values.level || undefined,
             q: values.q || undefined,
             requestId: values.requestId || undefined,
+            actorId: actorIdTyped && actorIdValid ? actorIdTyped : undefined,
             source: values.source || undefined,
             limit: 100,
         }),
-        [values],
+        [values, actorIdTyped, actorIdValid],
     );
 
     const [pages, setPages] = useState<PlatformLogsPage[]>([]);
@@ -177,6 +191,21 @@ export function PlatformLogs() {
                     maxLength={200}
                 />
 
+                <div className="space-y-1">
+                    <SearchInput
+                        value={values.actorId}
+                        onChange={(next) => set({ actorId: next }, { replace: true })}
+                        label="Filter by user, vendor, agency, agent or customer id"
+                        placeholder="User or profile id"
+                        maxLength={24}
+                    />
+                    {!actorIdValid ? (
+                        <p role="alert" className="text-destructive text-xs">
+                            An id is 24 characters of 0–9 and a–f. Not applied yet.
+                        </p>
+                    ) : null}
+                </div>
+
                 <FilterField label="Level" htmlFor="filter-level">
                     <Select
                         value={values.level || ANY}
@@ -245,6 +274,11 @@ export function PlatformLogs() {
                                     <span className="text-muted-foreground/70 text-xs">
                                         {formatRelative(entry.at)}
                                     </span>
+                                    <LogActor
+                                        entry={entry}
+                                        active={actorIdValid ? actorIdTyped : ''}
+                                        onFilter={(id) => set({ actorId: id })}
+                                    />
                                     {entry.requestId ? (
                                         /*
                                          * The one value on this screen worth a copy button, and

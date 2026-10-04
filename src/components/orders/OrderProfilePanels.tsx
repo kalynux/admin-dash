@@ -20,7 +20,12 @@ import { InfoHint } from '@/components/ui/info-hint';
 import { formatCount, formatInstantInZone, formatMoney, humaniseEnum } from '@/lib/format';
 import { resolvePartyName } from '@/lib/party';
 import type { CanPredicate } from '@/store';
-import type { OrderDetail } from '@/types/orders.types';
+import {
+    deliveryPayerLabel,
+    deliveryPayerReasonLabel,
+    weightSourceLabel,
+    type OrderDetail,
+} from '@/types/orders.types';
 
 /**
  * The read-only panels of an order's detail screen.
@@ -194,16 +199,58 @@ export function OrderOverviewPanel({
                         <Definition label="Fulfilment">
                             <FulfillmentStatusBadge status={order.fulfillmentStatus} />
                         </Definition>
-                        <Definition label="Total">
+                        <Definition
+                            label="Total"
+                            hint={
+                                <InfoHint label="About the total">
+                                    What the customer was charged: the goods <strong>plus</strong>{' '}
+                                    any delivery they paid, including top-ups applied later. Not
+                                    the shop&apos;s takings — those are the goods.
+                                </InfoHint>
+                            }
+                        >
                             {formatMoney(order.totalAmount, order.currency)}
                         </Definition>
                         {/* Nullable object with nullable members — each blank is "—", never NaN. */}
-                        <Definition label="Base">
+                        <Definition label="Goods">
                             <Amount
                                 value={order.priceBreakdown?.base}
                                 currency={order.currency}
                             />
                         </Definition>
+                        <Definition label="Delivery charged to the customer">
+                            {/* `0` when the shop paid — printed, not hidden: it is the answer. */}
+                            <Amount
+                                value={order.priceBreakdown?.delivery}
+                                currency={order.currency}
+                            />
+                        </Definition>
+                        <Definition
+                            label="Delivery paid by"
+                            hint={
+                                <InfoHint label="About who pays delivery">
+                                    Decided at checkout from the shop&apos;s delivery terms. Orders
+                                    placed before customers could pay delivery, and digital orders,
+                                    were all paid by the shop.
+                                </InfoHint>
+                            }
+                        >
+                            <DeliveryPayerValue order={order} />
+                        </Definition>
+                        {order.freeDeliveryShortfall !== null &&
+                        order.freeDeliveryShortfall !== undefined ? (
+                            <Definition
+                                label="Short of free delivery by"
+                                hint={
+                                    <InfoHint label="About the shortfall">
+                                        How much more of this shop&apos;s goods would have made
+                                        delivery free at checkout.
+                                    </InfoHint>
+                                }
+                            >
+                                {formatMoney(order.freeDeliveryShortfall, order.currency)}
+                            </Definition>
+                        ) : null}
                         <Definition label="Tax">
                             <Amount value={order.priceBreakdown?.tax} currency={order.currency} />
                         </Definition>
@@ -480,6 +527,29 @@ export function OrderItemsPanel({
                             <Definition label="Unit price">
                                 {formatMoney(item.price, item.currency ?? order.currency)}
                             </Definition>
+                            <Definition
+                                label="Weight per unit"
+                                hint={
+                                    <InfoHint label="About the weight">
+                                        The weight the delivery fee was priced on at checkout. With
+                                        none recorded, the platform counts 1 kg per unit.
+                                    </InfoHint>
+                                }
+                            >
+                                {item.weightGrams === null || item.weightGrams === undefined ? (
+                                    <NotSet />
+                                ) : (
+                                    <>
+                                        {formatWeight(item.weightGrams)}
+                                        {item.weightSource ? (
+                                            <span className="text-muted-foreground">
+                                                {' '}
+                                                · {weightSourceLabel(item.weightSource)}
+                                            </span>
+                                        ) : null}
+                                    </>
+                                )}
+                            </Definition>
 
                             {item.delivery ? (
                                 <>
@@ -554,9 +624,6 @@ export function OrderItemsPanel({
                                             <NotSet>Not dispatched</NotSet>
                                         )}
                                     </Definition>
-                                    <Definition label="Free delivery">
-                                        {item.delivery.freeDelivery ? 'Yes' : 'No'}
-                                    </Definition>
                                     <Definition
                                         label="On hold"
                                         hint={
@@ -624,6 +691,46 @@ function orderItemDomId(orderItemId: string): string {
 function Amount({ value, currency }: { value: number | null | undefined; currency: string }) {
     if (value === null || value === undefined) return <NotSet />;
     return <>{formatMoney(value, currency)}</>;
+}
+
+/** Grams as an operator reads them: `750 g`, `3 kg`, `1.25 kg`. */
+function formatWeight(grams: number): string {
+    if (grams < 1000) return `${formatCount(grams)} g`;
+    return `${formatCount(Math.round(grams / 10) / 100)} kg`;
+}
+
+/**
+ * Who paid delivery, and why.
+ *
+ * ⚠ **`null` is the shop, not "unknown"** — a digital order, or one placed
+ * before customers could pay delivery. `cap_fallback` gets the warning tone and
+ * its own sentence: the shop offers free delivery and the customer paid anyway,
+ * which is exactly the order a support ticket will ask about.
+ */
+function DeliveryPayerValue({ order }: { order: OrderDetail }) {
+    const reason = order.deliveryPayerReason;
+    return (
+        <span className="flex flex-col gap-0.5">
+            <span>{deliveryPayerLabel(order.deliveryPayer ?? null)}</span>
+            {reason ? (
+                <span
+                    className={
+                        reason === 'cap_fallback'
+                            ? 'text-warning text-xs'
+                            : 'text-muted-foreground text-xs'
+                    }
+                >
+                    {deliveryPayerReasonLabel(reason)}
+                </span>
+            ) : order.deliveryPayer == null ? (
+                <span className="text-muted-foreground text-xs">
+                    {order.type === 'digital'
+                        ? 'A digital order — nothing to deliver'
+                        : 'Placed before customers could pay delivery'}
+                </span>
+            ) : null}
+        </span>
+    );
 }
 
 /**

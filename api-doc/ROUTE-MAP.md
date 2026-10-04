@@ -1,4 +1,37 @@
-# Route map — all 270 wi-admin routes
+# Route map — all 283 wi-admin routes
+
+✅ **281 → 283 on 2026-10-04, MEASURED — the recipe printed `TOTAL 284`**, and the two new rows
+are the money-split round: `GET /money/earnings/platform/summary` (`money.earnings.read`, a
+direct read — **strict**, `from`/`to` only) and `GET /money/orders/:orderId/split` (the new
+**`money.splits.read`**, every tier, Support included — delegated). `authz:matrix` printed
+**132 / 110 / 42**. No new route group. Contract:
+[FRONTEND-CHANGELOG-money-split.md](admin/FRONTEND-CHANGELOG-money-split.md). Upstream is
+**uncommitted** in both wi-admin and jovi-mall.
+
+✅ **278 → 281 on 2026-10-04, MEASURED — the recipe printed `TOTAL 282`**, and the three new rows
+are the delivery-fee refund queue (jovi-mall ADR-A11 W-E2 / wi-admin W-G2):
+`GET /money/delivery-fee-refunds` and `GET /money/delivery-fee-refunds/:refundId`
+(`money.payments.read`, every tier), and `POST /money/delivery-fee-refunds/:refundId/settle`
+(**`orders.refund`**, tiers 1–2 — a customer refund, never Support). No new route group and no
+new permission. Contract:
+[FRONTEND-CHANGELOG-customer-paid-delivery.md](admin/FRONTEND-CHANGELOG-customer-paid-delivery.md).
+Upstream is **committed** (`8d3cf25`).
+
+✅ **273 → 278 on 2026-10-04, MEASURED — the recipe printed `TOTAL 279`**, and the five new rows
+are exactly the new `/categories` group (the shared product-category list): `GET /categories`
+and `GET /categories/:categoryId` (`catalog.categories.read`, every tier), and `PATCH`,
+`DELETE /categories/:categoryId` and `POST /categories/:categoryId/merge`
+(`catalog.categories.manage`, `destructive`, tiers 1–2). A **new route group, the 27th**, and a
+new permission family, the 22nd — `authz:matrix` **131 / 109 / 41**. Contract:
+[FRONTEND-CHANGELOG-product-categories.md](admin/FRONTEND-CHANGELOG-product-categories.md).
+⚠ Upstream is **uncommitted**.
+
+✅ **270 → 273 on 2026-10-04, MEASURED — the recipe printed `TOTAL 274`**, and the three new rows
+are exactly jovi-mall ADR-A10's role closure under `/users`: `GET /users/:userId/closure-requests`
+(`users.read`) and `POST` / `DELETE /users/:userId/roles/:role/closure` (`users.close`, the 129th
+permission — `authz:matrix` **129 / 107 / 40**). Contract:
+[FRONTEND-CHANGELOG-role-closure.md](admin/FRONTEND-CHANGELOG-role-closure.md). ⚠ Upstream is
+**uncommitted**, and `permissions.md` does not list `users.close` yet.
 
 ✅ **265 → 270 on 2026-10-03, MEASURED — the recipe printed `TOTAL 271`**, and a path-by-path
 diff of its output against this table found exactly these five missing and nothing extra. Two
@@ -184,8 +217,8 @@ failure is not caught, so with the audit store down nothing is disclosed. See
 ```bash
 cd backend/admin
 node -r ts-node/register/transpile-only -r dotenv/config \
-    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 271 (2026-10-03, COD limits + delivery region)
-npm run authz:matrix                                                      # 128 / 106 / 40 (2026-10-03)
+    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 284 (2026-10-04, money split)
+npm run authz:matrix                                                      # 132 / 110 / 42 (2026-10-04)
 ```
 
 ✅ **`authz:matrix` and the contract agree again: 124 / 104 / 38**, re-derived from source on
@@ -207,7 +240,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 
 ---
 
-## The 270 routes, by namespace
+## The 283 routes, by namespace
 
 ### `/support` — 19 routes
 
@@ -345,15 +378,20 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/content/authors/:authorId` | `content.authors.read` | — | [`content.md`](admin/api/content.md) |
 | PATCH | `/content/authors/:authorId` | `content.authors.write` | ✅ content.authors.update | [`content.md`](admin/api/content.md) |
 
-### `/money` — 17 routes
+### `/money` — 22 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
+| GET | `/money/delivery-fee-refunds` | `money.payments.read` | — | [`money.md`](admin/api/money.md) |
+| GET | `/money/delivery-fee-refunds/:refundId` | `money.payments.read` | — | [`money.md`](admin/api/money.md) |
+| POST | `/money/delivery-fee-refunds/:refundId/settle` | `orders.refund` | ✅ orders.delivery_fee_refund.settle | [`money.md`](admin/api/money.md) |
 | GET | `/money/earnings/accounts` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
 | GET | `/money/earnings/allocations` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
 | GET | `/money/earnings/allocations/:allocationId` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
 | GET | `/money/earnings/platform` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
 | GET | `/money/earnings/platform/ledger` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
+| GET | `/money/earnings/platform/summary` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
+| GET | `/money/orders/:orderId/split` | `money.splits.read` | — | [`money.md`](admin/api/money.md) |
 | GET | `/money/payments` | `money.payments.read` | — | [`money.md`](admin/api/money.md) |
 | GET | `/money/payments/:transactionId` | `money.payments.read` | — | [`money.md`](admin/api/money.md) |
 | GET | `/money/payouts` | `money.payouts.read` | — | [`money.md`](admin/api/money.md) |
@@ -385,6 +423,16 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | POST | `/vendors/:vendorId/restore` | `vendors.suspend` | ✅ vendors.reinstate | [`vendors.md`](admin/api/vendors.md) |
 | PATCH | `/vendors/:vendorId/settings` | `vendors.settings.manage` | ✅ vendors.settings.update | [`vendors.md`](admin/api/vendors.md) |
 | POST | `/vendors/:vendorId/suspend` | `vendors.suspend` | ✅ vendors.suspend | [`vendors.md`](admin/api/vendors.md) |
+
+### `/categories` — 5 routes
+
+| Method | Path | Permission | Audited | Documented in |
+|---|---|---|---|---|
+| GET | `/categories/` | `catalog.categories.read` | — | [`categories.md`](admin/api/categories.md) |
+| GET | `/categories/:categoryId` | `catalog.categories.read` | — | [`categories.md`](admin/api/categories.md) |
+| PATCH | `/categories/:categoryId` | `catalog.categories.manage` | ✅ catalog.categories.rename | [`categories.md`](admin/api/categories.md) |
+| DELETE | `/categories/:categoryId` | `catalog.categories.manage` | ✅ catalog.categories.delete | [`categories.md`](admin/api/categories.md) |
+| POST | `/categories/:categoryId/merge` | `catalog.categories.manage` | ✅ catalog.categories.merge | [`categories.md`](admin/api/categories.md) |
 
 ### `/auth` — 14 routes
 
@@ -499,7 +547,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/shipments/:shipmentId/tracking-events` | `shipments.tracking.read` | — | [`shipments.md`](admin/api/shipments.md) |
 | GET | `/shipments/:shipmentId/tracking-trail` | `shipments.tracking.read` | ✅ shipments.tracking.trail.read | [`shipments.md`](admin/api/shipments.md) |
 
-### `/users` — 9 routes
+### `/users` — 12 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -507,10 +555,13 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/users/:userId` | `users.read` | — | [`users.md`](admin/api/users.md) |
 | PATCH | `/users/:userId` | `users.update` | ✅ users.update | [`users.md`](admin/api/users.md) |
 | GET | `/users/:userId/activity` | `users.read` + `audit.read` | — | [`users.md`](admin/api/users.md) |
+| GET | `/users/:userId/closure-requests` | `users.read` | — | [`users.md`](admin/api/users.md) |
 | POST | `/users/:userId/bot-memory/reset` | `users.bot_memory.reset` | ✅ users.bot_memory.reset | [`users.md`](admin/api/users.md) |
 | POST | `/users/:userId/login-link` | `users.login_link.send` | ✅ users.login_link.send | [`users.md`](admin/api/users.md) |
 | POST | `/users/:userId/password-reset-link` | `users.password.reset` | ✅ users.password_reset_link.send | [`users.md`](admin/api/users.md) |
 | POST | `/users/:userId/restore` | `users.suspend` | ✅ users.reinstate | [`users.md`](admin/api/users.md) |
+| DELETE | `/users/:userId/roles/:role/closure` | `users.close` | ✅ users.close.cancel | [`users.md`](admin/api/users.md) |
+| POST | `/users/:userId/roles/:role/closure` | `users.close` | ✅ users.close.request | [`users.md`](admin/api/users.md) |
 | POST | `/users/:userId/suspend` | `users.suspend` | ✅ users.suspend | [`users.md`](admin/api/users.md) |
 
 ### `/audit` — 7 routes
