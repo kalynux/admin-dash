@@ -46,9 +46,11 @@ on the split as RATES, never FCFA** — gated on `useIsDeveloper()` inside the p
 perturbation-tested. ⚠ **It hides, it does not protect**: the API sends the amounts to every tier,
 and gross − vendor net gives them away; a real boundary is a backend projection. The Earnings
 screen and tile were already Developer-only (2026-09-27). Measured: `dump-routes.js` **`TOTAL 284`
-= 283 routes**, `authz:matrix` **132 / 110 / 42**. 🔴 `permissions.md` upstream now says 132 and
-has the `money.splits.read` row — and **still no `users.close` row**, so the same two assertions
-stay red.
+= 283 routes**, `authz:matrix` **132 / 110 / 42**. ✅ **`permissions.types.test.ts` is GREEN again
+(2026-10-04)** — the push of this round failed CI on exactly its two doc assertions, so the
+`users.close` row and the 132 / 110 / 42 tier table were added to
+`backend/admin/api-doc/api/permissions.md` and re-copied (byte-identical). On CI's clean runner
+those two were the **only** failures; the timeout set below passed there.
 
 ✅ **Customer-paid delivery built 2026-10-04 — read-only fields everywhere, plus ONE write: Settle.**
 Contract: [FRONTEND-CHANGELOG-customer-paid-delivery.md](api-doc/admin/FRONTEND-CHANGELOG-customer-paid-delivery.md)
@@ -103,7 +105,7 @@ vendors create categories by naming them. ⚠ **Vendor product rows AND the prod
 in source and **missing from `audit.md`** (still says 23). Measured: `authz:matrix`
 **131 / 109 / 41**, `dump-routes.js` **`TOTAL 279` = 278 routes**. 🔴 `permissions.md` lists
 the `catalog` rows but its prose still says 128 and it still lacks `users.close`, so the same
-two assertions in `permissions.types.test.ts` stay red — now on `users.close` alone.
+two assertions in `permissions.types.test.ts` stay red — now on `users.close` alone. ✅ **Closed later that day** (see the money-split block).
 
 ✅ **Role closure built 2026-10-04 — an administrator ASKS, only the user closes.** Contract:
 [FRONTEND-CHANGELOG-role-closure.md](api-doc/admin/FRONTEND-CHANGELOG-role-closure.md) (jovi-mall
@@ -120,6 +122,8 @@ catalog's sentence is written for suspend/restore. Measured: `authz:matrix` **12
 `dump-routes.js` **`TOTAL 274` = 273 routes**. 🔴 **`permissions.md` upstream still says 128 and
 has no `users.close` row**, so two assertions in `permissions.types.test.ts` are red until it is
 corrected there and re-copied — the 2026-09-27 hand-off again; do not loosen the test.
+✅ **Closed later that day** — row and tier table corrected upstream and re-copied (see the
+money-split block above).
 
 ✅ **COD limits built 2026-10-03 — agency COD limit, agent pool `default`, `monthly_salary`.**
 Contract: [FRONTEND-CHANGELOG-cod-limits.md](api-doc/admin/FRONTEND-CHANGELOG-cod-limits.md)
