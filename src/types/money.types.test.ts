@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { earningsAccountRowFixture } from '@/test/money-fixtures';
+import { earningsAccountRowFixture, servedEarningsAccountRowFixture } from '@/test/money-fixtures';
 import { ApiError } from '@/types/api.types';
 import {
     canMarkPayoutPaid,
@@ -9,6 +9,7 @@ import {
     gatewayShortfallOf,
     gatewayUnsupportedKind,
     isEarningsAccountRow,
+    readEarningsAccountRow,
     isGatewaySendableDestination,
     isPayoutSendable,
     isPayoutTransferInFlight,
@@ -251,5 +252,34 @@ describe('the gateway refusal readers', () => {
             'Ama Nkeng',
         );
         expect(endorsedByOf(rejection(code, 409))).toBeNull();
+    });
+});
+
+/*
+ * 🔴 The shape wi-admin SERVES — `owner: { type, id, name }` plus `clawback` —
+ * which `isEarningsAccountRow` alone dropped, so the directory read nothing.
+ */
+describe('readEarningsAccountRow', () => {
+    it('reads the served row, name and refund debt included', () => {
+        expect(readEarningsAccountRow(servedEarningsAccountRowFixture({ clawback: 4900 }))).toMatchObject({
+            ownerType: 'agency',
+            ownerId: '665c0011223344556677889a',
+            ownerName: 'Douala Express',
+            available: 380000,
+            clawback: 4900,
+        });
+    });
+
+    it('still reads jovi-mall’s flat row, with no debt and no name', () => {
+        expect(readEarningsAccountRow(earningsAccountRowFixture())).toMatchObject({
+            ownerType: 'agency',
+            ownerName: null,
+            clawback: 0,
+        });
+    });
+
+    it('refuses a row with no balances in either shape', () => {
+        expect(readEarningsAccountRow({ owner: { type: 'vendor', id: 'x', name: null } })).toBeNull();
+        expect(readEarningsAccountRow(null)).toBeNull();
     });
 });

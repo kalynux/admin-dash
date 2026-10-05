@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -25,6 +26,7 @@ import { notify } from '@/lib/notify';
 import { cn } from '@/lib/utils';
 import { settleDeliveryFeeRefund } from '@/services/money.service';
 import { ApiError } from '@/types/api.types';
+import { refundDetailPath, refundRequestIdOf } from '@/types/refunds.types';
 import {
     DELIVERY_FEE_REFUND_METHOD_LABELS,
     DELIVERY_FEE_REFUND_METHODS,
@@ -132,6 +134,8 @@ function SettleForm({
     const [refusal, setRefusal] = useState<'already_covered' | 'not_covered' | null>(null);
     const [coveredDetail, setCoveredDetail] = useState<number | null>(null);
     const [stale, setStale] = useState(false);
+    /** `NOT_SETTLEABLE` naming a refund request (2026-10-05): the money is worked in the queue. */
+    const [linkedRefundId, setLinkedRefundId] = useState<string | null>(null);
 
     const {
         register,
@@ -172,6 +176,10 @@ function SettleForm({
             const kind = deliveryFeeRefundRefusalOf(error);
 
             if (kind === 'not_settleable') {
+                // Since the refund queue the row may be refused because a refund
+                // REQUEST is returning this money, or one of the whole order is
+                // open — `details.refundRequestId` names it when it survives.
+                setLinkedRefundId(refundRequestIdOf(error));
                 setStale(true);
                 return;
             }
@@ -211,6 +219,26 @@ function SettleForm({
 
             notify.apiError(error);
         }
+    }
+
+    if (stale && linkedRefundId) {
+        return (
+            <div className="border-warning/40 bg-warning/10 space-y-2 rounded-md border p-3 text-sm">
+                <p className="font-medium">A refund request is handling this money.</p>
+                <p className="text-muted-foreground">
+                    Approve, settle or reject it in the refund queue instead — paying it here too
+                    would pay the customer twice. Nothing was recorded.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                    <Button asChild variant="outline" size="sm">
+                        <Link to={refundDetailPath(linkedRefundId)}>Open the refund request</Link>
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={onStale}>
+                        Reload
+                    </Button>
+                </div>
+            </div>
+        );
     }
 
     if (stale) {

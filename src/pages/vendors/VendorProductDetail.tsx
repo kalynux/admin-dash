@@ -7,13 +7,17 @@ import { CopyableValue } from '@/components/common/CopyableValue';
 import { ErrorState } from '@/components/common/DataState';
 import { DetailSkeleton } from '@/components/common/Loading';
 import { PageContainer } from '@/components/layout/PageContainer';
+import { ReviewsPanel } from '@/components/reviews/ReviewsPanel';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     RestoreProductDialog,
     SuspendProductDialog,
 } from '@/components/vendors/VendorProductDialogs';
 import {
     ProductCommercialsPanel,
+    ProductDeliveryPanel,
+    ProductDescriptionPanel,
     ProductIdentityPanel,
     ProductMediaPanel,
     ProductStoragePanel,
@@ -197,10 +201,37 @@ function VendorProductDetailScreen({
 
             <ProductSuspensionPanel product={record} timeZone={timeZone} />
             <ProductMediaPanel product={record} />
+            <ProductDescriptionPanel product={record} />
             <ProductCommercialsPanel product={record} />
+            <ProductDeliveryPanel product={record} />
             <ProductStoragePanel storage={record.storage} />
             <ProductVariantsPanel product={record} />
             <ProductIdentityPanel product={record} timeZone={timeZone} />
+
+            {/*
+              The customers' reviews of this listing. A section rather than a tab
+              because this screen has none; gated on `reviews.read`, which every
+              tier holds, and moderated from right here.
+            */}
+            <Can permission="reviews.read">
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Reviews</CardTitle>
+                        <CardDescription>
+                            What customers who bought it wrote. Published ones are on the product
+                            page and count towards its rating.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <ReviewsPanel
+                            scope={{ productId: record.id }}
+                            timeZone={timeZone}
+                            hide={['shop', 'subject']}
+                            noun="this listing"
+                        />
+                    </CardContent>
+                </Card>
+            </Can>
 
             {/*
               Stated in the open rather than behind an info icon, for the reason the

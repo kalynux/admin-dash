@@ -352,6 +352,32 @@ export const ERROR_CODES = Object.freeze({
      * saying so. The override is available; it has to be deliberate and reasoned.
      */
     REFUND_POLICY_OVERRIDE_REQUIRED: 'REFUND_POLICY_OVERRIDE_REQUIRED',
+    // ── REFUND REQUESTS (REFUND-FLOW-PLAN § 11.7) ────────────────────────────
+    /** A typed destination number without the picture of the customer's message giving it (R-7). 422. */
+    REFUND_DESTINATION_PROOF_REQUIRED: 'REFUND_DESTINATION_PROOF_REQUIRED',
+    /** A typed destination may not be approved by the administrator who typed it (R-7). 409. */
+    REFUND_SECOND_APPROVER_REQUIRED: 'REFUND_SECOND_APPROVER_REQUIRED',
+    REFUND_REQUEST_NOT_FOUND: 'REFUND_REQUEST_NOT_FOUND',
+    /** The request is not in a status that permits this verb (e.g. `sending → rejected`). 409. */
+    REFUND_REQUEST_STATUS_CONFLICT: 'REFUND_REQUEST_STATUS_CONFLICT',
+    /** One open refund request per source (`refund_one_open_per_source`). 409. */
+    REFUND_ALREADY_OPEN: 'REFUND_ALREADY_OPEN',
+    /** No number to send to: no stored payer number and none typed. 422. */
+    REFUND_NO_DESTINATION: 'REFUND_NO_DESTINATION',
+    /** The active payout gateway cannot send on this deployment — settle externally instead. 422. */
+    REFUND_PAYOUT_UNAVAILABLE: 'REFUND_PAYOUT_UNAVAILABLE',
+    /** The payout gateway's float is short; the request stays `approved`. 409. */
+    REFUND_INSUFFICIENT_GATEWAY_BALANCE: 'REFUND_INSUFFICIENT_GATEWAY_BALANCE',
+    /** A refund paid outside the platform needs its picture proof (R-7b). 422. */
+    REFUND_EXTERNAL_PROOF_REQUIRED: 'REFUND_EXTERNAL_PROOF_REQUIRED',
+    /** Boot wiring: `registerRefundPorts` was never called. Never skipped silently. 500. */
+    REFUND_PORT_NOT_REGISTERED: 'REFUND_PORT_NOT_REGISTERED',
+    /**
+     * The LEGACY admin refund route (`POST /api/internal/admin/orders/:orderId/refund`) refuses a
+     * refund of 2,000,000 or more: the four-eyes approval lives on the refund queue
+     * (`/api/internal/admin/refunds`), and this route creates AND approves in one call. 422.
+     */
+    REFUND_USE_REFUND_QUEUE: 'REFUND_USE_REFUND_QUEUE',
 
     // ── TICKET ────────────────────────────────────────────────────────────────
     TICKET_NOT_FOUND: 'TICKET_NOT_FOUND',
@@ -706,6 +732,7 @@ export const ERROR_CODES = Object.freeze({
     GOOGLE_NO_ACCESS_TOKEN: 'GOOGLE_NO_ACCESS_TOKEN',
     GOOGLE_NO_REFRESH_TOKEN: 'GOOGLE_NO_REFRESH_TOKEN',
     GOOGLE_CALENDAR_NOT_CONNECTED: 'GOOGLE_CALENDAR_NOT_CONNECTED',
+    GOOGLE_CALENDAR_SCOPE_NOT_GRANTED: 'GOOGLE_CALENDAR_SCOPE_NOT_GRANTED',
     GOOGLE_EVENT_MISSING_ID: 'GOOGLE_EVENT_MISSING_ID',
     GOOGLE_EVENT_MISSING_DATETIME: 'GOOGLE_EVENT_MISSING_DATETIME',
     GOOGLE_TOKEN_ENCRYPTION_KEY_MISSING: 'GOOGLE_TOKEN_ENCRYPTION_KEY_MISSING',
@@ -1760,11 +1787,13 @@ export const ERROR_CODES = Object.freeze({
      */
     REVIEW_SUBJECT_NOT_REVIEWABLE: 'REVIEW_SUBJECT_NOT_REVIEWABLE',
     /**
-     * 409. A moderation compare-and-set miss — the review left `pending` while the
-     * administrator was looking at it. Same shape and same reasoning as
-     * `STOCK_REQUEST_NOT_PENDING`: the row exists, somebody else decided first.
+     * 409. A moderation compare-and-set miss — unpublishing a review that is not
+     * published, or republishing one that is not unpublished. Usually another
+     * administrator acted first; `details.status` says where it is now. Same shape as
+     * `STOCK_REQUEST_NOT_PENDING`. Replaced `REVIEW_NOT_PENDING` (2026-10-05), which
+     * went with the held-for-moderation state.
      */
-    REVIEW_NOT_PENDING: 'REVIEW_NOT_PENDING',
+    REVIEW_STATUS_CONFLICT: 'REVIEW_STATUS_CONFLICT',
     /** 400. This author role may not review this subject type at all. */
     REVIEW_ROLE_NOT_ALLOWED: 'REVIEW_ROLE_NOT_ALLOWED',
 
@@ -1925,6 +1954,17 @@ export const ERROR_CODES = Object.freeze({
     EARNINGS_INVALID_SPLIT: 'EARNINGS_INVALID_SPLIT',
     EARNINGS_ALLOCATION_NOT_FOUND: 'EARNINGS_ALLOCATION_NOT_FOUND',
     EARNINGS_ALREADY_COMPLETED: 'EARNINGS_ALREADY_COMPLETED',
+    EARNINGS_ALREADY_PAUSED: 'EARNINGS_ALREADY_PAUSED',
+    EARNINGS_NOT_PAUSED: 'EARNINGS_NOT_PAUSED',
+    /** Manual resume refused: a refund of this order/booking is open, or its recovery is still pending. 409. */
+    EARNINGS_PAUSE_HELD_BY_REFUND: 'EARNINGS_PAUSE_HELD_BY_REFUND',
+    EARNINGS_PAUSE_TARGET_NOT_FOUND: 'EARNINGS_PAUSE_TARGET_NOT_FOUND',
+    /** Write-off refused: the owner owes nothing (no `clawback_balance`). */
+    EARNINGS_CLAWBACK_NOTHING_OWED: 'EARNINGS_CLAWBACK_NOTHING_OWED',
+    /** Write-off refused: the amount is more than the owner owes right now. */
+    EARNINGS_CLAWBACK_WRITE_OFF_EXCEEDS_DEBT: 'EARNINGS_CLAWBACK_WRITE_OFF_EXCEEDS_DEBT',
+    /** A clawback or write-off amount that is not a whole, non-negative number, or a missing refund key. */
+    EARNINGS_CLAWBACK_INVALID_AMOUNT: 'EARNINGS_CLAWBACK_INVALID_AMOUNT',
     EARNINGS_ORDER_NOT_CONFIRMABLE: 'EARNINGS_ORDER_NOT_CONFIRMABLE',
     EARNINGS_FORBIDDEN: 'EARNINGS_FORBIDDEN',
     EARNINGS_PAYOUT_ALREADY_PENDING: 'EARNINGS_PAYOUT_ALREADY_PENDING',

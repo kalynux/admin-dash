@@ -246,10 +246,126 @@ export interface EarningsAccountRow {
     reserve: number;
     /** Already asked for through a payout request and not yet paid. */
     requested: number;
+    /**
+     * **Refund debt** — what the owner owes BACK after a refund recovered more
+     * than their balances held (2026-10-05). ⚠ The **opposite direction** from
+     * the four above: never added to them, shown as its own red figure. `0` when
+     * nothing is owed, and when an older wi-admin omits the key.
+     */
+    clawback: number;
+    /** The business name where there is one, else the contact's — `null` when unresolved. */
+    ownerName: string | null;
     /** A plain amount in this currency — **never divide by 100**. */
     currency: string;
     updatedAt: string;
 }
+
+/**
+ * One row of `GET /money/earnings/accounts`, read in either of the two shapes
+ * it has had — or `null` when it is neither.
+ *
+ * 🔴 **wi-admin has served `owner: { type, id, name }` since 2026-08-18** (its
+ * `toEarningsAccountDto` hydrates the name), and `money.md`'s worked JSON shows
+ * exactly that. This dashboard was written against jovi-mall's flat
+ * `ownerType` / `ownerId`, so against a real service {@link isEarningsAccountRow}
+ * dropped every row and the directory said *"could not read these accounts"*.
+ * Found on 2026-10-05 while adding `clawback`; no test caught it because the
+ * fixture was built from the same reading. Both shapes are accepted now, the
+ * served one first.
+ */
+export function readEarningsAccountRow(value: unknown): EarningsAccountRow | null {
+    if (typeof value !== 'object' || value === null) return null;
+    const record = value as Record<string, unknown>;
+    const owner =
+        typeof record.owner === 'object' && record.owner !== null
+            ? (record.owner as Record<string, unknown>)
+            : null;
+
+    const ownerType = owner ? owner.type : record.ownerType;
+    const ownerId = owner ? owner.id : record.ownerId;
+    const ownerName = owner && typeof owner.name === 'string' && owner.name.trim() ? owner.name : null;
+
+    const flat = { ...record, ownerType, ownerId };
+    if (!isEarningsAccountRow(flat)) return null;
+
+    return {
+        ownerType: ownerType as string,
+        ownerId: (ownerId as string | null) ?? null,
+        ownerName,
+        pending: record.pending as number,
+        available: record.available as number,
+        reserve: record.reserve as number,
+        requested: record.requested as number,
+        clawback: typeof record.clawback === 'number' ? record.clawback : 0,
+        currency: typeof record.currency === 'string' ? record.currency : '',
+        updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : '',
+    };
+}
+
+/** Is there refund debt on this row? The one test the red figure needs. */
+export function owesRefundDebt(row: Pick<EarningsAccountRow, 'clawback'>): boolean {
+    return row.clawback > 0;
+}
+
+// ─── Refund debt — `/money/earnings/clawbacks` (2026-10-05) ───────────────────
+
+/** One owner who owes the platform after a refund, largest first. A direct read. */
+export interface ClawbackDebtRow {
+    owner: MoneyOwnerRef;
+    /** What the owner owes back now. Paid down automatically by every later inflow. */
+    clawback: number;
+    currency: string;
+    updatedAt: string | null;
+}
+
+/** `meta.totals` — the whole FILTERED debt, per currency. Never summed client-side. */
+export interface ClawbackTotals {
+    currency: string;
+    clawback: number;
+    owners: number;
+}
+
+export const CLAWBACK_OWNER_TYPES = ['vendor', 'agency', 'agent'] as const;
+export const CLAWBACK_SORT_OPTIONS = [
+    { value: '-amount', label: 'Largest debt first' },
+    { value: 'amount', label: 'Smallest debt first' },
+    { value: '-updatedAt', label: 'Recently changed' },
+] as const;
+export const CLAWBACK_SORT_DEFAULT = '-amount';
+
+export interface ClawbackListQuery {
+    ownerType?: string;
+    sort?: string;
+    page?: number;
+    limit?: number;
+}
+
+/** `amount` whole and > 0, at most the debt; `reason` 10–500. Strict body. */
+export interface WriteOffClawbackBody {
+    amount: number;
+    reason: string;
+}
+
+export const CLAWBACK_WRITE_OFF_REASON_MIN = 10;
+export const CLAWBACK_WRITE_OFF_REASON_MAX = 500;
+
+/** `meta.totals` off a clawback page, tolerant — `[]` when absent or malformed. */
+export function clawbackTotalsOf(meta: unknown): ClawbackTotals[] {
+    if (typeof meta !== 'object' || meta === null) return [];
+    const totals = (meta as Record<string, unknown>).totals;
+    if (!Array.isArray(totals)) return [];
+    return totals.filter(
+        (entry): entry is ClawbackTotals =>
+            typeof entry === 'object' &&
+            entry !== null &&
+            typeof (entry as Record<string, unknown>).currency === 'string' &&
+            typeof (entry as Record<string, unknown>).clawback === 'number',
+    );
+}
+
+/** wi-admin's own pre-flight refusal; jovi-mall answers the same name as a backstop. */
+export const CODE_EARNINGS_CLAWBACK_WRITE_OFF_EXCEEDS_DEBT = 'EARNINGS_CLAWBACK_WRITE_OFF_EXCEEDS_DEBT';
+export const PLATFORM_CODE_EARNINGS_CLAWBACK_NOTHING_OWED = 'EARNINGS_CLAWBACK_NOTHING_OWED';
 
 /**
  * Is this one of the delegated rows above?
@@ -1027,7 +1143,11 @@ export interface EarningsLedgerEntry {
     /** Nullable in the DTO even though the column is required upstream. */
     accountId: string | null;
     owner: MoneyOwnerRef;
-    /** `hold` · `release` · `reversal` · `reserve_hold` · `reserve_release`. */
+    /**
+     * `hold` · `release` · `reversal` · `reserve_hold` · `reserve_release` ·
+     * `clawback` · `clawback_recovery` · `clawback_write_off` (the last three
+     * since the refund flow, 2026-10-05). Open — render an unknown one raw.
+     */
     entryType: string;
     /**
      * **The positive magnitude moved — never signed.** Direction is `entryType`'s
@@ -1051,7 +1171,34 @@ export const LEDGER_ENTRY_TYPES = [
     'reversal',
     'reserve_hold',
     'reserve_release',
+    'clawback',
+    'clawback_recovery',
+    'clawback_write_off',
 ] as const;
+
+/**
+ * The ledger's entry types in words (money.md § ledger). An unknown one renders
+ * raw.
+ *
+ * ⚠ The three refund-debt types move money in different directions:
+ * `clawback` takes part of a share back (out), `clawback_recovery` is later
+ * income paying a debt down (out of available), and `clawback_write_off`
+ * forgives a debt — **no balance moves**.
+ */
+export const LEDGER_ENTRY_TYPE_LABELS: Record<string, string> = {
+    hold: 'Held',
+    release: 'Released',
+    reversal: 'Reversed',
+    reserve_hold: 'Moved to reserve',
+    reserve_release: 'Released from reserve',
+    clawback: 'Taken back for a refund',
+    clawback_recovery: 'Applied to a refund debt',
+    clawback_write_off: 'Refund debt written off',
+};
+
+export function ledgerEntryTypeLabel(entryType: string): string {
+    return LEDGER_ENTRY_TYPE_LABELS[entryType] ?? entryType.replace(/_/g, ' ');
+}
 
 /**
  * ⚠ **`money.md:104`'s example says `hold_elapsed`, which is not a member.**
@@ -1100,7 +1247,14 @@ export interface EarningsAllocation {
     source: { type: string; id: string | null };
     /** `beneficiary.id` is genuinely `null` for the platform's own commission row. */
     beneficiary: MoneyOwnerRef;
+    /** Never edited — a refund's claw-back is `clawedAmount`, beside it. */
     amount: number;
+    /**
+     * How much of `amount` refunds have taken back, cumulatively (2026-10-05).
+     * The row turns `reversed` when nothing is left. Optional: an older wi-admin
+     * omits it — read absent as nothing clawed. ⛔ Never subtracted here.
+     */
+    clawedAmount?: number;
     currency: string;
     /** `held` · `released` · `reversed`. A bounded string — render raw. */
     status: string;
@@ -1111,8 +1265,18 @@ export interface EarningsAllocation {
      */
     snapshots: { gross: number; commissionPercent: number };
     release: {
+        /**
+         * When the hold STARTED. Since 2026-10-05 that is an order's **delivery**
+         * (the courier finishing its last parcel), not the customer's
+         * confirmation; for a booking it is still the service's completion. The
+         * field kept its name.
+         */
         completedAt: string | null;
-        /** `completedAt + HOLD_DAYS`. **`null` means the source never completed at all.** */
+        /**
+         * `completedAt + HOLD_DAYS` (3 days since 2026-10-05). **`null` means the
+         * hold has not started.** On a resume it moves later by the paused time —
+         * jovi-mall's arithmetic, never recomputed here.
+         */
         holdReleaseAt: string | null;
         releasedAt: string | null;
         reversedAt: string | null;
@@ -1120,6 +1284,16 @@ export interface EarningsAllocation {
         requiresCashSettlement: boolean;
         /** **`null` alongside `requiresCashSettlement: true` is exactly "the cash is not here".** */
         cashSettledAt: string | null;
+        /**
+         * When this row's order or booking was **paused** (2026-10-05), or `null`.
+         * Paused money is never released, so while this is set `holdReleaseAt` is
+         * not a promise and is not shown. Who paused it and why is at
+         * `GET /money/earnings/pauses/:kind/:id`.
+         *
+         * Optional on the type because an older wi-admin omits the key; read
+         * absent as not paused.
+         */
+        pausedAt?: string | null;
     };
     createdAt: string | null;
     updatedAt: string | null;
@@ -1285,8 +1459,25 @@ export interface Refund {
     currency: string;
     reason: string | null;
     status: string;
-    gateway: string;
+    /**
+     * ⚠ **`null` on a COD or externally-settled refund** since the refund queue
+     * (2026-10-05) — no gateway payment was reversed. Branch on `channel`.
+     */
+    gateway: string | null;
     gatewayRefundRef: string | null;
+    /**
+     * `card_refund` (Stripe) · `payout` (mobile-money transfer) · `external`
+     * (paid outside the platform). `null` on a row from before the refund flow.
+     * Optional on the type: an older wi-admin omits the key.
+     */
+    channel?: string | null;
+    /** The refund request this row completed — `/dashboard/refunds/:id`. `null` on a legacy row. */
+    refundRequestId?: string | null;
+    /** The transfer fee the platform kept. `null` on a legacy row (the customer received `amount`). */
+    feeAmount?: number | null;
+    /** What the customer received. `null` on a legacy row. */
+    netAmount?: number | null;
+    /** `vendor` · `admin` · `support` · `customer` — who ASKED, never who approved. */
     initiatedBy: { id: string | null; role: string };
     /** ⚠ Nullable, and the **default sort key**. */
     createdAt: string | null;
@@ -1355,6 +1546,10 @@ export interface RefundListQuery {
     orderId?: string;
     bookingId?: string;
     paymentTransactionId?: string;
+    /** `card_refund` · `payout` · `external` (2026-10-05). */
+    channel?: string;
+    /** The refund request a row completed (2026-10-05). */
+    refundRequestId?: string;
     from?: string;
     to?: string;
     sort?: string;
@@ -1420,13 +1615,39 @@ export interface DeliveryFeeRefund {
     note: string | null;
     /** The HIGH ticket a manual row opened; settling resolves it. */
     ticketId: string | null;
+    /**
+     * ⚠ `false` while `refundRequestId` or `orderRefundRequest` is set (2026-10-05)
+     * — that money is worked in the refund queue, not here.
+     */
     settleable: boolean;
+    /**
+     * The refund **request** returning this money (2026-10-05). While set, link
+     * to it instead of offering Settle. Optional: an older wi-admin omits it.
+     */
+    refundRequestId?: string | null;
+    /** A request that was REJECTED for this money — history; the row is settleable again. */
+    rejectedRefundRequestId?: string | null;
+    /** An OPEN refund of the whole order — nothing on the order is settled by hand meanwhile. */
+    orderRefundRequest?: { id: string; status: string } | null;
     refundTransactionIds: string[];
     settledAt: string | null;
     /** Set when an **administrator** settled a manual row; `null` on every automatic row. */
     settlement: DeliveryFeeRefundSettlement | null;
     createdAt: string | null;
     updatedAt: string | null;
+}
+
+/**
+ * The refund request working this money, if any (2026-10-05) — the row's own
+ * request first, then an open refund of the whole order. While one is set the
+ * row is not settleable here: link to the request instead of offering Settle.
+ */
+export function deliveryFeeRefundLinkedRequest(
+    row: Pick<DeliveryFeeRefund, 'refundRequestId' | 'orderRefundRequest'>,
+): { id: string; why: 'own' | 'order' } | null {
+    if (row.refundRequestId) return { id: row.refundRequestId, why: 'own' };
+    if (row.orderRefundRequest?.id) return { id: row.orderRefundRequest.id, why: 'order' };
+    return null;
 }
 
 export type DeliveryFeeRefundStatus =

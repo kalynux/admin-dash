@@ -22,7 +22,22 @@ import type { AdminTier } from '@/types/auth.types';
 // ─── The catalogue ────────────────────────────────────────────────────────────
 
 /**
- * All 132 permissions, `family.resource.action`, in the doc's own family order.
+ * All 140 permissions, `family.resource.action`, in the doc's own family order.
+ *
+ * The 137th–140th are the refund queue's (2026-10-05, `refunds.md`):
+ * `orders.refund.read` (every tier, unflagged), `orders.refund.request`
+ * (`financial`, **every tier** — Support raises a request, which HOLDS the
+ * seller's earnings and sends nothing), `orders.refund.settle_external`
+ * (`financial`, tiers 1–2) and `money.earnings.clawback.write_off` (`financial`,
+ * dual-controlled, tiers 1–2). 140 / 118 / 47, measured with
+ * `npm run authz:matrix` that day.
+ *
+ * The 133rd–135th are the **`reviews`** family (2026-10-05, the 23rd —
+ * `reviews.md`): `reviews.read`, `reviews.moderate` and `reviews.delete`
+ * (`destructive`), **all three held by every tier**, Support included. The
+ * 136th is `money.earnings.pause` (`financial`, tiers 1–2), from the
+ * earnings-pauses round built beside it. 136 / 114 / 45, measured with
+ * `npm run authz:matrix` that day.
  *
  * The 132nd is `money.splits.read` (2026-10-04, unflagged, **every tier,
  * Support included**) — one order's money split, `GET
@@ -150,6 +165,13 @@ export const PERMISSION_NAMES = [
     'money.statements.send',
     // Every tier, Support included (2026-10-04) — one order's money split.
     'money.splits.read',
+    // `financial`, tiers 1–2, never Support (2026-10-05) — pause or resume the
+    // payout of an order's or booking's earnings. The reads stay on
+    // `money.earnings.read`.
+    'money.earnings.pause',
+    // `financial`, dual-controlled ≥ 2,000,000, tiers 1–2 (2026-10-05) — forgive
+    // a refund debt (`clawback`); the platform absorbs it.
+    'money.earnings.clawback.write_off',
 
     // orders
     'orders.read',
@@ -157,6 +179,14 @@ export const PERMISSION_NAMES = [
     'orders.disputes.resolve',
     'orders.intervene',
     'orders.refund',
+    // The refund queue (2026-10-05). `orders.refund` above now approves,
+    // rejects, retries and resolves a refund REQUEST (dual-controlled at
+    // 2,000,000); these three read it, raise it, and record a hand payment.
+    'orders.refund.read',
+    // `financial` and held by Support by name: raising holds the seller's
+    // earnings and never sends money.
+    'orders.refund.request',
+    'orders.refund.settle_external',
 
     // support — nineteen routes since Phase 5 Part B; the whole family is routed
     'support.errors.lookup',
@@ -269,6 +299,14 @@ export const PERMISSION_NAMES = [
     // products at once.
     'catalog.categories.read',
     'catalog.categories.manage',
+
+    // reviews — product and delivery reviews (2026-10-05). Every review is
+    // public the moment it is written; these are the after-the-fact rights.
+    // ⚠ **All three, every tier, Support included** — `reviews.delete` is
+    // `destructive` and the one name on `TIER_3_DESTRUCTIVE_ALLOWLIST`.
+    'reviews.read',
+    'reviews.moderate',
+    'reviews.delete',
 
     // shipments
     'shipments.read',
@@ -389,7 +427,10 @@ export const UNROUTED_PERMISSION_NAMES = [
 ] as const;
 
 /**
- * The 22 families, in the matrix's declaration order.
+ * The 23 families, in the matrix's declaration order.
+ *
+ * `reviews` is the 23rd, added 2026-10-05 for review moderation and placed
+ * after `catalog`, where `permissions.md` puts it.
  *
  * `catalog` is the 22nd, added 2026-10-04 for the shared product-category list
  * and placed after `vendors`, where `permissions.md` puts it.
@@ -413,6 +454,7 @@ export const PERMISSION_FAMILIES = [
     'users',
     'vendors',
     'catalog',
+    'reviews',
     'shipments',
     'administrators',
     'employees',
@@ -426,14 +468,14 @@ export const PERMISSION_FAMILIES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Any of the 131. Use for what the *server* may send us. */
+/** Any of the 140. Use for what the *server* may send us. */
 export type PermissionName = (typeof PERMISSION_NAMES)[number];
 
 /** One of the four `†`. */
 export type UnroutedPermissionName = (typeof UNROUTED_PERMISSION_NAMES)[number];
 
 /**
- * The 127 that gate a real endpoint — 131 less the four `†`. **Use for what *our code* asks for** — nav
+ * The 136 that gate a real endpoint — 140 less the four `†`. **Use for what *our code* asks for** — nav
  * items, `<Can>`, `RequirePermission` — so that gating a screen on a permission
  * whose endpoint does not exist is a `tsc` error.
  */

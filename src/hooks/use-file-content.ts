@@ -55,7 +55,16 @@ export interface FileContentHandle {
  * and `ResolvedImageBox` both do — which makes the overlap unrepresentable and
  * routes the old blob through the unmount cleanup below.
  */
-export function useFileContent(fileId: string): FileContentHandle {
+/**
+ * ⚠ `load` is the ROUTE, and it is fixed for the component's life like
+ * `fileId`. The default is `GET /files/:fileId/content`; the refund queue passes
+ * `getRefundProof` (`GET /refunds/proofs/:fileId`), which is audited the same way
+ * — so the click-is-the-consent rule above applies unchanged.
+ */
+export function useFileContent(
+    fileId: string,
+    load: (fileId: string) => Promise<FileContent> = getFileContent,
+): FileContentHandle {
     const [content, setContent] = useState<FileContent | null>(null);
     const [error, setError] = useState<unknown>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -82,7 +91,7 @@ export function useFileContent(fileId: string): FileContentHandle {
         setIsLoading(true);
         setError(null);
         try {
-            const next = await getFileContent(fileId);
+            const next = await load(fileId);
             // Guard the double-click: a second open would strand the first
             // handle with nothing left holding a reference to revoke it.
             release();
@@ -93,7 +102,7 @@ export function useFileContent(fileId: string): FileContentHandle {
         } finally {
             setIsLoading(false);
         }
-    }, [fileId, release]);
+    }, [fileId, load, release]);
 
     return { content, error, isLoading, open };
 }

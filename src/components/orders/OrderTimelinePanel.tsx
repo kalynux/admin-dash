@@ -21,6 +21,7 @@ import { useAsyncData } from '@/hooks/use-async-data';
 import { formatInstantInZone } from '@/lib/format';
 import { PAGE_SIZE_DEFAULT, withQuery } from '@/lib/query';
 import { listOrderTimeline } from '@/services/orders.service';
+import { pauseReasonLabel } from '@/types/earnings-pause.types';
 import {
     ORDER_TIMELINE_ACTOR_TYPES,
     ORDER_TIMELINE_EVENT_TYPES,
@@ -41,8 +42,10 @@ import {
  *
  * ── `metadata` is opaque ──────────────────────────────────────────────────────
  * Written by every transition path, typed `Mixed` in jovi-mall, and deliberately
- * passed through rather than mapped. It is rendered as key/value text and nothing
- * branches on it.
+ * passed through rather than mapped. It is rendered as key/value text. The one
+ * exception is `EventSummary`, which reads the keys `orders.md` documents for
+ * `earnings.paused` / `earnings.resumed` to write a readable headline — and
+ * still leaves the full dump in the Detail column.
  *
  * Filters are local state, not the URL: the URL already identifies the order,
  * which is the part worth sharing.
@@ -50,6 +53,51 @@ import {
 
 /** The `<Select>` sentinel for "no filter". */
 const ANY = 'any';
+
+/** A string `metadata` key, or `null` — `metadata` is `Mixed` and promises nothing. */
+function metaString(entry: OrderTimelineEntry, key: string): string | null {
+    const value = entry.metadata?.[key];
+    return typeof value === 'string' && value.trim() !== '' ? value : null;
+}
+
+/**
+ * The row's headline.
+ *
+ * Two event types (2026-10-05) are rendered in words, because jovi-mall's own
+ * description for them embeds a raw token — *"Earnings paused
+ * (seller_cancelled_paid_order)"*. Only their documented keys are read
+ * (`orders.md` § timeline event types), each tolerated as absent; the Detail
+ * column still shows the whole `metadata` as it came. Every other type keeps
+ * the platform's description.
+ */
+function EventSummary({ entry }: { entry: OrderTimelineEntry }) {
+    if (entry.eventType === 'earnings.paused') {
+        const note = metaString(entry, 'note');
+        return (
+            <div className="space-y-0.5 text-sm">
+                <p>
+                    <span className="font-medium">Earnings paused</span> —{' '}
+                    {pauseReasonLabel(metaString(entry, 'reason'))}
+                </p>
+                {note ? <p className="text-muted-foreground break-words">“{note}”</p> : null}
+            </div>
+        );
+    }
+    if (entry.eventType === 'earnings.resumed') {
+        const note = metaString(entry, 'note');
+        const was = metaString(entry, 'pausedReason');
+        return (
+            <div className="space-y-0.5 text-sm">
+                <p>
+                    <span className="font-medium">Earnings resumed</span>
+                    {was ? <> — had been paused: {pauseReasonLabel(was)}</> : null}
+                </p>
+                {note ? <p className="text-muted-foreground break-words">“{note}”</p> : null}
+            </div>
+        );
+    }
+    return <p className="text-sm">{entry.description ?? entry.eventType}</p>;
+}
 
 const ACTOR_TONE: Record<string, string> = {
     admin: 'border-warning/30 bg-warning/10 text-warning',
@@ -113,7 +161,7 @@ export function OrderTimelinePanel({
                 className: 'align-top',
                 cell: (entry) => (
                     <div className="min-w-0 space-y-1">
-                        <p className="text-sm">{entry.description ?? entry.eventType}</p>
+                        <EventSummary entry={entry} />
                         {/* Mono, but not a value: `eventType` is a vocabulary
                             token, and nobody pastes one anywhere. */}
                         <p className="text-muted-foreground font-mono text-xs">

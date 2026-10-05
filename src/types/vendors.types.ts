@@ -602,6 +602,94 @@ export interface ProductPricing {
     range: { min: number; max: number } | null;
 }
 
+/** Grams and centimetres as the vendor entered them. Each is independently `null`. */
+export interface ProductDimensions {
+    weightG: number | null;
+    lengthCm: number | null;
+    widthCm: number | null;
+    heightCm: number | null;
+}
+
+/** One option value that makes a variant — `Size: M`. */
+export interface ProductVariantOptionValue {
+    optionId: string;
+    /** `null` if the option row is gone — never invented. */
+    optionName: string | null;
+    valueId: string;
+    value: string;
+}
+
+/** A product option with its values, in `position` order. */
+export interface ProductOption {
+    id: string;
+    name: string;
+    position: number;
+    values: { id: string; value: string }[];
+}
+
+/**
+ * Where the delivery agency collects the product — jovi-mall's
+ * `PickupLocationDetail`, the vendor editor's own resolver.
+ *
+ * ⚠ **`agency_storage` means the agency HOSTS the stock**, and the depot is the
+ * product's `deliveryAgency`'s. `address: null` means the stored address no
+ * longer exists; `isPrimaryFallback` means the primary depot is standing in for
+ * one never chosen or since deleted.
+ */
+export interface ProductPickup {
+    source: 'vendor_address' | 'agency_storage' | (string & {});
+    vendorAddressId: string | null;
+    agencyAddressId: string | null;
+    address: {
+        label: string | null;
+        formattedAddress: string | null;
+        addressLine1: string | null;
+        addressLine2: string | null;
+        city: string | null;
+        state: string | null;
+        country: string | null;
+        coordinates: { lat: number; lng: number } | null;
+    } | null;
+    isPrimaryFallback: boolean;
+}
+
+/** The product-level shipping defaults (`ShippingConfig`). */
+export interface ProductShipping extends ProductDimensions {
+    originZipCode: string | null;
+    handlingDays: number | null;
+    shippingEnabled: boolean;
+}
+
+/** A service variant's booking settings. `amount` is the price per `durationMinutes`. */
+export interface ProductServiceConfig {
+    durationMinutes: number;
+    bufferBeforeMinutes: number;
+    bufferAfterMinutes: number;
+    /** `calendar` · `manual` · `capacity` — open: render an unknown one raw. */
+    bookingMode: string;
+    /** `null` unless `bookingMode` is `capacity`. */
+    maxBookings: number | null;
+    peakHours: {
+        /** 0 = Sunday … 6 = Saturday; `[]` = every day. */
+        daysOfWeek: number[];
+        startTime: string;
+        endTime: string;
+        /** `fixed` (an amount) or `percentage` — open. */
+        priceType: string;
+        value: number;
+    } | null;
+}
+
+/** A digital variant's file and download limits. */
+export interface ProductDigitalConfig {
+    /** `null` until uploaded. **No URL** — downloads are entitlement-gated. */
+    asset: { id: string; originalName: string; mimeType: string; size: number } | null;
+    /** `null` = unlimited. */
+    maxDownloads: number | null;
+    /** `null` = never expires. */
+    expiresAfterDays: number | null;
+}
+
 /** One SKU. ⚠ **Archived ones are included** — check `status`. */
 export interface ProductVariant {
     id: string;
@@ -610,6 +698,27 @@ export interface ProductVariant {
     status: 'active' | 'archived' | (string & {});
     amount: number;
     compareAtAmount: number | null;
+    /** In the option's `position` order. `[]` with no options. */
+    optionValues: ProductVariantOptionValue[];
+    /**
+     * The haggling window, or `null` when none is configured. `minPrice` **is**
+     * `amount`; `maxPrice` is the ceiling a buyer may negotiate up to. Unrelated
+     * to `compareAtAmount`.
+     */
+    bargain: { minPrice: number; maxPrice: number } | null;
+    /**
+     * ⚠ `vectorisation.enabled && bargain != null`. A window on a product with AI
+     * search off is **kept but inert** — show it, and say it is not live.
+     */
+    bargainable: boolean;
+    /** The variant's OWN measurements; `null` when it set none and the product's `shipping` applies. */
+    dimensions: ProductDimensions | null;
+    /** The variant's own media, **unfiltered**. `[]` is normal — it then shows the product's gallery. */
+    files: FileDetail[];
+    /** Digital variants only. */
+    digital: ProductDigitalConfig | null;
+    /** Service variants only. */
+    service: ProductServiceConfig | null;
     inventory: ProductInventory;
     /** `null` when this listing is not warehoused by an agency. */
     storage: ProductStorage | null;
@@ -630,12 +739,15 @@ export interface ProductVariant {
  * `CATALOG_PRODUCT_NOT_FOUND` in `details.platformCode`, and **not** as a plain
  * `NOT_FOUND`. Branch on `platformCode`.
  *
- * ── ⚠ Two fields the published page does not mention ───────────────────
- * `vendorId` and `tags` are both on the wire and neither appears in `vendors.md`'s
- * worked JSON or its field tables. Read from the source that computes them —
- * `AdminProductDetailDto` in `backend/jovi-mall/src/modules/vendors/read-models/admin-product-detail.resolver.ts`
- * — which is also where the nullability below comes from. Reported to the
- * backend rather than worked around.
+ * ── Everything the vendor's editor shows (2026-10-05) ───────────────────
+ * Description, SEO, AI search, options, shipping defaults, the pickup location,
+ * the digital switch, every attached file, and per variant its option values,
+ * bargain window, own dimensions, own files and digital/service settings — all
+ * additive, all documented in `vendors.md`, which now also shows `vendorId` and
+ * `tags` (undocumented until then). The source of truth stays
+ * `AdminProductDetailDto` in `backend/jovi-mall/src/modules/vendors/read-models/admin-product-detail.resolver.ts`.
+ * ⚠ An older service sends none of the new fields, so the panels read each one
+ * as possibly absent even though the type does not say so.
  *
  * ── Not an extension of `VendorProduct` ────────────────────────────
  * The two projections genuinely disagree: the list types `title` and `slug`
@@ -645,17 +757,38 @@ export interface ProductVariant {
  */
 export interface VendorProductDetail {
     id: string;
-    /** ⚠ Undocumented — see the note above. The path already carries it. */
+    /** The path already carries it. */
     vendorId: string;
     title: string;
     slug: string;
+    /**
+     * The plain-text description the storefront renders; `null` when none was
+     * written. Since 2026-10-05, like every field down to `digital`: the read now
+     * carries what the vendor's editor shows (`vendors.md` § the product detail).
+     */
+    description: string | null;
+    /** Search-engine overrides; each `null` when unset (the storefront then uses title / description). */
+    seo: { title: string | null; description: string | null };
+    /**
+     * The vendor's AI-search opt-in. ⚠ **Bargaining is only live when `enabled`**,
+     * which is what explains a variant with a `bargain` and `bargainable: false`.
+     * `status` is an open vocabulary.
+     */
+    vectorisation: { enabled: boolean; status: string };
+    options: ProductOption[];
+    /** Product-level size/weight defaults; `null` when never saved. */
+    shipping: ProductShipping | null;
+    /** `null` on digital/service, or a physical listing not configured yet. */
+    pickup: ProductPickup | null;
+    /** Digital products only: the product-wide download switch. */
+    digital: { isActive: boolean } | null;
     /**
      * Since 2026-10-04, from `AdminProductDetailDto` (jovi-mall resolver) — the
      * page documents it on the list row only. Same shape and order as the row;
      * the deprecated `category` beside it is not declared.
      */
     categories: ProductCategoryRef[];
-    /** ⚠ Undocumented — see the note above. `[]`, never `null`. */
+    /** `[]`, never `null`. */
     tags: string[];
     type: ProductType;
     status: ProductStatus;
@@ -679,6 +812,13 @@ export interface VendorProductDetail {
     media: {
         images: FileDetail[];
         primaryImage: FileDetail | null;
+        /**
+         * Every file on the product itself, **unfiltered** — any type,
+         * quota-blocked included. ⚠ `images` is the default variant's customer
+         * gallery and omits these whenever that variant has its own pictures, so
+         * `files` + `variants[].files` is the listing's whole media.
+         */
+        files: FileDetail[];
     };
     /**
      * ⚠ **`null` on a product with no variants at all** — a broken listing, and

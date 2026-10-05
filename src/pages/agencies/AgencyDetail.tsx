@@ -26,6 +26,7 @@ import { ErrorState } from '@/components/common/DataState';
 import { DetailSkeleton } from '@/components/common/Loading';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Button } from '@/components/ui/button';
+import { ReviewsPanel } from '@/components/reviews/ReviewsPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { resolveTimeZone } from '@/lib/datetime';
@@ -176,6 +177,8 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
     // own mount rather than living on `/agencies`.
     const canSeeAccount = can(ACCOUNT_READ_PERMISSIONS, 'all');
     const canSeeActivity = can(['agencies.read', 'audit.read'], 'all');
+    // The delivery reviews that rate this agency — internal, never public.
+    const canSeeReviews = can('reviews.read');
 
     return (
         <PageContainer
@@ -246,6 +249,7 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
                     <TabsTrigger value="cod">Cash on delivery</TabsTrigger>
                     {canSeeRoster ? <TabsTrigger value="roster">Roster</TabsTrigger> : null}
                     <TabsTrigger value="history">Contract history</TabsTrigger>
+                    {canSeeReviews ? <TabsTrigger value="reviews">Reviews</TabsTrigger> : null}
                     {canSeeAccount ? <TabsTrigger value="account">Account</TabsTrigger> : null}
                     {canSeeActivity ? <TabsTrigger value="activity">Activity</TabsTrigger> : null}
                 </TabsList>
@@ -326,6 +330,16 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
                         timeZone={timeZone}
                     />
                 </TabsContent>
+
+                {canSeeReviews ? (
+                    <TabsContent value="reviews">
+                        <ReviewsPanel
+                            scope={{ agencyId: record.id }}
+                            timeZone={timeZone}
+                            noun="this agency"
+                        />
+                    </TabsContent>
+                ) : null}
 
                 {canSeeAccount ? (
                     <TabsContent value="account">

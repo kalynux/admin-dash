@@ -6,6 +6,7 @@ import {
     classifyPaymentSettingsRefusal,
     collectCapabilities,
     draftFromSettings,
+    refundFeePercentError,
     formatSuccessRate,
     issueTarget,
     payoutTransferGateway,
@@ -229,5 +230,32 @@ describe('payoutTransferGateway', () => {
         expect(
             payoutTransferGateway({ transferGateway: null, transferGatewayRef: null, status: 'paid' }),
         ).toBeNull();
+    });
+});
+
+describe('the refund fee (2026-10-05)', () => {
+    it('sends refundFeePercent only when it moved', () => {
+        const current = settings({ refundFeePercent: 2 });
+        const draft = draftFromSettings(current);
+        expect(draft.refundFeePercent).toBe('2');
+        expect(buildSettingsPatch(current, draft)).toBeNull();
+
+        draft.refundFeePercent = '1.5';
+        expect(buildSettingsPatch(current, draft)).toEqual({ refundFeePercent: 1.5 });
+    });
+
+    it('refuses a value outside 0–20 instead of dropping it silently', () => {
+        const current = settings({ refundFeePercent: 2 });
+        const draft = { ...draftFromSettings(current), refundFeePercent: '25' };
+        expect(refundFeePercentError(current, draft)).toMatch(/0 to 20/);
+        // Not sent — and Save is blocked by the error, so it is never lost unseen.
+        expect(buildSettingsPatch(current, draft)).toBeNull();
+    });
+
+    it('never offers or sends it against a platform that does not report it', () => {
+        const current = settings();
+        const draft = { ...draftFromSettings(current), refundFeePercent: '3' };
+        expect(refundFeePercentError(current, draft)).toBeNull();
+        expect(buildSettingsPatch(current, draft)).toBeNull();
     });
 });

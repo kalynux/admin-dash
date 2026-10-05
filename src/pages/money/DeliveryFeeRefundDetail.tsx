@@ -20,10 +20,12 @@ import { getDeliveryFeeRefund } from '@/services/money.service';
 import { useAdmin, useCan } from '@/store';
 import {
     deliveryFeeRefundCauseLabel,
+    deliveryFeeRefundLinkedRequest,
     deliveryFeeRefundMethodLabel,
     type DeliveryFeeRefund,
     type SettleDeliveryFeeRefundResult,
 } from '@/types/money.types';
+import { refundDetailPath, refundStatusLabel } from '@/types/refunds.types';
 
 /**
  * `GET /money/delivery-fee-refunds/:refundId` · `money.payments.read` — **any**
@@ -70,6 +72,7 @@ export function DeliveryFeeRefundDetail() {
     }
 
     const record = refund.data;
+    const linked = deliveryFeeRefundLinkedRequest(record);
 
     function onSettled(result: SettleDeliveryFeeRefundResult) {
         setSettling(false);
@@ -114,6 +117,45 @@ export function DeliveryFeeRefundDetail() {
                             .
                         </p>
                     </div>
+                ) : null}
+
+                {/*
+                  Folded into the refund queue (2026-10-05): while a request is
+                  returning this money — its own, or one of the whole order — it
+                  is not settled here. Approve, settle or reject it there.
+                */}
+                {linked ? (
+                    <div
+                        role="status"
+                        className="border-info/40 bg-info/10 flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 text-sm"
+                    >
+                        <p>
+                            {linked.why === 'own'
+                                ? 'A refund request is returning this money. Work it in the refund queue — it is not settled here.'
+                                : `A refund of the whole order is open${
+                                      record.orderRefundRequest?.status
+                                          ? ` (${refundStatusLabel(record.orderRefundRequest.status).toLowerCase()})`
+                                          : ''
+                                  }. Both come out of the same refundable amount, so finish or reject that request first.`}
+                        </p>
+                        <Button asChild variant="outline" size="sm">
+                            <Link to={refundDetailPath(linked.id)}>Open the refund request</Link>
+                        </Button>
+                    </div>
+                ) : null}
+
+                {record.rejectedRefundRequestId && !linked ? (
+                    <p className="text-muted-foreground text-sm">
+                        A refund request for this money was rejected, so it is back here to settle
+                        by hand.{' '}
+                        <Link
+                            to={refundDetailPath(record.rejectedRefundRequestId)}
+                            className="text-foreground underline"
+                        >
+                            See the rejected request
+                        </Link>
+                        .
+                    </p>
                 ) : null}
 
                 <Card>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Ban, HandCoins, Scale, Send, Undo2 } from 'lucide-react';
 
+import { EarningsPauseCard } from '@/components/money/EarningsPauseCard';
 import { OrderActivityPanel } from '@/components/orders/OrderActivityPanel';
 import { OrderDeliveryFeePanel } from '@/components/orders/OrderDeliveryFeePanel';
 import { OrderMoneySplitPanel } from '@/components/orders/OrderMoneySplitPanel';
@@ -17,7 +18,9 @@ import {
     DispatchResultNotice,
     ResolveDisputeDialog,
 } from '@/components/orders/OrderWriteDialogs';
-import { RefundDialog, RefundResultNotice } from '@/components/orders/RefundDialog';
+import { OrderRefundRequestsCard } from '@/components/refunds/OrderRefundRequestsCard';
+import { RaiseRefundDialog } from '@/components/refunds/RaiseRefundDialog';
+import { RaisedRefundNotice } from '@/components/refunds/RaisedRefundNotice';
 import { Can } from '@/components/auth/Can';
 import { ErrorState } from '@/components/common/DataState';
 import { DetailSkeleton } from '@/components/common/Loading';
@@ -35,8 +38,8 @@ import {
     isDispatchable,
     orderDisplayName,
     type DispatchResult,
-    type RefundResult,
 } from '@/types/orders.types';
+import type { CreateRefundResult } from '@/types/refunds.types';
 import { CopyableId } from '@/components/common/CopyableId';
 
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
@@ -68,10 +71,13 @@ const OBJECT_ID = /^[0-9a-f]{24}$/i;
  * `withinVendorPolicy` / `overrides`, which record a policy evaluated once against
  * terms the vendor may edit tomorrow.
  *
- * ── The refund's ceilings are never read from here ────────────────────────────
- * `GET /refund-eligibility` is gated on `orders.refund`, not `orders.read`, so this
- * screen must not fetch it — the dialog does, on open, and only a holder of that
- * permission can open it.
+ * ── Refunds go through the refund queue (2026-10-05) ──────────────────────────
+ * **Raise a refund** opens a refund REQUEST (`POST /refunds`, on
+ * `orders.refund.request` — every tier, Support included). The legacy
+ * `POST /orders/:orderId/refund` is no longer called from here: it now opens a
+ * request too, and is refused at ≥ 2,000,000 (`REFUND_USE_REFUND_QUEUE`). The
+ * eligibility read happens inside the dialog, on open, and never on mount. The
+ * order's own requests are listed under the payout card, on `orders.refund.read`.
  */
 export function OrderDetail() {
     const { orderId = '' } = useParams();
@@ -148,10 +154,7 @@ function OrderDetailScreen({ orderId }: { orderId: string }) {
     const [reloadToken, setReloadToken] = useState(0);
 
     const [dispatched, setDispatched] = useState<DispatchResult | null>(null);
-    const [refunded, setRefunded] = useState<{
-        result: RefundResult;
-        message: string | undefined;
-    } | null>(null);
+    const [raised, setRaised] = useState<CreateRefundResult | null>(null);
 
     const order = useAsyncData(`/orders/${orderId}`, (signal) => getOrder(orderId, { signal }));
 
@@ -191,6 +194,7 @@ function OrderDetailScreen({ orderId }: { orderId: string }) {
     const canSeeActivity = can(['orders.read', 'audit.read'], 'all');
     // Every tier holds it today, but it is a separate grant on a separate read.
     const canSeeMoney = can('money.splits.read');
+    const canSeePayout = can('money.earnings.read');
 
     return (
         <PageContainer
@@ -224,10 +228,10 @@ function OrderDetailScreen({ orderId }: { orderId: string }) {
                         ) : null}
                     </Can>
 
-                    <Can permission="orders.refund">
+                    <Can permission="orders.refund.request">
                         <Button variant="outline" size="sm" onClick={() => setRefunding(true)}>
                             <Undo2 className="size-4" />
-                            Refund
+                            Raise a refund
                         </Button>
                     </Can>
 
@@ -254,11 +258,11 @@ function OrderDetailScreen({ orderId }: { orderId: string }) {
                 />
             ) : null}
 
-            {refunded ? (
-                <RefundResultNotice
-                    result={refunded.result}
-                    message={refunded.message}
-                    onDismiss={() => setRefunded(null)}
+            {raised ? (
+                <RaisedRefundNotice
+                    result={raised}
+                    timeZone={timeZone}
+                    onDismiss={() => setRaised(null)}
                 />
             ) : null}
 
@@ -287,6 +291,32 @@ function OrderDetailScreen({ orderId }: { orderId: string }) {
                         {can('orders.refund') ? 'Review and settle' : 'Review'}
                     </Button>
                 </div>
+            ) : null}
+
+            {/*
+              The payout chip (2026-10-05): paused or not, with Pause / Resume.
+              Above the tabs because a paused payout is the answer to "why has
+              the vendor not been paid", whichever tab the operator is on. Its
+              read is `money.earnings.read`, which Support lacks — so it is
+              omitted for them rather than shown refusing.
+            */}
+            {canSeePayout ? (
+                <EarningsPauseCard
+                    kind="order"
+                    id={record.id}
+                    reference={record.orderNumber || null}
+                    timeZone={timeZone}
+                    reloadToken={reloadToken}
+                    onChanged={() => setReloadToken((current) => current + 1)}
+                />
+            ) : null}
+
+            {can('orders.refund.read') ? (
+                <OrderRefundRequestsCard
+                    orderId={record.id}
+                    timeZone={timeZone}
+                    reloadToken={reloadToken}
+                />
             ) : null}
 
             <Tabs value={tab} onValueChange={setTab} className="space-y-4">
@@ -385,15 +415,17 @@ function OrderDetailScreen({ orderId }: { orderId: string }) {
                     reconcile();
                 }}
             />
-            <RefundDialog
-                order={record}
-                open={refunding}
-                onOpenChange={setRefunding}
-                onDone={(result, message) => {
-                    setRefunded({ result, message });
-                    reconcile();
-                }}
-            />
+            {refunding ? (
+                <RaiseRefundDialog
+                    open
+                    onOpenChange={setRefunding}
+                    source={{ kind: 'order', id: record.id, label: orderDisplayName(record) }}
+                    onRaised={(result) => {
+                        setRaised(result);
+                        reconcile();
+                    }}
+                />
+            ) : null}
         </PageContainer>
     );
 }

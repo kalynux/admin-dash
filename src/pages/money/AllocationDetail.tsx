@@ -142,6 +142,25 @@ function SplitCard({
                     </Definition>
 
                     <Definition
+                        label="Taken back by refunds"
+                        hint={
+                            <InfoHint label="About refund claw-backs">
+                                A refund recovers the earnings it touches, cumulatively. The share
+                                above is never edited; this says how much of it refunds took
+                                back. The row turns reversed when nothing is left.
+                            </InfoHint>
+                        }
+                    >
+                        {allocation.clawedAmount ? (
+                            <span className="text-destructive font-medium tabular-nums">
+                                {formatMoney(allocation.clawedAmount, allocation.currency)}
+                            </span>
+                        ) : (
+                            <span className="text-muted-foreground">Nothing</span>
+                        )}
+                    </Definition>
+
+                    <Definition
                         label="Cut from"
                         hint={
                             <InfoHint label="About the snapshots">
@@ -226,10 +245,43 @@ function ReleaseCard({
                     </div>
                 ) : null}
 
+                {release.pausedAt ? (
+                    <div className="border-warning/40 bg-warning/10 rounded-md border p-3 text-sm">
+                        <p className="font-medium">
+                            Paused {formatInstantInZone(release.pausedAt, timeZone) ?? ''}.
+                        </p>
+                        <p className="text-muted-foreground">
+                            Paused money is never released, however long the hold has run. When
+                            an administrator resumes it, the hold continues where it stopped.
+                            {allocation.source.type === 'order' && allocation.source.id ? (
+                                <>
+                                    {' '}
+                                    <Link
+                                        to={`/dashboard/orders/${encodeURIComponent(allocation.source.id)}`}
+                                        className="text-foreground underline"
+                                    >
+                                        See who paused it and why on the order
+                                    </Link>
+                                    .
+                                </>
+                            ) : null}
+                        </p>
+                    </div>
+                ) : null}
+
                 <DefinitionList>
-                    <Definition label="Sale completed">
+                    <Definition
+                        label="Hold started"
+                        hint={
+                            <InfoHint label="When the hold starts">
+                                Since 5 October 2026, an order&rsquo;s hold starts when it is
+                                delivered (the courier finishing its last parcel); a
+                                booking&rsquo;s when the service is marked completed.
+                            </InfoHint>
+                        }
+                    >
                         {formatInstantInZone(release.completedAt, timeZone) ?? (
-                            <NotSet>Not completed</NotSet>
+                            <NotSet>Not started</NotSet>
                         )}
                     </Definition>
 
@@ -237,14 +289,24 @@ function ReleaseCard({
                         label="Hold ends"
                         hint={
                             <InfoHint label="About the hold window">
-                                The sale&rsquo;s completion plus the platform&rsquo;s hold period.
-                                Empty means the sale never completed at all, rather than that the
-                                window is unknown.
+                                When the hold started plus the platform&rsquo;s hold period, as the
+                                platform computed it. Empty means the hold has not started, rather
+                                than that the end is unknown. A paused allocation shows no end at
+                                all.
                             </InfoHint>
                         }
                     >
-                        {formatInstantInZone(release.holdReleaseAt, timeZone) ?? (
-                            <NotSet>The sale never completed</NotSet>
+                        {release.pausedAt ? (
+                            <Badge
+                                variant="outline"
+                                className="border-warning/40 bg-warning/10 text-warning font-normal"
+                            >
+                                Paused
+                            </Badge>
+                        ) : (
+                            (formatInstantInZone(release.holdReleaseAt, timeZone) ?? (
+                                <NotSet>The hold has not started</NotSet>
+                            ))
                         )}
                     </Definition>
 

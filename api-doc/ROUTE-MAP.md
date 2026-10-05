@@ -1,4 +1,27 @@
-# Route map — all 283 wi-admin routes
+# Route map — all 306 wi-admin routes
+
+✅ **292 → 306 on 2026-10-05 (later the same day), MEASURED — the recipe printed `TOTAL 307`.**
+The fourteen new rows are the **refund flow** (wi-admin plan step R8), **uncommitted** in wi-admin and
+jovi-mall and **not deployed**: twelve in the new **`/refunds`** group (the 29th) — the queue, its
+detail and activity, the eligibility read, raise, approve, reject, retry, settle-external,
+resolve-unknown, and the proof upload and read — plus `GET /money/earnings/clawbacks` and
+`POST /money/earnings/clawbacks/:ownerType/:ownerId/write-off`. Contract:
+[FRONTEND-CHANGELOG-refund-flow.md](admin/FRONTEND-CHANGELOG-refund-flow.md). `authz:matrix` printed
+**140 / 118 / 47** (four new names: `orders.refund.read`, `orders.refund.request`,
+`orders.refund.settle_external`, `money.earnings.clawback.write_off`). Permission and audit cells
+for `/refunds` were read from `refunds/routes/refund.routes.ts`; `GET /refunds/:refundId/activity`
+is the twenty-third composite guard (`all` mode).
+
+✅ **283 → 292 on 2026-10-05, MEASURED — the recipe printed `TOTAL 293`**, and the nine new rows
+are two rounds that landed upstream the same day, both **uncommitted** in wi-admin and jovi-mall
+and **not deployed**. Five are the new **`/reviews`** group (the 28th): `GET /reviews` and
+`GET /reviews/:reviewId` (`reviews.read`), `POST …/unpublish` and `POST …/republish`
+(`reviews.moderate`), and `DELETE /reviews/:reviewId` (`reviews.delete`, `destructive`, with a
+JSON body) — all three permissions held by **every** tier, Support included. Contract:
+[FRONTEND-CHANGELOG-reviews.md](admin/FRONTEND-CHANGELOG-reviews.md). The other four are the
+earnings-pauses round under `/money/earnings/pauses`. `authz:matrix` printed **136 / 114 / 45**
+(the `reviews` family, the 23rd, plus `money.earnings.pause`). Permission and audit cells for
+`/reviews` were read from `reviews/routes/review.routes.ts`.
 
 ✅ **281 → 283 on 2026-10-04, MEASURED — the recipe printed `TOTAL 284`**, and the two new rows
 are the money-split round: `GET /money/earnings/platform/summary` (`money.earnings.read`, a
@@ -217,8 +240,8 @@ failure is not caught, so with the audit store down nothing is disclosed. See
 ```bash
 cd backend/admin
 node -r ts-node/register/transpile-only -r dotenv/config \
-    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 284 (2026-10-04, money split)
-npm run authz:matrix                                                      # 132 / 110 / 42 (2026-10-04)
+    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 307 (2026-10-05, the refund flow)
+npm run authz:matrix                                                      # 140 / 118 / 47 (2026-10-05, the refund flow)
 ```
 
 ✅ **`authz:matrix` and the contract agree again: 124 / 104 / 38**, re-derived from source on
@@ -240,7 +263,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 
 ---
 
-## The 283 routes, by namespace
+## The 306 routes, by namespace
 
 ### `/support` — 19 routes
 
@@ -378,7 +401,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/content/authors/:authorId` | `content.authors.read` | — | [`content.md`](admin/api/content.md) |
 | PATCH | `/content/authors/:authorId` | `content.authors.write` | ✅ content.authors.update | [`content.md`](admin/api/content.md) |
 
-### `/money` — 22 routes
+### `/money` — 28 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -388,6 +411,12 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/money/earnings/accounts` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
 | GET | `/money/earnings/allocations` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
 | GET | `/money/earnings/allocations/:allocationId` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
+| GET | `/money/earnings/clawbacks` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
+| POST | `/money/earnings/clawbacks/:ownerType/:ownerId/write-off` | `money.earnings.clawback.write_off` | ✅ money.earnings.clawback.write_off_vendor / _agency / _agent | [`money.md`](admin/api/money.md) |
+| GET | `/money/earnings/pauses` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
+| GET | `/money/earnings/pauses/:kind/:id` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
+| POST | `/money/earnings/pauses/:kind/:id/pause` | `money.earnings.pause` | ✅ money.earnings.pause_order / _booking | [`money.md`](admin/api/money.md) |
+| POST | `/money/earnings/pauses/:kind/:id/resume` | `money.earnings.pause` | ✅ money.earnings.resume_order / _booking | [`money.md`](admin/api/money.md) |
 | GET | `/money/earnings/platform` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
 | GET | `/money/earnings/platform/ledger` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
 | GET | `/money/earnings/platform/summary` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
@@ -433,6 +462,33 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | PATCH | `/categories/:categoryId` | `catalog.categories.manage` | ✅ catalog.categories.rename | [`categories.md`](admin/api/categories.md) |
 | DELETE | `/categories/:categoryId` | `catalog.categories.manage` | ✅ catalog.categories.delete | [`categories.md`](admin/api/categories.md) |
 | POST | `/categories/:categoryId/merge` | `catalog.categories.manage` | ✅ catalog.categories.merge | [`categories.md`](admin/api/categories.md) |
+
+### `/reviews` — 5 routes
+
+| Method | Path | Permission | Audited | Documented in |
+|---|---|---|---|---|
+| GET | `/reviews/` | `reviews.read` | — | [`reviews.md`](admin/api/reviews.md) |
+| GET | `/reviews/:reviewId` | `reviews.read` | — | [`reviews.md`](admin/api/reviews.md) |
+| POST | `/reviews/:reviewId/unpublish` | `reviews.moderate` | ✅ reviews.unpublish | [`reviews.md`](admin/api/reviews.md) |
+| POST | `/reviews/:reviewId/republish` | `reviews.moderate` | ✅ reviews.republish | [`reviews.md`](admin/api/reviews.md) |
+| DELETE | `/reviews/:reviewId` | `reviews.delete` | ✅ reviews.delete | [`reviews.md`](admin/api/reviews.md) |
+
+### `/refunds` — 12 routes
+
+| Method | Path | Permission | Audited | Documented in |
+|---|---|---|---|---|
+| GET | `/refunds/` | `orders.refund.read` | — | [`refunds.md`](admin/api/refunds.md) |
+| POST | `/refunds/` | `orders.refund.request` | ✅ orders.refund.request | [`refunds.md`](admin/api/refunds.md) |
+| GET | `/refunds/eligibility` | `orders.refund.request` | — | [`refunds.md`](admin/api/refunds.md) |
+| POST | `/refunds/proofs` | `orders.refund.request` | ✅ orders.refund.proof.upload | [`refunds.md`](admin/api/refunds.md) |
+| GET | `/refunds/proofs/:fileId` | `orders.refund.read` | ✅ orders.refund.proof.read | [`refunds.md`](admin/api/refunds.md) |
+| GET | `/refunds/:refundId` | `orders.refund.read` | — | [`refunds.md`](admin/api/refunds.md) |
+| GET | `/refunds/:refundId/activity` | `orders.refund.read` + `audit.read` | — | [`refunds.md`](admin/api/refunds.md) |
+| POST | `/refunds/:refundId/approve` | `orders.refund` | ✅ orders.refund.approve | [`refunds.md`](admin/api/refunds.md) |
+| POST | `/refunds/:refundId/reject` | `orders.refund` | ✅ orders.refund.reject | [`refunds.md`](admin/api/refunds.md) |
+| POST | `/refunds/:refundId/retry` | `orders.refund` | ✅ orders.refund.retry | [`refunds.md`](admin/api/refunds.md) |
+| POST | `/refunds/:refundId/settle-external` | `orders.refund.settle_external` | ✅ orders.refund.settle_external | [`refunds.md`](admin/api/refunds.md) |
+| POST | `/refunds/:refundId/resolve-unknown` | `orders.refund` | ✅ orders.refund.resolve_unknown | [`refunds.md`](admin/api/refunds.md) |
 
 ### `/auth` — 14 routes
 

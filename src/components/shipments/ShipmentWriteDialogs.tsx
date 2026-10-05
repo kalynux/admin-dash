@@ -209,7 +209,7 @@ function ReassignForm({
         },
     });
 
-    // `useWatch`, not `useForm`'s `watch()` — see the note in `RefundDialog`.
+    // `useWatch`, not `useForm`'s `watch()` — the React Compiler skips a component that calls `watch()`.
     const mode = useWatch({ control, name: 'mode' });
     const agentId = useWatch({ control, name: 'agentId' });
 

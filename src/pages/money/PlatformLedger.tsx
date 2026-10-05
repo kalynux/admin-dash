@@ -38,6 +38,7 @@ import { getPlatformLedger } from '@/services/money.service';
 import { useAdmin } from '@/store';
 import {
     LEDGER_ENTRY_TYPES,
+    ledgerEntryTypeLabel,
     LEDGER_REASON_CODES,
     LEDGER_SORT_DEFAULT,
     MONEY_MAX_RANGE_DAYS,
@@ -273,8 +274,8 @@ export function PlatformLedger() {
                                 <SelectItem value={ANY}>Any movement</SelectItem>
                                 {withCurrent(LEDGER_ENTRY_TYPES, values.entryType || ANY).map(
                                     (value) => (
-                                        <SelectItem key={value} value={value} className="capitalize">
-                                            {humaniseEnum(value) ?? '—'}
+                                        <SelectItem key={value} value={value}>
+                                            {ledgerEntryTypeLabel(value)}
                                         </SelectItem>
                                     ),
                                 )}

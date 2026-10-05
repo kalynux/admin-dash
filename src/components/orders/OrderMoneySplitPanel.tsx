@@ -448,7 +448,9 @@ function Waits({ line, timeZone }: { line: MoneyLine; timeZone: string }) {
     return (
         <ul className="space-y-0.5">
             {waits.map((wait) => (
-                <li key={wait}>
+                // `paused` is the one wait only a person can end, so it is the
+                // one that stands out.
+                <li key={wait} className={wait === 'paused' ? 'text-warning font-medium' : undefined}>
                     {waitLabel(wait)}
                     {wait === 'hold_window' && line.holdReleaseAt ? (
                         <span className="text-muted-foreground">

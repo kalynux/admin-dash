@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **The application exists, and every module in the sidebar is built.** Vite + React 19 + TypeScript
 on port **5175**, built phase by phase: the scaffold and app shell, the API client written from
-scratch for wi-admin, the whole `/auth` surface, the authorization layer, and all **26** route
+scratch for wi-admin, the whole `/auth` surface, the authorization layer, and all **28** route
 groups. `ModulePlaceholder` still exists as `screenFor`'s fallback, but every nav entry now
 resolves to a real screen and nothing reaches it.
 
@@ -28,6 +28,129 @@ two before it closed with Phase F on 2026-08-27 (`GET /files/library`, `POST /fi
 ⚠ **Nothing enforces this line** — `route-map.test.ts` pins the map against itself and no test
 pins the services against the map — so take it by grepping each ROUTE-MAP path in
 `src/services`, not by reading it here.
+
+✅ **The refund queue built 2026-10-05 — a 29th route group (`/refunds`, 12 routes), refund debt
+on Money, and four permissions.** Contract:
+[FRONTEND-CHANGELOG-refund-flow.md](api-doc/admin/FRONTEND-CHANGELOG-refund-flow.md) (**§ 11 is part
+of it**); `refunds.md` new, `money.md`, `orders.md`, `dev-tools.md`, `errors.md`,
+`permissions.md`, `users.md` and both READMEs re-copied, both `error-codes.ts` mirrors re-taken.
+**Upstream uncommitted in wi-admin AND jovi-mall, not deployed.** Every refund is a REQUEST an
+approver decides: **Finance › Refund queue** (`/dashboard/refunds[/:refundId]`, on
+`orders.refund.read` — **every tier**), one tab per status plus *Open* (`?open=true`, the
+default) and *All*; **gross / fee / net side by side everywhere, printed as sent** — ⛔ nothing
+computes money. **Raise a refund** (`RaiseRefundDialog`, on `orders.refund.request` — **Support
+holds it**: raising HOLDS the seller's earnings and sends nothing) re-asks `GET
+/refunds/eligibility` as reason / *defective* / amount change; **no amount field for
+`plan_purchase` / `credit_topup`** (full only); non-empty `overrides` need an explicit tick
+(`overridePolicy: true`, never automatic); **no paying number → a typed one plus a picture of the
+customer's message**, uploaded first to `POST /refunds/proofs` (multipart field `file`, the
+PRIVATE `refund-proofs` tree — never `/files/upload`); *Approve now* only for `orders.refund`.
+The order page's button moved here and `components/orders/RefundDialog.tsx` is **deleted**
+(`refundOrder` stays as a service function; the legacy route is refused at ≥ 2,000,000 cumulative).
+Detail actions follow the server's `ACTIONABLE_FROM` (`canApproveRefund` & co. in
+[`refunds.types.ts`](src/types/refunds.types.ts), each pinned): ⛔ **nothing but Resolve acts on
+`sending`**. 🔴 **Both four-eyes rules are visible**: a **typed number** cannot be approved by
+whoever typed it (`requestedBy.id === me.id` → Approve *disabled*, with the reason; `409
+REFUND_SECOND_APPROVER_REQUIRED` the backstop) and **≥ 2,000,000** answers `202` →
+`ApprovalQueuedNotice` linking `/dashboard/approvals?targetId=` — both perturbation-tested.
+`exceeds_refundable` (failure reason or `409` reason) offers **Reject**. Proofs open on click
+only through `GET /refunds/proofs/:fileId` (`useFileContent` now takes a loader) — every view is
+audited. **Money › Refund debt** (`/dashboard/money/clawbacks`, `money.earnings.read`) with
+**Write off** (`money.earnings.clawback.write_off`, tiers 1–2, `202` at ≥ 2,000,000);
+`clawback` is a separate red column on Accounts, `clawedAmount` on allocations. A
+`refund_in_progress` pause shows **no Resume** — it links to the refund (`409
+EARNINGS_PAUSE_HELD_BY_REFUND` is handled too); delivery-fee rows a request is working link to it
+instead of Settle. Payments screen: **Refund fee (%)** (`refundFeePercent`, 0–20; hidden against
+an older jovi-mall). Ledger types `clawback` / `clawback_recovery` / `clawback_write_off` and
+blocker `earnings_clawback_outstanding` are worded. Measured: `authz:matrix` **140 / 118 / 47**,
+`dump-routes.js` **`TOTAL 307` = 306 routes**; `GET /refunds/:refundId/activity` is the 23rd
+composite guard. ⚠ **The refund names arrive BOTH ways** — `REFUND_REQUEST_STATUS_CONFLICT`,
+`REFUND_SECOND_APPROVER_REQUIRED`, `REFUND_USE_REFUND_QUEUE` and the two `EARNINGS_*` are
+wi-admin `error.code`s that jovi-mall also answers as `details.platformCode`; read them with
+`refundRefusalCode()`. `errors.md`'s section preamble made `error-catalog.test.ts` file the
+first three as platform-only (no copy required); a narrow `isDualDelivery` rule fixes that and is
+regression-tested. ⚠ `permissions.md` said *"4 of 136"* under a 140-row matrix — corrected
+upstream (uncommitted) and re-copied. ⚠ `audit.md` lacks the `refund` target type and the
+`orders.refund.*` / write-off actions; `refund` joined the audit filter from source.
+
+🔴 **The Accounts directory read NOTHING against a real wi-admin, since 2026-08-18.** wi-admin
+serves `owner: { type, id, name }`; `isEarningsAccountRow` required jovi-mall's flat
+`ownerType` and dropped every row, so the screen said *"could not read these accounts"*. The
+fixture was built from the same reading, so no test noticed. `readEarningsAccountRow` takes both
+shapes (served first) and the directory now shows names. Found while adding `clawback`.
+
+✅ **Review moderation built 2026-10-05 — a 28th route group and a 23rd permission family.**
+Contract: [FRONTEND-CHANGELOG-reviews.md](api-doc/admin/FRONTEND-CHANGELOG-reviews.md);
+`reviews.md` new, `permissions.md`, `audit.md` (upstream-only link re-neutralised) and
+`api/README.md` re-copied, `api-doc/jovi-mall/error-codes.ts` re-taken (`REVIEW_NOT_PENDING` →
+`REVIEW_STATUS_CONFLICT`). **Upstream uncommitted in wi-admin AND jovi-mall, not deployed.**
+Every review is now public the moment it is written; **Operations › Reviews**
+(`/dashboard/reviews[/:reviewId]`, on `reviews.read`) hides (`unpublish`, reason **required**),
+shows again (`republish`, reason optional — a blank one is sent as **no key**, `""` is a `400`)
+and deletes (`DELETE` **with a JSON `{ reason }` body**). ⛔ **No approval queue, no
+Approve/Reject** — `pending`/`rejected` are gone and a hand-edited `?status=pending` is dropped,
+not forwarded. ⚠ **All three permissions are held by EVERY tier, Support included** —
+`reviews.delete` is `destructive` and the one name on `TIER_3_DESTRUCTIVE_ALLOWLIST`; gate on the
+permission, never the tier. A button needs **both** `availableActions` (status-derived) **and**
+the permission (`ReviewRowActions`, perturbation-tested). 🔴 **"Public" is
+`publiclyVisible`, never `status`** — a published *delivery* review is internal (no page shows
+it), so `reviewVisibility()` labels it *Internal* with *"counts towards the agent's and agency's
+rating"*, and the tabs say **Published**, not Public (perturbation-tested). ⚠ After an action
+the row is patched in place (`useReviewRows`): replaced on hide/show, removed on delete or
+either 404 (`NOT_FOUND` / `REVIEW_NOT_FOUND`), re-read on `REVIEW_STATUS_CONFLICT`. A
+**Reviews** tab on vendor, agent and agency detail, and a section on the product detail
+(`ReviewsPanel`, **local state** — those pages own `?tab=`). `review`, `booking` and
+`payment_settings` joined the audit target filter (27, the page's list). Measured with the
+earnings-pauses round built beside it: `authz:matrix` **136 / 114 / 45**, `dump-routes.js`
+**`TOTAL 293` = 292 routes**. `permissions.md`'s † note said *"4 of 132"* — corrected to 136
+upstream and re-copied the same day.
+
+✅ **Earnings pauses built 2026-10-05 — and the hold now starts at DELIVERY (3 days).** Contract:
+[FRONTEND-CHANGELOG-earnings-pauses.md](api-doc/admin/FRONTEND-CHANGELOG-earnings-pauses.md);
+`money.md`, `orders.md` and `README.md` re-copied, `api-doc/jovi-mall/order-timeline-events.ts`
+re-taken. **Upstream uncommitted in wi-admin AND jovi-mall, not deployed.** Four routes on
+`/money/earnings/pauses` → `listEarningsPauses` / `getEarningsPause` / `pauseEarnings` /
+`resumeEarnings`; types in [`earnings-pause.types.ts`](src/types/earnings-pause.types.ts). New:
+**Money › Paused earnings** (`/dashboard/money/earnings-pauses`, on `money.earnings.read` — tiers
+1–2, **not** Support), and `EarningsPauseCard` — the payout chip — on the **order detail** (above
+the tabs) and on **any ticket whose entity is an `ORDER` or `BOOKING`**. Pause / Resume are
+**`money.earnings.pause`** (financial, the 136th name, tiers 1–2). 🔴 **The `pause` object is
+jovi-mall's, passed through in snake_case** (`paused_at`, `paused_by_user_id`, …) — the one
+snake_case object on the wire; do not "fix" it. 🔴 **There is no booking screen and wi-admin
+serves no booking read, so a booking's payout is reachable ONLY from its ticket.** ⚠ The three
+refusals are jovi-mall's (all four routes are delegated), so `EARNINGS_ALREADY_PAUSED` ·
+`EARNINGS_NOT_PAUSED` · `EARNINGS_PAUSE_TARGET_NOT_FOUND` arrive as `details.platformCode` —
+the changelog prints them as codes. ⚠ "System" when `paused_by_user_id` is null (the platform's
+name is the lower-case `"system"`). ⚠ `waitingOn: "order_not_completed"` **kept its name and
+means *not delivered yet*** — labelled by meaning; `paused` is new. Allocations show *Paused*
+instead of a hold end when `release.pausedAt` is set (optional on the type: an older wi-admin
+omits it). The order timeline names `earnings.paused` / `earnings.resumed` in words, and the
+two `money.earnings.{pause,resume}_order` actions joined `ORDER_AUDIT_ACTIONS`. ⚠
+`order-timeline-events.test.ts`'s parser broke on jovi-mall's new trailing comments (a `;` ended
+the union and dropped `system.action`) and now strips `//` comments first. ⛔ **Nothing computes a
+release date or amount here.** ⚠ `money.md` § allocations still says *"escrow starts when the
+order completes"* — upstream prose behind its own changelog. Built beside the parallel
+**reviews** round in this worktree; that session owns the shared count pins (136 / 114 / 45,
+292 routes). Perturbation-tested: dropping the order card's read gate turns the Support test red.
+Measured at close: **2963 tests in 193 files** (both rounds' files), 16 failures with 36 node
+processes up; the 8 files re-run alone left 5, all in `ArticleCreateDialog` and
+`CreateTicketDialog` — the recorded pre-existing set. `EarningsPauses.test.tsx` is 23/23.
+
+✅ **The product detail shows everything the vendor's editor shows — built 2026-10-05, across
+three repos, uncommitted.** jovi-mall's `AdminProductDetailDto` gained, additively,
+`description` · `seo` · `vectorisation` · `options` · `shipping` · `pickup` (the editor's own
+`PickupLocationDetailResolver`) · `digital` · `media.files`, and per variant `optionValues` ·
+`bargain` · `bargainable` · `dimensions` · `files` · `digital` · `service`; wi-admin passes it
+through untyped, so only `vendors.md` changed (re-copied, byte-identical). 🔴 **`media.images`
+is NOT the listing's pictures** — it is the default variant's customer gallery, variant-first as
+a *fallback*, so on a variant product it omits the product's own pictures and every other
+variant's. The Images panel now renders `media.files` + each `variants[].files`, grouped by
+variant label, one lightbox. ⚠ **A bargain window is inert unless `vectorisation.enabled`** —
+the screen says *Not live* rather than printing a ceiling. ⚠ The responsible agency moved to a
+new **Delivery** card beside `pickup`: `agency_storage` is the agency *hosting* the stock.
+⚠ **Every new field is read as possibly absent** (an older jovi-mall sends none) — deploy order
+does not matter for this round. Verified against a scratch mongod with a seeded two-variant
+product, not the dev database (its service needs an elevated start).
 
 ✅ **Platform earnings + the order money split built 2026-10-04 — read-only.** Contract:
 [FRONTEND-CHANGELOG-money-split.md](api-doc/admin/FRONTEND-CHANGELOG-money-split.md); `money.md`,
@@ -576,7 +699,7 @@ pinned upstream by `test:list-strictness` — read it there rather than copying 
 [`src/lib/query.ts`](src/lib/query.ts) for this repository's one statement of the rule. Widening
 `listQuery` service-wide is still deliberately **not** done.
 
-**`npm test` — 2896 tests in 189 files, measured on 2026-10-04** at the close of the money-split round (+`OrderMoneySplitPanel.test.tsx`), 9 failures with 32 node processes up — the 2 `permissions.types` (`users.close`) plus 7 in `App`, `ArticleCreateDialog` and `CreateTicketDialog`; those three run alone left 1 (`ArticleCreateDialog`). **Before that, 2863 tests in 188 files** at the close of the customer-paid-delivery round (+`DeliveryFeeRefunds.test.tsx`, +4 service tests), 13 failures with 39 node processes up — the 2 `permissions.types` (`users.close`) plus 11 in `App`, `SearchInput`, `ArticleCreateDialog` and `CreateTicketDialog`; those four run alone left 3 (`ArticleCreateDialog` ×2, `CreateTicketDialog` ×1), none in a file the round touched. **Before that, 2832 tests in 186 files** at the close of the categories round (+`categories.service.test.ts`, +`CategoriesList.test.tsx`), 10 failures with 41 node processes up: the 2 `permissions.types` assertions red on `users.close` (upstream doc), and 8 in `App`, `SearchInput`, `ArticleCreateDialog` and `CreateTicketDialog` — **the same 9 of those fail at `HEAD` (`7131758`) in a throwaway worktree**, so pre-existing. **Before that, 2753 tests in 179 files, measured on 2026-10-01** at the close of the article-JSON round (+`article-body-json.test.ts`, +`ArticleBodyJson.test.tsx`), 9 failures in `App`, `SearchInput`, `ArticleCreateDialog` and `CreateTicketDialog` with 12 node processes up; all four files passed alone (3/3, 40/40). **Before that, 2731 tests in 177 files, measured on 2026-09-30** at the close of the resolve-unknown round (+`PayoutResolveUnknown.test.tsx`), 10 failures with 33 node processes up, all in `App`, `ArticleCreateDialog` and `CreateTicketDialog`; run together alone 6 still failed, and **the same 6 fail at `HEAD` (`079588f`) in a throwaway worktree** — pre-existing, not investigated. **Before that, 2715 tests in 176 files** at the close of the payment-routing round, with 7 failures in a run sharing the machine with 32 node processes, none in a file the round touched (`App`, `ArticleCreateDialog`, `CreateTicketDialog`, `UserDetail`); re-run alone all passed but one `ArticleCreateDialog` cover test, which then passed alone on a second run — `ArticleCreateDialog.test.tsx` is the sixth file in the contention pattern. **The previous figure was 2645 tests in 171 files, measured on 2026-09-27** at the close of the bot-memory round (+`ResetBotMemoryDialog.test.tsx`, −`permissions.pending.test.ts`), with 8 failures in a run that shared the machine with a build, all in `CreateTicketDialog`, `App` and `TicketAttachmentsPanel`; re-run alone, the 3 that remain are the ones recorded below as failing at `HEAD`. **The previous figure was 2629 tests in 170 files, measured on 2026-09-22** at the close of the COD-pool
+**`npm test` — 3028 tests in 198 files, measured on 2026-10-05** at the close of the refund-queue round (+`RefundRequests.test.tsx`, +`RaiseRefundDialog.test.tsx`, +`RefundDebt.test.tsx`, +`refunds.types.test.ts`, +`refunds.service.test.ts`), 8 failures with 31 node processes up, all in `App`, `ArticleCreateDialog` and `CreateTicketDialog` — those three run alone gave **36/36**. **Before that, 2963 tests in 193 files** at the close of the reviews and earnings-pauses rounds (built side by side), 7 failures with 27 node processes up, all in `App` (the orders-index test that fails at `HEAD`), `ArticleCreateDialog`, `CreateTicketDialog` and `VendorProductDetail` — the last 32/32 alone, twice. **Before that, 2908 tests in 189 files** at the close of the full-product-detail round (+12 in `VendorProductDetail.test.tsx`), 10 failures with 18 node processes up, all in `App`, `ArticleCreateDialog`, `SearchInput` and `CreateTicketDialog`; those four run alone left 1 (`ArticleCreateDialog`, a cover test) — the same residue as the day before. **Before that, 2896 tests in 189 files, measured on 2026-10-04** at the close of the money-split round (+`OrderMoneySplitPanel.test.tsx`), 9 failures with 32 node processes up — the 2 `permissions.types` (`users.close`) plus 7 in `App`, `ArticleCreateDialog` and `CreateTicketDialog`; those three run alone left 1 (`ArticleCreateDialog`). **Before that, 2863 tests in 188 files** at the close of the customer-paid-delivery round (+`DeliveryFeeRefunds.test.tsx`, +4 service tests), 13 failures with 39 node processes up — the 2 `permissions.types` (`users.close`) plus 11 in `App`, `SearchInput`, `ArticleCreateDialog` and `CreateTicketDialog`; those four run alone left 3 (`ArticleCreateDialog` ×2, `CreateTicketDialog` ×1), none in a file the round touched. **Before that, 2832 tests in 186 files** at the close of the categories round (+`categories.service.test.ts`, +`CategoriesList.test.tsx`), 10 failures with 41 node processes up: the 2 `permissions.types` assertions red on `users.close` (upstream doc), and 8 in `App`, `SearchInput`, `ArticleCreateDialog` and `CreateTicketDialog` — **the same 9 of those fail at `HEAD` (`7131758`) in a throwaway worktree**, so pre-existing. **Before that, 2753 tests in 179 files, measured on 2026-10-01** at the close of the article-JSON round (+`article-body-json.test.ts`, +`ArticleBodyJson.test.tsx`), 9 failures in `App`, `SearchInput`, `ArticleCreateDialog` and `CreateTicketDialog` with 12 node processes up; all four files passed alone (3/3, 40/40). **Before that, 2731 tests in 177 files, measured on 2026-09-30** at the close of the resolve-unknown round (+`PayoutResolveUnknown.test.tsx`), 10 failures with 33 node processes up, all in `App`, `ArticleCreateDialog` and `CreateTicketDialog`; run together alone 6 still failed, and **the same 6 fail at `HEAD` (`079588f`) in a throwaway worktree** — pre-existing, not investigated. **Before that, 2715 tests in 176 files** at the close of the payment-routing round, with 7 failures in a run sharing the machine with 32 node processes, none in a file the round touched (`App`, `ArticleCreateDialog`, `CreateTicketDialog`, `UserDetail`); re-run alone all passed but one `ArticleCreateDialog` cover test, which then passed alone on a second run — `ArticleCreateDialog.test.tsx` is the sixth file in the contention pattern. **The previous figure was 2645 tests in 171 files, measured on 2026-09-27** at the close of the bot-memory round (+`ResetBotMemoryDialog.test.tsx`, −`permissions.pending.test.ts`), with 8 failures in a run that shared the machine with a build, all in `CreateTicketDialog`, `App` and `TicketAttachmentsPanel`; re-run alone, the 3 that remain are the ones recorded below as failing at `HEAD`. **The previous figure was 2629 tests in 170 files, measured on 2026-09-22** at the close of the COD-pool
 round (the two new files are `AssignabilityCheck.test.tsx` and `PlanFormDialog.test.tsx`), with
 **3 failures, none in a file the round touched**, and 16 node processes up. ⚠ **One of them is not
 a flake: App.test.tsx's *"lands the orders container on its index child"* failed in the full run,
@@ -717,7 +840,7 @@ machine, not the code.
 npm run dev       # 5175, strictPort
 npm run build     # tsc -b && vite build   ← the typecheck runs here
 npm run lint      # eslint .
-npm test          # vitest run — 2896 tests in 189 files (2026-10-04, after the money-split round). No sibling dashboard has one.
+npm test          # vitest run — 3028 tests in 198 files (2026-10-05, after the refund-queue round). No sibling dashboard has one.
 ```
 
 **Every phase closes the same way**: typecheck, lint, tests, build, then a written summary naming
@@ -1303,7 +1426,7 @@ what is outstanding is integration. See the table.
 | ~~🔴 **A `quota_blocked` file's bytes ARE served, and six sites plus nine tests said otherwise**~~ | ✅ **Closed 2026-09-09 — the audited open was restored at all six surfaces.** `GET /files/:fileId/content` returns **200 with the bytes** in the public, `shipments/` and `digital/` trees alike; the handler never reads `quotaBlockedAt`. ⚠ **The row is kept because of where the error came from: the contract.** `files.md` said *"the content route will not help you either"*, Phase 3 implemented the sentence, and nine tests written from it agreed. ✅ **The clause was deleted upstream on 2026-09-12** — all four asks granted, including the `Can the content route show it → yes / yes` table row and a **do not pre-empt this call on `access`** note beside the content route; the backend also checked whether the false clause had been copied anywhere else, and it had not. Filed as [BR-023](api-doc/admin/dashboard/backend-requests/BR-023-quota-blocked-content-route.md) rather than patched into the mirror. ⚠ **`QUOTA_BLOCKED_COPY` is why the fix was cheap** — one constant fed six surfaces, so *"so this file cannot be shown"* was wrong in seven places and right again after one edit. **The labelling guidance was always correct and was kept**: never *missing*, never *broken*, never *private*, and now never *unviewable* |
 | ~~🔴 **`api-doc/admin/content-dto.ts` is a STALE mirror**~~ | ✅ **Closed 2026-08-26, and the guard did its job on the first run.** Re-copied as the first act of Phase E, exactly as this row instructed; `content-contract.test.ts` went red naming `sourceLocale`, and `src/` was corrected rather than the test. ⚠ **The lesson stands, which is why the row is kept**: a stale mirror and a stale `src/` agree with each other, so **nothing catches a mirror that was never re-taken** — only re-taking it does. Re-copy every mirror the backend's action list names, in the phase that consumes it |
 | ~~🔴 **Four granted routes with no service function**~~ | ✅ **All four closed.** `GET /vendors/:vendorId/products/:productId` (BR-005) and `GET /vendors/:vendorId/agencies` (BR-018) shipped with Phase B; `GET /files/library` and `POST /files/upload` (BR-015) shipped with **Phase F** on 2026-08-27 as the Media module and the media picker |
-| 🔴 **`vendors.md` omits two fields on the product detail** | ⏸ **Open, and reported rather than worked around.** `vendorId` and `tags` are on the wire and appear in neither its worked JSON nor its field tables, and its nullability differs from the source's on `title`, `slug` and `category`. `VendorProductDetail` follows `AdminProductDetailDto` in `backend/jovi-mall/src/modules/vendors/read-models/admin-product-detail.resolver.ts`, which is what computes the payload, and names the disagreement at each field. ⚠ Also `StorageSizeSource` has a third value the page does not show — **`unknown`**, which must stay distinguishable from a real measurement on a screen justifying a charge |
+| ~~🔴 **`vendors.md` omits two fields on the product detail**~~ | ✅ **`vendorId` and `tags` are documented since 2026-10-05** (the full-product round). Kept for the rest: its nullability differed from the source's on `title`, `slug` and `category`. `VendorProductDetail` follows `AdminProductDetailDto` in `backend/jovi-mall/src/modules/vendors/read-models/admin-product-detail.resolver.ts`, which is what computes the payload, and names the disagreement at each field. ⚠ Also `StorageSizeSource` has a third value the page does not show — **`unknown`**, which must stay distinguishable from a real measurement on a screen justifying a charge |
 | ~~🔴 **Phases B and C are BEHIND the contract, and four screens say so in the wrong direction**~~ | ✅ **Closed 2026-08-26.** All six items shipped: `items[].delivery.agencyName`, `items[].delivery.trackingNumber`, `timeline[].actorName`, `contract-history`'s `agent: {id, name}`, `items[].image` on both order and shipment, and `order.vendorName`. **Four false `InfoHint`s deleted** and **four lookups deleted with them** — the per-product catalogue N+1 on two screens, and the shipment overview's `GET /vendors/:vendorId`. ⚠ **`useVendorProducts` and `ProductImage` are gone**; `components/common/LineItemImage` renders a `FileDetail` the payload already carried. The stubs in `OrderDetail.test.tsx` and `ShipmentDetail.test.tsx` now **throw on `/products/` and `/vendors/`**, so re-introducing either lookup fails the suite |
 | ~~🔴 **A ticket attachment row carries no file id**~~ | ✅ **Closed 2026-08-26, and wi-admin closed it on itself.** Rather than wait on a jovi-mall release, wi-admin reads `file_id` off the attachment row in the shared database and stamps `fileId` onto each row (ADR-018 D-4 — delegate the projection that needs jovi-mall, read the record directly). ⚠ **`id` is the ATTACHMENT and `fileId` is the FILE**, both 24-hex on the same object: the delete takes the first, everything in `/files` takes the second. ⚠ **Not stamped on the `POST` response**, deliberately — you sent it. `uploadedByActor` was documented in the same round |
 | ~~🔴 **A verification verdict is reached with no evidence to reach it from**~~ | ✅ **Closed 2026-09-14 — the backend had already built it.** [`verification.md`](api-doc/admin/api/verification.md): `GET /{vendors,agencies,agents}/:id/verification` returns the ID-card scans, the selfie, the geocoded addresses with a `geocoded` flag, the hand-drawn sketches and (for an agent) the vehicle photographed with its rider. ⚠ **The badge and the drafted reason are OURS by contract, not by omission** — *"There is no `estimatedVerdict` field. No `complete`. No `required` column. … The response is **facts**; the badge is **yours"***, because required/optional is a review policy and the people who change their minds own this dashboard. `lib/verification-review.ts` is that policy and `jovi-mall test:kyc` § 4 fails if a second copy appears upstream. ⚠ **The permission is `*.read`, not the review permission, and the read is NOT audited** — Support answers *"why was my shop rejected"* tickets, and *looking at the picture* is the audited act (`files.content.read`), so the evidence is a **Verification tab** with the verdict dialog on top of it. 🔴 **Filter a review queue on `submittedAt !== null`, never on `status`** — `pending` is also the schema default on a vendor and an agency, so status alone lists every account that ever registered; the estimator refuses to grade a draft at all. ⚠ **`KYC_SUBJECT_NOT_FOUND` is a jovi-mall code on a delegated 404**, so it arrives as `details.platformCode` and branching on `error.code` never matches — `verification.md`'s error table prints it as the latter. [BR-024](api-doc/admin/dashboard/backend-requests/BR-024-party-verification-evidence.md) is kept with a banner listing the five design choices it proposed that were decided the other way; four of the five were about over-restricting a read |

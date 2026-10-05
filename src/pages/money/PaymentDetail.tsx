@@ -8,6 +8,10 @@ import { Definition, DefinitionList, NotSet } from '@/components/common/Definiti
 import { DetailSkeleton } from '@/components/common/Loading';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { PaymentStatusBadge, RefundStatusBadge } from '@/components/money/MoneyBadges';
+import {
+    RefundSettlementAmount,
+    RefundSettlementChannel,
+} from '@/components/money/RefundSettlementCells';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { useAsyncData } from '@/hooks/use-async-data';
@@ -292,8 +296,14 @@ function RefundsCard({ payment, timeZone }: { payment: PaymentDetailShape; timeZ
             id: 'amount',
             numeric: true,
             header: 'Amount',
-            className: 'align-top font-medium tabular-nums',
-            cell: (row) => formatMoney(row.amount, row.currency),
+            className: 'align-top',
+            cell: (row) => <RefundSettlementAmount row={row} />,
+        },
+        {
+            id: 'channel',
+            header: 'How',
+            className: 'align-top',
+            cell: (row) => <RefundSettlementChannel row={row} />,
         },
         {
             id: 'status',

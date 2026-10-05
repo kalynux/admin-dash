@@ -1,5 +1,9 @@
 # Permissions and administrator levels
 
+⚠ **Re-measured against source 2026-10-05, refund flow (`npm run authz:matrix`): 140 permissions across 23 families, tier totals 140 / 118 / 47.** Four are new with the refund queue ([refunds.md](refunds.md), [the changelog](../FRONTEND-CHANGELOG-refund-flow.md)): `orders.refund.read` (every tier, unflagged), `orders.refund.request` (**financial**, every tier — Support holds it under a named exemption, `TIER_3_FINANCIAL_ALLOWLIST`, because raising a request HOLDS the seller's earnings and sends nothing), `orders.refund.settle_external` (financial, tiers 1 + 2) and `money.earnings.clawback.write_off` (financial, **dual-controlled**, tiers 1 + 2). `orders.refund` itself gained a dual-control spec (approve ≥ 2 000 000). *"Support holds one financial permission"* is now **two**: `money.payouts.triage` and `orders.refund.request`. Neither sends money. Re-derive rather than quoting.
+
+⚠ **Re-measured against source 2026-10-05 (`npm run authz:matrix`): 136 permissions across 23 families, tier totals 136 / 114 / 45.** Three are new from the review-moderation work, in a new `reviews` family ([§ reviews](#reviews), [the changelog](../FRONTEND-CHANGELOG-reviews.md)): `reviews.read`, `reviews.moderate` and `reviews.delete` (**destructive**), all three held by **every** tier, Support included, by owner decision. Support's `reviews.delete` is the one named exception to "Support holds nothing destructive" (`TIER_3_DESTRUCTIVE_ALLOWLIST`). The fourth, `money.earnings.pause`, arrived the same day from concurrent work on earnings pauses; its own section carries it. Re-derive rather than quoting.
+
 ⚠ **Re-measured against source 2026-10-04 (`npm run authz:matrix`): 132 permissions across 22 families, tier totals 132 / 110 / 42.** This session added one name, `money.splits.read` (one order's money split, `GET /money/orders/:orderId/split` — [the changelog](../FRONTEND-CHANGELOG-money-split.md)), held by **every** tier, Support included, unflagged. The other three since the 2026-10-02 note below arrived from concurrent work on 2026-10-04 (the new `catalog` family's `catalog.categories.read` and `catalog.categories.manage`, and role closure's `users.close`); their own sections carry them. Re-derive rather than quoting.
 
 ⚠ **Re-measured against source 2026-10-02: 128 permissions across 21 families, tier totals 128 / 106 / 40.** One new name, `agencies.cod_limit.set` (`financial`), granted by name in the tier-2 money block and therefore **not** to Support — it guards `PUT /agencies/:agencyId/cod-limit` and `POST …/cod-limit/release` ([the changelog](../FRONTEND-CHANGELOG-cod-limits.md)). Measured with `TIER_GRANTS` from `src/modules/authorization/domain/tier-grants.ts`.
@@ -31,9 +35,9 @@ Design records: [`../../docs/ADR-003-GRANULAR-PERMISSIONS.md`](../../docs/ADR-00
 
 | Level (`tier`) | Label | Holds | Shape of the job |
 |---|---|---|---|
-| **1** | Developer | 132 of 132 | Everything, including the developer tools and every escalation-flagged action |
-| **2** | Admin | 110 of 132 | The operational tier — runs the platform day to day, including the money |
-| **3** | Support | 42 of 132 | Ticket work, the lookups needed to answer a ticket, sending an account holder their statement, editorial write on articles and bylines, resetting the customer bot's memory of a chat, and **pre-screening** a declared COD handover or a payout request. Nothing destructive, publishing stays a level above, and the one `financial` permission it holds cannot send money anywhere |
+| **1** | Developer | 140 of 140 | Everything, including the developer tools and every escalation-flagged action |
+| **2** | Admin | 118 of 140 | The operational tier — runs the platform day to day, including the money |
+| **3** | Support | 47 of 140 | Ticket work, **raising refund requests** for an approver (which holds the seller's earnings), the lookups needed to answer a ticket, sending an account holder their statement, editorial write on articles and bylines, resetting the customer bot's memory of a chat, **moderating reviews** (hide, put back, delete), and **pre-screening** a declared COD handover or a payout request. Nothing destructive except deleting a review (the one named exception), publishing stays a level above, and the two `financial` permissions it holds cannot send money anywhere |
 
 A level is an administrator's **entire** authorization state. `tier` appears on the profile
 returned by `GET /auth/me`.
@@ -86,7 +90,7 @@ authentication → permission → escalation rules → resource scope
 
 ## Dual control (four eyes)
 
-Three actions are **queued instead of executed** when a condition holds. The endpoint answers
+Five actions are **queued instead of executed** when a condition holds. The endpoint answers
 **`202 Accepted`** with an approval id; a **different** administrator holding the approver
 permission commits it through `/approvals`.
 
@@ -95,6 +99,8 @@ permission commits it through `/approvals`.
 | `PUT /administrators/:adminId/tier` | The requested tier is **1 (Developer)** | `administrators.tier.set` | Any demotion, or promotion to 2 / 3 |
 | `POST /administrators/:adminId/suspend`<br>`POST /administrators/:adminId/reinstate` | The **target** is a Developer | `administrators.suspend` | Acting on an Admin or Support administrator |
 | `POST /money/payouts/:payoutId/mark-paid` | Amount **≥ 2 000 000 XAF** | `money.payouts.mark_paid` | Below the threshold; and **rejecting** a payout is never queued |
+| `POST /refunds/:refundId/approve` (and `POST /refunds` with `approveNow`) | The request's `grossAmount` (read off the row) **≥ 2 000 000 XAF** | `orders.refund` | Below the threshold; reject, retry, resolve-unknown and settle-external are never queued. ⚠ **Separately, at ANY amount**, a refund to a **typed** number may not be approved by the administrator who typed it (`409 REFUND_SECOND_APPROVER_REQUIRED`) — see [refunds.md](refunds.md#four-eyes) |
+| `POST /money/earnings/clawbacks/:ownerType/:ownerId/write-off` | `amount` **≥ 2 000 000** | `money.earnings.clawback.write_off` | Below the threshold |
 
 Three properties a client should rely on:
 
@@ -144,6 +150,8 @@ The line it draws: **Support may release a hold back to the owner it belongs to,
 send money out of the platform.** `money.payouts.mark_paid` is a separate permission tier 3 does
 not hold, and no combination of triage verdicts causes money to leave.
 
+⚠ **Since the refund queue (2026-10-05) it is no longer the only one: `orders.refund.request` is the second name on `TIER_3_FINANCIAL_ALLOWLIST`.** Raising a refund request PAUSES the seller's earnings (owner decision C-4) — holding somebody's money is financial by this catalog's definition — and sends nothing: the request waits for an approver holding `orders.refund`. Same line, from the other side: *Support may hold, never send.* A rejection lifts the hold, and nothing leaves the platform.
+
 ⚠ **Its COD sibling `cod.triage` is deliberately NOT flagged, and the asymmetry is real.** A COD
 deposit or remittance sitting in `declared` holds **nothing** — only a *confirmed* one moves cash —
 so neither endorsing nor rejecting one is a money movement. It therefore needs no exemption and
@@ -151,11 +159,11 @@ takes none, and being unflagged means `allInFamily('cod')` expands it to Admin w
 typing it in by hand. It does **not** grant confirming: `cod.deposits.confirm` and
 `cod.remittances.confirm` stay `financial` and stay out of Support's reach.
 
-### Four reads are audited, and three of them are held by Support
+### Five reads are audited, and four of them are held by Support
 
 "Reads are not actions" is the rule, and it holds because a read leaves no state behind — so the
 permission gate is the whole control and a row per read would be volume with nothing to say.
-**Four permissions break it**, all for the same reason: their *output* **is** the disclosure.
+**Five routes break it**, all for the same reason: their *output* **is** the disclosure.
 
 | Permission | Route | What it discloses | Held by Support |
 |---|---|---|:-:|
@@ -163,6 +171,7 @@ permission gate is the whole control and a row per read would be volume with not
 | `agents.tracking.read` | `GET /agents/:agentId/live-position` | Where a person is, right now | **yes** |
 | `shipments.tracking.read` | `GET /shipments/:shipmentId/tracking-trail` | Where a person went, over one delivery | **yes** |
 | `files.content.read` | `GET /files/:fileId/content` | The bytes of a private file — a delivery-proof photograph, a vendor's saleable digital product | **yes** |
+| `orders.refund.read` | `GET /refunds/proofs/:fileId` | A refund proof picture — a customer's phone number and a personal conversation, or a receipt. Only the proof route is audited; the queue and the detail are ordinary reads | **yes** |
 
 ⚠ **The permission is audited on the disclosing route only, not everywhere it is accepted.**
 `agents.tracking.read` also opens `GET /agents/:agentId/tracking-presence` and
@@ -186,7 +195,7 @@ record were one decision, not two. See [ADR-020](../../docs/ADR-020-ADMIN-DATA-D
 ## The matrix
 
 ● granted  ·  not granted  ·  **†** = catalogued policy with **no endpoint built yet**
-(**4** of 132 permissions — down from 27, and the four that remain each have a written reason
+(**4** of 140 permissions — down from 27, and the four that remain each have a written reason
 below. The policy is decided ahead of the surface, deliberately.)
 
 ### `agents`
@@ -267,6 +276,8 @@ Full contract in [cod.md](cod.md).
 | `money.payments.read` | read | ● | ● | ● | — | View gateway payment and refund settlements |
 | `money.statements.send` | read | ● | ● | ● | — | Download or email an account holder's full statement of orders, fees, COD, payouts, credits and plans — every request is recorded in the audit trail |
 | `money.splits.read` | read | ● | ● | ● | — | View who gets what from one order — vendor, platform commission and bargain fee, agency, agent — and why |
+| `money.earnings.pause` | write | ● | ● | · | financial | Pause or resume the payout of an order’s or booking’s earnings — paused money is never released (2026-10-05) |
+| `money.earnings.clawback.write_off` | write | ● | ● | · | financial, dual-control | Write off a refund debt an owner owes the platform — the platform absorbs the loss (refund flow, 2026-10-05) |
 
 **Payout review is two stages and only one of them moves money** (ADR-024). `money.payouts.triage`
 opens `POST /money/payouts/:payoutId/triage`, the pre-screen: a reviewer endorses the request as
@@ -293,7 +304,12 @@ cannot reach. Full contract in [money.md](money.md).
 | `orders.disputes.read` | read | ● | ● | ● | — | View the order dispute queue |
 | `orders.disputes.resolve` | write | ● | ● | · | financial | Resolve an order dispute, deciding who is paid |
 | `orders.intervene` | write | ● | ● | · | — | Manually change an order’s state to unblock it |
-| `orders.refund` | write | ● | ● | · | financial | Refund an order, in full or in part |
+| `orders.refund` | write | ● | ● | · | financial, dual-control | Refund an order, in full or in part — approve, reject or retry a refund request |
+| `orders.refund.read` | read | ● | ● | ● | — | View the refund queue, a refund request, and its proof pictures (every proof opened is recorded in the audit trail) |
+| `orders.refund.request` | write | ● | ● | ● | financial | Raise a refund request for an approver — holds the seller’s earnings, never sends money |
+| `orders.refund.settle_external` | write | ● | ● | · | financial | Record a refund as paid outside the platform, with a picture proof — completes it |
+
+**The refund queue** ([refunds.md](refunds.md)). Support **reads** and **raises**: a request is `awaiting_approval`, sends nothing, and holds the seller's earnings until it is decided — which is why `orders.refund.request` is honestly `financial` and admitted to tier 3 by name, on the `money.payouts.triage` line: *Support may hold, never send*. Approving, rejecting, retrying and resolving a stuck transfer are `orders.refund`; recording a payment made outside the platform is `orders.refund.settle_external`; both are tiers 1 + 2 only.
 
 ### `support`
 
@@ -448,6 +464,24 @@ a category belongs to no vendor, and a merge rewrites many vendors' products at 
 
 `catalog.categories.manage` is **destructive**, so `allInFamily('catalog')` leaves it out and
 tier 2 names it by hand. A merge has no undo.
+
+### `reviews`
+
+Ratings and reviews of products and deliveries (2026-10-05, [reviews.md](reviews.md)). Every
+review publishes the moment it is written; these are the after-the-fact moderation rights.
+
+| Permission | Action | 1 Dev | 2 Admin | 3 Support | Flags | Summary |
+|---|---|:-:|:-:|:-:|---|---|
+| `reviews.read` | read | ● | ● | ● | — | List and open product and delivery reviews, with who wrote them and what was done to them |
+| `reviews.moderate` | write | ● | ● | ● | — | Hide a published review, or put a hidden one back |
+| `reviews.delete` | write | ● | ● | ● | destructive | Delete a review for good — its author may then write a new one |
+
+**Support holds `reviews.delete`, and that is a deliberate, named exception** (owner decision,
+2026-10-05). The grant table refuses any destructive permission to tier 3, except names on
+`TIER_3_DESTRUCTIVE_ALLOWLIST`, and `reviews.delete` is the only one there. The line it
+draws: Support may remove words somebody published, but may never destroy a record that
+money, identity or history hangs off. `allInFamily('reviews')` gives tier 2 read and moderate,
+and `reviews.delete` is named by hand for every tier.
 
 > **The `customers` family is gone** (Phase 5 Part D, [ADR-017](../../docs/ADR-017-PHASE-17-CLOSEOUT.md)
 > D-1). `customers.read` and `customers.suspend` were catalogued, **granted**, and backed no

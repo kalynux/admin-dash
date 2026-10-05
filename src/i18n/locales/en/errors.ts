@@ -117,6 +117,13 @@ const codes = {
     PAYOUT_NOT_PROCESSING: 'This payout is no longer waiting on a transfer',
     ACCOUNT_OWNER_NOT_FOUND: 'No such account owner',
 
+    // ─── The refund queue (2026-10-05) ───────────────────────────────────────
+    REFUND_REQUEST_STATUS_CONFLICT: 'This refund request has moved on',
+    REFUND_SECOND_APPROVER_REQUIRED: 'Another administrator must approve this refund',
+    REFUND_USE_REFUND_QUEUE: 'Raise this refund from the refund queue',
+    EARNINGS_PAUSE_HELD_BY_REFUND: 'A refund is holding these earnings',
+    EARNINGS_CLAWBACK_WRITE_OFF_EXCEEDS_DEBT: 'That is more than this owner owes',
+
     // ─── Delivery network ────────────────────────────────────────────────────
     // Deliberately worded differently from the platform catalog's entry of the
     // same name: this one answers `GET /contracts/:contractId` directly, that
@@ -229,6 +236,16 @@ const codeHints = {
     PAYOUT_DESTINATION_ABSENT: 'This is an older record with no destination snapshot. Ask the beneficiary.',
     PAYOUT_NOT_PENDING: 'Reload to see its current state.',
     PAYOUT_NOT_PROCESSING: 'It was settled meanwhile. Reload to see its current state.',
+
+    REFUND_REQUEST_STATUS_CONFLICT: 'Someone acted on it first, or the money moved. Reload to see where it is now.',
+    REFUND_SECOND_APPROVER_REQUIRED:
+        'You typed this phone number, so a different administrator has to check it against the picture and approve.',
+    REFUND_USE_REFUND_QUEUE:
+        'At 2,000,000 or more an order refund needs a second administrator, which only the refund queue provides.',
+    EARNINGS_PAUSE_HELD_BY_REFUND:
+        'The refund lifts or closes this pause itself once it is decided. Open the refund request instead.',
+    EARNINGS_CLAWBACK_WRITE_OFF_EXCEEDS_DEBT:
+        'Later earnings may have repaid part of the debt. Reload to see what is owed now.',
 
     CONTRACT_NOT_FOUND: 'Check the id, or open the contract from the agent or the agency.',
     // Not a client bug and not worth an error banner: files are soft-deleted and

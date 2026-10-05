@@ -215,6 +215,14 @@ const platform = {
     CATEGORY_NAME_INVALID: 'Use 2–60 characters, with at least one letter or digit.',
     CATEGORY_NOT_FOUND: 'This category was just changed by someone else. Refresh the list.',
 
+    // ─── Review moderation (2026-10-05) ───────────────────────────────────────
+    /*
+      The Reviews screen reloads the row on the first and removes it on the
+      second, with its own toast; these are the floor for any other path.
+    */
+    REVIEW_STATUS_CONFLICT: 'Someone else already changed this review. Refresh to see where it is now.',
+    REVIEW_NOT_FOUND: 'This review was already deleted.',
+
     // ─── An administrator's own phone (WhatsApp OTP) ──────────────────────────
     /*
       ✅ **All six arrive now.** Two of them could not until 2026-09-15: wi-admin's
@@ -406,6 +414,43 @@ const platform = {
         'A refund of the whole order already returned this money. Paying it again would pay the customer twice — settle it as covered by the order refund instead.',
     DELIVERY_FEE_REFUND_NOT_COVERED:
         'Nothing else has returned this money, so it is still owed. Send it to the customer, then record how you paid.',
+
+    // ─── Earnings pauses (2026-10-05) ────────────────────────────────────────
+    /*
+      The pause and resume dialogs branch on the two 409s and replace the form
+      with a reload; this copy is the floor anywhere else they surface.
+    */
+    EARNINGS_ALREADY_PAUSED:
+        'This payout is already paused — by another administrator or by the platform. Their reason is kept; reload to see it.',
+    EARNINGS_NOT_PAUSED:
+        'This payout is not paused any more — someone resumed it first. Nothing changed twice; reload to see who.',
+    EARNINGS_PAUSE_TARGET_NOT_FOUND:
+        'The platform has no order or booking with this id, so there is nothing to pause or resume.',
+
+    // ─── The refund queue (2026-10-05) ───────────────────────────────────────
+    /*
+      jovi-mall's own verdicts on `/refunds`. ⚠ Three more names —
+      `REFUND_REQUEST_STATUS_CONFLICT`, `REFUND_SECOND_APPROVER_REQUIRED`,
+      `REFUND_USE_REFUND_QUEUE` — are wi-admin registry codes too, with the same
+      meaning; they carry `errors.codes` copy only, and arriving here they fall
+      through to jovi-mall's own sentence.
+    */
+    REFUND_ALREADY_OPEN:
+        'A refund request is already open for this. Open it from the refund queue instead of raising another.',
+    REFUND_NO_DESTINATION:
+        'There is no number to send this refund to. Type the customer’s number, with a picture of their message giving it.',
+    REFUND_PAYOUT_UNAVAILABLE:
+        'Automatic refund transfers are switched off right now. Settle it outside the platform, or try again later.',
+    REFUND_INSUFFICIENT_GATEWAY_BALANCE:
+        'The payout account is short of funds for this transfer. Nothing was sent — retry once it is topped up, or settle it outside the platform.',
+    REFUND_DESTINATION_PROOF_REQUIRED:
+        'The picture of the customer’s message is missing or no longer stored. Upload it again.',
+    REFUND_EXTERNAL_PROOF_REQUIRED:
+        'The proof of payment is missing or no longer stored. Upload it again.',
+    REFUND_REQUEST_NOT_FOUND: 'This refund request no longer exists. Reload the queue.',
+    REFUND_NOT_ELIGIBLE:
+        'This cannot be refunded that way. A plan purchase or a credit top-up is refunded in full only.',
+    EARNINGS_CLAWBACK_NOTHING_OWED: 'This owner owes nothing any more — later earnings repaid the debt.',
 };
 
 export default platform;

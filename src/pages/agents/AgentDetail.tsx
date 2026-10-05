@@ -34,6 +34,7 @@ import { ErrorState } from '@/components/common/DataState';
 import { DetailSkeleton } from '@/components/common/Loading';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Button } from '@/components/ui/button';
+import { ReviewsPanel } from '@/components/reviews/ReviewsPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { resolveTimeZone } from '@/lib/datetime';
@@ -231,6 +232,7 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
 
     const record = agent.data;
     const canSeeAccount = can(ACCOUNT_READ_PERMISSIONS, 'all');
+    const canSeeReviews = can('reviews.read');
     const canSeeActivity = can(['agents.read', 'audit.read'], 'all');
     const canTransfer = can('agents.transfer');
     const canSeeTrust = can(TRUST_EVENTS_PERMISSIONS, 'all');
@@ -320,6 +322,7 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
                       the one on the trigger.
                     */}
                     {canReadWithAgencies ? <TabsTrigger value="agencies">Roster</TabsTrigger> : null}
+                    {canSeeReviews ? <TabsTrigger value="reviews">Reviews</TabsTrigger> : null}
                     {canSeeAccount ? <TabsTrigger value="account">Account</TabsTrigger> : null}
                     {canSeeActivity ? <TabsTrigger value="activity">Activity</TabsTrigger> : null}
                 </TabsList>
@@ -474,6 +477,17 @@ function AgentDetailScreen({ agentId }: { agentId: string }) {
                             reloadToken={reloadToken}
                             canTransfer={canTransfer}
                             onTransfer={setTransferFrom}
+                        />
+                    </TabsContent>
+                ) : null}
+
+                {canSeeReviews ? (
+                    <TabsContent value="reviews">
+                        {/* The delivery reviews that rate this agent — internal, never public. */}
+                        <ReviewsPanel
+                            scope={{ agentId: record.id }}
+                            timeZone={timeZone}
+                            noun="this agent"
                         />
                     </TabsContent>
                 ) : null}

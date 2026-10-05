@@ -254,7 +254,9 @@ describe('the allocations list', () => {
 
         render(<AllocationsList />);
 
-        expect(await screen.findByText(/sale not completed/i)).toBeInTheDocument();
+        // "Hold not started" since 2026-10-05: an order's hold starts at delivery
+        // and a booking's at completion, so neither "sale" nor "delivered" fits both.
+        expect(await screen.findByText(/hold not started/i)).toBeInTheDocument();
     });
 
     it('shows the frozen split inputs beside the share', async () => {

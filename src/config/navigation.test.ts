@@ -323,6 +323,15 @@ describe('permittedSections', () => {
         // `cod.overview.read`, `cod.remittances.read` and `cod.deposits.read`
         // — granted in code all along, published only when `permissions.md` was
         // re-derived — plus `cod.triage` to endorse what it reads.
+        //
+        // **Operations gained Reviews on 2026-10-05.** Support holds all three
+        // `reviews.*` names — delete included, the one destructive exception —
+        // so the screen is theirs as fully as anyone's.
+        //
+        // **Finance gained the Refund queue the same day.** Support holds
+        // `orders.refund.read` and `orders.refund.request`: it reads the queue and
+        // RAISES requests, and never approves or sends — those buttons are gated
+        // inside the screen, never by hiding the module.
         const sections = permittedSections(heldFixture(3));
 
         expect(
@@ -330,9 +339,9 @@ describe('permittedSections', () => {
         ).toEqual([
             ['overview', ['home', 'notifications']],
             ['directories', ['users', 'vendors', 'agencies', 'agents']],
-            ['operations', ['orders', 'shipments', 'categories']],
+            ['operations', ['orders', 'shipments', 'categories', 'reviews']],
             ['support', ['support-tickets', 'content']],
-            ['finance', ['cod', 'money']],
+            ['finance', ['refunds', 'cod', 'money']],
             ['administration', ['audit']],
             ['platform', ['system', 'automation']],
         ]);

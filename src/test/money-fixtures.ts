@@ -159,10 +159,12 @@ export function payoutListMetaFixture(overrides: Record<string, unknown> = {}) {
 }
 
 /**
- * One row of `GET /money/earnings/accounts`.
+ * One row of `GET /money/earnings/accounts` in jovi-mall's **flat** shape.
  *
- * Note what is **not** here: an owner name. The platform returns
- * `(owner_type, owner_id)` and four balances, and wi-admin passes them through.
+ * ⚠ Kept as the LEGACY shape: wi-admin has served the hydrated
+ * {@link servedEarningsAccountRowFixture} since 2026-08-18, and this fixture —
+ * built from jovi-mall's mapper — is why no test noticed the directory dropped
+ * every real row.
  */
 export function earningsAccountRowFixture(overrides: Record<string, unknown> = {}) {
     return {
@@ -172,6 +174,25 @@ export function earningsAccountRowFixture(overrides: Record<string, unknown> = {
         available: 380000,
         reserve: 0,
         requested: 0,
+        currency: 'XAF',
+        updatedAt: '2026-08-13T07:12:00.000Z',
+        ...overrides,
+    };
+}
+
+/**
+ * The same row as wi-admin SERVES it — `toEarningsAccountDto` in
+ * `money/read-models/money.dto.ts`: the owner hydrated with a name, plus the
+ * refund debt (`clawback`, 2026-10-05).
+ */
+export function servedEarningsAccountRowFixture(overrides: Record<string, unknown> = {}) {
+    return {
+        owner: { type: 'agency', id: '665c0011223344556677889a', name: 'Douala Express' },
+        pending: 42000,
+        available: 380000,
+        reserve: 0,
+        requested: 0,
+        clawback: 0,
         currency: 'XAF',
         updatedAt: '2026-08-13T07:12:00.000Z',
         ...overrides,

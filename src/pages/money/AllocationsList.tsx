@@ -150,6 +150,16 @@ export function AllocationsList() {
                             of {formatMoney(row.snapshots.gross, row.currency)} ·{' '}
                             {row.snapshots.commissionPercent}%
                         </p>
+                        {/*
+                          What refunds took back (2026-10-05). `amount` is never
+                          edited, so this is said beside it — and never
+                          subtracted here.
+                        */}
+                        {row.clawedAmount ? (
+                            <p className="text-destructive text-xs tabular-nums">
+                                {formatMoney(row.clawedAmount, row.currency)} taken back by refunds
+                            </p>
+                        ) : null}
                     </div>
                 ),
             },
@@ -344,6 +354,20 @@ function ReleaseReason({
         );
     }
 
+    if (release.pausedAt) {
+        // Paused money is never released, so a hold end shown here would be a
+        // date nothing will honour. The badge replaces it (2026-10-05).
+        return (
+            <Badge
+                variant="outline"
+                className="border-warning/40 bg-warning/10 text-warning font-normal"
+                title={`Paused ${formatInstantInZone(release.pausedAt, timeZone) ?? ''}`}
+            >
+                Paused
+            </Badge>
+        );
+    }
+
     if (release.requiresCashSettlement && !release.cashSettledAt) {
         // The sharp end: cash required, cash not here.
         return (
@@ -354,8 +378,10 @@ function ReleaseReason({
     }
 
     if (!release.completedAt) {
-        // `holdReleaseAt` is null precisely because the source never completed.
-        return <span className="text-muted-foreground text-xs">Sale not completed</span>;
+        // `holdReleaseAt` is null precisely because the hold has not started —
+        // since 2026-10-05 an order's hold starts at delivery, a booking's at
+        // completion, so "not delivered" alone would be wrong for a booking.
+        return <span className="text-muted-foreground text-xs">Hold not started</span>;
     }
 
     if (release.holdReleaseAt) {

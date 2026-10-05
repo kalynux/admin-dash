@@ -518,6 +518,11 @@ export const ROLE_CLOSURE_BLOCKER_LABELS: Record<string, { what: string; settle:
         what: 'Earnings balance not yet withdrawn',
         settle: 'The balance is withdrawn',
     },
+    // 2026-10-05 (refund flow, C-5): the role OWES the platform money back.
+    earnings_clawback_outstanding: {
+        what: 'Refund debt owed to the platform',
+        settle: 'Later earnings repay it, or an administrator writes it off on Money › Refund debt',
+    },
     earnings_allocations_held: {
         what: 'Earnings still in their hold period',
         settle: 'The hold period ends',

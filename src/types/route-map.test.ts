@@ -108,7 +108,7 @@ describe('the route total is the sum of its parts', () => {
         );
     });
 
-    it('holds the 283 routes on the service as of 2026-10-04', () => {
+    it('holds the 306 routes on the service as of 2026-10-05', () => {
         // Pinned deliberately, and it is the assertion that fires when the
         // backend ships a route group. A change here is not a failure to fix by
         // editing this number: it means a route arrived, and something in `src/`
@@ -167,7 +167,16 @@ describe('the route total is the sum of its parts', () => {
         // ⚠ 281 → 283 the same day, measured (`TOTAL 284`): the money-split round —
         // `GET /money/earnings/platform/summary` (`money.earnings.read`, strict) and
         // `GET /money/orders/:orderId/split` (the new `money.splits.read`, every tier).
-        expect(totalDeclared).toBe(283);
+        //
+        // ⚠ 283 → 292 on 2026-10-05, measured (`TOTAL 293`), two rounds at once: the
+        // new `/reviews` group (5 — list, detail, unpublish, republish, delete on
+        // `reviews.*`) and the four `/money/earnings/pauses` routes.
+        //
+        // ⚠ 292 → 306 later on 2026-10-05, measured (`TOTAL 307`): the refund flow —
+        // the new `/refunds` group (12: queue, detail, activity, eligibility, raise,
+        // approve, reject, retry, settle-external, resolve-unknown, proof upload and
+        // read) and the two `/money/earnings/clawbacks` routes (refund debt).
+        expect(totalDeclared).toBe(306);
     });
 });
 
@@ -219,7 +228,7 @@ describe('the composite guards, as the route map declares them', () => {
         .map((row) => `${row.method} ${row.path}`)
         .sort();
 
-    it('is exactly the twenty-two the service declares', () => {
+    it('is exactly the twenty-three the service declares', () => {
         // Seventeen `all`-mode plus five `any`-mode. That count has been stale
         // four separate times — "Thirteen", then "fourteen plus the any-mode
         // one", then "fifteen … sixteen in all", then "three any-mode … twenty"
@@ -231,6 +240,9 @@ describe('the composite guards, as the route map declares them', () => {
         // `money.routes.ts`: `permissions.md` § "Composite guards" still says
         // four and does not list it, so this is the service's figure and the
         // page is behind.
+        //
+        // ⚠ The twenty-third (`all` mode) is `GET /refunds/:refundId/activity`
+        // (2026-10-05): `orders.refund.read` + `audit.read`, the payout-activity rule.
         expect(composite).toEqual([
             'GET /accounts/:ownerType/:ownerId',
             'GET /accounts/:ownerType/:ownerId/activity',
@@ -246,6 +258,7 @@ describe('the composite guards, as the route map declares them', () => {
             'GET /contracts/:contractId',
             'GET /money/payouts/:payoutId/activity',
             'GET /orders/:orderId/activity',
+            'GET /refunds/:refundId/activity',
             'GET /shipments/:shipmentId/activity',
             'GET /shipments/:shipmentId/offers',
             'GET /system/errors',

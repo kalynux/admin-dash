@@ -10,9 +10,11 @@ import { formatInstantInZone, formatMoney } from '@/lib/format';
 import type { CanPredicate } from '@/store';
 import {
     deliveryFeeRefundCauseLabel,
+    deliveryFeeRefundLinkedRequest,
     deliveryFeeRefundMethodLabel,
     type DeliveryFeeRefund,
 } from '@/types/money.types';
+import { refundDetailPath } from '@/types/refunds.types';
 
 /**
  * The columns of a delivery-fee refund table — the Money queue and the order's
@@ -119,6 +121,16 @@ export function deliveryFeeRefundColumns({
                                 : ''}
                         </p>
                     </div>
+                ) : deliveryFeeRefundLinkedRequest(row) ? (
+                    /* Worked in the refund queue (2026-10-05) — not settleable here. */
+                    <Link
+                        to={refundDetailPath(deliveryFeeRefundLinkedRequest(row)!.id)}
+                        className="text-primary text-xs hover:underline"
+                    >
+                        {deliveryFeeRefundLinkedRequest(row)!.why === 'own'
+                            ? 'In the refund queue'
+                            : 'Order refund open'}
+                    </Link>
                 ) : row.settleable ? (
                     <NotSet>Still owed</NotSet>
                 ) : (

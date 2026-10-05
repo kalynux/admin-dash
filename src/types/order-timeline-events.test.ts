@@ -1,7 +1,7 @@
 /**
  * The transcription guard for jovi-mall's order-timeline vocabulary.
  *
- * `orders.types.ts` hard-codes the nine `eventType` values so the timeline's
+ * `orders.types.ts` hard-codes the eleven `eventType` values so the timeline's
  * filter can be a `<Select>` rather than the free-text box the rest of this
  * dashboard uses for a filter. That is a deliberate exception to the standing
  * rule — *filters stay free-text, only create forms get pickers* — and the
@@ -50,9 +50,15 @@ const mirror = readFileSync(MIRROR, 'utf8');
  *
  * Stops at the first `;`, so the two unions in the mirror cannot bleed into one
  * another — `TimelineEventType` is immediately followed by `TimelineActorType`.
+ *
+ * ⚠ **Read with `//` comments stripped.** The 2026-10-05 members arrived with
+ * trailing comments containing both a `;` (*"…and resumed; its hold
+ * continues"*) and an apostrophe (*"The order's money"*): the first ended the
+ * union early and dropped `system.action`, the second pairs with the next quote.
  */
 function union(name: string): string[] {
-    const match = new RegExp(`export type ${name} =([\\s\\S]*?);`).exec(mirror);
+    const code = mirror.replace(/\/\/.*$/gm, '');
+    const match = new RegExp(`export type ${name} =([\\s\\S]*?);`).exec(code);
     expect(match, `${name} is no longer a union in the mirror`).not.toBeNull();
     return [...match![1].matchAll(/'([^']+)'/g)].map((entry) => entry[1]);
 }
@@ -119,8 +125,9 @@ describe('the event vocabulary matches jovi-mall', () => {
         expectSameList(ORDER_TIMELINE_EVENT_TYPES, schemaEnum('event_type'), 'event types');
     });
 
-    it('has nine of them', () => {
-        expect(ORDER_TIMELINE_EVENT_TYPES).toHaveLength(9);
+    it('has eleven of them', () => {
+        // Nine until 2026-10-05, when earnings.paused and earnings.resumed arrived.
+        expect(ORDER_TIMELINE_EVENT_TYPES).toHaveLength(11);
     });
 });
 

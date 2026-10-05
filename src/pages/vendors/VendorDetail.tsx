@@ -32,6 +32,7 @@ import { VendorProductsPanel } from '@/components/vendors/VendorProductsPanel';
 import { VendorStatusPanel } from '@/components/vendors/VendorStatusPanel';
 import { VendorSuspensionPanel } from '@/components/vendors/VendorSuspensionPanel';
 import { Button } from '@/components/ui/button';
+import { ReviewsPanel } from '@/components/reviews/ReviewsPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { resolveTimeZone } from '@/lib/datetime';
@@ -184,6 +185,7 @@ function VendorDetailScreen({ vendorId }: { vendorId: string }) {
     const record = vendor.data;
     const canSeeActivity = can(['vendors.read', 'audit.read'], 'all');
     const canSeeAccount = can(ACCOUNT_READ_PERMISSIONS, 'all');
+    const canSeeReviews = can('reviews.read');
     /*
       ⚠ `all`, and `satisfies` takes no default mode precisely so this cannot be
       read as `any`. Both tiers holding either permission hold both today, so this
@@ -292,6 +294,7 @@ function VendorDetailScreen({ vendorId }: { vendorId: string }) {
                     */}
                     <TabsTrigger value="verification">Verification</TabsTrigger>
                     <TabsTrigger value="catalogue">Catalogue</TabsTrigger>
+                    {canSeeReviews ? <TabsTrigger value="reviews">Reviews</TabsTrigger> : null}
                     {canSeeAccount ? <TabsTrigger value="account">Account</TabsTrigger> : null}
                     {canSeeActivity ? <TabsTrigger value="activity">Activity</TabsTrigger> : null}
                 </TabsList>
@@ -411,6 +414,18 @@ function VendorDetailScreen({ vendorId }: { vendorId: string }) {
                         focusToken={focus?.token}
                     />
                 </TabsContent>
+
+                {canSeeReviews ? (
+                    <TabsContent value="reviews">
+                        {/* The shop's product reviews and the deliveries it sent. */}
+                        <ReviewsPanel
+                            scope={{ vendorId: record.id }}
+                            timeZone={timeZone}
+                            hide={['shop']}
+                            noun="this shop"
+                        />
+                    </TabsContent>
+                ) : null}
 
                 {canSeeAccount ? (
                     <TabsContent value="account">

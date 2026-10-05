@@ -505,6 +505,14 @@ export const KNOWN_ERROR_CODES = [
     'PAYOUT_NOT_PENDING',
     'PAYOUT_NOT_PROCESSING',
     'ACCOUNT_OWNER_NOT_FOUND',
+    // The refund queue (2026-10-05). wi-admin's own, raised on its pre-flights —
+    // jovi-mall answers the SAME names as `details.platformCode` for the same
+    // conditions, so `refundRefusalCode()` reads either field.
+    'REFUND_REQUEST_STATUS_CONFLICT',
+    'REFUND_SECOND_APPROVER_REQUIRED',
+    'REFUND_USE_REFUND_QUEUE',
+    'EARNINGS_PAUSE_HELD_BY_REFUND',
+    'EARNINGS_CLAWBACK_WRITE_OFF_EXCEEDS_DEBT',
     // Delivery network
     'CONTRACT_NOT_FOUND',
     // Tracking — the geo-tracker data door.

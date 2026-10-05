@@ -310,7 +310,7 @@ export function ApprovalsList() {
                                 ? 'Nothing is waiting for a second administrator'
                                 : 'No requests match these filters'
                         }
-                        description="Exactly four actions are queued rather than performed: promoting an administrator to Developer, suspending or reinstating a Developer, and marking a large payout as paid."
+                        description="Only a few actions are queued rather than performed: promoting an administrator to Developer, suspending or reinstating a Developer, sending or marking a large payout as paid, approving a refund of 2,000,000 or more, and writing off a refund debt of 2,000,000 or more."
                         action={
                             isFiltered ? (
                                 <Button variant="outline" size="sm" onClick={reset}>

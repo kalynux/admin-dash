@@ -164,9 +164,35 @@ const isBootTime = (entry: DocEntry) => entry.meaning.includes('**Boot-time.**')
 const ARRIVES_AS_PLATFORM_CODE =
     /(?:arrives?|reach(?:es)?\s+(?:a\s+)?client)\s+(?:only\s+)?as\s+\*{0,2}`details\.platformCode`/i;
 
+/**
+ * ── ⚠ A fourth phrasing, 2026-10-05: a section that arrives BOTH ways ────────
+ * `### Refund queue` says its first three codes are raised **here**, and that
+ * *"jovi-mall answers the **same names** … those reach a client as
+ * `details.platformCode`"* — then *"Branch on `error.code`, or on
+ * `details.platformCode` …, the same string means the same condition either
+ * way."* The claim above matches that preamble, and on its own it filed
+ * wi-admin's `REFUND_REQUEST_STATUS_CONFLICT`, `REFUND_SECOND_APPROVER_REQUIRED`
+ * and `REFUND_USE_REFUND_QUEUE` as platform-only — so three codes an operator
+ * DOES receive as `error.code` were excused from carrying copy.
+ *
+ * ⚠ **This narrows the exclusion, it does not widen it.** A code in such a
+ * section stays platform-only unless wi-admin's own source registry declares
+ * it: those are the names that arrive both ways, and they must carry `codes`
+ * copy. The jovi-mall-only rows beside them are unaffected.
+ */
+const ARRIVES_BOTH_WAYS = /branch on `error\.code`,?\s+or on `details\.platformCode`/i;
+
+let sourceCodesCache: Set<string> | null = null;
+const isDeclaredBySource = (code: string) =>
+    (sourceCodesCache ??= new Set(sourceRegistryCodes())).has(code);
+
+const isDualDelivery = (entry: DocEntry) =>
+    ARRIVES_BOTH_WAYS.test(entry.sectionPreamble) && isDeclaredBySource(entry.code);
+
 const isPlatformCodeOnly = (entry: DocEntry) =>
-    ARRIVES_AS_PLATFORM_CODE.test(entry.meaning) ||
-    ARRIVES_AS_PLATFORM_CODE.test(entry.sectionPreamble);
+    !isDualDelivery(entry) &&
+    (ARRIVES_AS_PLATFORM_CODE.test(entry.meaning) ||
+        ARRIVES_AS_PLATFORM_CODE.test(entry.sectionPreamble));
 
 /**
  * Reaches the client in **no** form — not as `error.code`, and not as
@@ -214,7 +240,7 @@ describe('the registry parses', () => {
         expect(registry.length).toBeGreaterThanOrEqual(70);
     });
 
-    it('finds exactly ten boot-time codes and seventeen platform-code-only ones', () => {
+    it('finds exactly ten boot-time codes and twenty-six platform-code-only ones', () => {
         expect(registry.filter(isBootTime).map((e) => e.code).sort()).toEqual([
             'AUDIT_CATALOG_INVALID',
             'AUDIT_COVERAGE_INCOMPLETE',
@@ -246,10 +272,43 @@ describe('the registry parses', () => {
             'PHONE_VERIFICATION_NO_TARGET',
             'PHONE_VERIFICATION_RESEND_TOO_SOON',
             'PHONE_VERIFICATION_TOO_MANY_ATTEMPTS',
+            // The refund queue's jovi-mall-only nine (2026-10-05). The three
+            // wi-admin names in the same section are NOT here — see
+            // `isDualDelivery`.
+            'REFUND_ALREADY_OPEN',
+            'REFUND_DESTINATION_PROOF_REQUIRED',
+            'REFUND_EXTERNAL_PROOF_REQUIRED',
+            'REFUND_INSUFFICIENT_GATEWAY_BALANCE',
+            'REFUND_NOT_ELIGIBLE',
+            'REFUND_NO_DESTINATION',
+            'REFUND_PAYOUT_UNAVAILABLE',
+            'REFUND_POLICY_OVERRIDE_REQUIRED',
+            'REFUND_REQUEST_NOT_FOUND',
             'USER_CHANNEL_UNAVAILABLE',
             'USER_CREDENTIAL_LINK_THROTTLED',
             'USER_LOGIN_LINK_ROLE_UNSUPPORTED',
         ]);
+    });
+
+    it('keeps a code that arrives BOTH ways client-reachable', () => {
+        // The regression for the refund-queue preamble. Revert `isDualDelivery`
+        // and all three drop out of `clientReachable`, so a real `error.code`
+        // could reach an operator as a bare category and this suite would pass.
+        for (const code of [
+            'REFUND_REQUEST_STATUS_CONFLICT',
+            'REFUND_SECOND_APPROVER_REQUIRED',
+            'REFUND_USE_REFUND_QUEUE',
+        ]) {
+            const entry = registry.find((e) => e.code === code);
+            expect(entry, `${code} is missing from the registry`).toBeDefined();
+            expect(ARRIVES_AS_PLATFORM_CODE.test(entry!.sectionPreamble), code).toBe(true);
+            expect(isPlatformCodeOnly(entry!), `${code} was read as platform-only`).toBe(false);
+            expect(clientReachable.map((e) => e.code)).toContain(code);
+        }
+
+        // …and a jovi-mall name in the same section is still platform-only.
+        const joviOnly = registry.find((e) => e.code === 'REFUND_ALREADY_OPEN');
+        expect(isPlatformCodeOnly(joviOnly!)).toBe(true);
     });
 
     it('reads the third phrasing of the platform-only claim', () => {
@@ -698,6 +757,10 @@ describe('the category overrides', () => {
         ['ADMIN_AUTH_ACCOUNT_LOCKED', 423, 'authentication'],
         ['DEV_TOOLS_DISABLED', 409, 'business_rule'],
         ['FILE_CONTENT_NOT_SUPPORTED', 409, 'business_rule'],
+        // 2026-10-05, jovi-mall's (as `details.platformCode`): a short payout
+        // float is not "something changed underneath you" — reloading fixes
+        // nothing; topping up the account or settling by hand does.
+        ['REFUND_INSUFFICIENT_GATEWAY_BALANCE', 409, 'business_rule'],
     ];
 
     it('are all published, and all disagree with the status table', () => {

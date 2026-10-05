@@ -12,6 +12,10 @@ import { Pager } from '@/components/common/Pager';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { GatewayFilter } from '@/components/money/GatewayFilter';
 import { RefundStatusBadge } from '@/components/money/MoneyBadges';
+import {
+    RefundSettlementAmount,
+    RefundSettlementChannel,
+} from '@/components/money/RefundSettlementCells';
 import { InfoHint } from '@/components/ui/info-hint';
 import {
     Select,
@@ -28,7 +32,7 @@ import {
     resolveDayFilter,
     resolveTimeZone,
 } from '@/lib/datetime';
-import { formatCount, formatInstantInZone, formatMoney } from '@/lib/format';
+import { formatCount, formatInstantInZone } from '@/lib/format';
 import { withQuery } from '@/lib/query';
 import { listRefunds } from '@/services/money.service';
 import { useAdmin, useCan } from '@/store';
@@ -39,6 +43,7 @@ import {
     type Refund,
     type RefundListQuery,
 } from '@/types/money.types';
+import { REFUND_CHANNELS, refundChannelLabel } from '@/types/refunds.types';
 
 /**
  * `GET /money/refunds` · **`money.payments.read`** — deliberately not
@@ -51,13 +56,28 @@ import {
  * strings, so either one wrong-cased returns an empty page rather than an error.
  * `money.md` gets one of the two right and the other wrong on adjacent lines.
  *
+ * ── Since the refund queue (2026-10-05) ───────────────────────────────────────
+ * Each row is what a refund REQUEST moved (`refundRequestId`, linked), with the
+ * fee the platform kept and what the customer received beside the gross.
+ * ⚠ `gateway` is `null` on a COD or externally-settled row — **the channel is
+ * the key**, and it is a filter here.
+ *
  * ── Why the date filter is labelled "Requested" ───────────────────────────────
  * The range filters `createdAt` and never `completedAt` — which is correct
  * rather than an oversight: `completedAt` is `null` on exactly the pending and
  * failed rows somebody filtering by date is usually hunting for.
  */
 
-const FILTER_KEYS = ['status', 'gateway', 'orderId', 'sort', 'createdFrom', 'createdTo'] as const;
+const FILTER_KEYS = [
+    'status',
+    'gateway',
+    'channel',
+    'orderId',
+    'refundRequestId',
+    'sort',
+    'createdFrom',
+    'createdTo',
+] as const;
 const FILTER_DEFAULTS = { sort: REFUND_SORT_DEFAULT } as const;
 
 const ANY = 'any';
@@ -82,7 +102,9 @@ export function RefundsList() {
     const query: RefundListQuery = {
         status: values.status || undefined,
         gateway: values.gateway || undefined,
+        channel: values.channel || undefined,
         orderId: values.orderId || undefined,
+        refundRequestId: values.refundRequestId || undefined,
         sort: values.sort || undefined,
         page,
         ...(spanOverCap ? {} : resolveDayFilter(values.createdFrom, values.createdTo, timeZone)),
@@ -98,8 +120,14 @@ export function RefundsList() {
                 numeric: true,
                 header: 'Amount',
                 sortKey: 'amount',
-                className: 'align-top font-medium tabular-nums',
-                cell: (row) => formatMoney(row.amount, row.currency),
+                className: 'align-top',
+                cell: (row) => <RefundSettlementAmount row={row} />,
+            },
+            {
+                id: 'channel',
+                header: 'How',
+                className: 'align-top',
+                cell: (row) => <RefundSettlementChannel row={row} />,
             },
             {
                 id: 'status',
@@ -227,6 +255,25 @@ export function RefundsList() {
                                 {withCurrent(REFUND_STATUSES, values.status || ANY).map((value) => (
                                     <SelectItem key={value} value={value} className="capitalize">
                                         {value}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </FilterField>
+
+                    <FilterField label="How" htmlFor="refund-channel">
+                        <Select
+                            value={values.channel || ANY}
+                            onValueChange={(next) => set({ channel: next === ANY ? null : next })}
+                        >
+                            <SelectTrigger id="refund-channel" className="w-[210px]">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value={ANY}>Any way</SelectItem>
+                                {withCurrent(REFUND_CHANNELS, values.channel || ANY).map((value) => (
+                                    <SelectItem key={value} value={value}>
+                                        {refundChannelLabel(value)}
                                     </SelectItem>
                                 ))}
                             </SelectContent>

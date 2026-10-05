@@ -45,13 +45,13 @@ export const AUDIT_STATUSES: readonly AuditStatus[] = [
 ];
 
 /**
- * The 24 `targetType` values, verbatim from `audit.md` (§ `targetType` values).
+ * The 27 `targetType` values, verbatim from `audit.md` (§ `targetType` values).
  *
- * ⚠ **`category` (2026-10-04) is from source, not the page.** The rename, merge
- * and delete on `/categories` are audited against it and wi-admin's
- * `AUDIT_TARGET_TYPES` declares it after `plan`, but `audit.md` still lists 23
- * values and omits it. The filter is a pinned enum upstream, so offering it
- * here is safe; the page is behind.
+ * ⚠ **The page caught up with source on 2026-10-05.** It said 23 for weeks and
+ * lacked `category` (2026-10-04) and `payment_settings`; the re-measure that day
+ * added both, plus `review` (the three review-moderation writes) and `booking`
+ * (the earnings-pauses round). The filter is a pinned enum upstream, so every
+ * value here is one the server accepts.
  *
  * `none` is a real member, not a placeholder for absent: an action that concerns
  * no record — a login, a health probe — records it deliberately.
@@ -78,10 +78,15 @@ export const AUDIT_TARGET_TYPES: readonly string[] = [
     'deposit',
     'discrepancy',
     'payout',
+    // A customer refund REQUEST (2026-10-05) — its own type, not `order`. In
+    // wi-admin's `audit.types.ts`; ⚠ `audit.md` does not list it yet.
+    'refund',
     'ticket',
     'article',
     'plan',
     'category',
+    'review',
+    'booking',
     'file',
     'administrator',
     'admin_session',
@@ -90,6 +95,7 @@ export const AUDIT_TARGET_TYPES: readonly string[] = [
     'feature_flag',
     'worker',
     'maintenance_window',
+    'payment_settings',
     'none',
 ];
 

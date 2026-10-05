@@ -9,6 +9,7 @@ import { Definition, DefinitionList, NotSet } from '@/components/common/Definiti
 import { DetailSkeleton } from '@/components/common/Loading';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { TierBadge } from '@/components/layout/TierBadge';
+import { EarningsPauseCard } from '@/components/money/EarningsPauseCard';
 import { TicketAttachmentsPanel } from '@/components/support/TicketAttachmentsPanel';
 import { TicketEntityLink } from '@/components/support/TicketEntityLink';
 import { TicketNotesPanel } from '@/components/support/TicketNotesPanel';
@@ -30,7 +31,8 @@ import {
 } from '@/services/support.service';
 import { useCan, useAdmin } from '@/store';
 import { ApiError, CODE_CLIENT_INVALID_ID } from '@/types/api.types';
-import { CODE_TICKET_ALREADY_ASSIGNED } from '@/types/support.types';
+import type { PauseKind } from '@/types/earnings-pause.types';
+import { CODE_TICKET_ALREADY_ASSIGNED, type TicketEntityRef } from '@/types/support.types';
 
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
 
@@ -77,6 +79,21 @@ export function TicketDetail() {
     }
 
     return <TicketDetailScreen ticketId={ticketId} />;
+}
+
+/**
+ * The order or booking whose payout this ticket can act on, or `null`.
+ *
+ * Keyed on the ENTITY, not the ticket type: a pause belongs to the record, and
+ * any ticket about a paid order may be the one an operator resolves it from.
+ * `ORDER` and `BOOKING` are jovi-mall's upper-case tokens; `:kind` is
+ * wi-admin's lower-case pinned enum.
+ */
+function payoutTargetOf(entity: TicketEntityRef | null): { kind: PauseKind; id: string } | null {
+    if (!entity?.id) return null;
+    if (entity.type === 'ORDER') return { kind: 'order', id: entity.id };
+    if (entity.type === 'BOOKING') return { kind: 'booking', id: entity.id };
+    return null;
 }
 
 function TicketDetailScreen({ ticketId }: { ticketId: string }) {
@@ -142,6 +159,7 @@ function TicketDetailScreen({ ticketId }: { ticketId: string }) {
 
     const record = ticket.data;
     const closed = record.terminalAt !== null;
+    const payoutTarget = payoutTargetOf(record.entity);
 
     return (
         <PageContainer
@@ -319,6 +337,53 @@ function TicketDetailScreen({ ticketId }: { ticketId: string }) {
                             </DefinitionList>
                         </CardContent>
                     </Card>
+
+                    {/*
+                      The payout of the order or booking this ticket is about
+                      (2026-10-05). A seller cancelling a paid order or a paid
+                      booking pauses its earnings and opens a HIGH-priority
+                      `ORDER_REFUND` / `BOOKING_CANCELLATION` ticket; the
+                      administrator closes it by refunding the customer, or —
+                      when no refund is owed — by resuming here.
+
+                      ⚠ **This is the ONLY place a booking's payout can be
+                      reached.** This dashboard has no booking screen and wi-admin
+                      serves no booking read, so an order opens from the link
+                      above and a booking is handled here or nowhere.
+
+                      Gated on `money.earnings.read` (tiers 1–2). Support reads
+                      these tickets without it, so the card is omitted for them.
+                    */}
+                    {payoutTarget && can('money.earnings.read') ? (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Payout</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                <p className="text-muted-foreground text-sm">
+                                    {payoutTarget.kind === 'order' ? (
+                                        <>
+                                            Refund the customer from the order, or — if no refund
+                                            is owed — resume the earnings here.
+                                        </>
+                                    ) : (
+                                        <>
+                                            Bookings have no screen on this dashboard, so the
+                                            booking&rsquo;s payout is handled here: resume it once
+                                            the customer is refunded or no refund is owed.
+                                        </>
+                                    )}
+                                </p>
+                                <EarningsPauseCard
+                                    kind={payoutTarget.kind}
+                                    id={payoutTarget.id}
+                                    reference={record.entity?.label ?? null}
+                                    timeZone={timeZone}
+                                    reloadToken={reloadToken}
+                                />
+                            </CardContent>
+                        </Card>
+                    ) : null}
 
                     <Card>
                         <CardHeader>

@@ -354,9 +354,11 @@ describe('images', () => {
         // `GET /files/:id` — the request the old assertion forbade.
         stubFetch((call: FetchCall) => {
             if (call.url.includes('/products/')) {
+                // Both lists, since 2026-10-05: the panel draws from the full
+                // file list (`media.files`), and the gallery is the same file.
                 return successResponse({
                     ...base,
-                    media: { ...base.media, images: blockedImages },
+                    media: { ...base.media, images: blockedImages, files: blockedImages },
                 });
             }
             const match = blockedImages.find((image) => call.url.includes(`/files/${image.id}`));
@@ -386,6 +388,193 @@ describe('images', () => {
         ).not.toHaveLength(0);
         expect(screen.getAllByText(/over their plan's storage cap/i).length).toBeGreaterThan(0);
         expect(screen.queryByText(/carries no picture/i)).not.toBeInTheDocument();
+    });
+});
+
+describe('every image, on a product with variants', () => {
+    const CDN = 'https://cdn.example.com/vendors/6650aa11bb22cc33dd44ee55';
+    const image = (id: string, name: string) => ({
+        id,
+        key: `vendors/x/${name}`,
+        url: `${CDN}/${name}`,
+        access: 'public' as const,
+        mimeType: 'image/jpeg',
+        size: 1000,
+        originalName: name,
+    });
+
+    /**
+     * 🔴 The bug this screen had: `media.images` is the **customer** gallery for
+     * the default variant, and it is a fallback, not a merge — when the default
+     * variant has its own picture, the product's pictures and every other
+     * variant's are not in it. Rendering it alone made a three-picture listing
+     * look like a one-picture one.
+     */
+    it("shows the product's own pictures and each variant's, labelled by its options", async () => {
+        const base = vendorProductDetailFixture();
+        const red = image('6612aabbccddeeff00110001', 'red.jpg');
+        const blue = image('6612aabbccddeeff00110002', 'blue.jpg');
+        const front = image('6612aabbccddeeff00110003', 'front.jpg');
+        const variant = base.variants[0];
+
+        detail({
+            product: {
+                ...base,
+                media: { images: [red], primaryImage: red, files: [front] },
+                variants: [
+                    {
+                        ...variant,
+                        optionValues: [
+                            { optionId: 'o1', optionName: 'Colour', valueId: 'v1', value: 'Red' },
+                        ],
+                        files: [red],
+                    },
+                    {
+                        ...variant,
+                        id: '6613aabbccddeeff00110002',
+                        sku: 'PLT-BLUE',
+                        optionValues: [
+                            { optionId: 'o1', optionName: 'Colour', valueId: 'v2', value: 'Blue' },
+                        ],
+                        files: [blue],
+                    },
+                ],
+            },
+        });
+
+        for (const name of ['front.jpg', 'red.jpg', 'blue.jpg']) {
+            expect(await screen.findByRole('img', { name })).toHaveAttribute('src', `${CDN}/${name}`);
+        }
+        expect(screen.getByRole('heading', { name: /variant — colour: red/i })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: /variant — colour: blue/i })).toBeInTheDocument();
+        // The one customers see first is the gallery's head, not the product's.
+        expect(screen.getByText(/shown first · red\.jpg/i)).toBeInTheDocument();
+    });
+
+    it('lists a non-image attachment rather than dropping it', async () => {
+        const base = vendorProductDetailFixture();
+        detail({
+            product: {
+                ...base,
+                media: {
+                    ...base.media,
+                    files: [
+                        ...(base.media.files ?? []),
+                        { ...image('6612aabbccddeeff00110009', 'spec.pdf'), mimeType: 'application/pdf' },
+                    ],
+                },
+            },
+        });
+
+        expect(await screen.findByText('spec.pdf')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Open' })).toHaveAttribute('href', `${CDN}/spec.pdf`);
+    });
+
+    /** An older service sends no `media.files`: the customer gallery is all there is. */
+    it('falls back to the customer gallery against an older service', async () => {
+        const base = vendorProductDetailFixture();
+        const media: Partial<typeof base.media> = { ...base.media };
+        delete media.files;
+        detail({ product: { ...base, media: media as typeof base.media } });
+
+        expect(await screen.findByRole('img', { name: /plantain\.jpg/i })).toBeInTheDocument();
+    });
+});
+
+describe('what the vendor wrote', () => {
+    it('shows the description and says which SEO fields fall back', async () => {
+        detail();
+
+        expect(await screen.findByText(/ripe plantain from njombé/i)).toBeInTheDocument();
+        expect(screen.getByText('Fresh plantain — Douala')).toBeInTheDocument();
+        expect(screen.getByText(/not set — the description is used/i)).toBeInTheDocument();
+    });
+
+    it('shows the options and each variant’s own size', async () => {
+        detail();
+
+        expect(await screen.findByText('Weight')).toBeInTheDocument();
+        expect(screen.getByText('30 × 20 × 12 cm (L × W × H) · 1,000 g')).toBeInTheDocument();
+    });
+
+    it('says a variant with no size of its own uses the product defaults', async () => {
+        const base = vendorProductDetailFixture();
+        detail({ product: { ...base, variants: [{ ...base.variants[0], dimensions: null }] } });
+
+        expect(
+            await screen.findByText(/uses the product's defaults — 32 × 22 × 14 cm/i),
+        ).toBeInTheDocument();
+    });
+
+    it('shows a digital variant’s file and download limits', async () => {
+        detail({ product: untrackedProductDetailFixture() });
+
+        expect(await screen.findByText('recipes.pdf')).toBeInTheDocument();
+        expect(screen.getByText(/3 downloads · never expires/i)).toBeInTheDocument();
+    });
+});
+
+describe('negotiation', () => {
+    it('shows the ceiling, and that it is live', async () => {
+        detail();
+
+        expect(await screen.findAllByText(/5,500/)).not.toHaveLength(0);
+        expect(screen.getAllByText('Live').length).toBeGreaterThan(0);
+    });
+
+    /**
+     * ⚠ A window on a product with AI search off is **kept but inert**. Printing
+     * the ceiling without saying so tells an operator a price is negotiable when
+     * nobody can negotiate it.
+     */
+    it('says a configured ceiling is not live when AI search is off', async () => {
+        const base = vendorProductDetailFixture();
+        detail({
+            product: {
+                ...base,
+                vectorisation: { enabled: false, status: 'not_started' },
+                variants: [{ ...base.variants[0], bargainable: false }],
+            },
+        });
+
+        expect(await screen.findAllByText(/not live — the vendor has ai search switched off/i)).not.toHaveLength(0);
+        expect(screen.queryByText('Live')).not.toBeInTheDocument();
+    });
+});
+
+describe('where it is collected from', () => {
+    it('names the agency that stores it and the depot', async () => {
+        detail();
+
+        expect(await screen.findByText('Stored by Littoral Express Delivery')).toBeInTheDocument();
+        expect(screen.getByText('Rue 9, Bonaberi, Douala')).toBeInTheDocument();
+        expect(screen.getByText(/bonaberi depot/i)).toBeInTheDocument();
+    });
+
+    it("says when it is collected from the vendor's own address", async () => {
+        const base = vendorProductDetailFixture();
+        detail({
+            product: {
+                ...base,
+                storage: null,
+                pickup: {
+                    source: 'vendor_address',
+                    vendorAddressId: '6619aabbccddeeff00112233',
+                    agencyAddressId: null,
+                    address: null,
+                    isPrimaryFallback: false,
+                },
+            },
+        });
+
+        expect(await screen.findByText("The vendor's own address")).toBeInTheDocument();
+        expect(screen.getByText(/the vendor address it names no longer exists/i)).toBeInTheDocument();
+    });
+
+    it('warns that a physical listing with no pickup location cannot be activated', async () => {
+        detail({ product: { ...vendorProductDetailFixture(), pickup: null } });
+
+        expect(await screen.findByText(/no pickup location is set/i)).toBeInTheDocument();
     });
 });
 

@@ -15,9 +15,11 @@ import {
     Newspaper,
     ShieldCheck,
     ShoppingCart,
+    Star,
     Store,
     Tags,
     Truck,
+    Undo2,
     UserCog,
     Users,
     Wallet,
@@ -334,6 +336,20 @@ export const NAV_SECTIONS: NavSection[] = [
                 implemented: true,
                 phase: 9,
             },
+            {
+                /**
+                 * Review moderation (2026-10-05). On the read; Hide / Show again
+                 * and Delete are gated per button on `reviews.moderate` and
+                 * `reviews.delete`. Every tier holds all three, Support included.
+                 */
+                id: 'reviews',
+                label: 'Reviews',
+                icon: Star,
+                path: '/dashboard/reviews',
+                permission: 'reviews.read',
+                implemented: true,
+                phase: 9,
+            },
         ],
     },
     {
@@ -455,6 +471,23 @@ export const NAV_SECTIONS: NavSection[] = [
                 phase: 10,
             },
             {
+                /**
+                 * The refund queue (2026-10-05) — its own route group, `/refunds`.
+                 *
+                 * Gated on the READ, `orders.refund.read`, which **every tier
+                 * holds**: Support works this queue too — it raises requests
+                 * (`orders.refund.request`) and never approves or sends. Every
+                 * decision is gated per button inside the screen.
+                 */
+                id: 'refunds',
+                label: 'Refund queue',
+                icon: Undo2,
+                path: '/dashboard/refunds',
+                permission: 'orders.refund.read',
+                implemented: true,
+                phase: 10,
+            },
+            {
                 id: 'cod',
                 label: 'Cash on delivery',
                 icon: Coins,
@@ -567,6 +600,36 @@ export const NAV_SECTIONS: NavSection[] = [
                         id: 'money-allocations',
                         label: 'Allocations',
                         path: '/dashboard/money/allocations',
+                        permission: 'money.earnings.read',
+                        implemented: true,
+                        phase: 11,
+                    },
+                    {
+                        /**
+                         * Orders and bookings whose payout is paused (2026-10-05).
+                         *
+                         * Gated on the **read**, `money.earnings.read` (tiers
+                         * 1–2), like Allocations beside it. The write,
+                         * `money.earnings.pause`, is the per-row Resume and is
+                         * gated inside the screen.
+                         */
+                        id: 'money-earnings-pauses',
+                        label: 'Paused earnings',
+                        path: '/dashboard/money/earnings-pauses',
+                        permission: 'money.earnings.read',
+                        implemented: true,
+                        phase: 11,
+                    },
+                    {
+                        /**
+                         * Refund debt (2026-10-05) — owners who owe the platform
+                         * after a refund took back more than they held. On the
+                         * read, `money.earnings.read` (tiers 1–2); Write off is
+                         * `money.earnings.clawback.write_off`, gated per row.
+                         */
+                        id: 'money-clawbacks',
+                        label: 'Refund debt',
+                        path: '/dashboard/money/clawbacks',
                         permission: 'money.earnings.read',
                         implemented: true,
                         phase: 11,

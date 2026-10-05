@@ -58,6 +58,13 @@ export interface PaymentSettingsView {
     collectionAggregator: string;
     payoutAggregator: string;
     stripeEnabled: boolean;
+    /**
+     * The refund transfer fee, **in percent** (2026-10-05, R-3): 0–20, default 2,
+     * decimals allowed. Never taken off a card refund, and it changes NEW refund
+     * requests only — a request freezes its own `feeRate`. ⚠ **Absent** against a
+     * jovi-mall older than the refund flow; the field is then not offered.
+     */
+    refundFeePercent?: number;
     /** A known provider **missing** from this map is treated as disabled (routing.md). */
     providers: Record<string, { enabled: boolean }>;
     /** Compare-and-set counter. **`0` means no document yet** — the platform is on its defaults. */
@@ -242,6 +249,34 @@ export interface PaymentSettingsDraft {
     payoutAggregator: string;
     stripeEnabled: boolean;
     providers: Record<string, boolean>;
+    /**
+     * The refund fee as TYPED — a string, so a half-typed `2.` is not lost to a
+     * number round-trip. `''` when the platform does not offer the setting.
+     */
+    refundFeePercent: string;
+}
+
+/** `refundFeePercent` bounds on `PUT /dev-tools/payments`. */
+export const REFUND_FEE_PERCENT_MIN = 0;
+export const REFUND_FEE_PERCENT_MAX = 20;
+
+/** The typed fee as a number, or `null` when it is not a percentage the route accepts. */
+export function parseRefundFeePercent(value: string): number | null {
+    const trimmed = value.trim();
+    if (trimmed === '' || !/^\d+(\.\d+)?$/.test(trimmed)) return null;
+    const parsed = Number(trimmed);
+    return parsed >= REFUND_FEE_PERCENT_MIN && parsed <= REFUND_FEE_PERCENT_MAX ? parsed : null;
+}
+
+/** The field's error, or `null`. Only asked when the platform offers the setting. */
+export function refundFeePercentError(
+    settings: PaymentSettingsView,
+    draft: PaymentSettingsDraft,
+): string | null {
+    if (settings.refundFeePercent === undefined) return null;
+    return parseRefundFeePercent(draft.refundFeePercent) === null
+        ? `A percentage from ${REFUND_FEE_PERCENT_MIN} to ${REFUND_FEE_PERCENT_MAX}, e.g. 2 or 1.5`
+        : null;
 }
 
 /** The changeable part of the body. `expectedVersion` and `reason` are added at send time. */
@@ -250,6 +285,8 @@ export interface PaymentSettingsPatch {
     payoutAggregator?: string;
     stripeEnabled?: boolean;
     providers?: Record<string, { enabled: boolean }>;
+    /** 0–20, percent. Sent only when it changed. */
+    refundFeePercent?: number;
 }
 
 /** The body is `.strict()`: any other key — an old client's `gateway`, say — is a `400`. */
@@ -277,6 +314,8 @@ export function draftFromSettings(settings: PaymentSettingsView): PaymentSetting
         providers: Object.fromEntries(
             providerNames(settings).map((name) => [name, isProviderEnabled(settings, name)]),
         ),
+        refundFeePercent:
+            settings.refundFeePercent === undefined ? '' : String(settings.refundFeePercent),
     };
 }
 
@@ -307,6 +346,12 @@ export function buildSettingsPatch(
         if (enabled !== isProviderEnabled(settings, name)) providers[name] = { enabled };
     }
     if (Object.keys(providers).length > 0) patch.providers = providers;
+    // Only when the platform offers it, the typed value is valid, and it moved. An
+    // invalid value is not dropped silently — `refundFeePercentError` blocks Save.
+    if (settings.refundFeePercent !== undefined) {
+        const fee = parseRefundFeePercent(draft.refundFeePercent);
+        if (fee !== null && fee !== settings.refundFeePercent) patch.refundFeePercent = fee;
+    }
     return Object.keys(patch).length > 0 ? patch : null;
 }
 

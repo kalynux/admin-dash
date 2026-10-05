@@ -350,6 +350,14 @@ export async function dispatchOrder(
 /**
  * `POST /orders/:orderId/refund` · `orders.refund` (`financial`).
  *
+ * ⛔ **Superseded by the refund queue (2026-10-05) and no longer called by any
+ * screen** — the order page raises through `POST /refunds` instead. Kept because
+ * the route is served and every route keeps a service function. It now **opens a
+ * refund request** and approves it in the same call; the answer's `status` is
+ * the request's, `refundId` is the request id, and it is refused at
+ * ≥ 2,000,000 cumulative per order (`422 REFUND_USE_REFUND_QUEUE`,
+ * `details.alreadyRefunded`). What follows describes the route before that.
+ *
  * Calls a payment gateway, writes its ledger row **before** the call, and reverses
  * escrow across every actor on the order.
  *

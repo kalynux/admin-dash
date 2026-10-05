@@ -1,6 +1,7 @@
 import { NotSet } from '@/components/common/DefinitionList';
 import { Badge } from '@/components/ui/badge';
 import { humaniseEnum } from '@/lib/format';
+import { ledgerEntryTypeLabel } from '@/types/money.types';
 
 /**
  * Status badges for the earnings and settlement surfaces.
@@ -89,12 +90,8 @@ export function RefundStatusBadge({ status }: { status: string | null | undefine
  * two-colour scheme would have to put a third meaning on one of the two.
  */
 export function LedgerEntryTypeBadge({ entryType }: { entryType: string | null | undefined }) {
-    const label = humaniseEnum(entryType);
-    if (label === null) return <NotSet>Unknown</NotSet>;
-
-    return (
-        <Badge variant="outline" className="capitalize">
-            {label}
-        </Badge>
-    );
+    if (!entryType) return <NotSet>Unknown</NotSet>;
+    // Worded (2026-10-05): the three refund-debt types read as nonsense
+    // humanised ("clawback write off"), and one of them moves no balance at all.
+    return <Badge variant="outline">{ledgerEntryTypeLabel(entryType)}</Badge>;
 }

@@ -191,7 +191,7 @@ describe('a cash-on-delivery order', () => {
                             amount: 51950,
                             status: 'held',
                             requiresCashSettlement: true,
-                            waitingOn: ['order_not_completed', 'cash_not_settled'],
+                            waitingOn: ['order_not_completed', 'cash_not_settled', 'paused'],
                         }),
                         moneyLineFixture({
                             role: 'delivery_agent',
@@ -207,7 +207,11 @@ describe('a cash-on-delivery order', () => {
         render(split);
         const cod = await section(/cash collection/i);
 
-        expect(cod.getByText('Waiting for the order to complete')).toBeInTheDocument();
+        // The value kept its name when the hold moved to delivery (2026-10-05);
+        // the label follows the meaning.
+        expect(cod.getByText('Not delivered yet')).toBeInTheDocument();
+        expect(cod.queryByText('Waiting for the order to complete')).not.toBeInTheDocument();
+        expect(cod.getByText('Paused')).toBeInTheDocument();
         expect(cod.getByText('Waiting for the cash to reach the platform')).toBeInTheDocument();
         // `amount: null` in source — never a zero.
         expect(cod.getByText('Not known until an agent accepts')).toBeInTheDocument();

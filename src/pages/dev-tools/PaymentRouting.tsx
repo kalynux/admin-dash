@@ -9,6 +9,7 @@ import { OperationBadge } from '@/components/system/OperationBadge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
     Select,
@@ -28,6 +29,7 @@ import { useCan } from '@/store';
 import {
     PAYMENT_STATS_WINDOWS,
     buildSettingsPatch,
+    refundFeePercentError,
     classifyPaymentSettingsRefusal,
     collectCapabilities,
     draftFromSettings,
@@ -405,6 +407,7 @@ function RoutingForm({
     const patch = draft ? buildSettingsPatch(settings, draft.values) : null;
     const expectedVersion = draft?.baseVersion ?? settings.version;
     const movedUnderneath = draft !== null && draft.baseVersion !== null && draft.baseVersion !== settings.version;
+    const feeError = draft ? refundFeePercentError(settings, values) : null;
 
     const [open, setOpen] = useState(false);
     const [isBusy, setBusy] = useState(false);
@@ -568,6 +571,39 @@ function RoutingForm({
                     <InlineIssues issues={issuesAt((t) => t.kind === 'stripe')} />
                 </div>
 
+                {/*
+                  The refund transfer fee (2026-10-05). Offered only when the
+                  platform reports it — an older jovi-mall sends no
+                  `refundFeePercent`, and a field that saved nothing would lie.
+                */}
+                {settings.refundFeePercent !== undefined ? (
+                    <div className="space-y-1.5">
+                        <Label htmlFor="refund-fee-percent">Refund fee (%)</Label>
+                        <Input
+                            id="refund-fee-percent"
+                            inputMode="decimal"
+                            autoComplete="off"
+                            className="w-32"
+                            value={values.refundFeePercent}
+                            onChange={(event) => set({ refundFeePercent: event.target.value })}
+                            disabled={!canSet}
+                            aria-invalid={feeError ? true : undefined}
+                            aria-describedby="refund-fee-percent-hint"
+                        />
+                        <p id="refund-fee-percent-hint" className="text-muted-foreground text-xs">
+                            Kept by the platform on every refund sent by transfer or paid outside the
+                            platform — never on a card refund. 0 to 20, default 2. Applies to refund
+                            requests raised from now on; one already raised keeps its own rate.
+                        </p>
+                        {feeError ? <p className="text-destructive text-xs">{feeError}</p> : null}
+                    </div>
+                ) : (
+                    <p className="text-muted-foreground text-xs">
+                        The refund fee is not offered by the platform running now — it needs the
+                        refund-flow release of jovi-mall.
+                    </p>
+                )}
+
                 <fieldset className="space-y-2">
                     <legend className="text-sm font-medium">Providers customers may choose</legend>
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -609,7 +645,7 @@ function RoutingForm({
                         ) : null}
                         <div className="flex flex-wrap items-center gap-2">
                             <Button
-                                disabled={!patch}
+                                disabled={!patch || feeError !== null}
                                 onClick={() => {
                                     setError(null);
                                     setRefusal(null);
@@ -825,6 +861,13 @@ function describePatch(
             label: 'Stripe',
             from: onOff(settings.stripeEnabled),
             to: onOff(patch.stripeEnabled),
+        });
+    }
+    if (patch.refundFeePercent !== undefined) {
+        lines.push({
+            label: 'Refund fee',
+            from: settings.refundFeePercent === undefined ? '—' : `${settings.refundFeePercent}%`,
+            to: `${patch.refundFeePercent}%`,
         });
     }
     for (const [provider, { enabled }] of Object.entries(patch.providers ?? {})) {

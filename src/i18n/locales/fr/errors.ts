@@ -91,6 +91,13 @@ const codes = {
     PAYOUT_NOT_PROCESSING: 'Ce versement n’attend plus de virement',
     ACCOUNT_OWNER_NOT_FOUND: 'Titulaire de compte introuvable',
 
+    // ─── La file des remboursements (2026-10-05) ─────────────────────────────
+    REFUND_REQUEST_STATUS_CONFLICT: 'Cette demande de remboursement a changé d’état',
+    REFUND_SECOND_APPROVER_REQUIRED: 'Un autre administrateur doit approuver ce remboursement',
+    REFUND_USE_REFUND_QUEUE: 'Créez ce remboursement depuis la file des remboursements',
+    EARNINGS_PAUSE_HELD_BY_REFUND: 'Un remboursement retient ces gains',
+    EARNINGS_CLAWBACK_WRITE_OFF_EXCEEDS_DEBT: 'C’est plus que ce que ce titulaire doit',
+
     // ─── Réseau de livraison ─────────────────────────────────────────────────
     CONTRACT_NOT_FOUND: 'Aucun contrat ne correspond à cet identifiant',
 
@@ -195,6 +202,17 @@ const codeHints = {
         'Il s’agit d’un ancien enregistrement sans destination. Renseignez-vous auprès du bénéficiaire.',
     PAYOUT_NOT_PENDING: 'Rechargez pour voir son état actuel.',
     PAYOUT_NOT_PROCESSING: 'Il a été réglé entre-temps. Rechargez pour voir son état actuel.',
+
+    REFUND_REQUEST_STATUS_CONFLICT:
+        'Quelqu’un a agi avant vous, ou l’argent a bougé. Rechargez pour voir où elle en est.',
+    REFUND_SECOND_APPROVER_REQUIRED:
+        'Vous avez saisi ce numéro : un autre administrateur doit le comparer à la photo et approuver.',
+    REFUND_USE_REFUND_QUEUE:
+        'À partir de 2 000 000, un remboursement de commande exige un second administrateur, ce que seule la file des remboursements prévoit.',
+    EARNINGS_PAUSE_HELD_BY_REFUND:
+        'Le remboursement lève ou clôt cette suspension lui-même une fois décidé. Ouvrez plutôt la demande de remboursement.',
+    EARNINGS_CLAWBACK_WRITE_OFF_EXCEEDS_DEBT:
+        'Des gains ultérieurs ont pu rembourser une partie de la dette. Rechargez pour voir ce qui est dû maintenant.',
 
     CONTRACT_NOT_FOUND: 'Vérifiez l’identifiant, ou ouvrez le contrat depuis le livreur ou l’agence.',
     FILE_NOT_FOUND:

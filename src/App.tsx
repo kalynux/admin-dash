@@ -37,12 +37,16 @@ import { AuditModule } from '@/pages/audit/AuditModule';
 import { UsersModule } from '@/pages/users/UsersModule';
 import { VendorsModule } from '@/pages/vendors/VendorsModule';
 import { CategoriesModule } from '@/pages/categories/CategoriesModule';
+import { ReviewsModule } from '@/pages/reviews/ReviewsModule';
 import { AgenciesModule } from '@/pages/agencies/AgenciesModule';
 import { AgentsModule } from '@/pages/agents/AgentsModule';
 import { DisputesQueue } from '@/pages/orders/DisputesQueue';
 import { AccountsModule } from '@/pages/accounts/AccountsModule';
 import { AllocationsModule } from '@/pages/money/AllocationsModule';
 import { DeliveryFeeRefundsModule } from '@/pages/money/DeliveryFeeRefundsModule';
+import { EarningsPausesModule } from '@/pages/money/EarningsPausesModule';
+import { ClawbacksModule } from '@/pages/money/ClawbacksModule';
+import { RefundQueueModule } from '@/pages/refunds/RefundQueueModule';
 import { BillingModule } from '@/pages/billing/BillingModule';
 import { CodModule } from '@/pages/cod/CodModule';
 import { DepositsModule } from '@/pages/cod/DepositsModule';
@@ -184,11 +188,15 @@ const SCREENS: Record<string, ReactNode> = {
     shipments: <ShipmentsModule />,
     /** Childless, mounted at `categories/*` — owns `:categoryId` and its own 404. */
     categories: <CategoriesModule />,
+    /** Childless, mounted at `reviews/*` — owns `:reviewId` and its own 404. */
+    reviews: <ReviewsModule />,
     /**
      * A childless module, mounted at `accounts/*`, so it owns `:ownerType/:ownerId`
      * and its own 404 like the four directories above.
      */
     accounts: <AccountsModule />,
+    /** Childless, mounted at `refunds/*` — owns `:refundId` and its own 404 (2026-10-05). */
+    refunds: <RefundQueueModule />,
     /**
      * Keyed by the child id: Money is a container whose five children carry their
      * own permissions, and each is its own module with its own sub-routes.
@@ -200,6 +208,8 @@ const SCREENS: Record<string, ReactNode> = {
     'money-payouts': <PayoutsModule />,
     'money-earnings': <EarningsModule />,
     'money-allocations': <AllocationsModule />,
+    'money-earnings-pauses': <EarningsPausesModule />,
+    'money-clawbacks': <ClawbacksModule />,
     'money-payments': <PaymentsModule />,
     'money-refunds': <RefundsModule />,
     'money-delivery-fee-refunds': <DeliveryFeeRefundsModule />,

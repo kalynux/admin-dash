@@ -1,8 +1,9 @@
 /**
  * `/money` — the platform's own account, the earnings directory, and payouts.
  *
- * **Every `/money` route — twenty-two since 2026-10-04** (the platform summary
- * and the order split). This said "seventeen" through the delivery-fee refund
+ * **Every `/money` route — twenty-six since 2026-10-05** (the four earnings
+ * pauses; twenty-two on 2026-10-04 with the platform summary and the order
+ * split). This said "seventeen" through the delivery-fee refund
  * round, which is why it no longer tries to keep a running count: the route
  * map's test does that.
  *
@@ -20,6 +21,8 @@ import type { Approval } from '@/types/approvals.types';
 import type { DualControlResult, Paginated } from '@/types/api.types';
 import type {
     AllocationListQuery,
+    ClawbackDebtRow,
+    ClawbackListQuery,
     DeliveryFeeRefund,
     DeliveryFeeRefundListQuery,
     EarningsAccountsQuery,
@@ -41,7 +44,14 @@ import type {
     ResolveUnknownPayoutBody,
     SettleDeliveryFeeRefundBody,
     SettleDeliveryFeeRefundResult,
+    WriteOffClawbackBody,
 } from '@/types/money.types';
+import type {
+    EarningsPauseListQuery,
+    EarningsPauseRow,
+    EarningsPauseView,
+    PauseKind,
+} from '@/types/earnings-pause.types';
 
 /**
  * `GET /money/earnings/platform` · `money.earnings.read` · **delegated**.
@@ -610,4 +620,128 @@ export function settleDeliveryFeeRefund(
             options,
         )
         .then(({ data, message }) => ({ data, message }));
+}
+
+// ─── Refund debt (2026-10-05) ─────────────────────────────────────────────────
+
+/**
+ * `GET /money/earnings/clawbacks` · `money.earnings.read` · direct read.
+ *
+ * Every owner who owes the platform after a refund, largest first.
+ * `meta.totals` is the whole filtered debt per currency — read it with
+ * `clawbackTotalsOf`, never sum the page.
+ */
+export function listClawbacks(
+    query: ClawbackListQuery = {},
+    options?: RequestOptions,
+): Promise<Paginated<ClawbackDebtRow>> {
+    return api.list<ClawbackDebtRow>(withQuery('/money/earnings/clawbacks', { ...query }), options);
+}
+
+/**
+ * `POST /money/earnings/clawbacks/:ownerType/:ownerId/write-off` ·
+ * **`money.earnings.clawback.write_off`** (financial, tiers 1–2) ·
+ * **dual-controlled**.
+ *
+ * Forgives refund debt — the platform absorbs it. `200` → the owner's remaining
+ * debt row; **`202` → nothing was written off** (`amount ≥ 2,000,000`), queued
+ * for a second administrator who commits it at `/approvals`, the debt
+ * re-checked then. Strict body, built as a literal.
+ *
+ * `409 EARNINGS_CLAWBACK_WRITE_OFF_EXCEEDS_DEBT` (`details.owed`) also when the
+ * owner owes nothing.
+ */
+export function writeOffClawback(
+    ownerType: string,
+    ownerId: string,
+    body: WriteOffClawbackBody,
+    options?: RequestOptions,
+): Promise<DualControlResult<ClawbackDebtRow, Approval>> {
+    return api.dualControl<ClawbackDebtRow, Approval>(
+        'POST',
+        `/money/earnings/clawbacks/${encodeURIComponent(ownerType)}/${encodeURIComponent(ownerId)}/write-off`,
+        { amount: body.amount, reason: body.reason.trim() },
+        options,
+    );
+}
+
+// ─── Earnings pauses (2026-10-05) ─────────────────────────────────────────────
+
+/**
+ * `GET /money/earnings/pauses` · `money.earnings.read` (tiers 1–2) · **delegated**.
+ *
+ * Every order and booking whose earnings are paused now, newest pause first.
+ * ⚠ **A strict query** — `kind`, `page`, `limit` and nothing else; an unknown key
+ * is a `400`. Rows carry the pause record in jovi-mall's snake_case.
+ */
+export function listEarningsPauses(
+    query: EarningsPauseListQuery = {},
+    options?: RequestOptions,
+): Promise<Paginated<EarningsPauseRow>> {
+    return api.list<EarningsPauseRow>(withQuery('/money/earnings/pauses', { ...query }), options);
+}
+
+/**
+ * `GET /money/earnings/pauses/:kind/:id` · `money.earnings.read` · **delegated**.
+ *
+ * One order's or booking's pause record. `pause: null` means it was never
+ * paused; `pause.active: false` means it was, and was lifted.
+ */
+export function getEarningsPause(
+    kind: PauseKind,
+    id: string,
+    options?: RequestOptions,
+): Promise<EarningsPauseView> {
+    return api.get<EarningsPauseView>(
+        `/money/earnings/pauses/${kind}/${encodeURIComponent(id)}`,
+        options,
+    );
+}
+
+/**
+ * `POST /money/earnings/pauses/:kind/:id/pause` · **`money.earnings.pause`**
+ * (financial, tiers 1–2, never Support). Delegated, audited fail-closed as
+ * `money.earnings.pause_order` / `pause_booking`.
+ *
+ * `note` is required, 3–500 after trimming. Refusals arrive as
+ * `details.platformCode` — read them with `earningsPauseRefusalOf`.
+ */
+export function pauseEarnings(
+    kind: PauseKind,
+    id: string,
+    note: string,
+    options?: RequestOptions,
+): Promise<EarningsPauseView> {
+    return api
+        .mutate<EarningsPauseView>(
+            'POST',
+            `/money/earnings/pauses/${kind}/${encodeURIComponent(id)}/pause`,
+            { note: note.trim() },
+            options,
+        )
+        .then(({ data }) => data);
+}
+
+/**
+ * `POST /money/earnings/pauses/:kind/:id/resume` · **`money.earnings.pause`**.
+ * Lifts any pause, whoever raised it; the hold continues where it stopped.
+ *
+ * The body is `.strict()` with `min(1)` on the optional note, so a blank note is
+ * **omitted**, never sent as `""`.
+ */
+export function resumeEarnings(
+    kind: PauseKind,
+    id: string,
+    note?: string,
+    options?: RequestOptions,
+): Promise<EarningsPauseView> {
+    const trimmed = note?.trim();
+    return api
+        .mutate<EarningsPauseView>(
+            'POST',
+            `/money/earnings/pauses/${kind}/${encodeURIComponent(id)}/resume`,
+            trimmed ? { note: trimmed } : {},
+            options,
+        )
+        .then(({ data }) => data);
 }

@@ -138,7 +138,7 @@ function TrustAdjustmentForm({
 
     // `useWatch`, not `useForm`'s `watch()` — the returned function cannot be
     // memoized safely, so the React Compiler skips the whole component when it
-    // sees one. Same fix as `EditVendorSettingsDialog` and `RefundDialog`.
+    // sees one. Same fix as `EditVendorSettingsDialog` and `SettleDeliveryFeeRefundDialog`.
     const delta = useWatch({ control, name: 'delta' });
     const parsed = /^-?\d+$/.test(delta.trim()) ? Number(delta.trim()) : null;
 

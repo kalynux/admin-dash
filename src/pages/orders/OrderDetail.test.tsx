@@ -6,14 +6,17 @@ import { Route, Routes } from 'react-router-dom';
 import { OrderDetail } from '@/pages/orders/OrderDetail';
 import { adminFixture, heldFixture } from '@/test/fixtures';
 import {
-    cleanRefundEligibilityFixture,
     openDisputeOrderFixture,
     orderDetailFixture,
-    refundEligibilityFixture,
-    refundResultFixture,
     resolvedDisputeOrderFixture,
     timelineEntryFixture,
 } from '@/test/order-fixtures';
+import {
+    codRefundEligibilityFixture,
+    refundEligibilityFixture,
+    refundListMetaFixture,
+    refundRequestFixture,
+} from '@/test/refund-fixtures';
 import { orderMoneySplitFixture } from '@/test/money-fixtures';
 import { shipmentFixture, shipmentListMetaFixture } from '@/test/shipment-fixtures';
 import { errorResponse, renderWithProviders, stubFetch, successResponse } from '@/test/utils';
@@ -49,8 +52,13 @@ function stubDetail({
     return stubFetch((call) => {
         if (call.method !== 'GET' && write) return write();
 
-        if (call.url.includes('/refund-eligibility')) {
+        // The refund queue (2026-10-05): the eligibility read, and this order's
+        // requests for the card under the payout chip.
+        if (call.url.includes('/refunds/eligibility')) {
             return eligibility?.() ?? successResponse(refundEligibilityFixture());
+        }
+        if (call.url.includes('/refunds?')) {
+            return successResponse([], { meta: refundListMetaFixture(0) });
         }
         /*
           ⚠ **No branch for `/vendors/:id/products/:id`, deliberately.** The
@@ -196,16 +204,24 @@ describe('tabs and permissions', () => {
     });
 
     /**
-     * `/refund-eligibility` is gated on `orders.refund`, not `orders.read`. A
-     * Support administrator must never fire it — and the throwing stub would fail
-     * the test if the screen did.
+     * Raising is `orders.refund.request`; a caller without it sees no button and
+     * the screen reads no refund ceiling — and none of the refund queue at all
+     * without `orders.refund.read`.
      */
-    it('makes no eligibility request for a caller without orders.refund', async () => {
+    it('offers no refund to a caller holding only orders.read, and reads nothing for it', async () => {
         const calls = detail({ held: new Set(['orders.read']) });
 
         await screen.findByRole('tab', { name: /overview/i });
         expect(screen.queryByRole('button', { name: /refund/i })).not.toBeInTheDocument();
-        expect(calls.some((call) => call.url.includes('refund-eligibility'))).toBe(false);
+        expect(calls.some((call) => call.url.includes('/refund'))).toBe(false);
+    });
+
+    /** The eligibility read happens in the dialog, on open — never on mount. */
+    it('asks nothing about eligibility until Raise a refund is opened', async () => {
+        const calls = detail({ held: new Set(['orders.read', 'orders.refund.request']) });
+
+        expect(await screen.findByRole('button', { name: /raise a refund/i })).toBeInTheDocument();
+        expect(calls.some((call) => call.url.includes('/refunds/eligibility'))).toBe(false);
     });
 
     it('offers no write affordance to a caller holding only orders.read', async () => {
@@ -255,7 +271,11 @@ describe('the writes', () => {
                     },
                 });
             }
-            if (call.url.includes('/timeline') || call.url.includes('/activity')) {
+            if (
+                call.url.includes('/timeline') ||
+                call.url.includes('/activity') ||
+                call.url.includes('/refunds?')
+            ) {
                 return successResponse([], { meta: { total: 0, page: 1, limit: 20, pages: 0 } });
             }
             if (call.url.includes('/shipments')) {
@@ -310,130 +330,118 @@ describe('the writes', () => {
     });
 });
 
-describe('the refund dialog', () => {
-    async function openRefund(options: StubOptions = {}) {
-        detail(options);
-        await userEvent.click(await screen.findByRole('button', { name: /refund/i }));
+describe('raising a refund from the order', () => {
+    async function openRaise(options: StubOptions & { held?: ReadonlySet<string> } = {}) {
+        const calls = detail(options);
+        await userEvent.click(await screen.findByRole('button', { name: /raise a refund/i }));
+        return calls;
     }
 
-    /** Two ceilings, two statements. Merging them is how the wrong one is used. */
-    it('renders the platform ceiling and the vendor ceiling separately', async () => {
-        await openRefund();
+    /** Gross, fee and net side by side — the server's figures, printed as sent. */
+    it('shows the server’s gross, fee and net for the chosen reason', async () => {
+        await openRaise();
 
-        expect(await screen.findByText(/what the platform will permit/i)).toBeInTheDocument();
-        expect(screen.getByText(/what the vendor's terms allow/i)).toBeInTheDocument();
+        expect(await screen.findByText('Customer receives')).toBeInTheDocument();
+        expect(screen.getAllByText(/6,000/).length).toBeGreaterThan(0);
+        expect(screen.getByText(/5,880/)).toBeInTheDocument();
+        expect(screen.getByText(/2% transfer fee/i)).toBeInTheDocument();
     });
 
-    it('lists the gates by name before offering the override', async () => {
-        await openRefund();
+    it('asks the queue’s eligibility read about this order', async () => {
+        const calls = await openRaise();
 
-        expect(await screen.findByText(/return window expired/i)).toBeInTheDocument();
-        expect(
-            screen.getByRole('checkbox', { name: /override the vendor's terms/i }),
-        ).toBeInTheDocument();
+        await screen.findByText('Customer receives');
+        const asked = calls.find((call) => call.url.includes('/refunds/eligibility'));
+        const url = new URL(asked!.url, 'http://localhost');
+        expect(url.searchParams.get('sourceKind')).toBe('order');
+        expect(url.searchParams.get('sourceId')).toBe(ORDER_ID);
     });
 
-    it('offers no override checkbox when nothing would be crossed', async () => {
-        await openRefund({ eligibility: () => successResponse(cleanRefundEligibilityFixture()) });
-
-        await screen.findByText(/what the platform will permit/i);
-        expect(
-            screen.queryByRole('checkbox', { name: /override the vendor's terms/i }),
-        ).not.toBeInTheDocument();
-    });
-
-    /** An expected outcome, not a fault — and explained before the button. */
-    it('refuses to submit when the gateway has no refund API, and says why', async () => {
-        await openRefund({
+    /** Going past the vendor's policy needs an explicit tick; nothing sets it for them. */
+    it('lists the policy gates and will not raise without the override tick', async () => {
+        const calls = await openRaise({
             eligibility: () =>
-                successResponse(
-                    refundEligibilityFixture({
-                        gateway: 'NOTCHPAY',
-                        gatewayRefundSupported: false,
-                    }),
-                ),
-        });
-
-        expect(await screen.findByText(/has no refund api/i)).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /^refund$/i })).toBeDisabled();
-    });
-
-    it('refuses to submit on a cash order, and says why', async () => {
-        await openRefund({
-            eligibility: () => successResponse(refundEligibilityFixture({ isCod: true })),
-        });
-
-        expect(await screen.findByText(/cash-on-delivery order/i)).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: /^refund$/i })).toBeDisabled();
-    });
-
-    /** Without the ceilings this is a blind money button. */
-    it('will not offer a refund when the eligibility read failed', async () => {
-        await openRefund({
-            eligibility: () =>
-                errorResponse(503, 'SERVICE_DEPENDENCY_UNAVAILABLE', {
-                    category: 'external_service',
+                successResponse(refundEligibilityFixture({ overrides: ['return_window_expired'] })),
+            write: () =>
+                successResponse(refundRequestFixture(), {
+                    status: 201,
+                    meta: { approveNow: { status: 'not_requested' } },
                 }),
+        });
+
+        expect(await screen.findByText(/return window has expired/i)).toBeInTheDocument();
+        await userEvent.type(screen.getByLabelText(/why it is owed/i), 'Parcel never arrived');
+        await userEvent.click(screen.getByRole('button', { name: /^raise refund$/i }));
+        expect(await screen.findByText(/tick the box to override/i)).toBeInTheDocument();
+        expect(calls.some((call) => call.method === 'POST')).toBe(false);
+
+        await userEvent.click(screen.getByRole('checkbox', { name: /override the vendor's policy/i }));
+        await userEvent.click(screen.getByRole('button', { name: /^raise refund$/i }));
+
+        await waitFor(() => expect(calls.some((call) => call.method === 'POST')).toBe(true));
+        const post = calls.find((call) => call.method === 'POST')!;
+        expect(post.url).toMatch(/\/refunds$/);
+        expect(JSON.parse(post.body!)).toMatchObject({
+            sourceKind: 'order',
+            sourceId: ORDER_ID,
+            reasonKind: 'cancellation',
+            overridePolicy: true,
+        });
+        // Blank amount = the maximum: the key is omitted, never sent as 0.
+        expect(JSON.parse(post.body!)).not.toHaveProperty('amount');
+    });
+
+    /** No paying number: a typed one, and the picture of the customer's message giving it. */
+    it('asks for a typed number and its picture on a cash order', async () => {
+        const calls = await openRaise({ eligibility: () => successResponse(codRefundEligibilityFixture()) });
+
+        expect(await screen.findByLabelText(/phone number/i)).toBeInTheDocument();
+        expect(screen.getByText(/another\s+administrator will have to approve a typed number/i)).toBeInTheDocument();
+
+        await userEvent.type(screen.getByLabelText(/why it is owed/i), 'Customer cancelled');
+        await userEvent.type(screen.getByLabelText(/phone number/i), '+237 677 00 11 22');
+        await userEvent.click(screen.getByRole('button', { name: /^raise refund$/i }));
+        expect(await screen.findByText(/attach a picture of the customer’s message/i)).toBeInTheDocument();
+        expect(calls.some((call) => call.method === 'POST')).toBe(false);
+    });
+
+    /** Without the ceiling this is a blind money button. */
+    it('will not offer a refund when the eligibility read failed', async () => {
+        await openRaise({
+            eligibility: () =>
+                errorResponse(503, 'SERVICE_DEPENDENCY_UNAVAILABLE', { category: 'external_service' }),
         });
 
         expect(await screen.findByText(/could not read what may be refunded/i)).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: /^refund$/i })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /^raise refund$/i })).not.toBeInTheDocument();
     });
 
-    it('says the blank amount means the full remaining balance, not the vendor cap', async () => {
-        await openRefund();
-
-        expect(
-            await screen.findByText(/blank refunds the full remaining refundable balance/i),
-        ).toBeInTheDocument();
+    /** Support raises and never approves — so no Approve now. */
+    it('offers Approve now only to a holder of orders.refund', async () => {
+        await openRaise({ held: new Set(['orders.read', 'orders.refund.request']) });
+        await screen.findByText('Customer receives');
+        expect(screen.queryByRole('checkbox', { name: /approve now/i })).not.toBeInTheDocument();
     });
 
-    /**
-     * The gateway call happens outside any transaction, so a lost answer is
-     * genuinely ambiguous. "Try again" is the wrong affordance.
-     */
-    it('renders a 502 as an unknown outcome with no retry', async () => {
-        await openRefund({
+    it('says the seller’s earnings are now on hold once raised', async () => {
+        await openRaise({
             write: () =>
-                errorResponse(502, 'SERVICE_DEPENDENCY_UNAVAILABLE', {
-                    category: 'external_service',
+                successResponse(refundRequestFixture(), {
+                    status: 201,
+                    meta: { approveNow: { status: 'not_requested' } },
                 }),
         });
 
-        await screen.findByText(/what the platform will permit/i);
-        await userEvent.click(
-            screen.getByRole('checkbox', { name: /override the vendor's terms/i }),
+        await screen.findByText('Customer receives');
+        await userEvent.type(screen.getByLabelText(/why it is owed/i), 'Parcel never arrived');
+        await userEvent.click(screen.getByRole('button', { name: /^raise refund$/i }));
+
+        expect(await screen.findByText(/raised — waiting for approval/i)).toBeInTheDocument();
+        expect(screen.getByText(/earnings for this order\s+are now on hold/i)).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: /open the refund request/i })).toHaveAttribute(
+            'href',
+            '/dashboard/refunds/6701a0b2c3d4e5f6a7b8c901',
         );
-        await userEvent.type(screen.getByLabelText(/^reason$/i), 'Parcel never arrived');
-        await userEvent.click(screen.getByRole('button', { name: /^refund$/i }));
-
-        expect(await screen.findByText(/the outcome is unknown/i)).toBeInTheDocument();
-        expect(screen.getByText(/may or may not have completed/i)).toBeInTheDocument();
-        expect(screen.queryByRole('button', { name: /try again/i })).not.toBeInTheDocument();
-    });
-
-    /**
-     * These figures exist on this response and nowhere else — no later read
-     * reports which of the vendor's gates were crossed.
-     */
-    it('keeps the result on screen, including which gates were overridden', async () => {
-        await openRefund({
-            write: () =>
-                successResponse(refundResultFixture(), {
-                    message: 'Refund completed — the vendor’s return policy was overridden',
-                }),
-        });
-
-        await screen.findByText(/what the platform will permit/i);
-        await userEvent.click(
-            screen.getByRole('checkbox', { name: /override the vendor's terms/i }),
-        );
-        await userEvent.type(screen.getByLabelText(/^reason$/i), 'Parcel never arrived');
-        await userEvent.click(screen.getByRole('button', { name: /^refund$/i }));
-
-        expect(await screen.findByText(/return policy was overridden/i)).toBeInTheDocument();
-        expect(screen.getByText('rf_66739911')).toBeInTheDocument();
-        expect(screen.getByText(/no — overridden/i)).toBeInTheDocument();
     });
 });
 

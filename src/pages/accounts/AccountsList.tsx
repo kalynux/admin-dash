@@ -25,7 +25,8 @@ import { listEarningsAccounts } from '@/services/money.service';
 import { useAdmin } from '@/store';
 import {
     EARNINGS_ACCOUNT_OWNER_TYPES,
-    isEarningsAccountRow,
+    owesRefundDebt,
+    readEarningsAccountRow,
     type EarningsAccountRow,
 } from '@/types/money.types';
 import { CopyableId } from '@/components/common/CopyableId';
@@ -48,17 +49,21 @@ import { CopyableId } from '@/components/common/CopyableId';
  * **No total across owners.** Four balances are shown side by side and never
  * summed — the same rule the account DTO spends four mechanisms on.
  *
- * ── ⚠ There are no owner names here, and that is upstream ─────────────────────
- * The platform returns `(owner_type, owner_id)` and four balances; wi-admin
- * passes the page through verbatim, with none of the name resolution
- * `GET /money/payouts` gets one function away in the same controller. So rows
- * carry ids, and the name lives one click away on the account itself.
+ * ── 🔴 Owner names DO arrive, and this screen could not see them ──────────────
+ * This said *"there are no owner names here, and that is upstream"* — true of
+ * jovi-mall's flat `(ownerType, ownerId)` row, false of what wi-admin serves:
+ * it has hydrated `owner: { type, id, name }` since 2026-08-18, server-side, so
+ * no directory permission is needed here. The guard read only the flat shape,
+ * so against a real service every row was dropped and the directory said it
+ * could not read the accounts. `readEarningsAccountRow` takes both (2026-10-05).
  *
- * **Resolving names here would mean twenty extra requests per page**, each behind
- * a permission a `money.earnings.read` holder need not hold — turning this list
- * into a side door onto three directories, which is exactly what the accounts
- * mount's composed authorization exists to prevent. Recorded as a backend ask
- * instead.
+ * **Still never resolve names client-side** — twenty requests a page, each
+ * behind a permission a `money.earnings.read` holder need not hold, is a side
+ * door onto three directories.
+ *
+ * ── Refund debt is its own red column ─────────────────────────────────────────
+ * `clawback` (2026-10-05) is what the owner owes BACK. It runs the opposite way
+ * from the four balances and is never added to them.
  */
 
 const FILTER_KEYS = ['ownerType'] as const;
@@ -85,7 +90,9 @@ export function AccountsList() {
      * shape change upstream shows as a missing row rather than as blank money.
      */
     const rows = useMemo(
-        () => (accounts.data?.data ?? []).filter(isEarningsAccountRow),
+        () => (accounts.data?.data ?? [])
+                .map(readEarningsAccountRow)
+                .filter((row): row is EarningsAccountRow => row !== null),
         [accounts.data],
     );
 
@@ -100,6 +107,9 @@ export function AccountsList() {
                 // query is most of what this column is for.
                 cell: (row) => (
                     <div className="min-w-0 space-y-1">
+                        {row.ownerName ? (
+                            <p className="text-sm font-medium">{row.ownerName}</p>
+                        ) : null}
                         {row.ownerId ? (
                             <CopyableId
                                 value={row.ownerId}
@@ -150,6 +160,26 @@ export function AccountsList() {
                 header: 'Requested',
                 className: 'text-muted-foreground align-top tabular-nums',
                 cell: (row) => formatMoney(row.requested, row.currency),
+            },
+            {
+                /*
+                  Refund debt (2026-10-05) — its own column, in red, and never
+                  added to the four beside it: it runs the OPPOSITE way. While it
+                  is above zero `available` is 0, because every inflow pays it
+                  down first.
+                */
+                id: 'clawback',
+                numeric: true,
+                header: 'Owes back',
+                className: 'align-top tabular-nums',
+                cell: (row) =>
+                    owesRefundDebt(row) ? (
+                        <span className="text-destructive font-medium">
+                            {formatMoney(row.clawback, row.currency)}
+                        </span>
+                    ) : (
+                        <span className="text-muted-foreground">—</span>
+                    ),
             },
             {
                 id: 'updatedAt',
@@ -210,7 +240,9 @@ export function AccountsList() {
                     <InfoHint label="About this ranking">
                         The platform ranks these itself, over rows this service never sees, so
                         there is no sort to offer. The four balances are shown side by side and
-                        never added together — they are different kinds of money.
+                        never added together — they are different kinds of money. &ldquo;Owes
+                        back&rdquo; is refund debt: what the owner owes the platform, repaid from
+                        their next earnings, and never part of the balances.
                     </InfoHint>
                 </p>
 

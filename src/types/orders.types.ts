@@ -133,9 +133,10 @@ export type OrderTimelineActorType = (typeof ORDER_TIMELINE_ACTOR_TYPES)[number]
  * ⚠ **The order is jovi-mall's**, and the guard pins it: an operator reads down
  * the menu, and the model's order is roughly the lifecycle's.
  *
- * ⚠ **Tell the backend before a tenth event type** —
+ * ⚠ **Tell the backend before a twelfth event type** (the tenth and eleventh,
+ * `earnings.paused` and `earnings.resumed`, arrived documented on 2026-10-05) —
  * [BR-019 § 2](../../api-doc/admin/dashboard/backend-requests/BR-019-contract-clarifications.md)
- * asks them to document the nine and to say when one is added, because the
+ * asks them to document the values and to say when one is added, because the
  * mirror cannot know on its own.
  */
 export const ORDER_TIMELINE_EVENT_TYPES = [
@@ -147,6 +148,11 @@ export const ORDER_TIMELINE_EVENT_TYPES = [
     'note.added',
     'entitlement.revoked',
     'entitlement.restored',
+    // 2026-10-05 — the order's earnings were paused / resumed. `metadata.reason`
+    // and `metadata.note` on the first; `metadata.note` and
+    // `metadata.pausedReason` on the second. Placed where the model puts them.
+    'earnings.paused',
+    'earnings.resumed',
     'system.action',
 ] as const;
 export type OrderTimelineEventType = (typeof ORDER_TIMELINE_EVENT_TYPES)[number];
@@ -623,6 +629,13 @@ export interface RefundEligibility {
     };
     /** Exactly which vendor gates a full refund would cross. */
     overrides: string[];
+    /**
+     * A refund request already open on the order (2026-10-05) — `POST /refund` is
+     * then `409 REFUND_ALREADY_OPEN`. Optional: an older wi-admin omits it.
+     */
+    openRefundRequest?: { id: string; status: string } | null;
+    /** `2000000` — at or above it `POST /orders/:orderId/refund` is refused. */
+    legacyRouteCeiling?: number;
 }
 
 /**
@@ -634,9 +647,26 @@ export interface RefundEligibility {
  * state and render them; do not expect to fetch them again.
  */
 export interface RefundResult {
+    /**
+     * ⚠ **Since 2026-10-05 the REQUEST's id** — a deprecated alias of
+     * `refundRequestId` (it used to be a `refund_transactions` id).
+     */
     refundId: string;
+    refundRequestId?: string;
+    /**
+     * The **request's** status — no longer always `completed`: `sending` for
+     * mobile money, `awaiting_approval` for COD or no number, `failed`… Branch on
+     * it, never on the message.
+     */
     status: string;
+    /** GROSS — what the order loses (= `grossAmount`). */
     amount: number;
+    grossAmount?: number;
+    feeAmount?: number;
+    netAmount?: number;
+    paymentChannel?: string | null;
+    channel?: string | null;
+    transferFailureReason?: string | null;
     currency: string;
     totalRefunded: number;
     fullyRefunded: boolean;
@@ -796,6 +826,9 @@ export const ORDER_MAX_RANGE_DAYS = 366;
  *
  * `orders.delivery_fee_refund.settle` is performed on `/money` but **targets the
  * order**, so it lands on this feed (orders.md § activity, 2026-10-04).
+ * So do `money.earnings.pause_order` / `resume_order` (2026-10-05) — filed
+ * against the order by `money.gateway.ts`'s `setEarningsPause`. Their booking
+ * twins target a `booking` and have no feed here.
  */
 export const ORDER_AUDIT_ACTIONS = [
     'orders.disputes.resolve',
@@ -803,6 +836,8 @@ export const ORDER_AUDIT_ACTIONS = [
     'orders.dispatch',
     'orders.refund',
     'orders.delivery_fee_refund.settle',
+    'money.earnings.pause_order',
+    'money.earnings.resume_order',
 ] as const;
 
 export const ORDER_AUDIT_ACTION_LABELS: Record<string, string> = {
@@ -811,6 +846,8 @@ export const ORDER_AUDIT_ACTION_LABELS: Record<string, string> = {
     'orders.dispatch': 'Dispatched to the delivery agency',
     'orders.refund': 'Refunded the order',
     'orders.delivery_fee_refund.settle': 'Settled a delivery-fee refund',
+    'money.earnings.pause_order': 'Paused the payout',
+    'money.earnings.resume_order': 'Resumed the payout',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

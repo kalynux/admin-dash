@@ -150,10 +150,22 @@ describe('the permission catalogue matches api-doc/admin/api/permissions.md', ()
         // `money.splits.read` (every tier, unflagged). The page re-copied that
         // day carries the row and says 132 / 110 / 42 in its banner — and
         // STILL has no `users.close` row, so the same two assertions stay red.
-        expect(PERMISSION_NAMES.length).toBe(132);
+        //
+        // ⚠ **Moved 132 → 136 on 2026-10-05** — 136 / 114 / 45 by `authz:matrix`:
+        // the `reviews` family (the 23rd) — `reviews.read`, `reviews.moderate`
+        // and `reviews.delete` (`destructive`), all three held by every tier —
+        // and `money.earnings.pause` (`financial`, tiers 1–2) from the
+        // earnings-pauses round built beside it the same day. The page
+        // re-copied that day carries all four rows and says 136 / 114 / 45.
+        //
+        // ⚠ **Moved 136 → 140 on 2026-10-05, later the same day** — 140 / 118 / 47
+        // by `authz:matrix`: the refund queue's `orders.refund.read`,
+        // `orders.refund.request` (both every tier), `orders.refund.settle_external`
+        // and `money.earnings.clawback.write_off` (tiers 1–2).
+        expect(PERMISSION_NAMES.length).toBe(140);
         expect(UNROUTED_PERMISSION_NAMES.length).toBe(4);
-        expect(PERMISSION_FAMILIES.length).toBe(22);
-        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(128);
+        expect(PERMISSION_FAMILIES.length).toBe(23);
+        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(136);
     });
 
     /**

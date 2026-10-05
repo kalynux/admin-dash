@@ -1,8 +1,9 @@
-import { ImageOff } from 'lucide-react';
+import { FileText, ImageOff } from 'lucide-react';
 
 import { CategoryChips } from '@/components/categories/CategoryChips';
 import { CopyableValue } from '@/components/common/CopyableValue';
 import { Definition, DefinitionList, NotSet } from '@/components/common/DefinitionList';
+import { FileViewer } from '@/components/files/FileViewer';
 import { ImageBox, ImageBoxNotice, IMAGE_BOX_RATIO } from '@/components/files/ImageBox';
 import { ResolvedImageBox } from '@/components/files/ResolvedImageBox';
 import type { LightboxImage } from '@/components/files/ImageLightbox';
@@ -16,6 +17,7 @@ import { type FileDetail } from '@/types/files.types';
 import {
     productSuspensionOwner,
     productSuspensionReasonLabel,
+    type ProductDimensions,
     type ProductInventory,
     type ProductStorage,
     type ProductVariant,
@@ -90,6 +92,18 @@ export function ProductIdentityPanel({ product, timeZone }: PanelProps) {
                     >
                         <span className="capitalize">{product.mode}</span>
                     </Definition>
+
+                    {product.digital ? (
+                        <Definition label="Downloads">
+                            {product.digital.isActive ? (
+                                'On'
+                            ) : (
+                                <span className="text-warning">
+                                    Switched off — no buyer is given the file, whatever the variant
+                                </span>
+                            )}
+                        </Definition>
+                    ) : null}
 
                     <Definition label="Tags">
                         {product.tags.length > 0 ? (
@@ -247,6 +261,47 @@ export function ProductSuspensionPanel({ product, timeZone }: PanelProps) {
 
 // ─── Media ────────────────────────────────────────────────────────────────────
 
+/** One group of the listing's media — the product's own, or one variant's. */
+interface MediaGroup {
+    key: string;
+    title: string;
+    files: FileDetail[];
+}
+
+/**
+ * Every file the listing holds, grouped by who it is attached to.
+ *
+ * ⚠ **`media.images` is not that list.** It is the *customer* gallery for the
+ * default variant, and it is variant-first **as a fallback, not a merge**: when
+ * the default variant has pictures of its own, the product's pictures are not in
+ * it, and no other variant's ever are. Rendering it alone is how a variant
+ * product looked like it had one photograph. `media.files` (the product's own)
+ * plus `variants[].files` is the whole of it.
+ *
+ * An older service sends neither (both arrived 2026-10-05); the customer gallery
+ * is then all there is, and it is shown under the product.
+ */
+function mediaGroups(product: VendorProductDetail): MediaGroup[] {
+    const productFiles = product.media.files ?? product.media.images;
+    const groups: MediaGroup[] = [{ key: 'product', title: 'Product', files: productFiles }];
+
+    for (const variant of product.variants) {
+        const files = variant.files ?? [];
+        if (files.length === 0) continue;
+        groups.push({
+            key: variant.id,
+            title: `Variant — ${variantLabel(variant)}${variant.status === 'archived' ? ' (archived)' : ''}`,
+            files,
+        });
+    }
+
+    return groups;
+}
+
+function isImage(file: FileDetail): boolean {
+    return file.mimeType?.startsWith('image/') ?? false;
+}
+
 /**
  * The listing's pictures.
  *
@@ -276,35 +331,49 @@ export function ProductSuspensionPanel({ product, timeZone }: PanelProps) {
  * intended behaviour rather than an oversight: there is nothing to enlarge.
  */
 export function ProductMediaPanel({ product }: { product: VendorProductDetail }) {
-    const images = product.media.images;
+    const groups = mediaGroups(product);
+    const total = groups.reduce((sum, group) => sum + group.files.length, 0);
+    const primaryId = product.media.primaryImage?.id ?? null;
 
-    const gallery: LightboxImage[] = images
-        .filter((image) => image.url !== null)
-        .map((image) => ({
-            src: image.url as string,
-            alt: imageAlt(product, image),
-            caption: [image.originalName, image.mimeType, formatBytes(image.size)]
-                .filter(Boolean)
-                .join(' · '),
-        }));
+    // One lightbox across every group, so the arrows walk the whole listing.
+    // Deduplicated by address: the same file can be attached in two places.
+    const gallery: LightboxImage[] = [];
+    for (const group of groups) {
+        for (const image of group.files.filter(isImage)) {
+            if (image.url === null || gallery.some((entry) => entry.src === image.url)) continue;
+            gallery.push({
+                src: image.url,
+                alt: imageAlt(product, image),
+                caption: [group.title, image.originalName, formatBytes(image.size)]
+                    .filter(Boolean)
+                    .join(' · '),
+            });
+        }
+    }
 
     return (
         <Card>
             <CardHeader>
                 <CardTitle className="flex items-center gap-1">
-                    Images
+                    Images and files
+                    {total > 0 ? (
+                        <span className="text-muted-foreground ml-1 text-sm font-normal">
+                            {formatCount(total)}
+                        </span>
+                    ) : null}
                     <InfoHint label="About these images">
                         <p>
-                            Resolved by the platform as part of this read, thumbnail first, and
-                            filtered to <code>image/*</code> — a listing&apos;s media may also hold
-                            a video or a spec sheet. They are already public URLs, so viewing one
-                            here records nothing against your account.
+                            Everything the vendor attached — to the product itself and to each
+                            variant. Customers see a variant&apos;s own pictures when it has any,
+                            and the product&apos;s otherwise; the one marked{' '}
+                            <em>shown first</em> is what they see on the listing. They are already
+                            public URLs, so viewing one here records nothing against your account.
                         </p>
                     </InfoHint>
                 </CardTitle>
             </CardHeader>
-            <CardContent>
-                {images.length === 0 ? (
+            <CardContent className="space-y-5">
+                {total === 0 ? (
                     <ImageBoxNotice
                         ratio={IMAGE_BOX_RATIO}
                         className="max-w-xs"
@@ -316,8 +385,61 @@ export function ProductMediaPanel({ product }: { product: VendorProductDetail })
                         body="Nothing has been uploaded for it — a service or an unfinished draft often has none."
                     />
                 ) : (
-                    <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                        {images.map((image, index) => (
+                    groups.map((group) => (
+                        <MediaGroupSection
+                            key={group.key}
+                            group={group}
+                            product={product}
+                            gallery={gallery}
+                            primaryId={primaryId}
+                            // The product heading is only worth printing when
+                            // there is something to tell it apart from.
+                            showTitle={groups.length > 1}
+                        />
+                    ))
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+function MediaGroupSection({
+    group,
+    product,
+    gallery,
+    primaryId,
+    showTitle,
+}: {
+    group: MediaGroup;
+    product: VendorProductDetail;
+    gallery: readonly LightboxImage[];
+    primaryId: string | null;
+    showTitle: boolean;
+}) {
+    const images = group.files.filter(isImage);
+    const others = group.files.filter((file) => !isImage(file));
+
+    return (
+        <section className="space-y-2">
+            {showTitle ? (
+                <h3 className="text-sm font-medium">
+                    {group.title}
+                    <span className="text-muted-foreground ml-2 font-normal">
+                        {formatCount(group.files.length)}
+                    </span>
+                </h3>
+            ) : null}
+
+            {group.files.length === 0 ? (
+                <p className="text-muted-foreground text-xs">
+                    Nothing attached to the product itself
+                    {product.variants.length > 0 ? ' — the pictures are on the variants below.' : '.'}
+                </p>
+            ) : null}
+
+            {images.length > 0 ? (
+                <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                    {images.map((image) => (
                             <li key={image.id} className="space-y-1">
                                 {image.url ? (
                                     <ImageBox
@@ -347,15 +469,50 @@ export function ProductMediaPanel({ product }: { product: VendorProductDetail })
                                     />
                                 )}
                                 <p className="text-muted-foreground truncate text-xs">
-                                    {index === 0 ? 'Primary · ' : ''}
+                                    {image.id === primaryId ? 'Shown first · ' : ''}
                                     {image.originalName ?? image.mimeType}
                                 </p>
                             </li>
                         ))}
-                    </ul>
-                )}
-            </CardContent>
-        </Card>
+                </ul>
+            ) : null}
+
+            {others.length > 0 ? (
+                /* A video or a spec sheet. A public one is a plain link — the read
+                   already handed over its address; an addressless one goes through
+                   the audited viewer, which asks first. */
+                <ul className="space-y-2">
+                    {others.map((file) => (
+                        <li key={file.id} className="rounded-lg border p-2 text-sm">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <FileText className="text-muted-foreground size-4 shrink-0" />
+                                <span className="min-w-0 truncate">
+                                    {file.originalName ?? file.id}
+                                </span>
+                                <span className="text-muted-foreground text-xs">
+                                    {[file.mimeType, formatBytes(file.size)].filter(Boolean).join(' · ')}
+                                </span>
+                                {file.url ? (
+                                    <a
+                                        href={file.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="text-primary ml-auto text-xs underline-offset-2 hover:underline"
+                                    >
+                                        Open
+                                    </a>
+                                ) : null}
+                            </div>
+                            {file.url ? null : (
+                                <div className="mt-2">
+                                    <FileViewer file={file} />
+                                </div>
+                            )}
+                        </li>
+                    ))}
+                </ul>
+            ) : null}
+        </section>
     );
 }
 
@@ -371,14 +528,15 @@ function galleryIndex(gallery: readonly LightboxImage[], src: string): number {
 // ─── Commercials ──────────────────────────────────────────────────────────────
 
 /**
- * Price, stock and the responsible agency — the three the operator came for.
+ * Price, negotiation and stock. The agency moved to `ProductDeliveryPanel` on
+ * 2026-10-05, beside the pickup location it now has to be read with.
  *
  * ⚠ `pricing: null` is **a broken listing**, not a missing field. A product with
  * no variants at all has no price to quote, cannot be bought, and the screen's
  * job is to say that rather than to leave a dash that reads as a rendering fault.
  */
 export function ProductCommercialsPanel({ product }: { product: VendorProductDetail }) {
-    const { pricing, deliveryAgency } = product;
+    const { pricing } = product;
 
     return (
         <Card>
@@ -455,6 +613,190 @@ export function ProductCommercialsPanel({ product }: { product: VendorProductDet
                         </>
                     ) : null}
 
+                    <NegotiationSummary product={product} />
+                </DefinitionList>
+
+                <InventoryFigures
+                    inventory={product.inventory}
+                    scope="product"
+                />
+            </CardContent>
+        </Card>
+    );
+}
+
+/**
+ * Whether a buyer may haggle, and up to what.
+ *
+ * ⚠ **A configured window is not a live one.** Bargaining runs through the AI
+ * assistant, so a vendor who switched AI search off keeps their ceilings — the
+ * platform never deletes them — and none of them applies. Printing the ceiling
+ * without saying so is how an operator tells a customer a price is negotiable
+ * when it is not.
+ */
+function NegotiationSummary({ product }: { product: VendorProductDetail }) {
+    const currency = product.pricing?.currency ?? null;
+    const windows = product.variants
+        .filter((variant) => variant.status !== 'archived')
+        .map((variant) => variant.bargain)
+        .filter((bargain): bargain is NonNullable<typeof bargain> => !!bargain);
+    const live = product.vectorisation?.enabled ?? false;
+
+    const ceilings = windows.map((bargain) => bargain.maxPrice);
+    const min = Math.min(...ceilings);
+    const max = Math.max(...ceilings);
+
+    return (
+        <Definition
+            label="Negotiable up to"
+            hint={
+                <InfoHint label="About negotiation">
+                    <p>
+                        The highest price a buyer may haggle from — the selling price is the floor
+                        and the vendor sets this ceiling. It only applies while the vendor has AI
+                        search switched on; with it off the ceiling is kept but unused. Each
+                        variant&apos;s own ceiling is under Variants.
+                    </p>
+                </InfoHint>
+            }
+        >
+            {product.vectorisation === undefined ? (
+                <NotSet>Not reported by this version of the service</NotSet>
+            ) : windows.length === 0 ? (
+                <NotSet>Not negotiable</NotSet>
+            ) : (
+                <div className="space-y-1">
+                    <p>
+                        {min === max
+                            ? formatMoney(max, currency)
+                            : `${formatMoney(min, currency)} – ${formatMoney(max, currency)}`}
+                        <span className="text-muted-foreground ml-2 text-xs">
+                            on {formatCount(windows.length)} of{' '}
+                            {formatCount(product.variants.filter((v) => v.status !== 'archived').length)}{' '}
+                            variant{windows.length === 1 ? '' : 's'}
+                        </span>
+                    </p>
+                    <BargainState live={live} />
+                </div>
+            )}
+        </Definition>
+    );
+}
+
+function BargainState({ live }: { live: boolean }) {
+    return live ? (
+        <Badge variant="outline" className="border-success/30 bg-success/10 text-success text-[11px]">
+            Live
+        </Badge>
+    ) : (
+        <p className="text-warning text-xs">
+            Not live — the vendor has AI search switched off, so nobody can negotiate.
+        </p>
+    );
+}
+
+// ─── Description and search ───────────────────────────────────────────────────
+
+/**
+ * The words the customer reads, and the ones a search engine reads instead.
+ *
+ * ⚠ An empty SEO field is not a missing one: the storefront falls back to the
+ * title and the description, and the row says so rather than leaving a blank.
+ */
+export function ProductDescriptionPanel({ product }: { product: VendorProductDetail }) {
+    if (product.description === undefined) return null; // an older service
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Description and search</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {product.description ? (
+                    <p className="text-sm leading-relaxed whitespace-pre-line">
+                        {product.description}
+                    </p>
+                ) : (
+                    <NotSet>The vendor wrote no description.</NotSet>
+                )}
+
+                <DefinitionList>
+                    <Definition label="SEO title">
+                        {product.seo?.title ?? <NotSet>Not set — the listing title is used</NotSet>}
+                    </Definition>
+                    <Definition label="SEO description">
+                        {product.seo?.description ?? (
+                            <NotSet>Not set — the description is used</NotSet>
+                        )}
+                    </Definition>
+                    <Definition
+                        label="AI search"
+                        hint={
+                            <InfoHint label="About AI search">
+                                <p>
+                                    Whether the vendor opted this listing into the AI assistant
+                                    (vectorisation). Negotiation only works while it is on.
+                                </p>
+                            </InfoHint>
+                        }
+                    >
+                        {product.vectorisation ? (
+                            <span>
+                                {product.vectorisation.enabled ? 'On' : 'Off'}
+                                <span className="text-muted-foreground ml-2 text-xs">
+                                    {vectorisationStatusLabel(product.vectorisation.status)}
+                                </span>
+                            </span>
+                        ) : (
+                            <NotSet />
+                        )}
+                    </Definition>
+                </DefinitionList>
+            </CardContent>
+        </Card>
+    );
+}
+
+const VECTORISATION_STATUS_LABELS: Record<string, string> = {
+    not_started: 'Not indexed yet',
+    pending: 'Indexing',
+    completed: 'Indexed',
+    failed: 'Indexing failed',
+    skipped_no_credits: 'Skipped — no credits',
+};
+
+/** An open vocabulary: an unknown status renders raw rather than as a blank. */
+function vectorisationStatusLabel(status: string): string {
+    return VECTORISATION_STATUS_LABELS[status] ?? status;
+}
+
+// ─── Delivery ─────────────────────────────────────────────────────────────────
+
+/**
+ * Who delivers it, **where they collect it from**, and how big it is.
+ *
+ * ⚠ The responsible agency and the agency that *stores* the stock are the same
+ * agency, but they are not the same fact: every physical listing has the first,
+ * and only `pickup.source === "agency_storage"` has the second. That is the
+ * difference between "Littoral Express delivers it" and "Littoral Express is
+ * holding forty of them in its Bonaberi depot", and only this card says which.
+ */
+export function ProductDeliveryPanel({ product }: { product: VendorProductDetail }) {
+    const { deliveryAgency } = product;
+    const agencyName = deliveryAgency
+        ? partyName(
+              [{ source: 'businessName', value: deliveryAgency.businessName }],
+              { source: 'id', value: deliveryAgency.id },
+          )
+        : null;
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Delivery</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <DefinitionList>
                     <Definition
                         label="Responsible agency"
                         hint={
@@ -507,15 +849,144 @@ export function ProductCommercialsPanel({ product }: { product: VendorProductDet
                             </span>
                         )}
                     </Definition>
-                </DefinitionList>
 
-                <InventoryFigures
-                    inventory={product.inventory}
-                    scope="product"
-                />
+                    {product.pickup !== undefined ? (
+                        <Definition
+                            label="Collected from"
+                            hint={
+                                <InfoHint label="About the pickup location">
+                                    <p>
+                                        Where the agency picks the item up: from its own depot when
+                                        it stores the vendor&apos;s stock, or from one of the
+                                        vendor&apos;s addresses. A physical listing cannot be
+                                        activated without one.
+                                    </p>
+                                </InfoHint>
+                            }
+                        >
+                            <PickupValue product={product} agencyName={agencyName} />
+                        </Definition>
+                    ) : null}
+
+                    {product.shipping !== undefined && product.type === 'physical' ? (
+                        <>
+                            <Definition
+                                label="Default size and weight"
+                                hint={
+                                    <InfoHint label="About the default size">
+                                        <p>
+                                            The product-level measurements the vendor entered. A
+                                            variant that states its own size uses those instead —
+                                            see Variants.
+                                        </p>
+                                    </InfoHint>
+                                }
+                            >
+                                {product.shipping && dimensionsKnown(product.shipping) ? (
+                                    dimensionsLine(product.shipping)
+                                ) : (
+                                    <NotSet>Not entered</NotSet>
+                                )}
+                            </Definition>
+                            {product.shipping ? (
+                                <>
+                                    <Definition label="Handling time">
+                                        {product.shipping.handlingDays === null ? (
+                                            <NotSet />
+                                        ) : (
+                                            `${formatCount(product.shipping.handlingDays)} day${product.shipping.handlingDays === 1 ? '' : 's'} to prepare an order`
+                                        )}
+                                    </Definition>
+                                    <Definition label="Shipping">
+                                        {product.shipping.shippingEnabled ? 'Enabled' : 'Disabled'}
+                                        {product.shipping.originZipCode ? (
+                                            <span className="text-muted-foreground ml-2 text-xs">
+                                                from postcode {product.shipping.originZipCode}
+                                            </span>
+                                        ) : null}
+                                    </Definition>
+                                </>
+                            ) : null}
+                        </>
+                    ) : null}
+                </DefinitionList>
             </CardContent>
         </Card>
     );
+}
+
+function PickupValue({
+    product,
+    agencyName,
+}: {
+    product: VendorProductDetail;
+    agencyName: string | null;
+}) {
+    const { pickup } = product;
+
+    if (!pickup) {
+        return product.type === 'physical' ? (
+            <span className="text-warning text-sm">
+                No pickup location is set. A physical listing cannot be activated without one.
+            </span>
+        ) : (
+            <NotSet>Not applicable — nothing is collected for a {product.type} listing</NotSet>
+        );
+    }
+
+    const stored = pickup.source === 'agency_storage';
+    const address = pickup.address;
+
+    return (
+        <div className="space-y-1">
+            <p className="font-medium">
+                {stored
+                    ? `Stored by ${agencyName ?? 'the responsible agency'}`
+                    : pickup.source === 'vendor_address'
+                      ? "The vendor's own address"
+                      : pickup.source}
+            </p>
+            {address ? (
+                <p className="text-sm">
+                    {address.label ? <span className="font-medium">{address.label} — </span> : null}
+                    {address.formattedAddress ?? <NotSet>No address details</NotSet>}
+                </p>
+            ) : (
+                <p className="text-warning text-xs">
+                    {stored
+                        ? 'The depot it names no longer exists, and the agency has no other to fall back to.'
+                        : 'The vendor address it names no longer exists — the activation check reports this.'}
+                </p>
+            )}
+            {pickup.isPrimaryFallback ? (
+                <p className="text-muted-foreground text-xs">
+                    The agency&apos;s primary depot — no depot was chosen, or the one chosen was
+                    since deleted.
+                </p>
+            ) : null}
+        </div>
+    );
+}
+
+function dimensionsKnown(d: ProductDimensions): boolean {
+    return d.lengthCm !== null || d.widthCm !== null || d.heightCm !== null || d.weightG !== null;
+}
+
+/** What the vendor entered, and only that — an unknown measurement is absent, never 0. */
+function dimensionsLine(d: ProductDimensions): string {
+    const parts: string[] = [];
+    const box = [d.lengthCm, d.widthCm, d.heightCm];
+
+    if (box.every((value) => value !== null)) {
+        parts.push(`${box.map((value) => formatCount(value as number)).join(' × ')} cm (L × W × H)`);
+    } else {
+        if (d.lengthCm !== null) parts.push(`length ${formatCount(d.lengthCm)} cm`);
+        if (d.widthCm !== null) parts.push(`width ${formatCount(d.widthCm)} cm`);
+        if (d.heightCm !== null) parts.push(`height ${formatCount(d.heightCm)} cm`);
+    }
+    if (d.weightG !== null) parts.push(`${formatCount(d.weightG)} g`);
+
+    return parts.join(' · ');
 }
 
 /**
@@ -778,6 +1249,22 @@ export function ProductVariantsPanel({ product }: { product: VendorProductDetail
                     </p>
                 ) : null}
 
+                {(product.options ?? []).length > 0 ? (
+                    <DefinitionList>
+                        {(product.options ?? []).map((option) => (
+                            <Definition key={option.id} label={option.name}>
+                                <div className="flex flex-wrap gap-1">
+                                    {option.values.map((value) => (
+                                        <Badge key={value.id} variant="outline" className="text-xs">
+                                            {value.value}
+                                        </Badge>
+                                    ))}
+                                </div>
+                            </Definition>
+                        ))}
+                    </DefinitionList>
+                ) : null}
+
                 <ul className="space-y-4">
                     {variants.map((variant) => (
                         <li key={variant.id}>
@@ -790,6 +1277,7 @@ export function ProductVariantsPanel({ product }: { product: VendorProductDetail
                                 `formatMoney` falls back to the plain number there. */}
                             <VariantCard
                                 variant={variant}
+                                product={product}
                                 currency={product.pricing?.currency ?? null}
                             />
                         </li>
@@ -800,18 +1288,179 @@ export function ProductVariantsPanel({ product }: { product: VendorProductDetail
     );
 }
 
-function VariantCard({
+/**
+ * What tells one variant from another: its option values (`Size: S · Colour:
+ * Red`), else its name, else its SKU. The same label heads its images.
+ */
+function variantLabel(variant: ProductVariant): string {
+    const values = variant.optionValues ?? [];
+    if (values.length > 0) {
+        return values
+            .map((v) => (v.optionName ? `${v.optionName}: ${v.value}` : v.value))
+            .join(' · ');
+    }
+    return variant.name ?? variant.sku;
+}
+
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const BOOKING_MODE_LABELS: Record<string, string> = {
+    calendar: 'Calendar — the customer picks a free slot',
+    manual: 'Manual — the vendor confirms each request',
+    capacity: 'Capacity — several bookings share a slot',
+};
+
+/**
+ * Everything the vendor set on one variant beyond its price and stock — the
+ * rows the old card had no room for. Each is rendered only when it applies to
+ * this variant's kind, and each is absent (not blank) against an older service.
+ */
+function VariantSettings({
     variant,
+    product,
     currency,
 }: {
     variant: ProductVariant;
+    product: VendorProductDetail;
+    currency: string | null;
+}) {
+    const ownFiles = variant.files;
+    const { service, digital } = variant;
+
+    return (
+        <>
+            {variant.bargain !== undefined && product.type !== 'service' ? (
+                <Definition label="Negotiable up to">
+                    {variant.bargain ? (
+                        <div className="space-y-1">
+                            <p>
+                                {formatMoney(variant.bargain.maxPrice, currency)}
+                                <span className="text-muted-foreground ml-2 text-xs">
+                                    from {formatMoney(variant.bargain.minPrice, currency)}
+                                </span>
+                            </p>
+                            <BargainState live={variant.bargainable} />
+                        </div>
+                    ) : (
+                        <NotSet>Not negotiable</NotSet>
+                    )}
+                </Definition>
+            ) : null}
+
+            {variant.dimensions !== undefined && product.type === 'physical' ? (
+                <Definition label="Size and weight">
+                    {variant.dimensions && dimensionsKnown(variant.dimensions) ? (
+                        dimensionsLine(variant.dimensions)
+                    ) : (
+                        <NotSet>
+                            {product.shipping && dimensionsKnown(product.shipping)
+                                ? `Uses the product's defaults — ${dimensionsLine(product.shipping)}`
+                                : 'Not entered, here or on the product'}
+                        </NotSet>
+                    )}
+                </Definition>
+            ) : null}
+
+            {digital ? (
+                <>
+                    <Definition label="Download file">
+                        {digital.asset ? (
+                            <span>
+                                {digital.asset.originalName}
+                                <span className="text-muted-foreground ml-2 text-xs">
+                                    {[digital.asset.mimeType, formatBytes(digital.asset.size)]
+                                        .filter(Boolean)
+                                        .join(' · ')}
+                                </span>
+                            </span>
+                        ) : (
+                            <span className="text-warning text-sm">
+                                No file uploaded yet — this format cannot be sold.
+                            </span>
+                        )}
+                    </Definition>
+                    <Definition label="Download limits">
+                        {digital.maxDownloads === null
+                            ? 'Unlimited downloads'
+                            : `${formatCount(digital.maxDownloads)} download${digital.maxDownloads === 1 ? '' : 's'}`}
+                        {' · '}
+                        {digital.expiresAfterDays === null
+                            ? 'never expires'
+                            : `expires ${formatCount(digital.expiresAfterDays)} day${digital.expiresAfterDays === 1 ? '' : 's'} after purchase`}
+                    </Definition>
+                </>
+            ) : null}
+
+            {service ? (
+                <>
+                    <Definition label="Duration">
+                        {formatCount(service.durationMinutes)} min
+                        <span className="text-muted-foreground ml-2 text-xs">
+                            the price is per this length, prorated
+                        </span>
+                    </Definition>
+                    <Definition label="Buffers">
+                        {formatCount(service.bufferBeforeMinutes)} min before ·{' '}
+                        {formatCount(service.bufferAfterMinutes)} min after
+                    </Definition>
+                    <Definition label="Booking">
+                        {BOOKING_MODE_LABELS[service.bookingMode] ?? service.bookingMode}
+                        {service.maxBookings !== null
+                            ? ` · ${formatCount(service.maxBookings)} per slot`
+                            : ''}
+                    </Definition>
+                    <Definition label="Peak hours">
+                        {service.peakHours ? (
+                            <span>
+                                {service.peakHours.daysOfWeek.length === 0
+                                    ? 'Every day'
+                                    : service.peakHours.daysOfWeek
+                                          .map((day) => WEEKDAYS[day] ?? String(day))
+                                          .join(', ')}
+                                , {service.peakHours.startTime}–{service.peakHours.endTime}:{' '}
+                                {service.peakHours.priceType === 'percentage'
+                                    ? `+${formatCount(service.peakHours.value)}%`
+                                    : service.peakHours.priceType === 'fixed'
+                                      ? `+${formatMoney(service.peakHours.value, currency)}`
+                                      : `${service.peakHours.priceType} ${service.peakHours.value}`}
+                            </span>
+                        ) : (
+                            <NotSet>No surcharge</NotSet>
+                        )}
+                    </Definition>
+                </>
+            ) : null}
+
+            {ownFiles !== undefined ? (
+                <Definition label="Images">
+                    {ownFiles.length > 0 ? (
+                        `${formatCount(ownFiles.length)} of its own — shown under Images and files`
+                    ) : (
+                        <NotSet>None of its own — customers see the product&apos;s pictures</NotSet>
+                    )}
+                </Definition>
+            ) : null}
+        </>
+    );
+}
+
+function VariantCard({
+    variant,
+    product,
+    currency,
+}: {
+    variant: ProductVariant;
+    product: VendorProductDetail;
     currency: string | null;
 }) {
     return (
         <div className="space-y-3 rounded-lg border p-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0 space-y-1">
-                    <p className="font-medium">{variant.name ?? variant.sku}</p>
+                    <p className="font-medium">{variantLabel(variant)}</p>
+                    {(variant.optionValues ?? []).length > 0 && variant.name ? (
+                        <p className="text-muted-foreground text-xs">{variant.name}</p>
+                    ) : null}
                     <p className="text-muted-foreground flex flex-wrap items-center gap-1.5 text-xs">
                         {/* An SKU is the vendor's own reference and the thing an
                             operator pastes into their spreadsheet — `plain`, so it
@@ -841,6 +1490,7 @@ function VariantCard({
                         </span>
                     ) : null}
                 </Definition>
+                <VariantSettings variant={variant} product={product} currency={currency} />
             </DefinitionList>
 
             <InventoryFigures inventory={variant.inventory} scope="variant" />

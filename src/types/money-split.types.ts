@@ -124,7 +124,12 @@ export interface MoneyLine {
     releasedAt: string | null;
     requiresCashSettlement: boolean;
     cashSettledAt: string | null;
-    /** `order_not_completed` · `hold_window` · `cash_not_settled`. Several may apply. */
+    /**
+     * `order_not_completed` · `hold_window` · `cash_not_settled` · `paused`
+     * (2026-10-05). Several may apply. ⚠ `order_not_completed` kept its name when
+     * the hold moved from completion to DELIVERY, so it now means *not delivered
+     * yet* — label it by meaning, never by its spelling.
+     */
     waitingOn: string[];
 }
 
@@ -261,9 +266,13 @@ const STATUS_LABELS: Record<string, string> = {
 export const lineStatusLabel = (value: string | null | undefined) => lookup(STATUS_LABELS, value);
 
 const WAIT_LABELS: Record<string, string> = {
-    order_not_completed: 'Waiting for the order to complete',
+    // The value predates 2026-10-05, when the hold started moving from the order's
+    // completion to its delivery; jovi-mall kept the name as a wire value.
+    order_not_completed: 'Not delivered yet',
     hold_window: 'In the hold window',
     cash_not_settled: 'Waiting for the cash to reach the platform',
+    // Nothing releases until an administrator resumes it — see the payout card.
+    paused: 'Paused',
 };
 export const waitLabel = (value: string | null | undefined) => lookup(WAIT_LABELS, value);
 

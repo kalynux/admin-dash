@@ -1072,6 +1072,45 @@ export function vendorProductDetailFixture(
         vendorId: '6650aa11bb22cc33dd44ee55',
         title: 'Plantain — 1 kg',
         slug: 'plantain-1kg',
+        description: 'Ripe plantain from Njombé.\nSold by the kilo.',
+        seo: { title: 'Fresh plantain — Douala', description: null },
+        vectorisation: { enabled: true, status: 'completed' },
+        options: [
+            {
+                id: '6614aabbccddeeff00112233',
+                name: 'Weight',
+                position: 1,
+                values: [{ id: '6615aabbccddeeff00112233', value: '1 kg' }],
+            },
+        ],
+        shipping: {
+            weightG: 1100,
+            lengthCm: 32,
+            widthCm: 22,
+            heightCm: 14,
+            originZipCode: null,
+            handlingDays: 1,
+            shippingEnabled: true,
+        },
+        // ⚠ Warehoused, so the agency HOSTS it — the awkward case again: the
+        // depot is a non-primary one, named on purpose.
+        pickup: {
+            source: 'agency_storage',
+            vendorAddressId: null,
+            agencyAddressId: '6617aabbccddeeff00112233',
+            address: {
+                label: 'Bonaberi depot',
+                formattedAddress: 'Rue 9, Bonaberi, Douala',
+                addressLine1: 'Rue 9',
+                addressLine2: null,
+                city: 'Douala',
+                state: 'Littoral',
+                country: 'CM',
+                coordinates: null,
+            },
+            isPrimaryFallback: false,
+        },
+        digital: null,
         categories: [{ id: '66ff0c1e2a4b5c6d7e8f9a03', name: 'Produce', slug: 'produce' }],
         tags: ['produce', 'fresh'],
         type: 'physical',
@@ -1080,6 +1119,17 @@ export function vendorProductDetailFixture(
         hasVariants: true,
         suspension: null,
         media: {
+            files: [
+                {
+                    id: '6612aabbccddeeff00112233',
+                    key: 'vendors/6650aa11bb22cc33dd44ee55/plantain-1.jpg',
+                    url: 'https://cdn.example.com/vendors/6650aa11bb22cc33dd44ee55/plantain-1.jpg',
+                    access: 'public',
+                    mimeType: 'image/jpeg',
+                    size: 148213,
+                    originalName: 'plantain.jpg',
+                },
+            ],
             images: [
                 {
                     id: '6612aabbccddeeff00112233',
@@ -1137,6 +1187,21 @@ export function vendorProductDetailFixture(
                 status: 'active',
                 amount: 4500,
                 compareAtAmount: 5200,
+                optionValues: [
+                    {
+                        optionId: '6614aabbccddeeff00112233',
+                        optionName: 'Weight',
+                        valueId: '6615aabbccddeeff00112233',
+                        value: '1 kg',
+                    },
+                ],
+                // ⚠ `minPrice` IS `amount` — the backend keeps them identical.
+                bargain: { minPrice: 4500, maxPrice: 5500 },
+                bargainable: true,
+                dimensions: { weightG: 1000, lengthCm: 30, widthCm: 20, heightCm: 12 },
+                files: [],
+                digital: null,
+                service: null,
                 inventory: {
                     tracked: true,
                     available: 42,
@@ -1198,7 +1263,12 @@ export function untrackedProductDetailFixture(
         inventory: untracked,
         deliveryAgency: null,
         storage: null,
-        media: { images: [], primaryImage: null },
+        media: { images: [], primaryImage: null, files: [] },
+        options: [],
+        shipping: null,
+        pickup: null,
+        digital: { isActive: true },
+        vectorisation: { enabled: false, status: 'not_started' },
         /*
          * ⚠ The variant is untracked too, and that is not tidiness: the product
          * roll-up sets `tracked: false` when **any** active variant is
@@ -1215,6 +1285,22 @@ export function untrackedProductDetailFixture(
                 status: 'active',
                 amount: 2500,
                 compareAtAmount: null,
+                optionValues: [],
+                bargain: null,
+                bargainable: false,
+                dimensions: null,
+                files: [],
+                digital: {
+                    asset: {
+                        id: '6618aabbccddeeff00112233',
+                        originalName: 'recipes.pdf',
+                        mimeType: 'application/pdf',
+                        size: 2_400_000,
+                    },
+                    maxDownloads: 3,
+                    expiresAfterDays: null,
+                },
+                service: null,
                 inventory: untracked,
                 storage: null,
             },
@@ -1562,13 +1648,13 @@ const TIER_2_EXCLUSIONS: readonly string[] = [
     'users.roles.manage',
 ];
 
-/** Admin — the operational level, including the money. 110 of 132. */
+/** Admin — the operational level, including the money. 118 of 140. */
 export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
     (name) => !TIER_2_EXCLUSIONS.includes(name) && !name.startsWith('developer_tools.'),
 );
 
 /**
- * Support. **42 of 132**, and every one of them is routed — Support holds none
+ * Support. **47 of 140**, and every one of them is routed — Support holds none
  * of the four `†` permissions, so a Support administrator can use everything
  * they hold. That is new: the set was 24 with twelve unusable before Phase 5
  * built the `support` and `content` surfaces.
@@ -1613,6 +1699,16 @@ export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
  *
  * ⚠ **41 → 42 on 2026-10-04**: `money.splits.read` — one order's money split,
  * the per-order answer to a vendor's "why did I get this amount?" ticket.
+ *
+ * ⚠ **42 → 45 on 2026-10-05**: `reviews.read`, `reviews.moderate` and
+ * `reviews.delete` — owner decision, every tier moderates reviews. `reviews.delete`
+ * is `destructive` and the one name on `TIER_3_DESTRUCTIVE_ALLOWLIST`.
+ *
+ * ⚠ **45 → 47 on 2026-10-05**: `orders.refund.read` and `orders.refund.request`
+ * — Support reads the refund queue and RAISES a request, which holds the
+ * seller's earnings and sends nothing. `orders.refund.request` is the second
+ * `financial` name on `TIER_3_FINANCIAL_ALLOWLIST`; approving, settling and
+ * writing off stay at tiers 1–2.
  */
 export const TIER_3_PERMISSIONS: readonly string[] = [
     'agents.read',
@@ -1629,6 +1725,9 @@ export const TIER_3_PERMISSIONS: readonly string[] = [
     'cod.triage',
     'orders.read',
     'orders.disputes.read',
+    // Read the queue and raise a request — never approve, settle or send.
+    'orders.refund.read',
+    'orders.refund.request',
     'support.errors.lookup',
     'support.automation.lookup',
     'support.tickets.read',
@@ -1652,6 +1751,10 @@ export const TIER_3_PERMISSIONS: readonly string[] = [
     'users.bot_memory.reset',
     'vendors.read',
     'catalog.categories.read',
+    // All three, delete included — the one destructive name Support holds.
+    'reviews.read',
+    'reviews.moderate',
+    'reviews.delete',
     'shipments.read',
     'shipments.reassign',
     'shipments.tracking.read',

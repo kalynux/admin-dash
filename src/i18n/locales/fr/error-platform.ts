@@ -149,6 +149,11 @@ const platform = {
     CATEGORY_NOT_FOUND:
         'Cette catégorie vient d’être modifiée par quelqu’un d’autre. Actualisez la liste.',
 
+    // ─── Modération des avis (2026-10-05) ─────────────────────────────────────
+    REVIEW_STATUS_CONFLICT:
+        'Quelqu’un d’autre a déjà modifié cet avis. Actualisez pour voir son état actuel.',
+    REVIEW_NOT_FOUND: 'Cet avis a déjà été supprimé.',
+
     // ─── Téléphone d'un administrateur (code WhatsApp) ────────────────────────
     /* Voir le fichier anglais : les six arrivent depuis le 2026-09-15 (BR-025 § 2). */
     PHONE_VERIFICATION_NO_TARGET:
@@ -232,6 +237,33 @@ const platform = {
         'Un remboursement de la commande entière a déjà rendu cet argent. Le payer à nouveau paierait le client deux fois — réglez-le plutôt comme couvert par le remboursement de la commande.',
     DELIVERY_FEE_REFUND_NOT_COVERED:
         'Rien d’autre n’a rendu cet argent : il est toujours dû. Envoyez-le au client, puis indiquez comment vous l’avez payé.',
+
+    // ─── Suspension des gains ────────────────────────────────────────────────
+    EARNINGS_ALREADY_PAUSED:
+        'Ce versement est déjà suspendu — par un autre administrateur ou par la plateforme. Son motif est conservé ; rechargez pour le voir.',
+    EARNINGS_NOT_PAUSED:
+        'Ce versement n’est plus suspendu — quelqu’un l’a repris avant vous. Rien n’a été fait deux fois ; rechargez pour voir qui.',
+    EARNINGS_PAUSE_TARGET_NOT_FOUND:
+        'La plateforme n’a aucune commande ni réservation avec cet identifiant : il n’y a rien à suspendre ni à reprendre.',
+
+    // ─── La file des remboursements ──────────────────────────────────────────
+    REFUND_ALREADY_OPEN:
+        'Une demande de remboursement est déjà ouverte. Ouvrez-la depuis la file au lieu d’en créer une autre.',
+    REFUND_NO_DESTINATION:
+        'Aucun numéro où envoyer ce remboursement. Saisissez le numéro du client, avec la photo de son message qui le donne.',
+    REFUND_PAYOUT_UNAVAILABLE:
+        'Les virements automatiques de remboursement sont désactivés pour l’instant. Réglez-le hors plateforme, ou réessayez plus tard.',
+    REFUND_INSUFFICIENT_GATEWAY_BALANCE:
+        'Le compte de versement manque de fonds pour ce virement. Rien n’a été envoyé — réessayez une fois réapprovisionné, ou réglez-le hors plateforme.',
+    REFUND_DESTINATION_PROOF_REQUIRED:
+        'La photo du message du client manque ou n’est plus conservée. Téléversez-la à nouveau.',
+    REFUND_EXTERNAL_PROOF_REQUIRED:
+        'La preuve de paiement manque ou n’est plus conservée. Téléversez-la à nouveau.',
+    REFUND_REQUEST_NOT_FOUND: 'Cette demande de remboursement n’existe plus. Rechargez la file.',
+    REFUND_NOT_ELIGIBLE:
+        'Ce remboursement n’est pas possible ainsi. Un achat de forfait ou une recharge de crédits se rembourse uniquement en totalité.',
+    EARNINGS_CLAWBACK_NOTHING_OWED:
+        'Ce titulaire ne doit plus rien — des gains ultérieurs ont remboursé la dette.',
 };
 
 export default platform;
