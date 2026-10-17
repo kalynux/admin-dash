@@ -942,7 +942,9 @@ export function readCodExposure(gate: AssignabilityGate): CodExposureObserved | 
 export interface AgentListQuery {
     /**
      * Matches the name, the email, the phone, or — when the term is a 24-hex
-     * string — the agent id. Trimmed 1–120; an **empty `?search=` is rejected**.
+     * string — the agent id **or their user id** (the user id since 2026-10-12,
+     * BR-028). An id matches only whole. Trimmed 1–120; an **empty `?search=` is
+     * rejected**.
      *
      * The id branch matters more than it looks: every other admin screen
      * identifies an agent by id, so pasting one into the only box on the directory

@@ -29,6 +29,222 @@ two before it closed with Phase F on 2026-08-27 (`GET /files/library`, `POST /fi
 pins the services against the map — so take it by grepping each ROUTE-MAP path in
 `src/services`, not by reading it here.
 
+✅ **Transactions built 2026-10-13 — every money movement in one list, a filter per column, and a
+detail page (BR-027).** Contract: [transactions.md](api-doc/admin/api/transactions.md) ·
+[FRONTEND-CHANGELOG-platform-transactions.md](api-doc/admin/FRONTEND-CHANGELOG-platform-transactions.md) ·
+[the reply](api-doc/admin/dashboard/backend-requests/RESPONSE-2026-10-12-BR-027.md); `money.md`,
+`permissions.md` and `api/README.md` re-copied, and an **eighth source mirror** taken,
+[`transaction-dto.ts`](api-doc/admin/transaction-dto.ts), guarded by `transactions.types.test.ts`.
+**Upstream uncommitted in wi-admin, not deployed, never called live.** Three direct reads —
+`GET /money/transactions` · `…/summary` · `…/:kind/:id` → `listTransactions` /
+`getTransactionSummary` / `getTransaction` — and **Money › Transactions**
+(`/dashboard/money/transactions[/:kind/:id]`). **Nine kinds** (`payment` · `plan_purchase` ·
+`credit_topup` · `refund` · `delivery_fee_refund` · `payout` · `cod_deposit` · `cod_remittance` ·
+`ledger_entry`). ⛔ **No permission of its own**: the route opens on any ONE of five existing reads
+and the service sends each kind only to a caller who can already read it — Support gets six kinds,
+only tier 1 gets `platform` / `platform_ai` ledger rows. **Nothing in `src/` checks a tier**;
+`meta.withheld` is rendered as a notice (perturbation-tested). The nav entry is declared **last**
+under Money so `/dashboard/money` still lands on Payouts / Payments. ⚠ **A cursor, no `page`, no
+`total`** — [`use-cursor-feed.ts`](src/hooks/use-cursor-feed.ts) appends each page once (⚠
+`AccountActivityPanel`'s older pattern shows the last page twice while the next loads) and starts
+again when filters or sort change; the count comes from `/summary`. ⚠ **Both query schemas are
+strict**, so [`lib/transaction-filters.ts`](src/lib/transaction-filters.ts) holds back a half-typed
+id, a malformed amount, an out-of-vocabulary `kind` and an impossible range, and says why under the
+box. ⛔ **Amount: `gt` / `lt` send `amountGt` / `amountLt`, never `n ± 1`** — amounts are not
+guaranteed whole (perturbation-tested). ⚠ **`direction` is the PLATFORM's side and never follows
+the status** (a failed payment is `in`, `outcome: failed`) — the opposite of the account feed.
+⚠ **A filter on a column a kind lacks excludes that kind** (`?provider=MTN` returns no refund).
+⚠ **A date window always applies** (366 days by default) and `meta.window` is always shown.
+⛔ **Nothing is summed**: `/summary` cells are printed as sent — no grand total, no in-minus-out.
+⚠ `(kind, id)` is the key; `id` alone names nothing. The detail links to the existing screen for the
+five kinds with a `recordPath` (a map by `kind`, never a rewrite of the server's path) and renders
+`record` for the other four. ⚠ A customer `party` links nowhere — its id is not a user id.
+Measured: `dump-routes.js` **`TOTAL 316` = 315 routes**; `authz:matrix` unchanged; composites
+**18 `all` + 8 `any` = 26**. ✅ **The owner's three follow-ups are built — see the BR-030 block
+below.**
+
+✅ **BR-030 built 2026-10-15 — two more kinds, and the platform's own amounts held back by the
+SERVICE.** Reply: [RESPONSE-2026-10-15-BR-030.md](api-doc/admin/dashboard/backend-requests/RESPONSE-2026-10-15-BR-030.md);
+checklist: [FRONTEND-CHANGELOG-transactions-owner-decisions.md](api-doc/admin/FRONTEND-CHANGELOG-transactions-owner-decisions.md)
+(ticked in this copy only). `transactions.md`, `money.md`, `permissions.md`, the BR README and
+the `transaction-dto.ts` mirror re-copied. **Upstream uncommitted in wi-admin, not deployed.**
+**Eleven kinds**: `cod_collection` (*Cash paid at the door* — `cash`, `internal`, on
+`shipments.read`, so Support sees it: **seven kinds** for tier 3) and `earnings_adjustment`
+(*Refund-debt adjustment* — a write-off or a debt paid by a returned payout, **only** those two;
+`money.earnings.read`). Every row has **12 link keys** (`agentId`, `payoutId` new), read with
+`?? null` because an older wi-admin sends neither. ⚠ **One banknote is up to three rows and only
+one is `in`** (collection and agency deposit `internal`, remittance `in`). ⚠ `clawback_write_off`
+is **not** a ledger reason (nothing writes it) and left the label map. 🔴 **`money.earnings.platform.read`
+— the 143rd name, `financial`, tier 1 only** — guards `GET /money/earnings/platform` · `…/ledger` ·
+`…/summary` (**tier 2 now gets `403`**), and decides the split's and the transactions list's
+platform figures. The Earnings nav entry and its Overview tile gate on it with `can()`;
+⚠ **`developerOnly` now has NO users** (the mechanism in nav / `RequirePermission` / the shells is
+kept, unused) and `useIsDeveloper()` is called nowhere. 🔴 **The split's shape check rejected
+`totals.platform: null`**, which would have blanked the Money tab for Admin and Support the day
+wi-admin deployed — fixed and tested. `OrderMoneySplitPanel` reads the server through
+`platformAmountsShown()` in [`money-split.types.ts`](src/types/money-split.types.ts):
+`platformAmountsWithheld` `true` → rates, `false` → amounts, **absent (older wi-admin) → the
+permission, which an older `/permissions/me` never names, so it fails closed**. ⚠ **`null` means
+two things on the split** — *withheld* (`withheld: true`, *"Not shown at your level"*) and *not
+known yet* (an agent's share) — and they render differently (perturbation-tested). The
+*"hides, does not protect"* caveat from 2026-10-04 is gone; ⚠ the service still sends the
+vendor's figures, so the platform's share can be worked out by subtraction — the owner was told.
+Measured: `dump-routes.js` **`TOTAL 316`** (no route added), `authz:matrix` **143 / 120 / 47**.
+✅ **[BR-031](api-doc/admin/dashboard/backend-requests/BR-031-br030-doc-corrections.md) answered
+the same day** ([reply](api-doc/admin/dashboard/backend-requests/RESPONSE-2026-10-15-BR-031.md)):
+`permissions.md`'s level table (and its *"4 of 143"* line) and `money.md`'s three platform
+endpoint sections corrected upstream and re-copied, so `permissions.types.test.ts` is **green
+again** — the test was never loosened. Upstream now pins both itself (`test:authz`,
+`test:transactions`). ⏸ **Not decided by the owner** (BR-030 reply § 3c, nothing
+built): the Allocations list and detail still state the platform's commission and bargain fee to
+Admin, and a **vendor statement** (every tier, Support included) carries per-sale Commission and
+Bargain fee columns; the refund fee and plan/credit income are listed there too.
+
+🔴 **An id search matches only WHOLE, and only the right KIND of id — fixed client-side
+2026-10-12, backend half filed as
+[BR-028](api-doc/admin/dashboard/backend-requests/BR-028-search-by-id-finds-nothing.md).** Reported
+as *"searching Users by user id does not work at all"*. **Measured** (wi-admin's own
+`SearchUsersQuerySchema` + `buildFilter` against a throwaway mongod): the whole 24-character id
+finds the user; the shortened `665f1c…e5f0`, a prefix, a quoted id, `ObjectId("…")`, a pasted link
+and **the same person's customer/profile id** all answer `200` with zero rows. The rules live in
+[`lib/id-search.ts`](src/lib/id-search.ts). Three client fixes: `SearchInput`'s **`acceptsId`**
+strips the wrapper from a pasted id (⚠ opt-in — the log-text and error-code boxes search text);
+`describeSearchMiss()` gives a shortened, partial or stray whole id its own empty-state sentence on
+Users, Vendors, Agencies, Agents, Orders, Shipments, Tickets, Audit and the follower picker; and
+the Users screen links a stray whole id across to Vendors / Agencies / Agents / Orders with the
+term carried. 🔴 **`CopyableValue` rendered the STRING `665f1c…e5f0`, so selecting a shortened
+cell copied eleven characters no search can match** — beside `select-all` and a failed-copy
+message saying *"select it instead"*. The whole id now stays in the DOM: the middle is
+`font-size: 0` and the ellipsis a CSS `::after` (checked in Chrome and Edge against the built
+stylesheet — same 73px, selection reads all 24). ⚠ So **`toHaveTextContent` can no longer tell a
+shortened id from a whole one**; assert on `[data-shortened-middle]`. ⚠ **Audit `?search=` matches
+the actor's e-mail and name and the record's label — never an action, never an id**; the box said
+*"Action, actor, resource"*. A pasted id there now offers `targetId` / `actorId` from the empty
+state. ⚠ Platform logs' `actorId` box had `maxLength={24}`, which cut a pasted link before the id
+in it could be read.
+
+✅ **BR-028 answered 2026-10-12 — four of five asks built upstream, and this dashboard follows
+(2026-10-13).** Reply:
+[RESPONSE-2026-10-12-BR-028.md](api-doc/admin/dashboard/backend-requests/RESPONSE-2026-10-12-BR-028.md).
+**Upstream uncommitted in wi-admin, not deployed — ⚠ deploy wi-admin FIRST**: three sentences
+here are untrue against an older service (see below). `api/README.md`, `users.md`, `vendors.md`,
+`agencies.md`, `agents.md`, `orders.md`, `shipments.md`, `billing.md`, `support.md`, `audit.md`
+and the BR folder's README re-copied; the two neutralised links (`audit.md`'s Phase 5 plan,
+`support.md`'s wi-mall-protection changelog) re-neutralised by hand. ⚠ `api/README.md` now links
+`transactions.md`, which exists on neither side yet — it is the parallel BR-027 round's page.
+What changed on the wire, all as *wider matches* with no new field:
+**`GET /users?search=<24hex>` resolves a customer, vendor, agency or agent id to the account that
+owns it**; `/agencies` and `/agents` match the user id as `/vendors` always did; `/audit?search=`
+matches a whole id as target, related target or actor. ⛔ **A part of an id still does not match,
+by decision** (a run of digits is a phone fragment), so everything in `lib/id-search.ts` stands.
+What follows here: `accountSearchPath(id)` is **the** link from a profile id to a person —
+⛔ **the search, never `/dashboard/users/:id`**, which is still a `404` for a customer id. It is
+on the order detail (*Find the account*), the delivery-fee-refund and refund-request pages, and
+**a ticket's `CUSTOMER` entity now links** (eight of eleven types open; nothing guarantees
+whether such a ticket carries the customer id or the user id, and the search tries both).
+Users list: the row that comes back is the **account**, so its id is not the id typed —
+`foundByProfileId` says so, derived (no `meta` names the kind that matched); ⚠ **`role`, `status`
+and the date range still narrow an id match**, so a filtered miss offers *Search this id alone*
+before anything else; the Vendors / Agencies / Agents cross-links are **gone** (dead ends now)
+and Orders stays. Audit: a searched id that found rows offers *Only entries about it* / *by it*
+(`targetId` / `actorId`, lower-cased — exact string filters); a pasted **UUID** is a session id
+or a request reference, which the search reads neither of, so it offers `targetId` /
+`correlationId`. Tickets: `search` reads a ticket's **own** id only, so `?entityId=` — on the
+wire all along and sent by nothing — is now honoured, chipped, and offered from a whole-id miss
+(*Tickets about this record*). ⚠ **Untrue against a pre-BR-028 wi-admin**: the Users empty
+state's *"not a person's id"*, the Agencies/Agents placeholders' *"or user id"*, and the audit
+empty state's *"nothing involves that id"*. The reply offered two extras and the owner decided both on
+2026-10-13: ✅ **a `meta` hint naming which kind of id matched — BUILT both sides
+(2026-10-13 / 14)**, see the BR-029 block below;
+⛔ **`customerUserId` on the order detail is DECLINED** — landing on a one-row search and clicking
+through is fine, so do not ask for it again.
+
+✅ **`meta.idMatch` on `GET /users` — BR-029, answered 2026-10-13, built here 2026-10-14.** Reply:
+[RESPONSE-2026-10-13-BR-029.md](api-doc/admin/dashboard/backend-requests/RESPONSE-2026-10-13-BR-029.md);
+`users.md` (§ `meta.idMatch`) and the BR folder's README re-copied. **Upstream uncommitted, not
+deployed — deploy order does NOT matter**: an older wi-admin sends no key and the screen falls
+back to the BR-028 derivation. `{ kinds: string[] }`, in the fixed order `user · customer · vendor
+· agency · agent`, **open vocabulary** (an unknown kind prints raw via `describeIdKinds()` in
+`lib/id-search.ts`). ⚠ **Absent ≠ `[]`**: absent is *no id read, or an older service*; `[]` is
+*a whole id that is nobody's*. `readIdMatch()` in `users.service.ts` keeps the key **absent**
+(spread, never `undefined` under the key) and treats a malformed value as absent. 🔴 **It describes
+the ID, not the page** — `role` / `status` / dates do not touch it — and that is what
+`explainIdSearch()` in `UsersList.tsx` is built on: `[]` → *nobody's*, Orders link, **no** *Search
+this id alone* even under a filter (the derivation offered it there, and it led to a second empty
+page — perturbation-tested); kinds + a filter → *a filter is hiding the account* + *Search this
+id alone*; kinds + **no** filter → a profile with **no account behind it**, worded as a data fault,
+no buttons. ⚠ `["user", "customer"]` is real (two accounts, one id): the row whose `id` equals the
+term is the `user` one. Not used by the follower picker (`AddFollowerDialog`) yet, which calls the
+same route.
+
+✅ **Tickets say WHO, and followers are managed — built 2026-10-11.** Contract:
+[FRONTEND-CHANGELOG-ticket-people-and-followers.md](api-doc/admin/FRONTEND-CHANGELOG-ticket-people-and-followers.md)
+(checklist ticked **in this copy only**); `support.md` re-copied (its link to the unmirrored
+wi-mall-protection changelog neutralised), `users.md` already byte-identical. **Upstream
+uncommitted in wi-admin AND jovi-mall, not deployed.** No new route, no new permission.
+`createdBy`, `assignedTo` and each `followers[]` entry are one shape (`TicketPerson` in
+[`support.types.ts`](src/types/support.types.ts)): `userId` · `profileId` · `name` · `businessName`
+· `phone` · `email`. The rules live in [`lib/ticket-people.ts`](src/lib/ticket-people.ts) and
+render through `components/support/TicketPerson.tsx` (queue: `density="compact"`).
+⚠ **For a vendor or an agency `businessName` is the title and `name` the contact line.**
+⚠ **Two ids, two screens**: the name opens the role's screen with **`profileId`**; the user id
+opens `/users/:userId`. ⛔ **`role: "admin"` links nowhere** — its id is an `admin_accounts` id or
+the platform's automatic identity. ⚠ **Every looked-up field can be `null`** (deleted profile,
+closed account) and the row stays, with the role and the id. 🔴 **`assignedTo` is ALWAYS an
+object** — "routed to nobody" is every field `null` — and this client typed it `| null` and
+truthiness-checked it, so *Raised for* rendered an empty party; read it with `routedPartyOf()`.
+**Followers** (`TicketFollowersPanel` on the Overview, `AddFollowerDialog`): ⛔ **both controls are
+gated on `support.tickets.followers.manage` and NOTHING else — never `availableActions`**; the two
+routes skip the assignment lock and every tier holds the permission (perturbation-tested). Remove
+is hidden on `isCreator` / `isAssignee` / `role === "admin"` (`canRemoveFollower`). The picker is
+`GET /users?search=&role=`; ⚠ **a `users` row has no name**, so candidates are an e-mail or a
+phone and the search cannot find by name. ⚠ **Both writes answer the refreshed ticket detail**:
+held as `{ over: loaded, next }` so the next read drops it (perturbation-tested), and
+`isTicketDetail()` falls back to a re-read against an older service. 🔴 **The removal refusal
+arrives as a bare `403 PLATFORM_OPERATION_REJECTED`** — the changelog and `support.md` print
+`details.platformCode: TICKET_ACCESS_DENIED`, and wi-admin's `authorization` allowlist drops
+`platformCode` (the BR-025 asymmetry); `isFollowerRemovalRefused()` reads the status. ⚠ On a
+removal, `platformCode: TICKET_NOT_FOUND` is the **follower row**, not the ticket. ⚠ **Not built**:
+`holdsEarnings`, which the same `support.md` documents — it belongs to the wi-mall-protection round.
+
+✅ **COD restriction built 2026-10-11 — an administrator switches cash on delivery off for ONE
+customer or ONE agency, and back on.** Contract:
+[FRONTEND-CHANGELOG-cod-restrictions.md](api-doc/admin/FRONTEND-CHANGELOG-cod-restrictions.md);
+`users.md`, `agencies.md`, `permissions.md`, `authorization.md` and `api/README.md` re-copied,
+`api-doc/jovi-mall/error-codes.ts` re-taken (additive). **Upstream uncommitted in wi-admin AND
+jovi-mall, not deployed.** Six routes — `GET` · `PUT …/cod-restriction` and `POST
+…/cod-restriction/lift` on both `/users/:userId` and `/agencies/:agencyId` — are
+`get`/`restrict`/`lift` + `User…`/`Agency…` in the two services, and one shared pair of
+components: `components/cod/CodRestrictionPanel.tsx` (badge, who/when, the reason, one button) and
+`CodRestrictionDialog.tsx`. Types in
+[`cod-restriction.types.ts`](src/types/cod-restriction.types.ts). ⛔ **The body is `{ reason }` and
+nothing else** — no `restricted` boolean, the direction is the route — and ⚠ **the reason is
+required to LIFT as well as to restrict** (unlike Restore / Reactivate): lifting *erases* the stored
+restriction, so the Activity tab is the only history there is. ⛔ **Nothing predicts whether a basket
+or shipment may use cash** — the badge shows the switch; jovi-mall decides each case. ⛔ **The reason
+is internal**, labelled *"never shown to the customer / the agency"* wherever it renders. Read on
+`users.read` / `agencies.read` (**Support sees the state and the reason**); written on
+**`users.cod.restrict`** (unflagged) / **`agencies.cod.restrict`** (`financial`), tiers 1–2, button
+hidden otherwise — perturbation-tested. **User page**: shown only when
+`customerCodRestriction()` is not `undefined` — customer role, a real profile, **and the key
+present** (an older wi-admin omits it, and "unknown" must not read as "not restricted"); offered on a
+suspended account, state-only on a closed one. **Agency page**: on the Cash on delivery tab above
+the limit, and ⚠ **`AgencyCodLimitPanel` says so beside `headroom`** — headroom is an amount and
+knows nothing of the switch (`codRestricted` / `codRestrictedAt` on the limit report; the page's
+`codRestriction` prop wins when given, because a write's answer is newer than the panel's read).
+⚠ **A write's answer replaces the state without re-reading the record**, held as
+`{ over: record, restriction }` so the next load of the record drops it (perturbation-tested).
+⚠ `409 COD_RESTRICTION_UNCHANGED` (`details.platformCode`) is a **re-read, not a retry**: *"already
+restricted by ‹name›"*. ⚠ After `502`/`503` the dialog reads the state back **before** offering the
+button again — landed → closes; not landed → *Nothing changed*; unreadable → the submit is replaced
+by **Check again**. `AUTH_PROFILE_NOT_FOUND` now comes from two flows, so its catalogue sentence
+names neither. Four audit actions joined the two activity filters — and ⚠ **`AGENCY_AUDIT_ACTIONS`
+had held 3 of the service's 6** (`agencies.reject` and both `cod_limit` actions were never offered);
+it now holds all 8. Measured: `authz:matrix` **142 / 120 / 47**, `dump-routes.js` **`TOTAL 313` =
+312 routes**. ⚠ `api-doc/admin/README.md` was **not** re-copied: upstream's also links
+`FRONTEND-CHANGELOG-wi-mall-protection.md`, a different round (with `money.md` / `support.md`
+deltas) that is not built here.
+
 ✅ **The refund queue built 2026-10-05 — a 29th route group (`/refunds`, 12 routes), refund debt
 on Money, and four permissions.** Contract:
 [FRONTEND-CHANGELOG-refund-flow.md](api-doc/admin/FRONTEND-CHANGELOG-refund-flow.md) (**§ 11 is part
@@ -174,6 +390,15 @@ screen and tile were already Developer-only (2026-09-27). Measured: `dump-routes
 `users.close` row and the 132 / 110 / 42 tier table were added to
 `backend/admin/api-doc/api/permissions.md` and re-copied (byte-identical). On CI's clean runner
 those two were the **only** failures; the timeout set below passed there.
+
+✅ **Payer fee proposals labelled 2026-10-17 — labels only, no route, no action.** jovi-mall
+[ADR-A12](api-doc/jovi-mall/docs/ADR-A12-PAYER-FEE-PROPOSALS.md) (first jovi-mall ADR mirrored
+here, under `api-doc/jovi-mall/docs/`, with the context banner) lets the payer — vendor or
+customer — propose a delivery fee and the agency answer; `orders.md` re-copied (byte-identical).
+`proposals[]` rows may carry `proposedByRole` `vendor`/`customer`, `approver: agency`,
+`origin: payer`. Words live in `proposalProposerLabel` / `proposalApproverLabel` /
+`proposalOriginLabel` in `orders.types.ts` (an unknown value prints raw), rendered by
+`OrderDeliveryFeePanel` and tested in `OrderDeliveryFeePanel.test.tsx`. **Upstream not deployed.**
 
 ✅ **Customer-paid delivery built 2026-10-04 — read-only fields everywhere, plus ONE write: Settle.**
 Contract: [FRONTEND-CHANGELOG-customer-paid-delivery.md](api-doc/admin/FRONTEND-CHANGELOG-customer-paid-delivery.md)
@@ -699,7 +924,7 @@ pinned upstream by `test:list-strictness` — read it there rather than copying 
 [`src/lib/query.ts`](src/lib/query.ts) for this repository's one statement of the rule. Widening
 `listQuery` service-wide is still deliberately **not** done.
 
-**`npm test` — 3028 tests in 198 files, measured on 2026-10-05** at the close of the refund-queue round (+`RefundRequests.test.tsx`, +`RaiseRefundDialog.test.tsx`, +`RefundDebt.test.tsx`, +`refunds.types.test.ts`, +`refunds.service.test.ts`), 8 failures with 31 node processes up, all in `App`, `ArticleCreateDialog` and `CreateTicketDialog` — those three run alone gave **36/36**. **Before that, 2963 tests in 193 files** at the close of the reviews and earnings-pauses rounds (built side by side), 7 failures with 27 node processes up, all in `App` (the orders-index test that fails at `HEAD`), `ArticleCreateDialog`, `CreateTicketDialog` and `VendorProductDetail` — the last 32/32 alone, twice. **Before that, 2908 tests in 189 files** at the close of the full-product-detail round (+12 in `VendorProductDetail.test.tsx`), 10 failures with 18 node processes up, all in `App`, `ArticleCreateDialog`, `SearchInput` and `CreateTicketDialog`; those four run alone left 1 (`ArticleCreateDialog`, a cover test) — the same residue as the day before. **Before that, 2896 tests in 189 files, measured on 2026-10-04** at the close of the money-split round (+`OrderMoneySplitPanel.test.tsx`), 9 failures with 32 node processes up — the 2 `permissions.types` (`users.close`) plus 7 in `App`, `ArticleCreateDialog` and `CreateTicketDialog`; those three run alone left 1 (`ArticleCreateDialog`). **Before that, 2863 tests in 188 files** at the close of the customer-paid-delivery round (+`DeliveryFeeRefunds.test.tsx`, +4 service tests), 13 failures with 39 node processes up — the 2 `permissions.types` (`users.close`) plus 11 in `App`, `SearchInput`, `ArticleCreateDialog` and `CreateTicketDialog`; those four run alone left 3 (`ArticleCreateDialog` ×2, `CreateTicketDialog` ×1), none in a file the round touched. **Before that, 2832 tests in 186 files** at the close of the categories round (+`categories.service.test.ts`, +`CategoriesList.test.tsx`), 10 failures with 41 node processes up: the 2 `permissions.types` assertions red on `users.close` (upstream doc), and 8 in `App`, `SearchInput`, `ArticleCreateDialog` and `CreateTicketDialog` — **the same 9 of those fail at `HEAD` (`7131758`) in a throwaway worktree**, so pre-existing. **Before that, 2753 tests in 179 files, measured on 2026-10-01** at the close of the article-JSON round (+`article-body-json.test.ts`, +`ArticleBodyJson.test.tsx`), 9 failures in `App`, `SearchInput`, `ArticleCreateDialog` and `CreateTicketDialog` with 12 node processes up; all four files passed alone (3/3, 40/40). **Before that, 2731 tests in 177 files, measured on 2026-09-30** at the close of the resolve-unknown round (+`PayoutResolveUnknown.test.tsx`), 10 failures with 33 node processes up, all in `App`, `ArticleCreateDialog` and `CreateTicketDialog`; run together alone 6 still failed, and **the same 6 fail at `HEAD` (`079588f`) in a throwaway worktree** — pre-existing, not investigated. **Before that, 2715 tests in 176 files** at the close of the payment-routing round, with 7 failures in a run sharing the machine with 32 node processes, none in a file the round touched (`App`, `ArticleCreateDialog`, `CreateTicketDialog`, `UserDetail`); re-run alone all passed but one `ArticleCreateDialog` cover test, which then passed alone on a second run — `ArticleCreateDialog.test.tsx` is the sixth file in the contention pattern. **The previous figure was 2645 tests in 171 files, measured on 2026-09-27** at the close of the bot-memory round (+`ResetBotMemoryDialog.test.tsx`, −`permissions.pending.test.ts`), with 8 failures in a run that shared the machine with a build, all in `CreateTicketDialog`, `App` and `TicketAttachmentsPanel`; re-run alone, the 3 that remain are the ones recorded below as failing at `HEAD`. **The previous figure was 2629 tests in 170 files, measured on 2026-09-22** at the close of the COD-pool
+**`npm test` — 3322 tests in 213 files, measured on 2026-10-15** at the close of the BR-030 round (+9 in `OrderMoneySplitPanel`, `Transactions`, `navigation` and `transactions.types`), 11 failures with 14 node processes up: **1 expected** — `permissions.types.test.ts` *"states the same counts in prose"*, red on `permissions.md`'s level table until [BR-031](api-doc/admin/dashboard/backend-requests/BR-031-br030-doc-corrections.md) was answered and re-copied (green the same day) — and 10 in `App`, `SearchInput`, `ArticleCreateDialog`, `CreateTicketDialog` and `TicketFollowersPanel`; those five run alone left **2**, both `ArticleCreateDialog` cover tests, the recorded residue. **Before that, 3314 tests in 213 files, the same day,** at the close of the BR-029 round (+`meta.idMatch` tests in `users.service.test.ts` and `UsersList.test.tsx`, +`describeIdKinds` in `id-search.test.ts`), 8 failures with 13 node processes up, in `App` (1), `ArticleCreateDialog` (3), `CreateTicketDialog` (3) and `TicketFollowersPanel` (1); re-run alone the first three still failed — the recorded set, timeouts and the `HEAD` orders-index test — and `TicketFollowersPanel` gave **25/25 twice**, a different one of its tests having failed in a second mixed run. **Before that, 3291 tests in 212 files, measured on 2026-10-13** at the close of the transactions round (+`transactions.types.test.ts`, +`transaction-filters.test.ts`, +`transactions.service.test.ts`, +`use-cursor-feed.test.tsx`, +`Transactions.test.tsx`; the other two new files are the id-search round's), 5 failures with 36 node processes up, all in `App` (1), `ArticleCreateDialog` (3) and `CreateTicketDialog` (1) — the three files run alone gave **36/36**. **Before that, 3143 tests in 205 files, measured on 2026-10-11** at the close of the ticket-people round (+`ticket-people.test.ts`, +`TicketPerson.test.tsx`, +`TicketFollowersPanel.test.tsx`), 4 failures with 12 node processes up, all 20 s timeouts in `ArticleCreateDialog` (3) and `CreateTicketDialog` (1) — the two files run alone gave **13/13**. **Before that, 3076 tests in 202 files, the same day** at the close of the COD-restriction round (+`CodRestrictionPanel.test.tsx`, +`cod-restriction.service.test.ts`, +`UserDetailCodRestriction.test.tsx`, +`AgencyDetailCodRestriction.test.tsx`), 8 failures with 4 node processes up: 6 in `ArticleCreateDialog`, `CreateTicketDialog` and `VendorProductDetail` — all three passed alone — and **2 that were real**, `permissions.store.test.tsx`'s two hand-written `118`s (the Admin tier's size, now 120), fixed and green. **Before that, 3028 tests in 198 files, measured on 2026-10-05** at the close of the refund-queue round (+`RefundRequests.test.tsx`, +`RaiseRefundDialog.test.tsx`, +`RefundDebt.test.tsx`, +`refunds.types.test.ts`, +`refunds.service.test.ts`), 8 failures with 31 node processes up, all in `App`, `ArticleCreateDialog` and `CreateTicketDialog` — those three run alone gave **36/36**. **Before that, 2963 tests in 193 files** at the close of the reviews and earnings-pauses rounds (built side by side), 7 failures with 27 node processes up, all in `App` (the orders-index test that fails at `HEAD`), `ArticleCreateDialog`, `CreateTicketDialog` and `VendorProductDetail` — the last 32/32 alone, twice. **Before that, 2908 tests in 189 files** at the close of the full-product-detail round (+12 in `VendorProductDetail.test.tsx`), 10 failures with 18 node processes up, all in `App`, `ArticleCreateDialog`, `SearchInput` and `CreateTicketDialog`; those four run alone left 1 (`ArticleCreateDialog`, a cover test) — the same residue as the day before. **Before that, 2896 tests in 189 files, measured on 2026-10-04** at the close of the money-split round (+`OrderMoneySplitPanel.test.tsx`), 9 failures with 32 node processes up — the 2 `permissions.types` (`users.close`) plus 7 in `App`, `ArticleCreateDialog` and `CreateTicketDialog`; those three run alone left 1 (`ArticleCreateDialog`). **Before that, 2863 tests in 188 files** at the close of the customer-paid-delivery round (+`DeliveryFeeRefunds.test.tsx`, +4 service tests), 13 failures with 39 node processes up — the 2 `permissions.types` (`users.close`) plus 11 in `App`, `SearchInput`, `ArticleCreateDialog` and `CreateTicketDialog`; those four run alone left 3 (`ArticleCreateDialog` ×2, `CreateTicketDialog` ×1), none in a file the round touched. **Before that, 2832 tests in 186 files** at the close of the categories round (+`categories.service.test.ts`, +`CategoriesList.test.tsx`), 10 failures with 41 node processes up: the 2 `permissions.types` assertions red on `users.close` (upstream doc), and 8 in `App`, `SearchInput`, `ArticleCreateDialog` and `CreateTicketDialog` — **the same 9 of those fail at `HEAD` (`7131758`) in a throwaway worktree**, so pre-existing. **Before that, 2753 tests in 179 files, measured on 2026-10-01** at the close of the article-JSON round (+`article-body-json.test.ts`, +`ArticleBodyJson.test.tsx`), 9 failures in `App`, `SearchInput`, `ArticleCreateDialog` and `CreateTicketDialog` with 12 node processes up; all four files passed alone (3/3, 40/40). **Before that, 2731 tests in 177 files, measured on 2026-09-30** at the close of the resolve-unknown round (+`PayoutResolveUnknown.test.tsx`), 10 failures with 33 node processes up, all in `App`, `ArticleCreateDialog` and `CreateTicketDialog`; run together alone 6 still failed, and **the same 6 fail at `HEAD` (`079588f`) in a throwaway worktree** — pre-existing, not investigated. **Before that, 2715 tests in 176 files** at the close of the payment-routing round, with 7 failures in a run sharing the machine with 32 node processes, none in a file the round touched (`App`, `ArticleCreateDialog`, `CreateTicketDialog`, `UserDetail`); re-run alone all passed but one `ArticleCreateDialog` cover test, which then passed alone on a second run — `ArticleCreateDialog.test.tsx` is the sixth file in the contention pattern. **The previous figure was 2645 tests in 171 files, measured on 2026-09-27** at the close of the bot-memory round (+`ResetBotMemoryDialog.test.tsx`, −`permissions.pending.test.ts`), with 8 failures in a run that shared the machine with a build, all in `CreateTicketDialog`, `App` and `TicketAttachmentsPanel`; re-run alone, the 3 that remain are the ones recorded below as failing at `HEAD`. **The previous figure was 2629 tests in 170 files, measured on 2026-09-22** at the close of the COD-pool
 round (the two new files are `AssignabilityCheck.test.tsx` and `PlanFormDialog.test.tsx`), with
 **3 failures, none in a file the round touched**, and 16 node processes up. ⚠ **One of them is not
 a flake: App.test.tsx's *"lands the orders container on its index child"* failed in the full run,
@@ -840,7 +1065,7 @@ machine, not the code.
 npm run dev       # 5175, strictPort
 npm run build     # tsc -b && vite build   ← the typecheck runs here
 npm run lint      # eslint .
-npm test          # vitest run — 3028 tests in 198 files (2026-10-05, after the refund-queue round). No sibling dashboard has one.
+npm test          # vitest run — 3326 tests in 214 files (2026-10-17, after the payer-proposal labels; 7 failures, all in the recorded contention set). No sibling dashboard has one.
 ```
 
 **Every phase closes the same way**: typecheck, lint, tests, build, then a written summary naming
@@ -918,8 +1143,8 @@ links, the redirects deleted); they were restored the same day. After any re-cop
 relative-link check over the folder and count banners — see `_CONTEXT.md` § *Two deliberate
 differences*.
 
-**The deviations are now seven** — `auth-validator.ts` was taken on 2026-09-15 — so
-`diff -r backend/admin/api-doc frontend/admin-dash/api-doc/admin` reports seven extra names.
+**The deviations are now eight** — `auth-validator.ts` was taken on 2026-09-15 and `transaction-dto.ts` on 2026-10-13 — so
+`diff -r backend/admin/api-doc frontend/admin-dash/api-doc/admin` reports eight extra names.
 ⚠ **Compare against `backend/admin/api-doc`, not `backend/admin/docs`**: the contract moved to
 `api-doc/` upstream when the ADRs stayed in `docs/`, which is the same split described below, and
 this line named the wrong side of it. ⚠ **Use `--strip-trailing-cr`** — git hands this worktree
@@ -937,7 +1162,7 @@ before the move: 30 links worked on both sides, 12 only upstream, 34 only here, 
 the nesting and normalising every link to the upstream form took `backend/admin/docs` to **0 broken
 of 401** and this tree to its floor. The 21 `src/` comments were repointed in the same change.
 
-The remaining seven are **source mirrors** —
+The remaining eight are **source mirrors** ([`transaction-dto.ts`](api-doc/admin/transaction-dto.ts) is the eighth, 2026-10-13) —
 `error-codes.ts`, `article-blocks.ts`, `content-domain.ts`, `content-dto.ts`,
 `content-validators.ts`, [`public-article-dto.ts`](api-doc/admin/public-article-dto.ts), and
 [`auth-validator.ts`](api-doc/admin/auth-validator.ts) — the seventh, taken 2026-09-15 at the
@@ -1032,6 +1257,23 @@ broken answer (`false`) is also the answer jsdom gives**, which is why no test n
 `DataTable.test.tsx` now installs a fake observer and renders the loading state first, and it
 fails against the old hook. ⚠ **Any hook that measures an element must not assume the element
 exists at mount** — a component behind `DataState` renders something else first.
+
+### The page's name and actions stay pinned — built 2026-10-13
+
+On a page that passes `actions`, `PageContainer` pins the row holding the `<h1>` and the actions
+under the app bar. ⚠ **Only with actions** (a name alone would cost every list a row of table),
+and **the description is not in the pinned row** — it sits beneath and scrolls away, so on a
+phone the order is now name · actions · description. `PageHeader` is **gone as an export**: a
+sticky element travels only as far as its parent reaches, so the row has to be a direct child of
+the box that holds the content, and a header-sized wrapper would never pin
+(`PageContainer.test.tsx` pins that). `useStickyPageHeader` publishes the row's height on
+`<html>` as **`--page-header-height`**, which has two CSS readers: `DataTable`'s header row
+(`top: calc(app bar + var)`, so the column labels pin *under* the page header, not behind it) and
+`scroll-padding-top` in `index.css` (a control reached with Shift+Tab is not scrolled in beneath
+the pair). ⚠ The name is written literally in all three places — Tailwind cannot interpolate it.
+⚠ **jsdom has no layout, so no test can see any of this stick**; it was measured in headless Edge
+at 1400 px and 390 px (row at 64 / 56, table header at 116 / 152, rule on only while pinned).
+Anything else that pins under the app bar must add the variable to its own `top`.
 
 ### The three shared primitives — Phase A of the remediation round
 
@@ -1433,6 +1675,7 @@ what is outstanding is integration. See the table.
 | ~~🔴 **An agency's verdict and rejection reason are not on the wire**~~ | ✅ **They are, and WE were not reading them.** `kyc.status` and `kyc.rejectionReason` have been served since Phase 6 Step 4; `agencies.md`'s worked JSON shows four `kyc` members and `toAgencyDetailDto` emits six, so this dashboard transcribed the page and **derived the verdict from `agency.status`** — which cannot tell *never reviewed* from *reviewed and refused*, because `pending_verification` is where an agency sits on both sides of a rejection. A re-applying agency therefore read as one nobody had opened, and the sentence they were given was nowhere on screen. Fixed in `AgencyKyc`, the Verification panel and the review dialog on 2026-09-14. ⚠ **The standing lesson applies again: a transcription cannot be diffed and a copy can.** Fourth time a page in this bundle has lagged its service, third time we shipped the lag |
 | 🔴 **Nothing refuses an identifier edit on a CLOSED account** | ⏸ **Open, and worked around rather than reported yet.** jovi-mall's `AdminUserService.updateContact` checks no status and wi-admin adds no guard, so `PATCH` on a closed row **succeeds** — writing an email or phone back onto an account anonymised under ADR-A02, which can never sign in again, and **squatting** that identifier against the person's next account ([account-closure.md](api-doc/jovi-mall/me/account-closure.md): closure frees the number *so the same person may use it again*). `UserDetail` now hides **every** account action on a closed row, and the other four fail with copy that is false there: suspend/restore answer `409 USER_STATUS_CONFLICT` (*"another administrator changed this account first"*), both credential links answer `409 AUTH_ACCOUNT_SUSPENDED` (*"this account is suspended"*), and Telegram finds a deleted connection. ⚠ `closed` also joined the list's `?status=` filter, which `users.md` says exists *for* support and this client could not choose |
 | 🔴 **An administrator's name never reaches a ticket** | ⏸ **Open, and it is the one live backend ask.** `uploadedByActor.name` is the literal string **`"Admin"`** for every administrator upload, and `author.name` is the same on every administrator *note*. jovi-mall resolves the actor against its own `admins` collection; an administrator has no row in that database at all (ADR-004 D-1, the synthetic actor), so it falls back to the capitalised role — and the identical fallback yields `"Customer"`/`"Vendor"`/`"Agency"`/`"Agent"` for a **deleted profile**. ⚠ **`name === capitalise(role)` is the only signal that nothing resolved**; `isRolePlaceholderName` in [`lib/party.ts`](src/lib/party.ts) is the guard and `TicketActorName` is the rendering. Resolving it is wi-admin's job and is deliberately unwired: `GET /administrators/:adminId` needs `administrators.read`, which **Support does not hold** — and Support is the tier that reads tickets. The write path already knows the name in `X-Actor-Name` and drops it, so **a name snapshot on the attachment and note rows is the ask**, not a lookup |
+| ~~**A platform-wide Transactions screen**~~ | ✅ **Built 2026-10-13 — BR-027 was answered the day it was filed**, with three routes, nine kinds and no new permission. See the Transactions block at the top. The request asked for the server to grade rows by the reads a level already holds and to keep `platform` / `platform_ai` ledger rows to tier 1; both were built as asked, so nothing in `src/` checks a tier. ✅ The three owner decisions it raised went back as BR-030 and were **built 2026-10-15** (eleven kinds, `money.earnings.platform.read`); the doc slips that round left were [BR-031](api-doc/admin/dashboard/backend-requests/BR-031-br030-doc-corrections.md), corrected and re-copied the same day |
 
 ### Documentation inconsistencies
 

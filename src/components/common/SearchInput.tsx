@@ -4,6 +4,7 @@ import { Search, X } from 'lucide-react';
 import { FilterField } from '@/components/common/FilterField';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { extractPastedId } from '@/lib/id-search';
 
 interface SearchInputProps {
     /** The committed value — from the URL, not from the keystroke. */
@@ -29,6 +30,19 @@ interface SearchInputProps {
      * full input rather than a round-trip failure.
      */
     maxLength?: number;
+    /**
+     * This box's endpoint takes a 24-character id as well as text.
+     *
+     * An id only ever matches **whole** — see `lib/id-search.ts` — so an id that
+     * arrives wrapped (`"665f…"`, `ObjectId("665f…")`, a dashboard link) finds
+     * nothing and says nothing. With this set, the wrapper is dropped as it is
+     * typed or pasted and the box shows the id that will actually be sent.
+     *
+     * ⚠ **Opt-in, never the default.** Half the boxes built on this component
+     * search *text* — a log line, an error code, a workflow id — where a quoted
+     * id or a link is a legitimate term and rewriting it would change the search.
+     */
+    acceptsId?: boolean;
     className?: string;
 }
 
@@ -56,6 +70,7 @@ export function SearchInput({
     placeholder,
     delay = 300,
     maxLength = 120,
+    acceptsId = false,
     className,
 }: SearchInputProps) {
     /**
@@ -123,7 +138,12 @@ export function SearchInput({
                     placeholder={placeholder}
                     value={text}
                     maxLength={maxLength}
-                    onChange={(event) => setDraft(event.target.value)}
+                    onChange={(event) => {
+                        const typed = event.target.value;
+                        // Rewritten here rather than at commit, so the box never
+                        // shows one thing while the request carries another.
+                        setDraft(acceptsId ? (extractPastedId(typed) ?? typed) : typed);
+                    }}
                     className="pr-8 pl-8"
                 />
                 {text.length > 0 ? (

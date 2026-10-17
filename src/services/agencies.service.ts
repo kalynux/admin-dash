@@ -33,6 +33,7 @@ import { api, type RequestOptions } from '@/services/api';
 import { toAuditPage, type AuditPage } from '@/services/audit.service';
 import type { Paginated } from '@/types/api.types';
 import type { AuditEntry } from '@/types/audit.types';
+import type { CodRestrictionBody, CodRestrictionReport } from '@/types/cod-restriction.types';
 import type {
     Agency,
     AgencyActivityQuery,
@@ -457,6 +458,77 @@ export function releaseAgencyCodLimit(
         body,
         options,
     );
+}
+
+// ─── COD restriction (2026-10-10) — one read, two writes, all delegated ──────
+
+/**
+ * `GET /agencies/:agencyId/cod-restriction` · `agencies.read` (Support holds
+ * it) · delegated · not audited.
+ *
+ * Whether an administrator has switched cash on delivery off for this agency,
+ * with the reason and who did it. The same record is on the detail as
+ * `codRestriction`; this is the read the two writes are judged against, used
+ * after a `409 COD_RESTRICTION_UNCHANGED` and after a `502`/`503`.
+ */
+export function getAgencyCodRestriction(
+    agencyId: string,
+    options?: RequestOptions,
+): Promise<CodRestrictionReport> {
+    return api.get<CodRestrictionReport>(
+        `/agencies/${encodeURIComponent(agencyId)}/cod-restriction`,
+        options,
+    );
+}
+
+/**
+ * `PUT /agencies/:agencyId/cod-restriction` · **`agencies.cod.restrict`**
+ * (`financial`, tiers 1–2, **not Support**) · audited `agencies.cod.restrict`.
+ *
+ * Switches cash on delivery **off**: the agency receives no *new* COD work —
+ * auto-dispatch holds a COD shipment back and a vendor's dispatch is refused,
+ * `force` included. Parcels it holds, its cash chain, prepaid orders, its own
+ * `policies.cod.enabled` and its cash limit are all untouched, and nobody is
+ * notified.
+ *
+ * ⚠ **The body is `{ reason }` and nothing else** — strict, no `restricted`
+ * field; the direction is the route. ⚠ Compare-and-set: already restricted is
+ * `409` with `PLATFORM_CODE_COD_RESTRICTION_UNCHANGED`. Never retried here.
+ */
+export async function restrictAgencyCod(
+    agencyId: string,
+    body: CodRestrictionBody,
+    options?: RequestOptions,
+): Promise<{ report: CodRestrictionReport; message: string | undefined }> {
+    const { data, message } = await api.mutate<CodRestrictionReport>(
+        'PUT',
+        `/agencies/${encodeURIComponent(agencyId)}/cod-restriction`,
+        { reason: body.reason.trim() },
+        options,
+    );
+    return { report: data, message };
+}
+
+/**
+ * `POST /agencies/:agencyId/cod-restriction/lift` · `agencies.cod.restrict` —
+ * the same permission, **its own audit action** (`agencies.cod.unrestrict`).
+ *
+ * Back **on**, and back to exactly what the agency had configured. ⚠ **`reason`
+ * is required here too**, unlike `reactivateAgency`: lifting clears the stored
+ * restriction, so the audit row is the only record that it existed.
+ */
+export async function liftAgencyCodRestriction(
+    agencyId: string,
+    body: CodRestrictionBody,
+    options?: RequestOptions,
+): Promise<{ report: CodRestrictionReport; message: string | undefined }> {
+    const { data, message } = await api.mutate<CodRestrictionReport>(
+        'POST',
+        `/agencies/${encodeURIComponent(agencyId)}/cod-restriction/lift`,
+        { reason: body.reason.trim() },
+        options,
+    );
+    return { report: data, message };
 }
 
 /**

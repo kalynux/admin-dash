@@ -224,6 +224,7 @@ export function PlansList() {
                         onChange={(next) => set({ search: next || null }, { replace: true })}
                         label="Search plans"
                         placeholder="Code, name or id"
+                    acceptsId
                     />
 
                     <FilterField label="Role" htmlFor="plan-role-filter">

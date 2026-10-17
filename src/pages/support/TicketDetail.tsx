@@ -12,7 +12,9 @@ import { TierBadge } from '@/components/layout/TierBadge';
 import { EarningsPauseCard } from '@/components/money/EarningsPauseCard';
 import { TicketAttachmentsPanel } from '@/components/support/TicketAttachmentsPanel';
 import { TicketEntityLink } from '@/components/support/TicketEntityLink';
+import { TicketFollowersPanel } from '@/components/support/TicketFollowersPanel';
 import { TicketNotesPanel } from '@/components/support/TicketNotesPanel';
+import { TicketPerson } from '@/components/support/TicketPerson';
 import { AssignTicketDialog } from '@/components/support/TicketWriteDialogs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,6 +25,7 @@ import { useAsyncData } from '@/hooks/use-async-data';
 import { resolveTimeZone } from '@/lib/datetime';
 import { formatInstantInZone, humaniseEnum } from '@/lib/format';
 import { notify } from '@/lib/notify';
+import { routedPartyOf } from '@/lib/ticket-people';
 import {
     claimTicket,
     closeTicket,
@@ -32,7 +35,11 @@ import {
 import { useCan, useAdmin } from '@/store';
 import { ApiError, CODE_CLIENT_INVALID_ID } from '@/types/api.types';
 import type { PauseKind } from '@/types/earnings-pause.types';
-import { CODE_TICKET_ALREADY_ASSIGNED, type TicketEntityRef } from '@/types/support.types';
+import {
+    CODE_TICKET_ALREADY_ASSIGNED,
+    type TicketDetail as TicketDetailRecord,
+    type TicketEntityRef,
+} from '@/types/support.types';
 
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
 
@@ -55,6 +62,11 @@ const OBJECT_ID = /^[0-9a-f]{24}$/i;
  * ── A 403 on a write is the assignment lock ───────────────────────────────────
  * You can see the ticket; another administrator holds it. Different layer,
  * different remedy — and the only one of the three that says why.
+ *
+ * ── ⚠ Followers are the exception to the first rule above (2026-10-10) ───────
+ * Adding and removing a follower is open to every tier on any ticket that
+ * opens here, and skips the assignment lock. `TicketFollowersPanel` gates on
+ * its permission alone and must never be handed `availableActions`.
  */
 export function TicketDetail() {
     const { ticketId = '' } = useParams();
@@ -110,6 +122,18 @@ function TicketDetailScreen({ ticketId }: { ticketId: string }) {
         getTicket(ticketId, { signal }),
     );
 
+    /**
+     * The ticket as a follower write answered it, **kept beside the read it was
+     * answered over**. Both follower routes answer the refreshed detail, so the
+     * screen is replaced from the response and nothing is re-read. It wins only
+     * while that same read is on screen: any later load — Refresh, a claim, a
+     * close — brings a newer answer from the service and this one is dropped.
+     */
+    const [written, setWritten] = useState<{
+        over: TicketDetailRecord;
+        next: TicketDetailRecord;
+    } | null>(null);
+
     function reconcile() {
         setReloadToken((token) => token + 1);
     }
@@ -157,8 +181,11 @@ function TicketDetailScreen({ ticketId }: { ticketId: string }) {
         );
     }
 
-    const record = ticket.data;
+    const loaded = ticket.data;
+    const record = written?.over === loaded ? written.next : loaded;
     const closed = record.terminalAt !== null;
+    const routedTo = routedPartyOf(record.assignedTo);
+    const creator = record.createdBy;
     const payoutTarget = payoutTargetOf(record.entity);
 
     return (
@@ -308,20 +335,24 @@ function TicketDetailScreen({ ticketId }: { ticketId: string }) {
                                                 directory needs.
                                             </p>
                                             {/*
-                                              ⚠ Four types do not link, for three
+                                              ⚠ Three types do not link, for two
                                               different reasons, and saying so is
                                               what stops the absence being read as
-                                              a broken join. See
-                                              `TicketEntityLink` for the CUSTOMER
-                                              disagreement with `support.md`.
+                                              a broken join. A customer links to a
+                                              SEARCH since BR-028 — see
+                                              `TicketEntityLink` for why it is
+                                              never the detail route.
                                             */}
                                             <p>
+                                                A customer id is not a user id, so it opens a
+                                                search of the user directory for the account that
+                                                owns it — a list of one, or none.
+                                            </p>
+                                            <p>
                                                 Bookings and deliveries have no screen on this
-                                                dashboard, <strong>Other</strong> names no record
-                                                by definition, and a customer id belongs to a
-                                                different collection from the user directory — so
-                                                those four show the id instead of a link that
-                                                could not resolve.
+                                                dashboard and <strong>Other</strong> names no
+                                                record by definition — so those three show the id
+                                                instead of a link that could not resolve.
                                             </p>
                                         </InfoHint>
                                     }
@@ -440,43 +471,63 @@ function TicketDetailScreen({ ticketId }: { ticketId: string }) {
                                         </InfoHint>
                                     }
                                 >
-                                    {record.assignedTo ? (
-                                        <span className="capitalize">
-                                            {record.assignedTo.role}
-                                            <span className="text-muted-foreground">
-                                                {' '}
-                                                · {record.assignedTo.userId}
-                                            </span>
-                                        </span>
+                                    {/*
+                                      ⚠ `assignedTo` is always an object;
+                                      "nobody" is every field `null`, and
+                                      `admin` with no id is the administrator
+                                      pool. `routedPartyOf` reads both as none.
+                                    */}
+                                    {routedTo ? (
+                                        <TicketPerson person={routedTo} />
                                     ) : (
-                                        <NotSet />
+                                        <NotSet>Not routed to a platform party</NotSet>
                                     )}
                                 </Definition>
 
                                 <Definition label="Opened by">
-                                    {record.createdBy.administrator ? (
-                                        <span className="flex flex-wrap items-center gap-2">
-                                            {record.createdBy.administrator.name ??
-                                                record.createdBy.administrator.id}
-                                            <TierBadge
-                                                tier={
-                                                    record.createdBy.administrator.tier as
-                                                        | 1
-                                                        | 2
-                                                        | 3
-                                                }
-                                            />
-                                            <span className="text-muted-foreground text-xs">
-                                                on behalf of a {record.createdBy.role}
-                                            </span>
-                                        </span>
-                                    ) : (
-                                        <span className="capitalize">{record.createdBy.role}</span>
-                                    )}
+                                    {/*
+                                      A person, not a role (2026-10-10). When
+                                      an administrator — or the platform itself
+                                      — opened it, `administrator` is the fuller
+                                      answer and supplies the level; the
+                                      identity fields then carry the same name.
+                                    */}
+                                    <TicketPerson
+                                        person={
+                                            creator.role === 'admin' && creator.administrator
+                                                ? {
+                                                      ...creator,
+                                                      name:
+                                                          creator.name ??
+                                                          creator.administrator.name,
+                                                  }
+                                                : creator
+                                        }
+                                        after={
+                                            creator.administrator ? (
+                                                <TierBadge
+                                                    tier={creator.administrator.tier as 1 | 2 | 3}
+                                                />
+                                            ) : undefined
+                                        }
+                                    />
+                                    {creator.administrator && creator.role !== 'admin' ? (
+                                        <p className="text-muted-foreground mt-1 text-xs">
+                                            Opened on their behalf by{' '}
+                                            {creator.administrator.name ?? 'an administrator'}.
+                                        </p>
+                                    ) : null}
                                 </Definition>
                             </DefinitionList>
                         </CardContent>
                     </Card>
+
+                    <TicketFollowersPanel
+                        ticket={record}
+                        timeZone={timeZone}
+                        onTicket={(next) => setWritten({ over: loaded, next })}
+                        onStale={reconcile}
+                    />
                 </TabsContent>
 
                 {can('support.tickets.notes.read') ? (

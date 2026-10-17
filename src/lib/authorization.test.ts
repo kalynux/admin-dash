@@ -157,8 +157,13 @@ describe('the tier fixtures match the documented levels', () => {
         // ⚠ **136 / 114 / 45 → 140 / 118 / 47 later that day**: the refund queue —
         // Support gains `orders.refund.read` and `orders.refund.request` (raise,
         // never send); `settle_external` and the clawback write-off are tiers 1–2.
-        expect(TIER_1_PERMISSIONS.length).toBe(140);
-        expect(TIER_2_PERMISSIONS.length).toBe(118);
+        //
+        // ⚠ **140 / 118 / 47 → 142 / 120 / 47 on 2026-10-11**: the two COD
+        // restriction names, tiers 1–2 only — Support reads the state, never writes it.
+        // ⚠ **142 / 120 / 47 → 143 / 120 / 47 on 2026-10-15**: `money.earnings.platform.read`,
+        // tier 1 only (BR-030) — the platform's own amounts.
+        expect(TIER_1_PERMISSIONS.length).toBe(143);
+        expect(TIER_2_PERMISSIONS.length).toBe(120);
         expect(TIER_3_PERMISSIONS.length).toBe(47);
     });
 

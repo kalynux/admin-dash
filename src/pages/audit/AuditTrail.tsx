@@ -34,6 +34,7 @@ import {
     resolveTimeZone,
 } from '@/lib/datetime';
 import { formatCount, formatInstantInZone } from '@/lib/format';
+import { describeSearchMiss, idSearchMiss } from '@/lib/id-search';
 import { PAGE_SIZE_DEFAULT, withQuery } from '@/lib/query';
 import { listAuditEntries } from '@/services/audit.service';
 import { useAdmin, usePermissions } from '@/store';
@@ -114,6 +115,9 @@ const FILTER_DEFAULTS = { sort: SORT_DEFAULT } as const;
 /** The `<Select>` sentinel for "no filter". Radix refuses an empty item value. */
 const ANY = 'any';
 
+/** A session, challenge or approval id — see `searchedUuid`. */
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function AuditTrail() {
     const admin = useAdmin();
     const { tier } = usePermissions();
@@ -171,6 +175,24 @@ export function AuditTrail() {
 
     const rows = trail.data?.data ?? [];
     const meta = trail.data?.meta;
+
+    /**
+     * The two id shapes a search term can be.
+     *
+     * A **24-character id** is matched by the search itself — target, related
+     * target or actor. Lower-cased because `targetId` is an exact string filter
+     * and ids are stored lower-case; the search is case-insensitive, the filter
+     * is not. A **UUID** is a session id — a target the search does not read,
+     * reachable through `targetId` only — or the request reference an error
+     * toast shows, which is `correlationId`. The two are the same shape, so both
+     * are offered and the operator says which.
+     *
+     * ⚠ Deploy order: wi-admin first. Against a service older than BR-028 a
+     * searched id finds nothing, and the empty state would say nothing involves it.
+     */
+    const term = values.search.trim();
+    const searchedId = idSearchMiss(term) === 'whole' ? term.toLowerCase() : null;
+    const searchedUuid = UUID.test(term) ? term.toLowerCase() : null;
 
     const columns = useMemo<Column<AuditEntry>[]>(
         () => [
@@ -294,7 +316,14 @@ export function AuditTrail() {
             <FilterBar isFiltered={isFiltered} onClear={reset}>
                 <SearchInput
                     label="Search the trail"
-                    placeholder="Action, actor, resource"
+                    // What the service matches, and no more (`audit.md` § What
+                    // `search` matches): the actor's e-mail and display name, the
+                    // record's label — and, since BR-028, a whole 24-character id
+                    // as the entry's target, related target or actor. It said
+                    // "Action, actor, resource": an action name typed here still
+                    // finds nothing, which is the Action select beside it.
+                    placeholder="Actor name or email, a record’s label, or an id"
+                    acceptsId
                     value={values.search}
                     onChange={(next) => set({ search: next }, { replace: true })}
                 />
@@ -450,6 +479,34 @@ export function AuditTrail() {
                 </p>
             ) : null}
 
+            {/*
+              A searched id answers "anything to do with this id" — as the record
+              acted on, as the record behind an approval, and as the administrator
+              who acted. `targetId` and `actorId` each answer one of those, and
+              until BR-028 they were reachable only by clicking a row.
+            */}
+            {searchedId && rows.length > 0 && !trail.isLoading ? (
+                <div className="flex flex-wrap items-center gap-2 text-sm">
+                    <span className="text-muted-foreground">
+                        Everything involving that id. Narrow it to:
+                    </span>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => set({ search: null, targetId: searchedId })}
+                    >
+                        Only entries about it
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => set({ search: null, actorId: searchedId })}
+                    >
+                        Only entries by it
+                    </Button>
+                </div>
+            ) : null}
+
             <DataTable
                 caption="Audit trail"
                 columns={columns}
@@ -467,15 +524,62 @@ export function AuditTrail() {
                         icon={ScrollText}
                         title={isFiltered ? 'Nothing matches these filters' : 'Nothing on record'}
                         description={
-                            tier === 3
-                                ? 'Your view of the trail covers platform activity — users, vendors, agencies, agents, orders, shipments and the cash chain — plus anything you did yourself. Actions on this service’s own machinery are not shown, so a short feed here is not the same as a quiet platform.'
-                                : 'Every administrator action is recorded before it answers, so an empty result means nothing matched — not that something went unrecorded.'
+                            // A UUID is not id-shaped to `describeSearchMiss`
+                            // (that is the 24-character kind), so it is worded
+                            // here, ahead of it.
+                            searchedUuid
+                                ? 'The search box does not read that kind of id. A session id and a request reference are each a filter of their own here — choose which this is.'
+                                : describeSearchMiss(
+                                      values.search,
+                                      tier === 3
+                                          ? 'Your view of the trail covers platform activity — users, vendors, agencies, agents, orders, shipments and the cash chain — plus anything you did yourself. Actions on this service’s own machinery are not shown, so a short feed here is not the same as a quiet platform.'
+                                          : 'Every administrator action is recorded before it answers, so an empty result means nothing matched — not that something went unrecorded.',
+                                      'Nothing on record that you can see involves that id — as the record acted on, as the record behind an approval, or as the administrator who acted.',
+                                  )
                         }
                         action={
                             isFiltered ? (
-                                <Button variant="outline" size="sm" onClick={reset}>
-                                    Clear filters
-                                </Button>
+                                <div className="flex flex-wrap justify-center gap-2">
+                                    {/*
+                                      ⚠ Only for an id the search cannot match. A
+                                      24-character id is matched by the search
+                                      itself (BR-028 § 4), so sending it to
+                                      `targetId` from an empty page would only
+                                      produce a second empty page. A session UUID
+                                      is a target the search does not read and
+                                      `targetId` does.
+                                    */}
+                                    {searchedUuid ? (
+                                        <>
+                                            <Button
+                                                size="sm"
+                                                onClick={() =>
+                                                    set({ search: null, targetId: searchedUuid })
+                                                }
+                                            >
+                                                Entries about this record
+                                            </Button>
+                                            {/* The reference an error toast shows is
+                                                the same shape, and is the UUID an
+                                                operator most often holds. */}
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() =>
+                                                    set({
+                                                        search: null,
+                                                        correlationId: searchedUuid,
+                                                    })
+                                                }
+                                            >
+                                                Entries from this request
+                                            </Button>
+                                        </>
+                                    ) : null}
+                                    <Button variant="outline" size="sm" onClick={reset}>
+                                        Clear filters
+                                    </Button>
+                                </div>
                             ) : undefined
                         }
                     />

@@ -46,7 +46,12 @@ describe('rendering', () => {
         // the left alone would render half a page of rows as the same string.
         renderId(<CopyableId value={ID} label="order ID" />);
 
-        expect(screen.getByTitle(ID)).toHaveTextContent('665f1c…e5f0');
+        // Shortened for the eye only: the whole id is the cell's text (so a
+        // selection copies it) and the middle is the part drawn at no size.
+        expect(screen.getByTitle(ID)).toHaveTextContent(ID);
+        expect(screen.getByTitle(ID).querySelector('[data-shortened-middle]')).toHaveTextContent(
+            '2a9b3e4a91c7d2',
+        );
     });
 
     it('shows the value whole when asked', () => {

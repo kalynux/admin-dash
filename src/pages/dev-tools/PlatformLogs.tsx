@@ -197,7 +197,11 @@ export function PlatformLogs() {
                         onChange={(next) => set({ actorId: next }, { replace: true })}
                         label="Filter by user, vendor, agency, agent or customer id"
                         placeholder="User or profile id"
-                        maxLength={24}
+                        // No `maxLength={24}`: it cut a pasted link or a quoted id
+                        // at 24 characters before the id inside it could be read,
+                        // leaving a fragment that is "not applied yet" for ever.
+                        // The check below is what holds the 24.
+                        acceptsId
                     />
                     {!actorIdValid ? (
                         <p role="alert" className="text-destructive text-xs">

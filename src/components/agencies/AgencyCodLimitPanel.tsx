@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AlertTriangle, Pin, PinOff } from 'lucide-react';
+import { AlertTriangle, Ban, Pin, PinOff } from 'lucide-react';
 
 import {
     PinAgencyCodLimitDialog,
@@ -22,6 +22,7 @@ import {
     type AgencyCodLimitOverride,
     type AgencyDetail,
 } from '@/types/agencies.types';
+import type { CodRestriction } from '@/types/cod-restriction.types';
 
 /**
  * `GET /agencies/:agencyId/cod-limit` — the most cash on delivery this agency may
@@ -45,6 +46,15 @@ import {
  * prominently, because what it means is operational: the next vendor dispatch to
  * this agency is refused until cash comes back.
  *
+ * ── Headroom is an amount, and the restriction is not ─────────────────────────
+ * An administrator can switch cash on delivery off for the agency altogether
+ * (2026-10-10). `headroom` does not account for that — it is computed from
+ * amounts only — so a restricted agency can show plenty of it and still receive
+ * no COD shipment. The restriction is therefore stated **beside the headroom**.
+ * It is read from `codRestriction` when the page passes it (the detail's own
+ * record, or a write's answer — fresher than this panel's read), and from the
+ * report's `codRestricted` otherwise.
+ *
  * ── No currency ───────────────────────────────────────────────────────────────
  * None of these figures carries one, so they are formatted as plain numbers — the
  * rule the agent pool and `/cod/overview` follow.
@@ -52,9 +62,15 @@ import {
 export function AgencyCodLimitPanel({
     agency,
     timeZone,
+    codRestriction,
 }: {
     agency: AgencyDetail;
     timeZone: string;
+    /**
+     * The agency's current restriction as the page knows it: `null` for none,
+     * `undefined` when the page cannot say and the report's own flag decides.
+     */
+    codRestriction?: CodRestriction | null;
 }) {
     const [reloadToken, setReloadToken] = useState(0);
     const [pinning, setPinning] = useState(false);
@@ -114,7 +130,7 @@ export function AgencyCodLimitPanel({
                 {limit.isLoading && !data ? (
                     <InlineLoader label="Reading the COD limit…" />
                 ) : data ? (
-                    <LimitBody data={data} timeZone={timeZone} />
+                    <LimitBody data={data} timeZone={timeZone} codRestriction={codRestriction} />
                 ) : (
                     <ErrorState
                         error={limit.error}
@@ -146,8 +162,27 @@ export function AgencyCodLimitPanel({
     );
 }
 
-function LimitBody({ data, timeZone }: { data: AgencyCodLimit; timeZone: string }) {
+function LimitBody({
+    data,
+    timeZone,
+    codRestriction,
+}: {
+    data: AgencyCodLimit;
+    timeZone: string;
+    codRestriction: CodRestriction | null | undefined;
+}) {
     const { exposure } = data;
+    // The page's answer when it has one, the report's otherwise. Displayed,
+    // never decided on: jovi-mall refuses the shipment, not this panel.
+    const restricted =
+        codRestriction !== undefined ? codRestriction !== null : data.codRestricted === true;
+    const restrictedAt =
+        codRestriction !== undefined
+            ? (codRestriction?.restrictedAt ?? null)
+            : (data.codRestrictedAt ?? null);
+    const restrictedSince = restrictedAt
+        ? (formatInstantInZone(restrictedAt, timeZone) ?? restrictedAt)
+        : null;
     // Drawn, never decided on: a limit of 0 with nothing held is an empty bar,
     // and anything held against 0 is a full one.
     const percent =
@@ -203,6 +238,20 @@ function LimitBody({ data, timeZone }: { data: AgencyCodLimit; timeZone: string 
                 />
                 <Figure label="Headroom" value={data.headroom} />
             </dl>
+
+            {restricted ? (
+                <p
+                    role="alert"
+                    className="border-destructive/40 bg-destructive/10 text-destructive flex items-start gap-2 rounded-lg border px-3 py-2 text-sm font-medium"
+                >
+                    <Ban className="mt-0.5 size-4 shrink-0" />
+                    <span>
+                        Cash on delivery is switched off for this agency
+                        {restrictedSince ? ` since ${restrictedSince}` : ''}. It receives no new
+                        cash-on-delivery shipment, whatever the headroom above says.
+                    </span>
+                </p>
+            ) : null}
 
             {data.override ? (
                 <PinSummary

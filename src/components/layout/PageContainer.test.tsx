@@ -27,6 +27,60 @@ describe('the page heading', () => {
     });
 });
 
+describe('what stays in reach while the page scrolls', () => {
+    function headingRow(): HTMLElement {
+        const row = screen.getByRole('heading', { level: 1 }).parentElement;
+        if (!row) throw new Error('the heading has no row');
+        return row;
+    }
+
+    it('pins the name and the actions together', () => {
+        renderWithProviders(
+            <PageContainer
+                title="Amina Njoya"
+                description="A customer since March"
+                actions={<button type="button">Suspend</button>}
+            >
+                <p>rows</p>
+            </PageContainer>,
+        );
+
+        const row = headingRow();
+        expect(row).toHaveClass('sticky');
+        expect(row).toContainElement(screen.getByRole('button', { name: 'Suspend' }));
+        // Prose scrolls away: pinned, it would be paid for on every screenful.
+        expect(row).not.toContainElement(screen.getByText('A customer since March'));
+    });
+
+    /**
+     * A sticky element travels only as far as its parent reaches. Wrapped in a
+     * box the size of the header it has nowhere to go and never pins — and
+     * nothing in jsdom would say so.
+     */
+    it('keeps the pinned row a direct child of the box that holds the content', () => {
+        renderWithProviders(
+            <PageContainer title="Amina Njoya" actions={<button type="button">Suspend</button>}>
+                <p>rows</p>
+            </PageContainer>,
+        );
+
+        const content = screen.getByText('rows').parentElement;
+        expect(headingRow().parentElement).toBe(content?.parentElement);
+    });
+
+    it('pins nothing on a page with no actions', () => {
+        // The breadcrumb trail already says where this is; a pinned name alone
+        // would cost a list a row of table to repeat it.
+        renderWithProviders(
+            <PageContainer title="Payout queue">
+                <p>rows</p>
+            </PageContainer>,
+        );
+
+        expect(headingRow()).not.toHaveClass('sticky');
+    });
+});
+
 describe('what the title also names', () => {
     it('names the browser tab, suffixed with the app', () => {
         // A row of console tabs is unreadable when every one of them says

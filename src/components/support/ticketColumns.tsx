@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom';
 import type { Column } from '@/components/common/DataTable';
 import { NotSet } from '@/components/common/DefinitionList';
 import { TierBadge } from '@/components/layout/TierBadge';
+import { TicketPerson } from '@/components/support/TicketPerson';
 import { Badge } from '@/components/ui/badge';
 import { formatInstantInZone, humaniseEnum } from '@/lib/format';
+import { routedPartyOf } from '@/lib/ticket-people';
 import type { Ticket } from '@/types/support.types';
 
 /**
@@ -20,6 +22,12 @@ import type { Ticket } from '@/types/support.types';
  * A real, common and actionable state — every system ticket starts there and
  * every tier may work it — so it renders as a claimable state rather than as
  * missing data.
+ *
+ * ── Who opened it is a person, on this page too (2026-10-10) ─────────────────
+ * `createdBy` and `assignedTo` carry a name, a business name and a phone, and —
+ * unlike `entity` — they **are** filled on the list: the service resolves a
+ * whole page in one batch. So the queue says who, with a number to ring, rather
+ * than "customer". ⚠ `followers` is the detail's alone and has no column here.
  *
  * ── The tier is shown, deliberately ───────────────────────────────────────────
  * `tier` travels on this surface and is dropped from every projection a
@@ -48,6 +56,12 @@ export function ticketColumns({ timeZone }: { timeZone: string }): Column<Ticket
                     </p>
                 </div>
             ),
+        },
+        {
+            id: 'createdBy',
+            header: 'Opened by',
+            className: 'align-top',
+            cell: (row) => <TicketPerson person={row.createdBy} density="compact" />,
         },
         {
             id: 'status',
@@ -112,13 +126,13 @@ export function ticketColumns({ timeZone }: { timeZone: string }): Column<Ticket
         {
             id: 'assignedTo',
             header: 'Raised for',
-            className: 'text-muted-foreground align-top text-sm',
-            cell: (row) =>
-                row.assignedTo ? (
-                    <span className="capitalize">{row.assignedTo.role}</span>
-                ) : (
-                    <NotSet />
-                ),
+            className: 'align-top text-sm',
+            cell: (row) => {
+                // ⚠ Always an object on the wire — "nobody" is every field
+                // `null`, which a truthiness check does not see.
+                const party = routedPartyOf(row.assignedTo);
+                return party ? <TicketPerson person={party} density="compact" /> : <NotSet />;
+            },
         },
         {
             id: 'createdAt',

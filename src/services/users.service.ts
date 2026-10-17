@@ -25,6 +25,7 @@ import { api, type RequestOptions } from '@/services/api';
 import { toAuditPage, type AuditPage } from '@/services/audit.service';
 import type { Paginated } from '@/types/api.types';
 import type { AuditEntry } from '@/types/audit.types';
+import type { CodRestrictionBody, CodRestrictionReport } from '@/types/cod-restriction.types';
 import type {
     BotMemoryResetBody,
     BotMemoryResetResult,
@@ -43,7 +44,24 @@ import type {
 } from '@/types/users.types';
 
 /**
- * `meta` on `GET /users` — the four standard keys and nothing else.
+ * `meta.idMatch` — what a pasted id WAS (BR-029, `users.md` § `meta.idMatch`).
+ *
+ * ⚠ **It describes the id, not the page.** `role`, `status` and the date range
+ * do not affect it, which is the point: an empty page with `kinds: ["customer"]`
+ * under `role=vendor` is a filter hiding the account, and with `kinds: []` it is
+ * an id nobody has.
+ */
+export interface UserIdMatch {
+    /**
+     * In the service's fixed order — `user`, `customer`, `vendor`, `agency`,
+     * `agent`. ⚠ **Open**: a sixth profile kind is an additive change, so an
+     * unrecognised one is printed raw, never dropped. `[]` means the id is nobody's.
+     */
+    kinds: string[];
+}
+
+/**
+ * `meta` on `GET /users` — the four standard keys, plus `idMatch`.
  *
  * Narrowed to numbers here rather than left as `ListMeta`'s `unknown`s, so a
  * pager cannot be handed a string.
@@ -54,6 +72,28 @@ export interface UserListMeta {
     limit: number;
     /** **`0` on an empty list, not `1`.** */
     pages: number;
+    /**
+     * ⚠ **Absent, never `null`**, whenever `search` was not read as a whole id —
+     * no search, a name, an email, a phone, a part of an id — **and from every
+     * wi-admin older than 2026-10-13.** The two cannot be told apart and do not
+     * need to be: absent means *nothing to say*, and the screen falls back to
+     * deriving what it can from the rows.
+     */
+    idMatch?: UserIdMatch;
+}
+
+/**
+ * The `idMatch` the service sent, or `undefined`.
+ *
+ * Read defensively rather than cast: a malformed value is treated exactly like
+ * an absent one — fall back to the derivation — instead of rendering a sentence
+ * built on something the contract does not promise.
+ */
+function readIdMatch(value: unknown): UserIdMatch | undefined {
+    if (typeof value !== 'object' || value === null) return undefined;
+    const kinds = (value as { kinds?: unknown }).kinds;
+    if (!Array.isArray(kinds) || !kinds.every((kind) => typeof kind === 'string')) return undefined;
+    return { kinds: [...kinds] };
 }
 
 export interface UserPage {
@@ -77,8 +117,15 @@ function toPage(page: Paginated<User>): UserPage {
             page: Number(page.meta.page ?? 1),
             limit: Number(page.meta.limit ?? page.data.length),
             pages: Number(page.meta.pages ?? (page.data.length > 0 ? 1 : 0)),
+            // Spread so the key stays ABSENT when there is nothing — `undefined`
+            // under the key would read the same, but absent is the contract.
+            ...withIdMatch(readIdMatch(page.meta.idMatch)),
         },
     };
+}
+
+function withIdMatch(idMatch: UserIdMatch | undefined): { idMatch?: UserIdMatch } {
+    return idMatch ? { idMatch } : {};
 }
 
 // ─── Reads ────────────────────────────────────────────────────────────────────
@@ -87,8 +134,9 @@ function toPage(page: Paginated<User>): UserPage {
  * `GET /users` · `users.read` — search and filter across every role.
  *
  * Sorting is one key at a time from `USER_SORT_KEYS`; anything else is a `400`
- * naming the permitted set. `search` matches an email, a phone number, or the
- * **user id** when the term is 24-hex.
+ * naming the permitted set. `search` matches an email, a phone number, or — when
+ * the term is a whole 24-hex id — the **user id or a customer, vendor, agency or
+ * agent profile's id** (BR-028), and `meta.idMatch` then says which (BR-029).
  *
  * `from`/`to` filter **creation**, are half-open `[from, to)`, cap at 366 days,
  * and must be instants with an explicit zone — a date-only value is refused. Use
@@ -292,6 +340,86 @@ export function sendLoginLink(
     );
 }
 
+// ─── The customer's COD restriction (2026-10-10) ──────────────────────────────
+
+/**
+ * `GET /users/:userId/cod-restriction` · `users.read` (every tier, Support
+ * included) · delegated · not audited.
+ *
+ * Whether an administrator has switched cash on delivery off for this
+ * **customer**, with the reason and who did it. The same record is on the
+ * detail as the customer entry's `codRestriction`, so a badge needs no call to
+ * this; it exists for the two moments the page cannot be trusted — after a
+ * `409 COD_RESTRICTION_UNCHANGED` and after a `502`/`503` on a write.
+ *
+ * ⚠ An account with no customer profile answers `404
+ * PLATFORM_OPERATION_REJECTED` with `PLATFORM_CODE_PROFILE_NOT_FOUND`.
+ */
+export function getUserCodRestriction(
+    userId: string,
+    options?: RequestOptions,
+): Promise<CodRestrictionReport> {
+    return api.get<CodRestrictionReport>(
+        `/users/${encodeURIComponent(userId)}/cod-restriction`,
+        options,
+    );
+}
+
+/**
+ * `PUT /users/:userId/cod-restriction` · **`users.cod.restrict`** (tiers 1–2,
+ * **not Support**) · delegated · audited `users.cod.restrict`.
+ *
+ * Switches cash on delivery **off** for the customer: they can no longer
+ * *place* a COD order. Orders already placed, parcels on their way and every
+ * other payment method are untouched, and nobody is notified.
+ *
+ * ⚠ **The body is `{ reason }` and nothing else** — strict, and there is no
+ * `restricted` field: the direction is the route. Named field by field here so
+ * a caller's wider object cannot leak a key into a `400`.
+ *
+ * ⚠ Compare-and-set: an already-restricted customer answers `409` with
+ * `PLATFORM_CODE_COD_RESTRICTION_UNCHANGED`. Never retried here; after a
+ * `502`/`503` it *may* have happened, so re-read before offering it again.
+ * `message` is returned beside the report because the toast shows it verbatim.
+ */
+export async function restrictUserCod(
+    userId: string,
+    body: CodRestrictionBody,
+    options?: RequestOptions,
+): Promise<{ report: CodRestrictionReport; message: string | undefined }> {
+    const { data, message } = await api.mutate<CodRestrictionReport>(
+        'PUT',
+        `/users/${encodeURIComponent(userId)}/cod-restriction`,
+        { reason: body.reason.trim() },
+        options,
+    );
+    return { report: data, message };
+}
+
+/**
+ * `POST /users/:userId/cod-restriction/lift` · `users.cod.restrict` — the same
+ * permission, **its own audit action** (`users.cod.unrestrict`).
+ *
+ * Switches cash on delivery back **on**. ⚠ **`reason` is required here too**,
+ * unlike `restoreUser`: jovi-mall erases the stored restriction, its reason and
+ * its author, so the audit row is the only surviving record that it existed and
+ * of why it was lifted. Answers the report with `restricted: false` and
+ * `restriction: null`. Not restricted → the same `409`.
+ */
+export async function liftUserCodRestriction(
+    userId: string,
+    body: CodRestrictionBody,
+    options?: RequestOptions,
+): Promise<{ report: CodRestrictionReport; message: string | undefined }> {
+    const { data, message } = await api.mutate<CodRestrictionReport>(
+        'POST',
+        `/users/${encodeURIComponent(userId)}/cod-restriction/lift`,
+        { reason: body.reason.trim() },
+        options,
+    );
+    return { report: data, message };
+}
+
 // ─── The customer bot's memory ────────────────────────────────────────────────
 
 /**
@@ -491,12 +619,16 @@ export const PLATFORM_CODE_MESSAGING_DELIVERY_FAILED = 'MESSAGING_DELIVERY_FAILE
  */
 export const PLATFORM_CODE_PARTY_ACCOUNT_SUSPENDED = 'AUTH_ACCOUNT_SUSPENDED';
 
-// ─── The bot-memory reset ─────────────────────────────────────────────────────
+// ─── The bot-memory reset, and the COD restriction ────────────────────────────
 
 /**
  * 404 — the account exists and has **no customer profile**: it has never talked
  * to the bot as a customer, so there is no memory to forget. An absence, not a
  * fault. Thrown by `bot-surface/services/bot-memory.service.ts` in jovi-mall,
  * which wi-admin reaches only after its own `NOT_FOUND` check on the user.
+ *
+ * ⚠ All three `/users/:userId/cod-restriction` routes answer it too
+ * (2026-10-10), **the read included**: the restriction lives on the customer
+ * profile, so without one there is nothing to restrict.
  */
 export const PLATFORM_CODE_PROFILE_NOT_FOUND = 'AUTH_PROFILE_NOT_FOUND';

@@ -30,6 +30,7 @@ import {
     resolveTimeZone,
 } from '@/lib/datetime';
 import { formatCount, formatInstantInZone } from '@/lib/format';
+import { describeSearchMiss } from '@/lib/id-search';
 import { PAGE_SIZE_DEFAULT, withQuery } from '@/lib/query';
 import { listAgents } from '@/services/agents.service';
 import { useAdmin } from '@/store';
@@ -268,7 +269,11 @@ export function AgentsList() {
             <FilterBar isFiltered={isFiltered} onClear={reset}>
                 <SearchInput
                     label="Search agents"
-                    placeholder="Name, email, phone or agent id"
+                    // The user id joined on 2026-10-12 (BR-028) — the same pair the
+                    // vendor list always matched. ⚠ Against an older wi-admin a
+                    // user id here finds nothing.
+                    placeholder="Name, email, phone, agent id or user id"
+                    acceptsId
                     value={values.search}
                     onChange={(next) => set({ search: next }, { replace: true })}
                 />
@@ -434,7 +439,11 @@ export function AgentsList() {
                         title={isFiltered ? 'No agents match these filters' : 'No agents yet'}
                         description={
                             isFiltered
-                                ? 'Try a different term, or clear the filters. A search matches a name, an email, a phone number or an agent id.'
+                                ? describeSearchMiss(
+                                      values.search,
+                                      'Try a different term, or clear the filters. A search matches a name, an email, a phone number, an agent id or a user id.',
+                                      'No agent has that id, as their own or as their account’s user id. An id copied from an order, a shipment, a vendor or an agency belongs to that record — search for it in the directory it came from.',
+                                  )
                                 : 'Delivery agents appear here as they join the platform.'
                         }
                         action={

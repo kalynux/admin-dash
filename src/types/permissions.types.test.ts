@@ -162,10 +162,17 @@ describe('the permission catalogue matches api-doc/admin/api/permissions.md', ()
         // by `authz:matrix`: the refund queue's `orders.refund.read`,
         // `orders.refund.request` (both every tier), `orders.refund.settle_external`
         // and `money.earnings.clawback.write_off` (tiers 1–2).
-        expect(PERMISSION_NAMES.length).toBe(140);
+        //
+        // ⚠ **Moved 140 → 142 on 2026-10-11** — 142 / 120 / 47 by `authz:matrix`:
+        // the COD restriction's `agencies.cod.restrict` (`financial`) and
+        // `users.cod.restrict`, both tiers 1–2, so Support's total did not move.
+        //
+        // ⚠ **Moved 142 → 143 on 2026-10-15** (BR-030): `money.earnings.platform.read`,
+        // `financial`, tier 1 only — so 143 / 120 / 47 and only the top rung moved.
+        expect(PERMISSION_NAMES.length).toBe(143);
         expect(UNROUTED_PERMISSION_NAMES.length).toBe(4);
         expect(PERMISSION_FAMILIES.length).toBe(23);
-        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(136);
+        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(139);
     });
 
     /**

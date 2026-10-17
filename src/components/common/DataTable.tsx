@@ -141,7 +141,10 @@ export function DataTable<T>({
 
     /**
      * Pinned to the app bar's underside — `h-14` on mobile, `h-16` from `md` up,
-     * matching the two headers `AppShell` swaps between at the same breakpoint.
+     * matching the two headers `AppShell` swaps between at the same breakpoint —
+     * and then below the page's own header where that is pinned too. Its height
+     * arrives as `--page-header-height` (see `useStickyPageHeader`) and is `0`
+     * on a page that pins nothing, and absent in a dialog.
      *
      * On the `<th>`, not the `<thead>`: a `table-header-group` is not a reliable
      * containing block for sticky positioning in every engine, and the cells are.
@@ -150,7 +153,7 @@ export function DataTable<T>({
      * with the cell it was drawn on.
      */
     const stickyHead = !overflows
-        ? 'bg-muted sticky top-14 z-20 shadow-[inset_0_-1px_0_hsl(var(--border))] md:top-16'
+        ? 'bg-muted sticky top-[calc(3.5rem+var(--page-header-height,0px))] z-20 shadow-[inset_0_-1px_0_hsl(var(--border))] md:top-[calc(4rem+var(--page-header-height,0px))]'
         : undefined;
 
     return (

@@ -29,6 +29,14 @@
  */
 
 export interface OrderMoneySplit {
+    /**
+     * The platform's own amounts were held back for this caller (2026-10-15, BR-030
+     * § 3b) — `true` below `money.earnings.platform.read`. Every figure it touched is
+     * then `null` and carries `withheld: true`; the rates stay. **Absent** on a
+     * wi-admin older than BR-030, which sent the amounts to every tier — read it
+     * with `platformAmountsShown()`, never as a bare boolean.
+     */
+    platformAmountsWithheld?: boolean;
     order: {
         id: string;
         orderNumber: string;
@@ -56,7 +64,8 @@ export interface OrderMoneySplit {
     };
     sections: MoneySplitSection[];
     totals: {
-        platform: { commission: number; bargainFee: number; total: number };
+        /** `null` when the platform's amounts are withheld (`platformAmountsWithheld`). */
+        platform: { commission: number; bargainFee: number; total: number } | null;
         vendor: number;
         agencies: number;
         agents: number;
@@ -115,8 +124,13 @@ export interface MoneyLine {
         /** `null` for both platform accounts and, deliberately, for the customer. */
         name: string | null;
     };
-    /** ⚠ `null` = an agent's share that cannot be known yet (source, not the page). */
+    /**
+     * ⚠ `null` = an agent's share that cannot be known yet (source, not the page)
+     * — **or** a platform line's amount held back, which `withheld` says.
+     */
     amount: number | null;
+    /** `true` when this line's amount is known and not shown at the caller's level. */
+    withheld?: boolean;
     /** `projected` · `held` · `released` · `reversed` · `owed`. */
     status: string;
     allocationId: string | null;
@@ -134,17 +148,21 @@ export interface MoneyLine {
 }
 
 export interface GoodsBasis {
+    /** `true` when the platform's amounts in this block were held back. The rates stay. */
+    withheld?: boolean;
     gross: number;
     bargainFee: {
         percent: number;
-        amount: number;
+        /** `null` when withheld. */
+        amount: number | null;
         lines: BargainFeeLine[];
     };
     commission: {
         percent: number;
-        /** `gross − bargainFee` — no commission is taken on the bargain fee. */
+        /** `gross − bargainFee` — no commission is taken on the bargain fee. Never withheld. */
         base: number;
-        amount: number;
+        /** `null` when withheld. */
+        amount: number | null;
     };
     /** The part of the delivery the **vendor** pays. */
     deliveryFeeCharged: number;
@@ -160,7 +178,8 @@ export interface BargainFeeLine {
     floorPrice: number | null;
     quantity: number;
     uplift: number;
-    fee: number;
+    /** `null` when the platform's amounts are withheld. */
+    fee: number | null;
 }
 
 export interface DeliveryBasis {
@@ -205,8 +224,8 @@ export function isOrderMoneySplit(value: unknown): value is OrderMoneySplit {
         Array.isArray(record.sections) &&
         typeof totals === 'object' &&
         totals !== null &&
+        // An object, or `null` when the platform's amounts are withheld (BR-030).
         typeof totals.platform === 'object' &&
-        totals.platform !== null &&
         typeof reconciliation === 'object' &&
         reconciliation !== null &&
         typeof reconciliation.difference === 'number'
@@ -311,6 +330,25 @@ export const deliveryOutcomeLabel = (value: string | null | undefined) =>
 
 /** The two lines that are the platform's own money. */
 export const PLATFORM_LINE_ROLES: readonly string[] = ['commission', 'bargain_fee'];
+
+/**
+ * Whether this caller is shown the platform's own amounts on the split.
+ *
+ * The service decides (2026-10-15, BR-030 § 3b): `platformAmountsWithheld` is
+ * `true` below `money.earnings.platform.read`. Against a wi-admin older than that
+ * the key is absent and the amounts arrive for every tier, so the owner's rule
+ * falls back to the permission the caller holds — **closed**: an older service
+ * does not name the permission, so nobody is shown the amounts until it deploys.
+ * ⛔ Never a check of the caller's level.
+ */
+export function platformAmountsShown(
+    split: Pick<OrderMoneySplit, 'platformAmountsWithheld'>,
+    holdsPlatformRead: boolean,
+): boolean {
+    if (split.platformAmountsWithheld === true) return false;
+    if (split.platformAmountsWithheld === false) return true;
+    return holdsPlatformRead;
+}
 
 /** Who a line pays, in words. Platform accounts and the customer carry no name. */
 export function beneficiaryLabel(beneficiary: MoneyLine['beneficiary']): string {

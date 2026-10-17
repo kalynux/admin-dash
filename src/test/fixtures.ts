@@ -1646,15 +1646,21 @@ const TIER_2_EXCLUSIONS: readonly string[] = [
     'employees.employment.write',
     'files.delete',
     'users.roles.manage',
+    /*
+      ⚠ The platform's own amounts (2026-10-15, BR-030): `financial`, so it sits
+      outside `allInFamily('money')`, and the owner's rule keeps it to tier 1 —
+      Admin sees the platform's commission and bargain fee as rates only.
+    */
+    'money.earnings.platform.read',
 ];
 
-/** Admin — the operational level, including the money. 118 of 140. */
+/** Admin — the operational level, including the money. 120 of 143. */
 export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
     (name) => !TIER_2_EXCLUSIONS.includes(name) && !name.startsWith('developer_tools.'),
 );
 
 /**
- * Support. **47 of 140**, and every one of them is routed — Support holds none
+ * Support. **47 of 142**, and every one of them is routed — Support holds none
  * of the four `†` permissions, so a Support administrator can use everything
  * they hold. That is new: the set was 24 with twelve unusable before Phase 5
  * built the `support` and `content` surfaces.

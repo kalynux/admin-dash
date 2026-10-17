@@ -23,6 +23,25 @@ import { renderWithProviders } from '@/test/utils';
 
 const ID = '665f1c2a9b3e4a91c7d2e5f0';
 const EMAIL = 'operations.desk+billing@a-rather-long-vendor-domain.example';
+
+/**
+ * What a shortened id *draws*, or `null` when nothing is hidden.
+ *
+ * The cell's text is the whole id either way — that is the point, see the
+ * selection test below — so `toHaveTextContent` can no longer tell a shortened
+ * id from a whole one. What differs is the middle: present, and marked as the
+ * part set at no size. The ellipsis is a CSS `::after` and is not in the
+ * document at all, which jsdom cannot see and a clipboard never does.
+ */
+function drawn(cell: HTMLElement): { head: string; tail: string } | null {
+    const middle = cell.querySelector('[data-shortened-middle]');
+    if (!middle) return null;
+
+    const whole = cell.textContent ?? '';
+    const hidden = middle.textContent ?? '';
+    const at = whole.indexOf(hidden);
+    return { head: whole.slice(0, at), tail: whole.slice(at + hidden.length) };
+}
 const PHONE = '+237 6 77 12 34 56';
 /** A gateway reference: opaque and long, but not an ObjectId. */
 const REFERENCE = 'MTN-MOMO-2026-08-25-0000917342';
@@ -78,13 +97,31 @@ describe('what each variant displays', () => {
         // the left alone would render half a page of rows as the same string.
         renderValue(<CopyableValue variant="id" value={ID} label="order ID" />);
 
-        expect(screen.getByTitle(ID)).toHaveTextContent('665f1c…e5f0');
+        expect(drawn(screen.getByTitle(ID))).toEqual({ head: '665f1c', tail: 'e5f0' });
+    });
+
+    it('keeps the whole id in the text of a shortened cell, so a selection copies it', () => {
+        // It used to render the string `665f1c…e5f0`, and that is what a click
+        // on the cell and Ctrl+C put on the clipboard — eleven characters no
+        // search on the service can match. The id is shortened for the eye
+        // only: a selection, a drag across the row and find-in-page all read
+        // the 24 characters.
+        renderValue(<CopyableValue variant="id" value={ID} label="order ID" />);
+
+        const cell = screen.getByTitle(ID);
+        expect(cell.textContent).toBe(ID);
+        expect(cell.textContent).not.toContain('…');
+        // Hidden by size, not by `display: none` or `hidden` — either of those
+        // takes the middle out of a copied selection again.
+        expect(cell.querySelector('[data-shortened-middle]')).toHaveClass('text-[0px]');
+        expect(cell.querySelector('[data-shortened-middle]')).toBeVisible();
     });
 
     it('shows an id whole when asked', () => {
         renderValue(<CopyableValue variant="id" value={ID} label="order ID" truncate={false} />);
 
         expect(screen.getByTitle(ID)).toHaveTextContent(ID);
+        expect(drawn(screen.getByTitle(ID))).toBeNull();
     });
 
     it('never shortens an email, however long it is', () => {
@@ -117,7 +154,7 @@ describe('what each variant displays', () => {
             </>,
         );
 
-        expect(screen.getByTitle(ID)).toHaveTextContent('665f1c…e5f0');
+        expect(drawn(screen.getByTitle(ID))).toEqual({ head: '665f1c', tail: 'e5f0' });
         expect(screen.getByTitle(EMAIL)).toBeInTheDocument();
     });
 
@@ -352,7 +389,7 @@ describe('CopyableId, unchanged', () => {
     it('still shortens head and tail by default', () => {
         renderValue(<CopyableId value={ID} label="order ID" />);
 
-        expect(screen.getByTitle(ID)).toHaveTextContent('665f1c…e5f0');
+        expect(drawn(screen.getByTitle(ID))).toEqual({ head: '665f1c', tail: 'e5f0' });
         expect(screen.getByTitle(ID)).toHaveClass('font-mono');
     });
 

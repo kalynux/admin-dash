@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 
 import { humaniseEnum } from '@/lib/format';
 import { isRolePlaceholderName } from '@/lib/party';
+import { ticketRolePhrase } from '@/lib/ticket-people';
 import { cn } from '@/lib/utils';
 import { useCan } from '@/store';
 import { isDisplayableImage } from '@/types/files.types';
@@ -58,22 +59,6 @@ const PLATFORM_ROUTE = {
     permission: 'users.read',
 } as const;
 
-/**
- * What to call a role when no name resolved.
- *
- * ⚠ **A description, deliberately — never a capitalised token.** "Admin" reads
- * as somebody's name; "an administrator" cannot be mistaken for one. An
- * unrecognised role renders humanised and bare rather than being forced into an
- * article that might not fit it.
- */
-const ROLE_PHRASES: Record<string, string> = {
-    admin: 'an administrator',
-    customer: 'a customer',
-    vendor: 'a vendor',
-    agency: 'an agency',
-    agent: 'an agent',
-};
-
 interface TicketActorNameProps {
     /** jovi-mall's resolved summary. `null` is "unknown", never an error. */
     actor: TicketActorSummary | null;
@@ -104,7 +89,13 @@ export function TicketActorName({
     const label = resolved
         ? name
         : roleToken
-          ? (ROLE_PHRASES[roleToken] ?? humaniseEnum(roleToken) ?? 'someone')
+          ? /*
+              ⚠ A description, deliberately — never a capitalised token. "Admin"
+              reads as somebody's name; "an administrator" cannot be mistaken
+              for one. An unrecognised role renders humanised and bare rather
+              than being forced into an article that might not fit it.
+            */
+            (ticketRolePhrase(roleToken) ?? humaniseEnum(roleToken) ?? 'someone')
           : 'someone';
 
     const route = roleToken ? (ACTOR_ROUTES[roleToken] ?? PLATFORM_ROUTE) : undefined;

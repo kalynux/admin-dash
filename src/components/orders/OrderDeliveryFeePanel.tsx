@@ -13,10 +13,13 @@ import { InfoHint } from '@/components/ui/info-hint';
 import { formatInstantInZone, formatMoney, humaniseEnum } from '@/lib/format';
 import type { CanPredicate } from '@/store';
 import type { DeliveryFeeRefund } from '@/types/money.types';
-import type {
-    DeliveryFeeProposal,
-    OrderDetail,
-    OrderPaymentRef,
+import {
+    proposalApproverLabel,
+    proposalOriginLabel,
+    proposalProposerLabel,
+    type DeliveryFeeProposal,
+    type OrderDetail,
+    type OrderPaymentRef,
 } from '@/types/orders.types';
 
 /**
@@ -318,12 +321,6 @@ function topUpColumns(timeZone: string, can: CanPredicate): Column<OrderPaymentR
     ];
 }
 
-const APPROVER_LABELS: Record<string, string> = {
-    vendor: 'The shop',
-    customer: 'The customer',
-    none: 'Nobody — applied at once',
-};
-
 function proposalColumns(timeZone: string, can: CanPredicate): Column<DeliveryFeeProposal>[] {
     return [
         {
@@ -367,7 +364,7 @@ function proposalColumns(timeZone: string, can: CanPredicate): Column<DeliveryFe
             id: 'approver',
             header: 'Approved by',
             className: 'align-top text-sm',
-            cell: (row) => APPROVER_LABELS[row.approver] ?? row.approver,
+            cell: (row) => proposalApproverLabel(row.approver),
         },
         {
             id: 'customer',
@@ -404,17 +401,18 @@ function proposalColumns(timeZone: string, can: CanPredicate): Column<DeliveryFe
             id: 'reason',
             header: 'Reason',
             className: 'align-top text-sm',
-            cell: (row) => (
-                <div className="space-y-0.5">
-                    <p className="line-clamp-2">{row.reason}</p>
-                    <p className="text-muted-foreground text-xs">
-                        Asked by {humaniseEnum(row.proposedByRole) ?? row.proposedByRole}
-                        {row.origin !== 'agency'
-                            ? ` · ${humaniseEnum(row.origin) ?? row.origin}`
-                            : ''}
-                    </p>
-                </div>
-            ),
+            cell: (row) => {
+                const origin = proposalOriginLabel(row.origin);
+                return (
+                    <div className="space-y-0.5">
+                        <p className="line-clamp-2">{row.reason}</p>
+                        <p className="text-muted-foreground text-xs">
+                            Asked by {proposalProposerLabel(row.proposedByRole)}
+                            {origin ? ` · ${origin}` : ''}
+                        </p>
+                    </div>
+                );
+            },
         },
         {
             id: 'shipment',

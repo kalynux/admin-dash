@@ -90,6 +90,62 @@ describe('listUsers', () => {
         expect(page.meta).toEqual({ total: 8412, page: 1, limit: 25, pages: 337 });
     });
 
+    /**
+     * `meta.idMatch` (BR-029) says what a pasted id WAS. It is absent — never
+     * `null` — for every search not read as an id, and from an older wi-admin;
+     * the screen falls back to deriving what it can, so absent must stay absent.
+     */
+    describe('meta.idMatch', () => {
+        it('passes the kinds through, in the order sent', async () => {
+            stubFetch(() =>
+                successResponse([userFixture()], {
+                    meta: { total: 2, page: 1, limit: 20, pages: 1, idMatch: { kinds: ['user', 'customer'] } },
+                }),
+            );
+
+            expect((await listUsers()).meta.idMatch).toEqual({ kinds: ['user', 'customer'] });
+        });
+
+        it('keeps an empty list — the id is nobody’s, which is not the same as absent', async () => {
+            stubFetch(() =>
+                successResponse([], {
+                    meta: { total: 0, page: 1, limit: 20, pages: 0, idMatch: { kinds: [] } },
+                }),
+            );
+
+            expect((await listUsers()).meta.idMatch).toEqual({ kinds: [] });
+        });
+
+        it('keeps a kind this build has never heard of', async () => {
+            stubFetch(() =>
+                successResponse([], {
+                    meta: { total: 0, page: 1, limit: 20, pages: 0, idMatch: { kinds: ['courier'] } },
+                }),
+            );
+
+            expect((await listUsers()).meta.idMatch).toEqual({ kinds: ['courier'] });
+        });
+
+        it('leaves the key absent when the service sent none', async () => {
+            stubList();
+
+            expect('idMatch' in (await listUsers()).meta).toBe(false);
+        });
+
+        it.each([null, 'customer', { kinds: 'customer' }, { kinds: [1] }])(
+            'treats a malformed value (%j) as absent rather than guessing',
+            async (idMatch) => {
+                stubFetch(() =>
+                    successResponse([], {
+                        meta: { total: 0, page: 1, limit: 20, pages: 0, idMatch },
+                    }),
+                );
+
+                expect('idMatch' in (await listUsers()).meta).toBe(false);
+            },
+        );
+    });
+
     it('keeps the nested suspension block the reads return', async () => {
         // The wire shape here is `{ at, reason, by }` — there is no `fromStatus`,
         // whatever the integration matrix says.

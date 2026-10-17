@@ -1,5 +1,9 @@
 # Permissions and administrator levels
 
+⚠ **Re-measured against source 2026-10-15 (`npm run authz:matrix`): 143 permissions across 23 families, tier totals 143 / 120 / 47.** One is new, and **only tier 1 gained it**: `money.earnings.platform.read` (**financial**) — what the platform itself earned, in amounts. It now guards `GET /money/earnings/platform`, `…/platform/ledger` and `…/platform/summary` (previously `money.earnings.read`, which tier 2 keeps), and it decides who is sent the platform's amounts on the order split and its own rows on `/money/transactions`. The owner's rule (2026-10-04, restated 2026-10-13): Admin and Support see the platform's commission and bargain fee as rates, never as amounts ([money.md](money.md#the-platforms-own-amounts-are-tier-1-only-2026-10-15-br-030--3), BR-030). It is the **second** `financial` read in the catalog after `money.payouts.destination.read`, flagged for the same reason: the flag keeps it out of `allInFamily('money')`, so tier 2 does not inherit it, and refuses it to tier 3 at boot.
+
+⚠ **Re-measured against source 2026-10-10, COD restrictions (`npm run authz:matrix`): 142 permissions across 23 families, tier totals 142 / 120 / 47.** Two are new ([the changelog](../FRONTEND-CHANGELOG-cod-restrictions.md)): `agencies.cod.restrict` (**financial**, named into the tier-2 money block beside `agencies.cod_limit.set` — [agencies.md](agencies.md#the-agencys-cod-restriction)) and `users.cod.restrict` (unflagged, reaching tier 2 through the family grant exactly as `users.suspend` does — [users.md](users.md#the-customers-cod-restriction)). **Both are held by tiers 1 and 2 and not by Support**, so Support's total does not move. Each guards a `PUT …/cod-restriction` and a `POST …/cod-restriction/lift`; the two reads beside them are `agencies.read` and `users.read`. No new family, no new `†`, no dual control. Re-derive rather than quoting.
+
 ⚠ **Re-measured against source 2026-10-05, refund flow (`npm run authz:matrix`): 140 permissions across 23 families, tier totals 140 / 118 / 47.** Four are new with the refund queue ([refunds.md](refunds.md), [the changelog](../FRONTEND-CHANGELOG-refund-flow.md)): `orders.refund.read` (every tier, unflagged), `orders.refund.request` (**financial**, every tier — Support holds it under a named exemption, `TIER_3_FINANCIAL_ALLOWLIST`, because raising a request HOLDS the seller's earnings and sends nothing), `orders.refund.settle_external` (financial, tiers 1 + 2) and `money.earnings.clawback.write_off` (financial, **dual-controlled**, tiers 1 + 2). `orders.refund` itself gained a dual-control spec (approve ≥ 2 000 000). *"Support holds one financial permission"* is now **two**: `money.payouts.triage` and `orders.refund.request`. Neither sends money. Re-derive rather than quoting.
 
 ⚠ **Re-measured against source 2026-10-05 (`npm run authz:matrix`): 136 permissions across 23 families, tier totals 136 / 114 / 45.** Three are new from the review-moderation work, in a new `reviews` family ([§ reviews](#reviews), [the changelog](../FRONTEND-CHANGELOG-reviews.md)): `reviews.read`, `reviews.moderate` and `reviews.delete` (**destructive**), all three held by **every** tier, Support included, by owner decision. Support's `reviews.delete` is the one named exception to "Support holds nothing destructive" (`TIER_3_DESTRUCTIVE_ALLOWLIST`). The fourth, `money.earnings.pause`, arrived the same day from concurrent work on earnings pauses; its own section carries it. Re-derive rather than quoting.
@@ -35,9 +39,9 @@ Design records: [`../../docs/ADR-003-GRANULAR-PERMISSIONS.md`](../../docs/ADR-00
 
 | Level (`tier`) | Label | Holds | Shape of the job |
 |---|---|---|---|
-| **1** | Developer | 140 of 140 | Everything, including the developer tools and every escalation-flagged action |
-| **2** | Admin | 118 of 140 | The operational tier — runs the platform day to day, including the money |
-| **3** | Support | 47 of 140 | Ticket work, **raising refund requests** for an approver (which holds the seller's earnings), the lookups needed to answer a ticket, sending an account holder their statement, editorial write on articles and bylines, resetting the customer bot's memory of a chat, **moderating reviews** (hide, put back, delete), and **pre-screening** a declared COD handover or a payout request. Nothing destructive except deleting a review (the one named exception), publishing stays a level above, and the two `financial` permissions it holds cannot send money anywhere |
+| **1** | Developer | 143 of 143 | Everything, including the developer tools and every escalation-flagged action |
+| **2** | Admin | 120 of 143 | The operational tier — runs the platform day to day, including the money |
+| **3** | Support | 47 of 143 | Ticket work, **raising refund requests** for an approver (which holds the seller's earnings), the lookups needed to answer a ticket, sending an account holder their statement, editorial write on articles and bylines, resetting the customer bot's memory of a chat, **moderating reviews** (hide, put back, delete), and **pre-screening** a declared COD handover or a payout request. Nothing destructive except deleting a review (the one named exception), publishing stays a level above, and the two `financial` permissions it holds cannot send money anywhere |
 
 A level is an administrator's **entire** authorization state. `tier` appears on the profile
 returned by `GET /auth/me`.
@@ -195,7 +199,7 @@ record were one decision, not two. See [ADR-020](../../docs/ADR-020-ADMIN-DATA-D
 ## The matrix
 
 ● granted  ·  not granted  ·  **†** = catalogued policy with **no endpoint built yet**
-(**4** of 140 permissions — down from 27, and the four that remain each have a written reason
+(**4** of 143 permissions — down from 27, and the four that remain each have a written reason
 below. The policy is decided ahead of the surface, deliberately.)
 
 ### `agents`
@@ -221,6 +225,7 @@ below. The policy is decided ahead of the surface, deliberately.)
 | `agencies.deactivate` | write | ● | ● | · | destructive | Deactivate a delivery agency — cascades a suspension across every vendor product that defaults to it |
 | `agencies.reactivate` | write | ● | ● | · | — | Reactivate a previously deactivated delivery agency |
 | `agencies.cod_limit.set` | write | ● | ● | · | financial | Pin (or release) how much cash on delivery an agency may hold, overriding the 1 000 000 default (2026-10-02) |
+| `agencies.cod.restrict` | write | ● | ● | · | financial | Switch cash on delivery off for a delivery agency, or back on — it receives no new COD work while restricted (2026-10-10) |
 
 ### `billing`
 
@@ -268,6 +273,7 @@ Full contract in [cod.md](cod.md).
 | Permission | Action | 1 Dev | 2 Admin | 3 Support | Flags | Summary |
 |---|---|:-:|:-:|:-:|---|---|
 | `money.earnings.read` | read | ● | ● | · | — | View platform earnings and the earnings ledger |
+| `money.earnings.platform.read` | read | ● | · | · | financial | View what the platform itself earned, in amounts — its commission and bargain-fee accounts, ledger and summary |
 | `money.payouts.read` | read | ● | ● | ● | — | View the payout request queue |
 | `money.payouts.mark_paid` | write | ● | ● | · | financial, dual-control | Mark a payout request as paid — records that money has left the platform |
 | `money.payouts.reject` | write | ● | ● | · | financial | Reject a payout request |
@@ -435,12 +441,20 @@ size cap still apply to it.
 | `users.login_link.send` | write | ● | ● | · | — | Send a customer a passwordless sign-in link over email, WhatsApp or Telegram |
 | `users.bot_memory.reset` | write | ● | ● | ● | — | Reset the customer bot’s conversation memory for one user, so their next chat starts fresh |
 | `users.close` | write | ● | ● | · | destructive | Ask a user to close one of their roles (they must confirm; irreversible once they do) |
+| `users.cod.restrict` | write | ● | ● | · | — | Switch cash on delivery off for a customer, or back on — they cannot place a COD order while restricted (2026-10-10) |
 | `users.roles.manage` † | write | ● | · | · | destructive | Add or remove a user’s platform roles |
 
 `users.bot_memory.reset` is the one `users` write Support holds, by the owner's decision
 (2026-09-22). It deletes no order, message record or account data, only what the bot remembers
 of the chat. So the ticket that reports a confused bot can be closed at the level that received
 it. It carries no flag: `destructive` would make the boot check refuse it to Support.
+
+`users.cod.restrict` (2026-10-10) switches cash on delivery off for one customer, and back on.
+It is **unflagged, like `users.suspend`**, and reaches Admin the same way, through the family
+grant. ⚠ Support does **not** hold it, and no boot check enforces that — the same position as
+`users.password.reset`: Support's grants are a hand-written list and this name is not on it
+(`npm run test:users` § 7b pins it). Its agency twin, `agencies.cod.restrict`, *is* flagged
+`financial`, because an agency holds the platform's cash and a customer only hands it over.
 
 ### `vendors`
 
@@ -741,6 +755,11 @@ question arrives as a ticket, so refusing it to the tier that answers tickets es
 - `money.payments.read` (gateway settlements). *"Did my payment go through, and was I refunded"*
   is one of the commonest ticket questions, and the sharp fields — raw gateway payload, payload
   hash, idempotency key — are removed by **projection**, for everyone, rather than by permission.
+  ⚠ **`/money/transactions` has no permission of its own** (2026-10-12). It opens on any one of
+  `money.payments.read` · `money.payouts.read` · `cod.deposits.read` · `cod.remittances.read` ·
+  `money.earnings.read`, and sends each kind of row only to a caller holding that kind's existing
+  reads — so Support sees there exactly the payments, refunds, payouts and COD records it sees
+  elsewhere. See [`transactions.md`](transactions.md) § Access.
 - `money.statements.send` (account statements). *"Send me my statement"* arrives as a ticket.
   It is bounded by the audit row, committed before anything is read, and by jovi-mall choosing
   the recipient (the account's verified email only); the file never carries a payout account number.

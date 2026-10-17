@@ -238,6 +238,7 @@ export function AuthorsList() {
                 <SearchInput
                     label="Search bylines"
                     placeholder="Name or id"
+                    acceptsId
                     value={values.search}
                     onChange={(next) => set({ search: next }, { replace: true })}
                 />

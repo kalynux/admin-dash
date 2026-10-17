@@ -276,7 +276,7 @@ describe('the responsible agency', () => {
 
         expect(await screen.findByText('Littoral Express Delivery')).toBeInTheDocument();
         /*
-          ⚠ Matched on the href, not on the accessible name: the id is rendered
+          ⚠ Matched on the href, not on the accessible name: the id is drawn
           head-and-tail (`665c00…889a`), which is the point of the `id` variant —
           two ObjectIds created in the same second differ only near the end, so a
           left-truncated one is the same string for half a page. The whole value

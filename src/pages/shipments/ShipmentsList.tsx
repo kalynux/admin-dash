@@ -33,6 +33,7 @@ import {
     resolveTimeZone,
 } from '@/lib/datetime';
 import { formatCount, formatInstantInZone, formatMoney } from '@/lib/format';
+import { describeSearchMiss } from '@/lib/id-search';
 import { PAGE_SIZE_DEFAULT, withQuery } from '@/lib/query';
 import { listShipments } from '@/services/shipments.service';
 import { useAdmin, useCan } from '@/store';
@@ -275,6 +276,7 @@ export function ShipmentsList() {
                 <SearchInput
                     label="Search shipments"
                     placeholder="ACR-260815-… prefix, or a shipment, order, agent or agency id"
+                    acceptsId
                     value={values.search}
                     onChange={(next) => set({ search: next }, { replace: true })}
                 />
@@ -434,7 +436,11 @@ export function ShipmentsList() {
                         }
                         description={
                             isFiltered
-                                ? 'Try a different term, or clear the filters. A search matches a tracking-number prefix — uppercase and anchored — or a 24-character id.'
+                                ? describeSearchMiss(
+                                      values.search,
+                                      'Try a different term, or clear the filters. A search matches a tracking-number prefix — uppercase and anchored — or a 24-character id.',
+                                      'No shipment carries that id as its own, its order’s, its agent’s or its agency’s. A user, vendor or customer id finds nothing here.',
+                                  )
                                 : 'Shipments appear here as orders are dispatched to their delivery agencies.'
                         }
                         action={

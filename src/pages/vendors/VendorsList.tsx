@@ -32,6 +32,7 @@ import {
     resolveTimeZone,
 } from '@/lib/datetime';
 import { formatCount, formatInstantInZone } from '@/lib/format';
+import { describeSearchMiss } from '@/lib/id-search';
 import { PAGE_SIZE_DEFAULT, withQuery } from '@/lib/query';
 import { listVendors } from '@/services/vendors.service';
 import { useAdmin } from '@/store';
@@ -281,6 +282,7 @@ export function VendorsList() {
                     // order, a ticket or an audit row is the obvious thing to paste,
                     // and every other admin screen names this person by their user id.
                     placeholder="Business name, email, phone, vendor id or user id"
+                    acceptsId
                     value={values.search}
                     onChange={(next) => set({ search: next }, { replace: true })}
                 />
@@ -416,7 +418,11 @@ export function VendorsList() {
                         title={isFiltered ? 'No vendors match these filters' : 'No vendors yet'}
                         description={
                             isFiltered
-                                ? 'Try a different term, or clear the filters. A search matches a business name, an email, a phone number, a vendor id or a user id.'
+                                ? describeSearchMiss(
+                                      values.search,
+                                      'Try a different term, or clear the filters. A search matches a business name, an email, a phone number, a vendor id or a user id.',
+                                      'No vendor has that id, as its own or as its account’s user id. An id copied from an order, a shipment, an agency or an agent belongs to that record — search for it in the directory it came from.',
+                                  )
                                 : 'Shops appear here as vendors register on the platform.'
                         }
                         action={

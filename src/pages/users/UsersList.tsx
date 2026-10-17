@@ -30,9 +30,11 @@ import {
     resolveTimeZone,
 } from '@/lib/datetime';
 import { formatCount, formatInstantInZone } from '@/lib/format';
+import { describeIdKinds, describeSearchMiss, idSearchMiss } from '@/lib/id-search';
 import { PAGE_SIZE_DEFAULT, withQuery } from '@/lib/query';
-import { listUsers } from '@/services/users.service';
-import { useAdmin } from '@/store';
+import { listUsers, type UserIdMatch } from '@/services/users.service';
+import { useAdmin, useCan } from '@/store';
+import type { RoutedPermissionName } from '@/types/permissions.types';
 import {
     USER_MAX_RANGE_DAYS,
     USER_ROLES,
@@ -68,8 +70,145 @@ const FILTER_DEFAULTS = { sort: USER_SORT_DEFAULT } as const;
 /** The `<Select>` sentinel for "no filter". Radix refuses an empty item value. */
 const ANY = 'any';
 
+/**
+ * ── Searching by id (BR-028, answered 2026-10-12) ─────────────────────────────
+ * ⚠ **Four of the five ids this dashboard shows for a person are not user ids.**
+ * A vendor, an agency, an agent and a customer each have a profile with an id of
+ * its own, and that is the id on their page, on an order and on a shipment. This
+ * directory used to match `users._id` and nothing else, so a profile id pasted
+ * here was a well-formed id that found nobody. **The service now resolves all
+ * five** — a 24-hex term is tried as a user id and as a customer, vendor, agency
+ * or agent id, and the account that owns it comes back. Three things follow:
+ *
+ * - **The row is the account, so its id is not the id that was typed.** The
+ *   screen says so (`explainIdSearch`) rather than leaving an operator to wonder
+ *   why a search for one id produced a record carrying another.
+ * - **`role`, `status` and the date range still narrow an id match** —
+ *   `?search=<customerId>&role=vendor` finds the person only if they are also a
+ *   vendor. So an id that finds nobody under other filters is offered again
+ *   without them — and since BR-029 only when `meta.idMatch` says the id
+ *   belongs to somebody, because it describes the id and not the page.
+ * - **A whole id that finds nobody is not a person at all.** The links to
+ *   Vendors, Agencies and Agents this screen briefly carried are gone — the
+ *   search does that itself now. Orders stays: an order id is not a person, and
+ *   it is the commonest id an operator holds.
+ *
+ * ⚠ **Deploy order: wi-admin first.** Against a service older than BR-028 a
+ * profile id still finds nobody, and the empty state's sentence — which says the
+ * id is no customer's, vendor's, agency's or agent's — would be untrue.
+ */
+const ORDERS: { path: string; permission: RoutedPermissionName } = {
+    path: '/dashboard/orders',
+    permission: 'orders.read',
+};
+
+/** The filters that still narrow an id match. `sort` and `search` do not. */
+const NARROWING_KEYS = ['role', 'status', 'createdFrom', 'createdTo'] as const;
+
+interface IdSearchStory {
+    /** The line beside the count when rows came back, or `null` for nothing to say. */
+    found: string | null;
+    /** What an empty page means, and which way out is honest. */
+    miss: { text: string; offerAlone: boolean; offerOrders: boolean };
+}
+
+/**
+ * What a whole-id search found, in words.
+ *
+ * ── With `meta.idMatch` (BR-029) — facts ──────────────────────────────────────
+ * It **describes the id, not the page**: `role`, `status` and the date range do
+ * not touch it. So an empty page has three explanations and this tells them
+ * apart, which the derivation below could only guess at:
+ *
+ * | `kinds` | narrowed? | Means | Offer |
+ * |---|---|---|---|
+ * | `[]` | either | nobody's id — removing a filter cannot help | Orders |
+ * | non-empty | yes | **a filter is hiding the account** | *Search this id alone* |
+ * | non-empty | no | ⚠ a profile with **no account behind it** — a data fault | nothing |
+ *
+ * And with rows, the kinds name what the typed id was. ⚠ `["user", "customer"]`
+ * is real (five collections, nothing forbids one value being a user id AND
+ * somebody else's profile id): then two accounts come back, and **the row whose
+ * id equals the term is the `user` one** — `users.md` § `meta.idMatch`.
+ *
+ * ── Without it — derived ──────────────────────────────────────────────────────
+ * Absent means no id was read, or a wi-admin older than 2026-10-13. Only the
+ * second reaches here (the caller passes a whole id), and the rows are all there
+ * is: an id search whose rows do not carry the id came through a profile, of
+ * some kind; an empty one under a filter *may* be the filter.
+ */
+function explainIdSearch(
+    searchedId: string,
+    rows: readonly User[],
+    idMatch: UserIdMatch | undefined,
+    isNarrowed: boolean,
+): IdSearchStory {
+    const term = searchedId.toLowerCase();
+    const viaProfile = rows.some((row) => row.id.toLowerCase() !== term);
+
+    if (!idMatch) {
+        return {
+            found:
+                rows.length > 0 && !rows.some((row) => row.id.toLowerCase() === term)
+                    ? 'that id is a customer, vendor, agency or agent profile’s, and this is the account that owns it. The account’s own id is on its page.'
+                    : null,
+            miss: isNarrowed
+                ? {
+                      text: 'No account matches that id under the other filters. An id finds its account whether it is the user’s own or a customer, vendor, agency or agent profile’s — but the role, status and date filters still narrow it.',
+                      offerAlone: true,
+                      offerOrders: false,
+                  }
+                : {
+                      text: 'No account has that id — as its own, or as the id of a customer, vendor, agency or agent profile. It is not a person’s id; if it came from an order, look for it there.',
+                      offerAlone: false,
+                      offerOrders: true,
+                  },
+        };
+    }
+
+    const profileKinds = idMatch.kinds.filter((kind) => kind !== 'user');
+    let found: string | null = null;
+    if (viaProfile && profileKinds.length > 0) {
+        found =
+            idMatch.kinds.includes('user') && rows.length > 1
+                ? `that id is an account’s own id and also ${describeIdKinds(profileKinds)} id belonging to someone else, so both accounts are listed — the one whose id is the same is the account’s own.`
+                : `that id is ${describeIdKinds(profileKinds)} id, and this is the account that owns it. The account’s own id is on its page.`;
+    }
+
+    if (idMatch.kinds.length === 0) {
+        return {
+            found,
+            miss: {
+                text: 'No account or profile has that id — it is not a person’s id. If it came from an order, look for it there.',
+                offerAlone: false,
+                offerOrders: true,
+            },
+        };
+    }
+
+    const owner = describeIdKinds(idMatch.kinds);
+    return {
+        found,
+        miss: isNarrowed
+            ? {
+                  text: `That id is ${owner} id — the role, status or date filter is hiding the account.`,
+                  offerAlone: true,
+                  offerOrders: false,
+              }
+            : {
+                  // The platform never deletes a `users` row, so this takes a
+                  // hand-edited database — the mirror of a `missing` profile on
+                  // the user detail, where the account exists and the profile not.
+                  text: `That id is ${owner} id, but no account stands behind it. That is a fault in the data rather than a search result — report it with the id.`,
+                  offerAlone: false,
+                  offerOrders: false,
+              },
+    };
+}
+
 export function UsersList() {
     const admin = useAdmin();
+    const can = useCan();
     const { values, set, page, setPage, reset, isFiltered } = useListQueryState(
         FILTER_KEYS,
         FILTER_DEFAULTS,
@@ -113,6 +252,14 @@ export function UsersList() {
 
     const rows = users.data?.data ?? [];
     const meta = users.data?.meta;
+
+    /** A whole, well-formed id in the box — the only kind the service reads as one. */
+    const searchedId = idSearchMiss(values.search) === 'whole' ? values.search.trim() : null;
+
+    /** Whether anything besides the term is narrowing the result. */
+    const isNarrowed = NARROWING_KEYS.some((key) => values[key] !== '');
+
+    const story = searchedId ? explainIdSearch(searchedId, rows, meta?.idMatch, isNarrowed) : null;
 
     const columns = useMemo<Column<User>[]>(
         () => [
@@ -210,6 +357,7 @@ export function UsersList() {
                     // and a directory that answered "no results" to a valid id would
                     // look broken rather than strict.
                     placeholder="Email, phone or user id"
+                    acceptsId
                     value={values.search}
                     onChange={(next) => set({ search: next }, { replace: true })}
                 />
@@ -267,6 +415,7 @@ export function UsersList() {
                 <p className="text-muted-foreground text-sm" aria-live="polite">
                     {formatCount(meta.total)} {meta.total === 1 ? 'user' : 'users'}
                     {isFiltered ? ' match these filters' : ''}
+                    {story?.found ? <> — {story.found}</> : null}
                 </p>
             ) : null}
 
@@ -288,14 +437,42 @@ export function UsersList() {
                         title={isFiltered ? 'No users match these filters' : 'No users yet'}
                         description={
                             isFiltered
-                                ? 'Try a different term, or clear the filters. A search matches an email, a phone number, or a user id.'
+                                ? describeSearchMiss(
+                                      values.search,
+                                      'Try a different term, or clear the filters. A search matches an email, a phone number, or a user id.',
+                                      story?.miss.text ?? '',
+                                  )
                                 : 'Accounts appear here as people register on the platform.'
                         }
                         action={
                             isFiltered ? (
-                                <Button variant="outline" size="sm" onClick={reset}>
-                                    Clear filters
-                                </Button>
+                                <div className="flex flex-wrap justify-center gap-2">
+                                    {story?.miss.offerAlone ? (
+                                        <Button
+                                            size="sm"
+                                            onClick={() =>
+                                                set({
+                                                    role: null,
+                                                    status: null,
+                                                    createdFrom: null,
+                                                    createdTo: null,
+                                                })
+                                            }
+                                        >
+                                            Search this id alone
+                                        </Button>
+                                    ) : null}
+                                    {story?.miss.offerOrders && can(ORDERS.permission) ? (
+                                        <Button asChild variant="outline" size="sm">
+                                            <Link to={`${ORDERS.path}?search=${searchedId}`}>
+                                                Look for it in Orders
+                                            </Link>
+                                        </Button>
+                                    ) : null}
+                                    <Button variant="outline" size="sm" onClick={reset}>
+                                        Clear filters
+                                    </Button>
+                                </div>
                             ) : undefined
                         }
                     />

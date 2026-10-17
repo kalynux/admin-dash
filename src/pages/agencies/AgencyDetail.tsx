@@ -20,6 +20,7 @@ import {
 import { ReviewAgencyVerificationDialog } from '@/components/verification/ReviewAgencyVerificationDialog';
 import { VerificationPanel } from '@/components/verification/VerificationPanel';
 import { Can } from '@/components/auth/Can';
+import { CodRestrictionPanel } from '@/components/cod/CodRestrictionPanel';
 import { PartyLogsLink } from '@/components/system/PartyLogsLink';
 import { ContractHistoryPanel } from '@/components/contracts/ContractHistoryPanel';
 import { ErrorState } from '@/components/common/DataState';
@@ -31,7 +32,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { resolveTimeZone } from '@/lib/datetime';
 import { ACCOUNT_READ_PERMISSIONS } from '@/services/accounts.service';
-import { getAgency } from '@/services/agencies.service';
+import {
+    getAgency,
+    getAgencyCodRestriction,
+    liftAgencyCodRestriction,
+    restrictAgencyCod,
+} from '@/services/agencies.service';
 import { useAdmin, useCan } from '@/store';
 import { ApiError, CODE_CLIENT_INVALID_ID } from '@/types/api.types';
 import {
@@ -40,7 +46,9 @@ import {
     canReactivateAgency,
     canVerifyAgency,
     type AgencyCascadeResult,
+    type AgencyDetail as AgencyDetailRecord,
 } from '@/types/agencies.types';
+import type { CodRestriction } from '@/types/cod-restriction.types';
 import { CopyableId } from '@/components/common/CopyableId';
 
 const OBJECT_ID = /^[0-9a-f]{24}$/i;
@@ -77,6 +85,10 @@ const OBJECT_ID = /^[0-9a-f]{24}$/i;
  *
  * The cascade counts are the exception, held in state rather than refetched: they
  * exist on their own write's response and **nowhere else**.
+ *
+ * The COD restriction (2026-10-10) is the other one, for the opposite reason:
+ * its writes answer the **same** report the tab shows, so the answer replaces
+ * the state directly — see `codWritten`.
  */
 export function AgencyDetail() {
     const { agencyId = '' } = useParams();
@@ -128,6 +140,15 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
         direction: 'deactivate' | 'reactivate';
     } | null>(null);
     const [rosterToken, setRosterToken] = useState(0);
+    /**
+     * What a COD-restriction write (or its re-read) last answered, **and the
+     * record it was answered over**. It wins only while that same record is on
+     * screen; any later load brings the service's own newer answer.
+     */
+    const [codWritten, setCodWritten] = useState<{
+        over: AgencyDetailRecord;
+        restriction: CodRestriction | null;
+    } | null>(null);
 
     const agency = useAsyncData(`/agencies/${agencyId}`, (signal) =>
         getAgency(agencyId, { signal }),
@@ -179,6 +200,10 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
     const canSeeActivity = can(['agencies.read', 'audit.read'], 'all');
     // The delivery reviews that rate this agency — internal, never public.
     const canSeeReviews = can('reviews.read');
+    // `undefined` only against a wi-admin older than 2026-10-10, which has no
+    // such routes either — the switch is then omitted, not shown as "off".
+    const codRestriction =
+        codWritten?.over === record ? codWritten.restriction : record.codRestriction;
 
     return (
         <PageContainer
@@ -309,8 +334,38 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
                     <AgencyPoliciesPanel agency={record} />
                 </TabsContent>
 
-                <TabsContent value="cod">
-                    <AgencyCodLimitPanel agency={record} timeZone={timeZone} />
+                {/*
+                  The switch above the amount, and the limit panel told about
+                  it: `headroom` is computed from amounts only, so a restricted
+                  agency can show plenty of it and still receive no COD shipment.
+                */}
+                <TabsContent value="cod" className="space-y-4">
+                    {codRestriction !== undefined ? (
+                        <CodRestrictionPanel
+                            subject="agency"
+                            subjectName={agencyDisplayName(record)}
+                            restriction={codRestriction}
+                            permission="agencies.cod.restrict"
+                            timeZone={timeZone}
+                            actions={{
+                                read: () => getAgencyCodRestriction(record.id),
+                                restrict: (body) => restrictAgencyCod(record.id, body),
+                                lift: (body) => liftAgencyCodRestriction(record.id, body),
+                            }}
+                            onChanged={(report) => {
+                                setCodWritten({ over: record, restriction: report.restriction });
+                                // The Activity tab is keyed on this token; the
+                                // roster re-reads with it, which costs nothing here.
+                                setRosterToken((current) => current + 1);
+                            }}
+                        />
+                    ) : null}
+
+                    <AgencyCodLimitPanel
+                        agency={record}
+                        timeZone={timeZone}
+                        codRestriction={codRestriction}
+                    />
                 </TabsContent>
 
                 {canSeeRoster ? (

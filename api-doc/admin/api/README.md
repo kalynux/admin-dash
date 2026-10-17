@@ -28,7 +28,7 @@ the dashboard's behalf and returns the result in its own envelope.
 | [../FRONTEND-CHANGELOG-phase-2-3.md](../FRONTEND-CHANGELOG-phase-2-3.md) | **What readiness Phases 2 and 3 changed for this dashboard.** No endpoint changed; Tracking Allow became reliable, the database screen's permanent phantom index drift is gone, and there is still no geo-tracker data door |
 | [../FRONTEND-CHANGELOG-phase-4-5.md](../FRONTEND-CHANGELOG-phase-4-5.md) | **What readiness Phases 4 and 5 changed for this dashboard — the largest instalment so far.** 🔴 Every note this service created was filed **public**; an expired approval was still approvable; `resolvedByUserId` → `resolvedBy`. Plus **three new modules** (`content`, `files` orphans + permanent delete, `messaging`), a deleted `GET /audit/legacy`, and the deleted `customers.*` permissions |
 | [errors.md](errors.md) | The complete error-code registry, the nine categories, and the exposure rule |
-| [permissions.md](permissions.md) | All 124 permissions, the three administrator levels, and the grant matrix |
+| [permissions.md](permissions.md) | All 142 permissions, the three administrator levels, and the grant matrix |
 | [health.md](health.md) | `/health/live`, `/health/ready` — unversioned probes |
 | [auth.md](auth.md) | `/auth` — login, MFA, refresh, sessions, own password |
 | [administrators.md](administrators.md) | `/administrators` — administrator management, levels, **the `pending` → `active` lifecycle**, suspension, sessions |
@@ -50,6 +50,7 @@ the dashboard's behalf and returns the result in its own envelope.
 | [cod.md](cod.md) | `/cod` — cash-on-delivery overview, holders, remittances, deposits, discrepancies, trust |
 | [billing.md](billing.md) | `/billing` — pricing-plan catalog and subscriptions |
 | [money.md](money.md) | `/money` — earnings, allocations, payouts, payments, refunds, refund debt (clawback list, write-off) |
+| [transactions.md](transactions.md) | `/money/transactions` — every money movement in one list: payments, purchases, refunds, payouts, COD cash, ledger entries. Filterable per column, cursor-paged, graded by the reads the caller already holds (2026-10-12) |
 | [refunds.md](refunds.md) | `/refunds` — the refund queue: raise, approve (four-eyes ≥ 2 000 000), reject, retry, settle outside the platform, resolve a stuck transfer, proof pictures |
 | [accounts.md](accounts.md) | `/accounts` — one party's status, balances, activity, payouts, credits, cash ledger |
 | [system.md](system.md) | `/system` — health, dependencies, workers, queues, metrics, config, error journal |
@@ -436,6 +437,8 @@ by grep, and re-derivable the same way:
 | `GET /money/earnings/accounts` | its documented query |
 | `GET /money/earnings/platform/summary` | `from`, `to` (both optional) |
 | `GET /money/earnings/pauses` | `kind` (`order`/`booking`), `page`, `limit` (2026-10-05) |
+| `GET /money/transactions` | its documented filters, `limit`, `cursor`, `sort` — **no `page`** ([`transactions.md`](transactions.md), 2026-10-12) |
+| `GET /money/transactions/summary` | the same filters and **no paging parameter at all** — `limit` is a `400` here |
 | `GET /shipments/:shipmentId/tracking-events` | its documented query |
 | `GET /shipments/:shipmentId/tracking-trail` | its documented query |
 | `GET /support/tickets/reference/orders` · `/products` | its documented query |
@@ -449,6 +452,15 @@ without this table changing with it.
 
 Trimmed, 1–120 characters. An empty `?search=` is rejected rather than treated as "no filter" —
 send no parameter at all. The term is escaped before it reaches the database.
+
+**Text matches on a part; an id matches only whole.** On the lists whose `search` takes an id
+— users, vendors, agencies, agents, orders, shipments, billing plans, support tickets and the
+audit feed — a term is read as an id when it is **exactly 24 hexadecimal characters**, in
+either letter case. A shorter or longer term, or one with anything round it (quotes,
+`ObjectId("…")`, a URL), is not an id; it is treated as text. **Which** ids a list matches
+differs by list and is stated on each page: `users` resolves a profile id to its account,
+`vendors` / `agencies` / `agents` match their own id and the user id, and `orders` and
+`shipments` match profile ids and never a user id.
 
 ### Booleans — `?flag=true`
 

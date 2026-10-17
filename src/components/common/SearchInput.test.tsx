@@ -110,3 +110,70 @@ describe('staying out of the way', () => {
         expect(screen.getByRole('searchbox')).toHaveAttribute('maxlength', '120');
     });
 });
+
+describe('a box that takes an id', () => {
+    const ID = '665f1c2a9b3e4a91c7d2e5f0';
+
+    function IdHarness({ acceptsId }: { acceptsId: boolean }) {
+        const [value, setValue] = useState('');
+
+        return (
+            <>
+                <SearchInput
+                    label="Search users"
+                    value={value}
+                    delay={20}
+                    acceptsId={acceptsId}
+                    onChange={setValue}
+                />
+                <output data-testid="committed">{value}</output>
+            </>
+        );
+    }
+
+    /**
+     * An id only ever matches whole — `lib/id-search.ts` has the measurements —
+     * so each of these found nothing, with a `200` and no explanation.
+     */
+    it.each([
+        ['quoted', `"${ID}"`],
+        ['from a database shell', `ObjectId("${ID}")`],
+        ['inside a dashboard link', `https://admin.wi-mall.com/dashboard/users/${ID}`],
+    ])('sends the bare id when it is pasted %s', async (_, pasted) => {
+        render(<IdHarness acceptsId />);
+        const box = screen.getByRole('searchbox');
+
+        await userEvent.click(box);
+        await userEvent.paste(pasted);
+
+        // The box shows what will be sent — never one thing typed and another
+        // searched.
+        expect(box).toHaveValue(ID);
+        await waitFor(() => expect(screen.getByTestId('committed')).toHaveTextContent(ID));
+    });
+
+    it('leaves an ordinary term and a bare id exactly as typed', async () => {
+        render(<IdHarness acceptsId />);
+        const box = screen.getByRole('searchbox');
+
+        await userEvent.click(box);
+        await userEvent.paste('amina@example.cm');
+        expect(box).toHaveValue('amina@example.cm');
+
+        await userEvent.clear(box);
+        await userEvent.paste(ID);
+        expect(box).toHaveValue(ID);
+    });
+
+    it('rewrites nothing unless the box opts in', async () => {
+        // The log-text and error-code boxes are built on this component too, and
+        // a quoted id or a link is a legitimate thing to search a log for.
+        render(<IdHarness acceptsId={false} />);
+        const box = screen.getByRole('searchbox');
+
+        await userEvent.click(box);
+        await userEvent.paste(`"${ID}"`);
+
+        expect(box).toHaveValue(`"${ID}"`);
+    });
+});

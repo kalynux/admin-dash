@@ -13,7 +13,7 @@ import { InfoHint } from '@/components/ui/info-hint';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { formatCount, formatInstantInZone, formatMoney, humaniseEnum } from '@/lib/format';
 import { getOrderMoneySplit } from '@/services/money.service';
-import { useIsDeveloper } from '@/store';
+import { useCan } from '@/store';
 import {
     beneficiaryLabel,
     deliveryOutcomeLabel,
@@ -25,6 +25,7 @@ import {
     noneReasonLabel,
     noteLabel,
     PLATFORM_LINE_ROLES,
+    platformAmountsShown,
     sectionStateLabel,
     waitLabel,
     WARNING_NOTES,
@@ -48,16 +49,23 @@ import {
  * commission rate is read again when the money moves, an agent's share is
  * unknown until an agent accepts, and an agency can still re-price the run.
  *
- * ── The platform's own amounts are shown to Developers only ───────────────────
- * Owner's decision, 2026-10-04: Admin and Support see the platform's commission
- * and bargain fee as **rates**, never as FCFA. Everything else — the vendor's
- * net, the agency's and agent's shares, the reconciliation — is shown to every
- * holder, because that is what explains a vendor's amount.
+ * ── The platform's own amounts: the service withholds them ───────────────────
+ * Owner's rule (2026-10-04), enforced by the service since 2026-10-15 (BR-030
+ * § 3b): Admin and Support see the platform's commission and bargain fee as
+ * **rates**, never as amounts. Below `money.earnings.platform.read` the response
+ * says `platformAmountsWithheld: true`, sends those figures as `null` and marks
+ * each with `withheld: true`. This panel reads that — never the caller's level —
+ * through `platformAmountsShown()`, which falls back to the permission, closed,
+ * against an older service that sends no key.
  *
- * ⚠ **This hides, it does not protect** (see `useIsDeveloper`). The response
- * carries the amounts to every tier, and anyone holding the gross and the
- * vendor net can subtract. A real boundary needs the server to project them out
- * per tier; until then this is presentation only.
+ * ⚠ **`null` means two things here**: *withheld* (known, not shown at this
+ * level) and *not known yet* (an agent's share before anyone accepts). Only
+ * `withheld` tells them apart, and the two read differently on screen.
+ *
+ * ⚠ Everything else — the vendor's net, the delivery shares, the reconciliation —
+ * is shown to every holder, because that is what explains a vendor's amount. So
+ * the platform's share can still be worked out by subtraction: the service stops
+ * stating it, and the owner was told it is not a confidentiality boundary.
  */
 export function OrderMoneySplitPanel({
     orderId,
@@ -68,7 +76,7 @@ export function OrderMoneySplitPanel({
     timeZone: string;
     reloadToken: number;
 }) {
-    const showPlatformAmounts = useIsDeveloper();
+    const can = useCan();
     const split = useAsyncData(`/money/orders/${orderId}/split#${reloadToken}`, (signal) =>
         getOrderMoneySplit(orderId, { signal }),
     );
@@ -85,7 +93,14 @@ export function OrderMoneySplitPanel({
     }
 
     return (
-        <SplitView split={split.data} timeZone={timeZone} showPlatformAmounts={showPlatformAmounts} />
+        <SplitView
+            split={split.data}
+            timeZone={timeZone}
+            showPlatformAmounts={platformAmountsShown(
+                split.data,
+                can('money.earnings.platform.read'),
+            )}
+        />
     );
 }
 
@@ -153,7 +168,7 @@ function SplitView({ split, timeZone, showPlatformAmounts }: ViewProps & { split
                             <Definition label="Customer refunds">
                                 {money(split.totals.customerRefunds)}
                             </Definition>
-                            {showPlatformAmounts ? (
+                            {showPlatformAmounts && split.totals.platform ? (
                                 <>
                                     <Definition label="Platform — commission">
                                         {money(split.totals.platform.commission)}
@@ -166,7 +181,15 @@ function SplitView({ split, timeZone, showPlatformAmounts }: ViewProps & { split
                                     </Definition>
                                 </>
                             ) : (
-                                <Definition label="Platform">
+                                <Definition
+                                    label="Platform"
+                                    hint={
+                                        <InfoHint label="About the platform's share">
+                                            The platform&rsquo;s amounts are shown to Developers
+                                            only. You see its rates.
+                                        </InfoHint>
+                                    }
+                                >
                                     <PlatformRates split={split} />
                                 </Definition>
                             )}
@@ -416,16 +439,23 @@ function LineAmount({
     currency: string;
     showPlatformAmounts: boolean;
 }) {
-    if (!showPlatformAmounts && PLATFORM_LINE_ROLES.includes(line.role)) {
+    // A platform line the service withheld, or one this caller is not shown: its rate.
+    if (
+        PLATFORM_LINE_ROLES.includes(line.role) &&
+        (!showPlatformAmounts || line.withheld === true)
+    ) {
         const percent =
             line.role === 'commission'
                 ? section.goods?.commission.percent
                 : section.goods?.bargainFee.percent;
         return (
-            <span className="text-muted-foreground">
-                {typeof percent === 'number' ? formatPercent(percent) : 'Rate not shown'}
+            <span className="text-muted-foreground" title="The amount is not shown at your level">
+                {typeof percent === 'number' ? formatPercent(percent) : 'Not shown at your level'}
             </span>
         );
+    }
+    if (line.withheld === true) {
+        return <span className="text-muted-foreground">Not shown at your level</span>;
     }
     // `null` in source: an agent's share nobody can know until an agent accepts.
     if (line.amount === null || line.amount === undefined) {
@@ -485,11 +515,13 @@ function GoodsBasisView({
                 <Definition label="Bargain fee">
                     {formatPercent(goods.bargainFee.percent)} of what each bargainable item sold
                     for above the vendor&rsquo;s minimum
-                    {showPlatformAmounts ? <> — {money(goods.bargainFee.amount)}</> : null}
+                    {showPlatformAmounts && goods.bargainFee.amount !== null ? (
+                        <> — {money(goods.bargainFee.amount)}</>
+                    ) : null}
                 </Definition>
                 <Definition label="Commission">
                     {formatPercent(goods.commission.percent)} of the items after the bargain fee
-                    {showPlatformAmounts ? (
+                    {showPlatformAmounts && goods.commission.amount !== null ? (
                         <>
                             {' '}
                             ({money(goods.commission.base)}) — {money(goods.commission.amount)}

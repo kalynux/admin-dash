@@ -31,6 +31,7 @@ import {
     resolveTimeZone,
 } from '@/lib/datetime';
 import { formatCount, formatInstantInZone } from '@/lib/format';
+import { describeSearchMiss } from '@/lib/id-search';
 import { PAGE_SIZE_DEFAULT, withQuery } from '@/lib/query';
 import { listAgencies } from '@/services/agencies.service';
 import { useAdmin } from '@/store';
@@ -231,7 +232,11 @@ export function AgenciesList() {
                     // Every branch here is a documented feature of the endpoint. The id
                     // branch matters most: an agency id copied out of a shipment, an
                     // order or an audit row is the obvious thing to paste.
-                    placeholder="Business name, contact, email, phone or agency id"
+                    // The user id joined on 2026-10-12 (BR-028) — the same pair the
+                    // vendor list always matched. ⚠ Against an older wi-admin a
+                    // user id here finds nothing.
+                    placeholder="Business name, contact, email, phone, agency id or user id"
+                    acceptsId
                     value={values.search}
                     onChange={(next) => set({ search: next }, { replace: true })}
                 />
@@ -355,7 +360,11 @@ export function AgenciesList() {
                         title={isFiltered ? 'No agencies match these filters' : 'No agencies yet'}
                         description={
                             isFiltered
-                                ? 'Try a different term, or clear the filters. A search matches a business name, a contact name, an email, a phone number or an agency id.'
+                                ? describeSearchMiss(
+                                      values.search,
+                                      'Try a different term, or clear the filters. A search matches a business name, a contact name, an email, a phone number, an agency id or a user id.',
+                                      'No agency has that id, as its own or as its account’s user id. An id copied from an order, a shipment, a vendor or an agent belongs to that record — search for it in the directory it came from.',
+                                  )
                                 : 'Delivery agencies appear here as they register on the platform.'
                         }
                         action={

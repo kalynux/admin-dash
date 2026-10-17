@@ -71,7 +71,7 @@ export function listTickets(
 /**
  * `GET /support/tickets/:ticketId` · `support.tickets.read` · **direct read**.
  *
- * The list item plus `description`.
+ * The list item plus `description` and `followers`, with `entity` resolved.
  *
  * ⚠ **A `404 TICKET_NOT_FOUND` is the scope's denial as well as a missing
  * record**, and the two are indistinguishable by design — a `403` would confirm
@@ -223,6 +223,22 @@ export function reopenTicket(ticketId: string, options?: RequestOptions): Promis
  * `role` enum is pinned precisely so `admin` is not expressible: an
  * administrator's relationship to a ticket is the assignment, and a private
  * note's visibility list is computed from the follower rows.
+ *
+ * ── Every tier, on any ticket the caller can see (2026-10-10) ────────────────
+ * This route and its `DELETE` twin pass the **scope only**: they are the one
+ * pair of ticket writes that skips the assignment lock, so a `403` here is not
+ * "somebody else holds it". Never gate either on `availableActions`.
+ *
+ * ── ⚠ The answer is the refreshed ticket detail ──────────────────────────────
+ * The shape of `GET /:ticketId`, `followers` included, read after the write —
+ * before 2026-10-09 this answered `data: undefined`. Typed `unknown` and
+ * narrowed with `isTicketDetail`, because the round is not deployed and an
+ * older service still answers the old way.
+ *
+ * Not capped (the 5-follower limit does not apply to an administrator's add),
+ * idempotent (a user already following is a `200` that changes nothing), and it
+ * lifts an earlier removal. Refusals are jovi-mall's, as `details.platformCode`:
+ * `USER_NOT_FOUND` (404) and `TICKET_FOLLOWER_ROLE_MISMATCH` (422).
  */
 export function addTicketFollower(
     ticketId: string,
@@ -232,7 +248,21 @@ export function addTicketFollower(
     return api.post<unknown>(`${base(ticketId)}/followers`, body, options);
 }
 
-/** `DELETE /support/tickets/:ticketId/followers/:userId` · delegated · **audited**. */
+/**
+ * `DELETE /support/tickets/:ticketId/followers/:userId` ·
+ * `support.tickets.followers.manage` · delegated · **audited**.
+ *
+ * `userId` is the follower's `userId` from the detail. Answers the refreshed
+ * ticket detail, like the `POST`.
+ *
+ * ⚠ **A removal is remembered**: jovi-mall's automatic order-party sync never
+ * re-adds that user. Adding them back by hand clears it.
+ *
+ * The creator, the current assignee and an `admin` follower cannot be removed
+ * (`403`) — see `isFollowerRemovalRefused` for why that refusal carries no
+ * `platformCode`. A `404` with `platformCode: TICKET_NOT_FOUND` is the
+ * *follower row*, not the ticket: that user no longer follows.
+ */
 export function removeTicketFollower(
     ticketId: string,
     userId: string,

@@ -334,6 +334,95 @@ export interface TicketEntityRef {
     label: string | null;
 }
 
+// ─── The people on a ticket ───────────────────────────────────────────────────
+
+/**
+ * One person a ticket names — who opened it, who it was routed to, who follows
+ * it (2026-10-10). Source: `support.md` § *The people on a ticket*.
+ *
+ * `role` and `userId` come from the ticket. **Everything after them is LOOKED
+ * UP, and is `null` when the lookup finds nothing** — a deleted profile, a
+ * closed and anonymised account, a vendor with no shop yet. The row still names
+ * them: render the id and the role, never hide it.
+ *
+ * ⚠ **`name` is the PERSON and `businessName` is the shop or the agency.** For
+ * a vendor or an agency both are usually set and they are different things;
+ * printing `name` under a heading that says "Vendor" is the BR-006 mistake.
+ * `lib/ticket-people.ts` holds the one rule for which is the title.
+ *
+ * ⚠ **`userId` is not always a `users._id`.** For `role: "admin"` it is an
+ * `admin_accounts` id, or the platform's automatic identity, which matches no
+ * account at all — so it never routes to `/users/:userId`.
+ *
+ * The looked-up keys are optional as well as nullable: the contract says they
+ * are always present, and a wi-admin older than this round sends none of them.
+ */
+export interface TicketPerson {
+    role: TicketActorRole;
+    userId: string;
+    /**
+     * The role's own id — `vendors._id`, `delivery_agencies._id`,
+     * `delivery_agents._id`, `customers._id`. ⚠ **It is what `/vendors/:id`,
+     * `/agencies/:id` and `/agents/:id` take, which `userId` is not.**
+     */
+    profileId?: string | null;
+    name?: string | null;
+    businessName?: string | null;
+    /** The account's sign-in number, E.164. */
+    phone?: string | null;
+    /** Often `null` — a customer can register by phone alone. */
+    email?: string | null;
+}
+
+/**
+ * `createdBy`. `userId` is nullable here and nowhere else, and `administrator`
+ * is the fuller answer when an administrator — or the platform itself — opened
+ * the ticket; the identity fields then carry the same name and nothing more.
+ */
+export type TicketCreator = Omit<TicketPerson, 'userId'> & {
+    userId: string | null;
+    administrator: TicketAdminSnapshot | null;
+};
+
+/**
+ * `assignedTo`. ⚠ **Both `role` and `userId` are nullable**: all-`null` is
+ * "routed to nobody", and `role: "admin"` with no `userId` is the administrator
+ * pool — neither is a party to show.
+ */
+export type TicketRoutedTo = Omit<TicketPerson, 'role' | 'userId'> & {
+    role: TicketActorRole | null;
+    userId: string | null;
+};
+
+/**
+ * Why somebody follows a ticket. jovi-mall's closed four
+ * (`TICKET_FOLLOWER_SOURCES`), `string`-widened like every enum here.
+ *
+ * `order_party` is the platform's own doing: on a ticket about an order the
+ * vendor and every agency and agent on its shipments follow automatically.
+ */
+export type TicketFollowerSource =
+    | 'creator'
+    | 'assignee'
+    | 'order_party'
+    | 'admin'
+    | (string & {});
+
+/** One entry of `followers[]` — a {@link TicketPerson} plus why and since when. */
+export interface TicketFollower extends TicketPerson {
+    /** ⚠ **`null` on a row written before 2026-10-09**, which recorded no reason. */
+    source: TicketFollowerSource | null;
+    /** `null` only on a malformed legacy row. */
+    addedAt: string | null;
+    /**
+     * ⚠ **Facts, not permissions.** jovi-mall refuses to remove the creator, the
+     * current assignee and an `admin` follower; these are the inputs to that
+     * rule. `canRemoveFollower` in `lib/ticket-people.ts` is the one reading.
+     */
+    isCreator: boolean;
+    isAssignee: boolean;
+}
+
 export interface Ticket {
     id: string;
     subject: string;
@@ -349,21 +438,21 @@ export interface Ticket {
     importance: TicketToken;
     entity: TicketEntityRef | null;
     trackingNumber: string | null;
-    createdBy: {
-        role: string;
-        userId: string | null;
-        /**
-         * The **full** admin snapshot when an administrator opened the ticket on
-         * somebody's behalf, `null` otherwise.
-         */
-        administrator: TicketAdminSnapshot | null;
-    };
+    /** Who opened it, as a person. See {@link TicketPerson}. */
+    createdBy: TicketCreator;
     /**
      * ⚠ **The platform actor the ticket was ROUTED to** — a vendor, agency or
      * agent. **This is not the administrator handling it.** That is `assignment`.
      * Never render one under a heading meant for the other.
+     *
+     * ⚠ **The object is always there; "routed to nobody" is every field `null`.**
+     * This was typed `{ role, userId } | null` until 2026-10-11 and the service
+     * has never sent `null` — `toTicketDto` builds the block unconditionally —
+     * so a truthiness check here rendered an empty "Raised for" on every ticket
+     * that was routed to nobody. Read it through `routedPartyOf()` in
+     * `lib/ticket-people.ts`.
      */
-    assignedTo: { role: string; userId: string } | null;
+    assignedTo: TicketRoutedTo | null;
     /** `null` is the unassigned pool. */
     assignment: TicketAssignment | null;
     availableActions: TicketAvailableActions;
@@ -374,14 +463,39 @@ export interface Ticket {
 }
 
 /**
- * `GET /support/tickets/:ticketId` — the list item **plus `description`**.
- * Nothing else differs: same mapper, same projection.
+ * `GET /support/tickets/:ticketId` — the list item **plus `description` and
+ * `followers`**, and with `entity` resolved. Same mapper, same projection.
  *
  * `description` is absent from the list deliberately — up to 700 characters of
  * customer free text, a hundred of them per page.
+ *
+ * ⚠ **This is also what both follower writes answer** since 2026-10-10 — see
+ * `isTicketDetail`.
  */
 export interface TicketDetail extends Ticket {
     description: string;
+    /**
+     * Everyone following the ticket, **oldest first**. Detail only — the queue
+     * row does not carry it.
+     *
+     * Optional on the type: a wi-admin older than 2026-10-10 sends no key, and
+     * "this service does not say" must not render as "nobody follows".
+     */
+    followers?: TicketFollower[];
+}
+
+/**
+ * Whether a write's answer is the refreshed detail.
+ *
+ * Both follower routes answer the shape of `GET /:ticketId` since 2026-10-10;
+ * before, add answered `data: undefined`. The round is **not deployed**, so the
+ * answer is checked rather than trusted — an older service's reply falls back
+ * to a re-read instead of blanking the screen.
+ */
+export function isTicketDetail(value: unknown, ticketId: string): value is TicketDetail {
+    if (typeof value !== 'object' || value === null) return false;
+    const candidate = value as Partial<TicketDetail>;
+    return candidate.id === ticketId && Array.isArray(candidate.followers);
 }
 
 // ─── Queries ──────────────────────────────────────────────────────────────────
@@ -684,3 +798,30 @@ export const CODE_TICKET_NOT_FOUND = 'TICKET_NOT_FOUND';
 
 /** 409 — somebody already holds it. Check `availableActions.claim` first. */
 export const CODE_TICKET_ALREADY_ASSIGNED = 'TICKET_ALREADY_ASSIGNED';
+
+// ─── Follower refusals — jovi-mall's, as `details.platformCode` ───────────────
+
+/** 404 on add — no platform user has the id that was sent. */
+export const PLATFORM_CODE_FOLLOWER_USER_NOT_FOUND = 'USER_NOT_FOUND';
+
+/**
+ * 422 on add — the user exists and does not hold `role`. `details.roles` lists
+ * what they do hold, **when it arrives**: wi-admin forwards jovi-mall's details
+ * only for a client-safe category, so read it with `heldRolesOf`.
+ */
+export const PLATFORM_CODE_FOLLOWER_ROLE_MISMATCH = 'TICKET_FOLLOWER_ROLE_MISMATCH';
+
+/**
+ * 403 on remove — the follower is the creator, the current assignee or an
+ * `admin` follower.
+ *
+ * 🔴 **This code does not reach the dashboard, and the changelog's error table
+ * says it does.** A forwarded `403` is categorised `authorization`, and
+ * wi-admin's allowlist for that category (`detail-policy.ts`) keeps `required`
+ * · `mode` · `resource` · `action` · `hint` and **drops `platformCode`** — the
+ * asymmetry BR-025 § 2 left in place on purpose. So the refusal arrives as a
+ * bare `403 PLATFORM_OPERATION_REJECTED`; `isFollowerRemovalRefused` in
+ * `lib/ticket-people.ts` reads the status and accepts the code if it ever
+ * travels.
+ */
+export const PLATFORM_CODE_TICKET_ACCESS_DENIED = 'TICKET_ACCESS_DENIED';

@@ -76,6 +76,7 @@ import { SystemWorkers } from '@/pages/system/SystemWorkers';
 import { PaymentsModule } from '@/pages/money/PaymentsModule';
 import { PayoutsModule } from '@/pages/money/PayoutsModule';
 import { RefundsModule } from '@/pages/money/RefundsModule';
+import { TransactionsModule } from '@/pages/money/TransactionsModule';
 import { SubscriptionsModule } from '@/pages/billing/SubscriptionsModule';
 import { ContractsModule } from '@/pages/contracts/ContractsModule';
 import { ShipmentsModule } from '@/pages/shipments/ShipmentsModule';
@@ -213,6 +214,7 @@ const SCREENS: Record<string, ReactNode> = {
     'money-payments': <PaymentsModule />,
     'money-refunds': <RefundsModule />,
     'money-delivery-fee-refunds': <DeliveryFeeRefundsModule />,
+    'money-transactions': <TransactionsModule />,
     /**
      * Billing declares an index child, so the generator mounts `BillingModule` at
      * both `index` and `*` — which is what keeps `/dashboard/billing` on the

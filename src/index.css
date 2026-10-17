@@ -105,6 +105,13 @@
   * {
     @apply border-border;
   }
+  html {
+    /* The app bar, and the page header where a page pins one, cover the top of
+       the viewport. Without this a control reached with Shift+Tab is scrolled
+       in underneath them and takes focus where nobody can see it. The second
+       term is published by `useStickyPageHeader` and absent everywhere else. */
+    scroll-padding-top: calc(4rem + var(--page-header-height, 0px));
+  }
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-sans);

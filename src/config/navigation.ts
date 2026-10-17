@@ -577,12 +577,14 @@ export const NAV_SECTIONS: NavSection[] = [
                         id: 'money-earnings',
                         label: 'Earnings',
                         path: '/dashboard/money/earnings',
-                        permission: 'money.earnings.read',
-                        // The platform's own commission account — shown to
-                        // Developers only, by the owner's decision (2026-09-27).
-                        // Tier 2 still holds `money.earnings.read` for Accounts
-                        // and Allocations, which stay visible to it.
-                        developerOnly: true,
+                        // The platform's own accounts. Their three reads moved to
+                        // `money.earnings.platform.read` on 2026-10-15 (BR-030) —
+                        // tier 1 only, the owner's rule now held by the service —
+                        // so this gates on the permission like every other entry,
+                        // and the `developerOnly` flag it carried since 2026-09-27
+                        // is gone. Tier 2 keeps `money.earnings.read` for Accounts
+                        // and Allocations.
+                        permission: 'money.earnings.platform.read',
                         implemented: true,
                         phase: 11,
                     },
@@ -670,6 +672,35 @@ export const NAV_SECTIONS: NavSection[] = [
                         label: 'Delivery-fee refunds',
                         path: '/dashboard/money/delivery-fee-refunds',
                         permission: 'money.payments.read',
+                        implemented: true,
+                        phase: 11,
+                    },
+                    {
+                        /**
+                         * Every money movement in one list (BR-027, 2026-10-12).
+                         *
+                         * `GET /money/transactions` has **no permission of its
+                         * own**: it opens on any one of these five reads — the
+                         * route's own `anyPermission(...)` — and the service then
+                         * sends each kind only to a caller who can already read
+                         * it. Every tier holds at least one, so every tier opens
+                         * the screen and sees a list graded for it.
+                         *
+                         * Declared **last** on purpose: `/dashboard/money` lands
+                         * on the first child the caller may open, and this entry
+                         * is open to everyone — anywhere earlier and it would
+                         * take the landing from Payouts and Payments.
+                         */
+                        id: 'money-transactions',
+                        label: 'Transactions',
+                        path: '/dashboard/money/transactions',
+                        permission: [
+                            'money.payments.read',
+                            'money.payouts.read',
+                            'cod.deposits.read',
+                            'cod.remittances.read',
+                            'money.earnings.read',
+                        ],
                         implemented: true,
                         phase: 11,
                     },

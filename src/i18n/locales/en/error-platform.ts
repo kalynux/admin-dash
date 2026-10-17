@@ -178,17 +178,46 @@ const platform = {
     VENDOR_PRODUCT_UNSUSPEND_BLOCKED: 'Something still blocks putting this product back on sale.',
     CATALOG_PRODUCT_NOT_FOUND: 'The platform has no such product.',
 
+    // ─── Ticket followers (2026-10-10) ────────────────────────────────────────
+    /*
+      Add: the id matches no platform user. The dialog picks from a search, so
+      this is the pasted-id path or an account removed in between.
+    */
+    USER_NOT_FOUND: 'No user has this id.',
+    /*
+      Add: the user exists and does not hold the role sent. The dialog names the
+      role and lists `details.roles` when they arrive; this is the fallback.
+    */
+    TICKET_FOLLOWER_ROLE_MISMATCH: 'This user does not hold that role.',
+    /*
+      jovi-mall's general ticket refusal. On a follower removal it means the
+      creator, the current assignee or an administrator, and the panel says so
+      in its own words — ⚠ a forwarded 403 drops `platformCode`, so this
+      sentence is for the day it travels and for the other ticket writes.
+    */
+    TICKET_ACCESS_DENIED: 'The platform does not allow this on that ticket.',
+
     // ─── Users ───────────────────────────────────────────────────────────────
     USER_STATUS_CONFLICT: 'Another administrator changed this account first.',
     USER_CONTACT_REQUIRED: 'An account must keep at least one login identifier',
     AUTH_EMAIL_TAKEN: 'That email already belongs to another account',
     AUTH_PHONE_TAKEN: 'That phone number already belongs to another account',
     /*
-      Only from the bot-memory reset: the account exists and has no customer
-      profile, so it has never talked to the bot as a customer. An absence, not
-      a fault — the button is hidden on such accounts, so this is for the race.
+      The account exists and has no customer profile. Two flows reach it — the
+      bot-memory reset and the COD restriction (2026-10-10) — and both hide
+      their control on such accounts, so this is for the race. An absence, not
+      a fault. Each dialog says it in its own words; this is the sentence for
+      anywhere that does not, so it names neither.
     */
-    AUTH_PROFILE_NOT_FOUND: 'This account has never used the bot, so there is no memory to reset.',
+    AUTH_PROFILE_NOT_FOUND:
+        'This account has no customer profile, so there is nothing here to act on.',
+    /*
+      The COD restriction's compare-and-set (2026-10-10): the account is already
+      in the state asked for. The dialog re-reads and shows what is stored
+      rather than rendering this; it is the fallback.
+    */
+    COD_RESTRICTION_UNCHANGED:
+        'Cash on delivery is already in that state — another administrator may have changed it first. Reload to see what is recorded.',
 
     // ─── Role closure (jovi-mall ADR-A10) ─────────────────────────────────────
     /*

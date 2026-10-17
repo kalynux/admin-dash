@@ -22,7 +22,20 @@ import type { AdminTier } from '@/types/auth.types';
 // ─── The catalogue ────────────────────────────────────────────────────────────
 
 /**
- * All 140 permissions, `family.resource.action`, in the doc's own family order.
+ * All 143 permissions, `family.resource.action`, in the doc's own family order.
+ *
+ * The 143rd is `money.earnings.platform.read` (2026-10-15, BR-030,
+ * `FRONTEND-CHANGELOG-transactions-owner-decisions.md`): `financial`, held by
+ * tier 1 alone — the owner's rule that Admin and Support see the platform's
+ * commission and bargain fee as rates, never amounts, enforced by the service.
+ * 143 / 120 / 47, from `permissions.md`'s re-measure that day.
+ *
+ * The 141st and 142nd are the COD restriction's (2026-10-10,
+ * `FRONTEND-CHANGELOG-cod-restrictions.md`): `agencies.cod.restrict`
+ * (`financial`) and `users.cod.restrict` (unflagged). Both are tiers 1–2 and
+ * **not Support**, who reads the restriction on `agencies.read` / `users.read`
+ * and cannot change it. One name covers both directions on each mount.
+ * 142 / 120 / 47, measured with `npm run authz:matrix` on 2026-10-11.
  *
  * The 137th–140th are the refund queue's (2026-10-05, `refunds.md`):
  * `orders.refund.read` (every tier, unflagged), `orders.refund.request`
@@ -130,6 +143,9 @@ export const PERMISSION_NAMES = [
     'agencies.deactivate',
     'agencies.reactivate',
     'agencies.cod_limit.set',
+    // Switches cash on delivery off for one agency, and back on. `financial`,
+    // tiers 1–2. A different control from the limit above, which is an amount.
+    'agencies.cod.restrict',
 
     // billing
     'billing.plans.read',
@@ -154,6 +170,11 @@ export const PERMISSION_NAMES = [
 
     // money
     'money.earnings.read',
+    // `financial`, TIER 1 ONLY (2026-10-15, BR-030) — the platform's own amounts:
+    // the three `/money/earnings/platform*` reads, the platform's figures on the
+    // order split and the platform's rows on `/money/transactions`. Tier 2 keeps
+    // `money.earnings.read` for Accounts and Allocations.
+    'money.earnings.platform.read',
     'money.payouts.read',
     'money.payouts.mark_paid',
     'money.payouts.reject',
@@ -285,6 +306,9 @@ export const PERMISSION_NAMES = [
     // Asks; never closes. The user confirms in their own app within 7 days, so
     // there is no confirm anywhere on this dashboard. `destructive`, tiers 1–2.
     'users.close',
+    // Switches cash on delivery off for one customer, and back on. Unflagged,
+    // tiers 1–2 — Support sees the restriction and cannot change it.
+    'users.cod.restrict',
     'users.roles.manage', // †
 
     // vendors
@@ -468,14 +492,14 @@ export const PERMISSION_FAMILIES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Any of the 140. Use for what the *server* may send us. */
+/** Any of the 143. Use for what the *server* may send us. */
 export type PermissionName = (typeof PERMISSION_NAMES)[number];
 
 /** One of the four `†`. */
 export type UnroutedPermissionName = (typeof UNROUTED_PERMISSION_NAMES)[number];
 
 /**
- * The 136 that gate a real endpoint — 140 less the four `†`. **Use for what *our code* asks for** — nav
+ * The 139 that gate a real endpoint — 143 less the four `†`. **Use for what *our code* asks for** — nav
  * items, `<Can>`, `RequirePermission` — so that gating a screen on a permission
  * whose endpoint does not exist is a `tsc` error.
  */

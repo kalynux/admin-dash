@@ -22,6 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { resolveTimeZone } from '@/lib/datetime';
 import { formatInstantInZone, formatMoney } from '@/lib/format';
+import { accountSearchPath } from '@/lib/id-search';
 import { REFUND_ACTIVITY_PERMISSIONS, getRefundRequest } from '@/services/refunds.service';
 import { useAdmin, useCan } from '@/store';
 import { ApiError, CODE_CLIENT_INVALID_ID } from '@/types/api.types';
@@ -358,6 +359,7 @@ function Notices({
 }
 
 function Overview({ refund, timeZone }: { refund: RefundRequest; timeZone: string }) {
+    const can = useCan();
     const sourcePath = refundSourcePath(refund.source);
     const typed = refund.destination?.source === 'typed';
 
@@ -422,7 +424,18 @@ function Overview({ refund, timeZone }: { refund: RefundRequest; timeZone: strin
                             ))}
                         </Definition>
                         <Definition label="Customer">
-                            {refund.customerId ? <CopyableValue value={refund.customerId} label="customer ID" /> : <NotSet />}
+                            {/* Opens the user directory SEARCH, which resolves a
+                                customer id to its account (BR-028 § 1) — never
+                                `/users/:id`, where a customer id is a 404. */}
+                            {refund.customerId ? (
+                                <CopyableValue
+                                    value={refund.customerId}
+                                    label="customer ID"
+                                    to={can('users.read') ? accountSearchPath(refund.customerId) : undefined}
+                                />
+                            ) : (
+                                <NotSet />
+                            )}
                         </Definition>
                         <Definition label="Reason">{refundReasonKindLabel(refund.reasonKind)}</Definition>
                         <Definition label="Why">{refund.reason ?? <NotSet />}</Definition>

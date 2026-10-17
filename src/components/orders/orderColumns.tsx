@@ -84,10 +84,11 @@ export function orderColumns({
             header: 'Customer',
             className: 'text-sm',
             /*
-              Name only, and no link: `customerId` is a `customers._id`, which
-              resolves in neither `/users/:userId` nor `?search=`. See the note on
-              `Order['customerId']` — the detail explains the absence rather than
-              leaving it looking like an oversight.
+              Name only, and no link: `customerId` is a `customers._id`, which is
+              a 404 at `/users/:userId`. The account IS reachable by search since
+              BR-028 — see the note on `Order['customerId']` — and that link is on
+              the detail, where there is room to say what it does; a row keeps
+              the one cross-link an operator scanning a list wants.
             */
             cell: (order) => (
                 <div className="min-w-0">

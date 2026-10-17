@@ -18,7 +18,7 @@ function href(name: RegExp | string): string | null {
     return screen.queryByRole('link', { name })?.getAttribute('href') ?? null;
 }
 
-describe('the seven types that open', () => {
+describe('the seven types that open a record', () => {
     it('routes an order to the order detail', () => {
         show(ticketEntityFixture({ label: 'ORD-2026-008841' }));
         expect(href('ORD-2026-008841')).toBe('/dashboard/orders/6670aabbccddeeff00112233');
@@ -83,20 +83,33 @@ describe('a product whose vendor did not resolve', () => {
     });
 });
 
-describe('the four types that do not open', () => {
+describe('a customer opens a search, never a record', () => {
     /**
-     * ⚠ **This disagrees with `support.md` deliberately.** Its routability table
-     * puts `CUSTOMER` in the ✅ row alongside `VENDOR`/`AGENT`/`AGENCY`/`USER`.
-     * There is no customers module on this dashboard, and a `customers._id` is
-     * not a `users._id` — routing it into the user directory would 404 on every
-     * ticket while looking like a working link.
+     * A `customers._id` is not a `users._id`, so `/dashboard/users/<id>` is a 404
+     * on every ticket while looking like a working link — that has not changed.
+     * What changed on 2026-10-12 (BR-028 § 1) is that the user directory's SEARCH
+     * resolves a customer id to its account, and tries it as a user id too, which
+     * matters because nothing guarantees which of the two a ticket carries.
      */
-    it('does not route a customer into the user directory', () => {
+    it('searches the user directory for the id', () => {
         show(ticketEntityFixture({ type: 'CUSTOMER', id: '665f1c2a9b3e4a91c7d2e5f0' }));
 
-        expect(screen.queryByRole('link')).not.toBeInTheDocument();
-        expect(screen.getByText('665f1c2a9b3e4a91c7d2e5f0')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: '665f1c2a9b3e4a91c7d2e5f0' })).toHaveAttribute(
+            'href',
+            '/dashboard/users?search=665f1c2a9b3e4a91c7d2e5f0',
+        );
     });
+
+    it('never routes it to the user detail page', () => {
+        show(ticketEntityFixture({ type: 'CUSTOMER', id: '665f1c2a9b3e4a91c7d2e5f0' }));
+
+        for (const link of screen.getAllByRole('link')) {
+            expect(link.getAttribute('href')).not.toMatch(/\/dashboard\/users\/[0-9a-f]{24}/);
+        }
+    });
+});
+
+describe('the three types that do not open', () => {
 
     it.each(['BOOKING', 'DELIVERY'])('renders %s as a value, having no screen', (type) => {
         show(ticketEntityFixture({ type, id: '6670aabbccddeeff00112233' }));

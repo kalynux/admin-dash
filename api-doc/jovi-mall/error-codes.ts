@@ -53,6 +53,8 @@ type DomainPrefix =
     | 'CAMPAY'
     | 'CINETPAY'
     | 'FAPSHI'
+    | 'NOVASEND'
+    | 'PAWAPAY'
     | 'VALIDATION';   // VALIDATION_ERROR — ZodError catch in global handler only
 
 // Compile-time check: every key must start with a known domain prefix.
@@ -260,6 +262,23 @@ export const ERROR_CODES = Object.freeze({
     /** 409. `expectedVersion` is not the stored `version`: reload and retry. */
     PAYMENT_SETTINGS_VERSION_CONFLICT: 'PAYMENT_SETTINGS_VERSION_CONFLICT',
     /**
+     * 422. The active aggregator needs a payment code obtained BEFORE the charge
+     * (`flow: 'CODE_FIRST'`, NovaSend Orange Money) and none was sent. `{ provider, ussd, spent: false }`:
+     * tell the customer to dial `ussd`, then resend with `paymentCode`. Raised before any write.
+     */
+    PAYMENT_CODE_REQUIRED: 'PAYMENT_CODE_REQUIRED',
+    /**
+     * 422. The provider refused the payment code (wrong, expired or already used). `{ provider, ussd }`.
+     * Nothing was charged: get a fresh code and pay again.
+     */
+    PAYMENT_CODE_REJECTED: 'PAYMENT_CODE_REJECTED',
+    /**
+     * 422. The amount is outside what the active aggregator accepts for this provider
+     * (NovaSend Cameroon: 200–500,000 XAF). `{ provider, amount, min, max, spent: false }`.
+     * Raised before any write; there is no automatic failover (ADR-A08 manual failover).
+     */
+    PAYMENT_AMOUNT_OUT_OF_RANGE: 'PAYMENT_AMOUNT_OUT_OF_RANGE',
+    /**
      * A currency with a minor unit was sent to a mobile-money gateway.
      *
      * Both mobile rails settle in XAF and take a plain whole number. Passing a
@@ -327,6 +346,10 @@ export const ERROR_CODES = Object.freeze({
     CINETPAY_UNREACHABLE: 'CINETPAY_UNREACHABLE',
     FAPSHI_REQUEST_FAILED: 'FAPSHI_REQUEST_FAILED',
     FAPSHI_UNREACHABLE: 'FAPSHI_UNREACHABLE',
+    NOVASEND_REQUEST_FAILED: 'NOVASEND_REQUEST_FAILED',
+    NOVASEND_UNREACHABLE: 'NOVASEND_UNREACHABLE',
+    PAWAPAY_REQUEST_FAILED: 'PAWAPAY_REQUEST_FAILED',
+    PAWAPAY_UNREACHABLE: 'PAWAPAY_UNREACHABLE',
 
     // ── REFUND ────────────────────────────────────────────────────────────────
     REFUND_NOT_ELIGIBLE: 'REFUND_NOT_ELIGIBLE',
@@ -389,6 +412,7 @@ export const ERROR_CODES = Object.freeze({
     TICKET_GENERAL_UPDATE_FAILED: 'TICKET_GENERAL_UPDATE_FAILED',
     TICKET_ACCESS_DENIED: 'TICKET_ACCESS_DENIED',
     TICKET_FOLLOWER_LIMIT_EXCEEDED: 'TICKET_FOLLOWER_LIMIT_EXCEEDED',
+    TICKET_FOLLOWER_ROLE_MISMATCH: 'TICKET_FOLLOWER_ROLE_MISMATCH',
     TICKET_ATTACHMENT_LIMIT_EXCEEDED: 'TICKET_ATTACHMENT_LIMIT_EXCEEDED',
     TICKET_ATTACHMENT_MISSING: 'TICKET_ATTACHMENT_MISSING',
     TICKET_PRIORITY_LOCKED: 'TICKET_PRIORITY_LOCKED',
@@ -2017,6 +2041,16 @@ export const ERROR_CODES = Object.freeze({
      * its own cash limit or the vendor's `maxCashPerAgency`. Retry with `force: true`.
      */
     COD_AGENCY_LIMIT_EXCEEDED: 'COD_AGENCY_LIMIT_EXCEEDED',
+    /**
+     * The administrator's COD restriction (2026-10-10, `cod/domain/cod-restriction.ts`).
+     * `CUSTOMER_RESTRICTED`: checkout — this customer may not place cash-on-delivery orders.
+     * `AGENCY_RESTRICTED`: dispatch / change-agency — the agency may receive no new COD
+     * shipment; `force` does NOT waive it (force waives amounts, this is not one).
+     * `RESTRICTION_UNCHANGED`: the admin write asked for the state the account is already in.
+     */
+    COD_CUSTOMER_RESTRICTED: 'COD_CUSTOMER_RESTRICTED',
+    COD_AGENCY_RESTRICTED: 'COD_AGENCY_RESTRICTED',
+    COD_RESTRICTION_UNCHANGED: 'COD_RESTRICTION_UNCHANGED',
     COD_COLLECTION_NOT_FOUND: 'COD_COLLECTION_NOT_FOUND',
     COD_COLLECTION_ALREADY_COLLECTED: 'COD_COLLECTION_ALREADY_COLLECTED',
     COD_COLLECTION_NOT_COLLECTIBLE: 'COD_COLLECTION_NOT_COLLECTIBLE',

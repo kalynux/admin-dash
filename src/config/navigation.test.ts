@@ -122,11 +122,44 @@ describe('entryRequirement', () => {
         // the refusal screen.
         // Payouts is declared first — it is the one built child, and
         // `firstPermittedChild` must not land a "built" module on a placeholder.
+        // The two COD reads arrive with Transactions (2026-10-12), which opens on
+        // any one of five reads and repeats the three already named. Earnings
+        // sits on its own permission since 2026-10-15 (BR-030).
         expect(navEntryPermissions(NAV_ITEMS.find((entry) => entry.id === 'money'))).toEqual([
             'money.payouts.read',
+            'money.earnings.platform.read',
             'money.earnings.read',
             'money.payments.read',
+            'cod.deposits.read',
+            'cod.remittances.read',
         ]);
+    });
+
+    it('opens Transactions to every tier, and does not take the Money landing from Payouts', () => {
+        const money = NAV_ITEMS.find((entry) => entry.id === 'money') as NavItem;
+        const transactions = money.children?.find((child) => child.id === 'money-transactions');
+        if (!transactions) throw new Error('Money has no Transactions child');
+
+        // `GET /money/transactions` has no permission of its own: any one of
+        // five existing reads opens it, and every tier holds at least one.
+        for (const tier of [1, 2, 3] as const) {
+            expect(isNavEntryPermitted(transactions, heldFixture(tier))).toBe(true);
+        }
+        // Each of the five alone is enough — the route's own `anyPermission`.
+        for (const permission of [
+            'money.payments.read',
+            'money.payouts.read',
+            'cod.deposits.read',
+            'cod.remittances.read',
+            'money.earnings.read',
+        ]) {
+            expect(isNavEntryPermitted(transactions, new Set([permission]))).toBe(true);
+        }
+        expect(isNavEntryPermitted(transactions, new Set(['orders.read']))).toBe(false);
+
+        // Declared last, so a module index still lands where it did.
+        expect(money.children?.at(-1)?.id).toBe('money-transactions');
+        expect(firstPermittedChild(money, heldFixture(3))?.id).toBe('money-payouts');
     });
 
     it('collapses to needing nothing when a child needs nothing', () => {
@@ -513,20 +546,24 @@ describe('route access', () => {
         expect(canAccessRoute(support, '/dashboard/money/allocations')).toBe(false);
     });
 
-    it('shows platform Earnings to the Developer tier only, although Admin holds its permission', () => {
+    it('shows platform Earnings to a holder of money.earnings.platform.read, whatever the level', () => {
         /*
-         * The owner's decision (2026-09-27), not the catalogue's: tier 2 still
-         * holds `money.earnings.read`, so this proves the tier rule is doing the
-         * hiding and the permission rule is not.
+         * The owner's rule (2026-09-27) was a level check until 2026-10-15; since
+         * BR-030 the three routes need `money.earnings.platform.read`, tier 1
+         * only, and the entry gates on that like every other one. Admin still
+         * holds `money.earnings.read` — so this proves the PERMISSION hides it.
          */
         const admin = heldFixture(2);
         expect(admin.has('money.earnings.read')).toBe(true);
+        expect(admin.has('money.earnings.platform.read')).toBe(false);
 
         expect(canAccessRoute(heldFixture(1), '/dashboard/money/earnings', 1)).toBe(true);
         expect(canAccessRoute(admin, '/dashboard/money/earnings', 2)).toBe(false);
-        // An unknown tier fails closed, even on a Developer's set.
-        expect(canAccessRoute(heldFixture(1), '/dashboard/money/earnings')).toBe(false);
-        expect(canAccessRoute(heldFixture(1), '/dashboard/money/earnings', null)).toBe(false);
+        // No level rule is left on this entry: the permission alone decides it.
+        expect(canAccessRoute(heldFixture(1), '/dashboard/money/earnings')).toBe(true);
+        expect(
+            canAccessRoute(new Set(['money.earnings.platform.read']), '/dashboard/money/earnings', 2),
+        ).toBe(true);
 
         // Only that one child moves: the rest of Money stays with Admin.
         expect(canAccessRoute(admin, '/dashboard/money', 2)).toBe(true);

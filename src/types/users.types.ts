@@ -24,6 +24,7 @@
 
 import { partyName } from '@/lib/party';
 import type { ActorStamp } from '@/types/actor.types';
+import type { CodRestriction } from '@/types/cod-restriction.types';
 
 /**
  * The four roles a `users` row may hold.
@@ -141,6 +142,18 @@ export interface RoleProfile {
     /** Identity verification — **agent only**. Unenumerated; render raw. */
     kycStatus: string | null;
     createdAt: string | null;
+    /**
+     * An administrator's cash-on-delivery restriction (2026-10-10). `null` when
+     * the customer is not restricted.
+     *
+     * ⚠ **On the `customer` entry only.** On a vendor, agency or agent entry —
+     * and on a `missing` one — the key is **absent**, not `null`: `null` means
+     * "not restricted", and this read does not look at an agency's restriction
+     * at all (that one is on the agency detail). A wi-admin older than
+     * 2026-10-10 omits it on the customer entry too. Read it through
+     * `customerCodRestriction`, which keeps the three answers apart.
+     */
+    codRestriction?: CodRestriction | null;
 }
 
 /**
@@ -173,6 +186,25 @@ export type UserProfile = RoleProfile | MissingRoleProfile;
  */
 export function isMissingProfile(profile: UserProfile): profile is MissingRoleProfile {
     return 'missing' in profile && profile.missing === true;
+}
+
+/**
+ * The customer's COD restriction as the detail carries it — three answers, and
+ * the third is not the second:
+ *
+ * - a `CodRestriction` — cash on delivery is switched off;
+ * - `null` — the account is a customer and is **not** restricted;
+ * - `undefined` — **there is nothing to show a switch for**: no customer role,
+ *   a `missing` customer profile (all three routes answer `404
+ *   AUTH_PROFILE_NOT_FOUND`), or a service that predates the field.
+ */
+export function customerCodRestriction(
+    user: Pick<UserDetail, 'roles' | 'profiles'>,
+): CodRestriction | null | undefined {
+    if (!user.roles.includes('customer')) return undefined;
+    const profile = user.profiles.find((entry) => entry.role === 'customer');
+    if (!profile || isMissingProfile(profile)) return undefined;
+    return profile.codRestriction;
 }
 
 /** `GET /users/:userId` — every list field, plus one entry per role held. */
@@ -645,7 +677,8 @@ export const USER_MAX_RANGE_DAYS = 366;
 /**
  * The `users.*` audit actions, for the activity feed's filter.
  *
- * Eight today (`backend/admin/src/modules/audit/domain/audit.catalog.ts`); the
+ * Ten today — `users.cod.restrict` / `users.cod.unrestrict` arrived on
+ * 2026-10-10 (`backend/admin/src/modules/audit/domain/audit.catalog.ts`); the
  * sixth, `users.bot_memory.reset`, arrived on 2026-09-22 and shares its name
  * with the permission that guards it — the service names several that way —
  * and `users.close.request` / `users.close.cancel` on 2026-10-04 (role closure).
@@ -663,10 +696,16 @@ export const USER_AUDIT_ACTIONS = [
     'users.bot_memory.reset',
     'users.close.request',
     'users.close.cancel',
+    'users.cod.restrict',
+    'users.cod.unrestrict',
 ] as const;
 
 /**
- * How the eight read to a person. Falls back to the raw name for anything new.
+ * How the ten read to a person. Falls back to the raw name for anything new.
+ *
+ * ⚠ `users.cod.unrestrict` is the **only lasting record** of a restriction:
+ * jovi-mall erases the restriction, its reason and its author when it is
+ * lifted, so this feed is the history — there is no other.
  *
  * ⚠ The two closure actions are the **administrator's** half only. The user's
  * confirm or decline is not an administrator action, so it never appears in
@@ -686,6 +725,8 @@ export const USER_AUDIT_ACTION_LABELS: Record<string, string> = {
     'users.bot_memory.reset': 'Bot memory reset',
     'users.close.request': 'Role closure requested',
     'users.close.cancel': 'Role closure request withdrawn',
+    'users.cod.restrict': 'Cash on delivery restricted',
+    'users.cod.unrestrict': 'Cash on delivery restriction lifted',
 };
 
 // ─── Display helpers ──────────────────────────────────────────────────────────

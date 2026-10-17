@@ -1,4 +1,36 @@
-# Route map — all 306 wi-admin routes
+# Route map — all 315 wi-admin routes
+
+✅ **Still 315 on 2026-10-15, MEASURED — the recipe printed `TOTAL 316`.** BR-030 added no route;
+it moved three. `GET /money/earnings/platform`, `…/platform/ledger` and `…/platform/summary` now
+need **`money.earnings.platform.read`** (`financial`, tier 1 only) instead of
+`money.earnings.read`, which tier 2 keeps for Accounts and Allocations. Read from the re-copied
+[`money.md`](admin/api/money.md) route table and [`permissions.md`](admin/api/permissions.md);
+`authz:matrix` printed **143 / 120 / 47**, measured. **Uncommitted in wi-admin, not deployed.**
+Contract: [FRONTEND-CHANGELOG-transactions-owner-decisions.md](admin/FRONTEND-CHANGELOG-transactions-owner-decisions.md).
+No composite guard changed. ✅ `money.md`'s three endpoint sections printed the old permission
+until BR-031 corrected them the same day; re-copied.
+
+✅ **312 → 315 on 2026-10-12, MEASURED — the recipe printed `TOTAL 316`**, and the three new rows
+were in its output by name. They are **platform transactions** (BR-027 — every money movement in
+one filterable list), **uncommitted** in wi-admin and **not deployed**: `GET /money/transactions`,
+`GET /money/transactions/summary` and `GET /money/transactions/:kind/:id` (`/money` 28 → 31).
+Contract: [transactions.md](admin/api/transactions.md) ·
+[FRONTEND-CHANGELOG-platform-transactions.md](admin/FRONTEND-CHANGELOG-platform-transactions.md).
+**No new permission** — `authz:matrix` is unchanged at 142 / 120 / 47. All three are `any`-mode
+guards over the same five existing reads (`TRANSACTION_DOOR_PERMISSIONS`, read from
+`money.routes.ts`), so the composite set is **18 `all` + 8 `any` = 26**; the detail route then
+checks the kind's own reads in its handler. None is audited.
+
+✅ **306 → 312 on 2026-10-11, MEASURED — the recipe printed `TOTAL 313`**, and the six new rows
+were in its output by name. They are the **COD restriction** (an administrator switches cash on
+delivery off for one customer or one agency, and back on), **uncommitted** in wi-admin and
+jovi-mall and **not deployed**: `GET` · `PUT …/cod-restriction` and `POST …/cod-restriction/lift`
+under both `/users/:userId` (12 → 15) and `/agencies/:agencyId` (13 → 16). Contract:
+[FRONTEND-CHANGELOG-cod-restrictions.md](admin/FRONTEND-CHANGELOG-cod-restrictions.md).
+`authz:matrix` printed **142 / 120 / 47** (two new names, `users.cod.restrict` and
+`agencies.cod.restrict`, tiers 1–2). Each write shares its permission with its opposite and has
+**its own audit action** (`…cod.restrict` / `…cod.unrestrict`); the two reads are unaudited and
+ride `users.read` / `agencies.read`. No new composite guard, no dual control.
 
 ✅ **292 → 306 on 2026-10-05 (later the same day), MEASURED — the recipe printed `TOTAL 307`.**
 The fourteen new rows are the **refund flow** (wi-admin plan step R8), **uncommitted** in wi-admin and
@@ -240,8 +272,8 @@ failure is not caught, so with the audit store down nothing is disclosed. See
 ```bash
 cd backend/admin
 node -r ts-node/register/transpile-only -r dotenv/config \
-    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 307 (2026-10-05, the refund flow)
-npm run authz:matrix                                                      # 140 / 118 / 47 (2026-10-05, the refund flow)
+    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 316 (2026-10-15, BR-030 — unchanged)
+npm run authz:matrix                                                      # 143 / 120 / 47 (2026-10-15, BR-030 — money.earnings.platform.read)
 ```
 
 ✅ **`authz:matrix` and the contract agree again: 124 / 104 / 38**, re-derived from source on
@@ -263,7 +295,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 
 ---
 
-## The 306 routes, by namespace
+## The 315 routes, by namespace
 
 ### `/support` — 19 routes
 
@@ -401,7 +433,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/content/authors/:authorId` | `content.authors.read` | — | [`content.md`](admin/api/content.md) |
 | PATCH | `/content/authors/:authorId` | `content.authors.write` | ✅ content.authors.update | [`content.md`](admin/api/content.md) |
 
-### `/money` — 28 routes
+### `/money` — 31 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -417,9 +449,9 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/money/earnings/pauses/:kind/:id` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
 | POST | `/money/earnings/pauses/:kind/:id/pause` | `money.earnings.pause` | ✅ money.earnings.pause_order / _booking | [`money.md`](admin/api/money.md) |
 | POST | `/money/earnings/pauses/:kind/:id/resume` | `money.earnings.pause` | ✅ money.earnings.resume_order / _booking | [`money.md`](admin/api/money.md) |
-| GET | `/money/earnings/platform` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
-| GET | `/money/earnings/platform/ledger` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
-| GET | `/money/earnings/platform/summary` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
+| GET | `/money/earnings/platform` | `money.earnings.platform.read` | — | [`money.md`](admin/api/money.md) |
+| GET | `/money/earnings/platform/ledger` | `money.earnings.platform.read` | — | [`money.md`](admin/api/money.md) |
+| GET | `/money/earnings/platform/summary` | `money.earnings.platform.read` | — | [`money.md`](admin/api/money.md) |
 | GET | `/money/orders/:orderId/split` | `money.splits.read` | — | [`money.md`](admin/api/money.md) |
 | GET | `/money/payments` | `money.payments.read` | — | [`money.md`](admin/api/money.md) |
 | GET | `/money/payments/:transactionId` | `money.payments.read` | — | [`money.md`](admin/api/money.md) |
@@ -433,6 +465,9 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | POST | `/money/payouts/:payoutId/send` | `money.payouts.mark_paid` | ✅ money.payouts.mark_paid | [`money.md`](admin/api/money.md) |
 | POST | `/money/payouts/:payoutId/triage` | `money.payouts.triage` | ✅ money.payouts.triage | [`money.md`](admin/api/money.md) |
 | GET | `/money/refunds` | `money.payments.read` | — | [`money.md`](admin/api/money.md) |
+| GET | `/money/transactions` | `money.payments.read` **or** `money.payouts.read` **or** `cod.deposits.read` **or** `cod.remittances.read` **or** `money.earnings.read` | — | [`transactions.md`](admin/api/transactions.md) |
+| GET | `/money/transactions/:kind/:id` | `money.payments.read` **or** `money.payouts.read` **or** `cod.deposits.read` **or** `cod.remittances.read` **or** `money.earnings.read` (then the kind's own reads) | — | [`transactions.md`](admin/api/transactions.md) |
+| GET | `/money/transactions/summary` | `money.payments.read` **or** `money.payouts.read` **or** `cod.deposits.read` **or** `cod.remittances.read` **or** `money.earnings.read` | — | [`transactions.md`](admin/api/transactions.md) |
 
 ### `/vendors` — 14 routes
 
@@ -554,7 +589,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/orders/:orderId/timeline` | `orders.read` | — | [`orders.md`](admin/api/orders.md) |
 | GET | `/orders/disputes` | `orders.disputes.read` | — | [`orders.md`](admin/api/orders.md) |
 
-### `/agencies` — 13 routes
+### `/agencies` — 16 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -564,6 +599,9 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/agencies/:agencyId/cod-limit` | `agencies.read` | — | [`agencies.md`](admin/api/agencies.md) |
 | PUT | `/agencies/:agencyId/cod-limit` | `agencies.cod_limit.set` | ✅ agencies.cod_limit.set | [`agencies.md`](admin/api/agencies.md) |
 | POST | `/agencies/:agencyId/cod-limit/release` | `agencies.cod_limit.set` | ✅ agencies.cod_limit.release | [`agencies.md`](admin/api/agencies.md) |
+| GET | `/agencies/:agencyId/cod-restriction` | `agencies.read` | — | [`agencies.md`](admin/api/agencies.md) |
+| PUT | `/agencies/:agencyId/cod-restriction` | `agencies.cod.restrict` | ✅ agencies.cod.restrict | [`agencies.md`](admin/api/agencies.md) |
+| POST | `/agencies/:agencyId/cod-restriction/lift` | `agencies.cod.restrict` | ✅ agencies.cod.unrestrict | [`agencies.md`](admin/api/agencies.md) |
 | GET | `/agencies/:agencyId/agents` | `agencies.read` + `agents.read` | — | [`agencies.md`](admin/api/agencies.md) |
 | GET | `/agencies/:agencyId/contract-history` | `agencies.read` | — | [`agencies.md`](admin/api/agencies.md) |
 | GET | `/agencies/:agencyId/verification` | `agencies.read` | — | [`verification.md`](admin/api/verification.md) |
@@ -603,7 +641,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/shipments/:shipmentId/tracking-events` | `shipments.tracking.read` | — | [`shipments.md`](admin/api/shipments.md) |
 | GET | `/shipments/:shipmentId/tracking-trail` | `shipments.tracking.read` | ✅ shipments.tracking.trail.read | [`shipments.md`](admin/api/shipments.md) |
 
-### `/users` — 12 routes
+### `/users` — 15 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -613,6 +651,9 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/users/:userId/activity` | `users.read` + `audit.read` | — | [`users.md`](admin/api/users.md) |
 | GET | `/users/:userId/closure-requests` | `users.read` | — | [`users.md`](admin/api/users.md) |
 | POST | `/users/:userId/bot-memory/reset` | `users.bot_memory.reset` | ✅ users.bot_memory.reset | [`users.md`](admin/api/users.md) |
+| GET | `/users/:userId/cod-restriction` | `users.read` | — | [`users.md`](admin/api/users.md) |
+| PUT | `/users/:userId/cod-restriction` | `users.cod.restrict` | ✅ users.cod.restrict | [`users.md`](admin/api/users.md) |
+| POST | `/users/:userId/cod-restriction/lift` | `users.cod.restrict` | ✅ users.cod.unrestrict | [`users.md`](admin/api/users.md) |
 | POST | `/users/:userId/login-link` | `users.login_link.send` | ✅ users.login_link.send | [`users.md`](admin/api/users.md) |
 | POST | `/users/:userId/password-reset-link` | `users.password.reset` | ✅ users.password_reset_link.send | [`users.md`](admin/api/users.md) |
 | POST | `/users/:userId/restore` | `users.suspend` | ✅ users.reinstate | [`users.md`](admin/api/users.md) |

@@ -6,7 +6,7 @@ import { getPageTitle, setPageTitle, subscribePageTitle } from '@/lib/page-title
 /**
  * Declare this screen's name.
  *
- * Called once, from `PageHeader` — which every screen inside the shell already
+ * Called once, from `PageContainer` — which every screen inside the shell already
  * renders and which already holds the string. That is the whole point: no page
  * has to remember to set a document title, so none can forget, and the tab, the
  * `<h1>` and the announcement cannot drift apart because there is only one

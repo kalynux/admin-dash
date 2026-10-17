@@ -174,12 +174,18 @@ export interface Order {
     /**
      * ⚠ A `customers._id`, **not** a `users._id`.
      *
-     * `/users/:userId` and `?search=<24hex>` both key on the `users` collection, so
-     * this id resolves in neither — a `/dashboard/users/<customerId>` link would
-     * 404 on every order. The join does exist in the database
-     * (`customers.user_id`, required and unique) but wi-admin's projection does not
-     * carry it. Recorded as a backend ask; until then the only honest cross-link is
-     * "their other orders".
+     * `/users/:userId` keys on the `users` collection, so a
+     * `/dashboard/users/<customerId>` link is a `404` on every order — **still**.
+     * The join exists in the database (`customers.user_id`, required and unique)
+     * and no projection carries it.
+     *
+     * ✅ **The account is reachable by SEARCH since 2026-10-12 (BR-028 § 1)**:
+     * `GET /users?search=<customerId>` resolves a customer id to the account that
+     * owns it, so `accountSearchPath(customerId)` in `lib/id-search.ts` is the
+     * link from an order to the person — a list of one row, not a detail page. A
+     * `customerUserId` on this projection was offered and declined: the search
+     * closes the gap on every screen that serves a `customerId`, this one
+     * included. ⚠ Against a wi-admin older than BR-028 that search is empty.
      */
     customerId: string;
     customerName: string | null;
@@ -443,9 +449,12 @@ export interface OrderPaymentRef {
  * A fee change on one of the order's shipments.
  *
  * `approver`: `vendor` (vendor-paid) · `customer` (an increase the customer
- * pays) · `none` (a customer-paid decrease, applied on creation). `origin`:
- * `agency` · `change_agency` · `combined_request`. `status`: `pending` ·
- * `approved` · `rejected` · `withdrawn`. All open strings.
+ * pays) · `none` (a customer-paid decrease, applied on creation) · `agency`
+ * (the payer proposed and the agency answers — jovi-mall ADR-A12, 2026-10-14).
+ * `origin`: `agency` · `change_agency` · `combined_request` · `payer`, and on a
+ * `payer` row `proposedByRole` is `vendor` or `customer`. `status`: `pending` ·
+ * `approved` · `rejected` · `withdrawn`. All open strings — read them through
+ * the `proposal*Label` helpers below, which print an unknown value raw.
  */
 export interface DeliveryFeeProposal {
     id: string;
@@ -505,6 +514,48 @@ export function deliveryPayerLabel(payer: DeliveryPayer | null): string {
     if (payer === null || payer === 'vendor') return 'The shop';
     if (payer === 'customer') return 'The customer';
     return payer;
+}
+
+const PROPOSAL_PROPOSER_LABELS: Record<string, string> = {
+    agency: 'Agency',
+    agent: 'Agent',
+    system: 'System',
+    // ADR-A12: whoever pays the delivery may now propose a figure of their own.
+    vendor: 'Vendor',
+    customer: 'Customer',
+};
+
+/** Who raised a fee proposal (`proposedByRole`). An unknown role renders raw. */
+export function proposalProposerLabel(role: string): string {
+    return PROPOSAL_PROPOSER_LABELS[role] ?? role;
+}
+
+const PROPOSAL_APPROVER_LABELS: Record<string, string> = {
+    vendor: 'The shop',
+    customer: 'The customer',
+    none: 'Nobody — applied at once',
+    // ADR-A12: the payer proposed, so the other side answers.
+    agency: 'Delivery company answers',
+};
+
+/** Who answers a fee proposal (`approver`). An unknown value renders raw. */
+export function proposalApproverLabel(approver: string): string {
+    return PROPOSAL_APPROVER_LABELS[approver] ?? approver;
+}
+
+const PROPOSAL_ORIGIN_LABELS: Record<string, string> = {
+    change_agency: 'change agency',
+    combined_request: 'combined request',
+    payer: 'Proposed by the payer',
+};
+
+/**
+ * Where a fee proposal came from (`origin`), or `null` for `agency` — the
+ * ordinary case, which the panel leaves unsaid. An unknown origin renders raw.
+ */
+export function proposalOriginLabel(origin: string): string | null {
+    if (origin === 'agency') return null;
+    return PROPOSAL_ORIGIN_LABELS[origin] ?? origin;
 }
 
 const DELIVERY_PAYER_REASON_LABELS: Record<string, string> = {

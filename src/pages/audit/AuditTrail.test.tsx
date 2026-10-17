@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 
 import { AuditTrail } from '@/pages/audit/AuditTrail';
 import { __resetAuditActionCache } from '@/services/audit.service';
@@ -235,6 +236,78 @@ describe('states', () => {
         renderTrail('/dashboard/audit');
 
         expect(await screen.findByText(/the trail is kept for 365 days/i)).toBeInTheDocument();
+    });
+
+    /** The newest trail request, ignoring the catalog read beside it. */
+    const lastTrailQuery = (calls: FetchCall[]) =>
+        queryOf([...calls].reverse().find((call) => !call.url.includes('/audit/actions'))!);
+
+    /**
+     * Since BR-028 § 4 a whole 24-character id in `search` is matched as the
+     * entry's target, related target **or** actor — "anything to do with this
+     * id". `targetId` and `actorId` each answer one of those, so a searched id
+     * that found rows is offered as either.
+     */
+    it('narrows a searched id to the entries about it', async () => {
+        const calls = stubTrail();
+        renderTrail('/dashboard/audit?search=665F1C2A9B3E4A91C7D2E5F0');
+
+        await userEvent.click(await screen.findByRole('button', { name: 'Only entries about it' }));
+
+        await waitFor(() => {
+            // Lower-cased: `targetId` is an exact string match, the search is not.
+            expect(lastTrailQuery(calls).get('targetId')).toBe('665f1c2a9b3e4a91c7d2e5f0');
+            expect(lastTrailQuery(calls).has('search')).toBe(false);
+        });
+    });
+
+    it('narrows a searched id to the entries by it', async () => {
+        const calls = stubTrail();
+        renderTrail('/dashboard/audit?search=665f1c2a9b3e4a91c7d2e5f0');
+
+        await userEvent.click(await screen.findByRole('button', { name: 'Only entries by it' }));
+
+        await waitFor(() =>
+            expect(lastTrailQuery(calls).get('actorId')).toBe('665f1c2a9b3e4a91c7d2e5f0'),
+        );
+    });
+
+    it('says nothing involves an id that found no entry, and sends it nowhere else', async () => {
+        // The search already tried it three ways; `targetId` from here would
+        // only be a second empty page.
+        stubTrail([], { total: 0, pages: 0 });
+        renderTrail('/dashboard/audit?search=665f1c2a9b3e4a91c7d2e5f0');
+
+        expect(await screen.findByText(/nothing on record that you can see involves that id/i)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /entries about/i })).toBeNull();
+    });
+
+    /**
+     * A session id and the request reference an error toast shows are both
+     * UUIDs, and the search reads neither. Each has a filter of its own.
+     */
+    it('routes a UUID to the filter it belongs to', async () => {
+        const uuid = '8f14c2a0-6b3e-4a91-9c7d-2e5f0a1b3c4d';
+        const calls = stubTrail([], { total: 0, pages: 0 });
+        renderTrail(`/dashboard/audit?search=${uuid}`);
+
+        expect(screen.queryByRole('button', { name: 'Only entries about it' })).toBeNull();
+        await userEvent.click(
+            await screen.findByRole('button', { name: 'Entries from this request' }),
+        );
+
+        await waitFor(() => {
+            expect(lastTrailQuery(calls).get('correlationId')).toBe(uuid);
+            expect(lastTrailQuery(calls).has('search')).toBe(false);
+        });
+    });
+
+    it('offers no id filter for an ordinary term', async () => {
+        stubTrail([], { total: 0, pages: 0 });
+        renderTrail('/dashboard/audit?search=amina');
+
+        expect(await screen.findByText(/nothing matches these filters/i)).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /entries (about|from)/i })).toBeNull();
     });
 
     it('shows a removable chip for a filter that has no control', async () => {

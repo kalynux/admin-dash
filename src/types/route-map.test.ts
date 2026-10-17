@@ -108,7 +108,7 @@ describe('the route total is the sum of its parts', () => {
         );
     });
 
-    it('holds the 306 routes on the service as of 2026-10-05', () => {
+    it('holds the 312 routes on the service as of 2026-10-11', () => {
         // Pinned deliberately, and it is the assertion that fires when the
         // backend ships a route group. A change here is not a failure to fix by
         // editing this number: it means a route arrived, and something in `src/`
@@ -176,7 +176,14 @@ describe('the route total is the sum of its parts', () => {
         // the new `/refunds` group (12: queue, detail, activity, eligibility, raise,
         // approve, reject, retry, settle-external, resolve-unknown, proof upload and
         // read) and the two `/money/earnings/clawbacks` routes (refund debt).
-        expect(totalDeclared).toBe(306);
+        //
+        // ⚠ 306 → 312 on 2026-10-11, measured (`TOTAL 313`): the COD restriction —
+        // `GET` · `PUT …/cod-restriction` and `POST …/cod-restriction/lift` under both
+        // `/users/:userId` (12 → 15) and `/agencies/:agencyId` (13 → 16).
+        //
+        // ⚠ 312 → 315 on 2026-10-12, measured (`TOTAL 316`): platform transactions —
+        // `GET /money/transactions`, `…/summary` and `…/:kind/:id` (`/money` 28 → 31).
+        expect(totalDeclared).toBe(315);
     });
 });
 
@@ -228,7 +235,7 @@ describe('the composite guards, as the route map declares them', () => {
         .map((row) => `${row.method} ${row.path}`)
         .sort();
 
-    it('is exactly the twenty-three the service declares', () => {
+    it('is exactly the twenty-six the service declares', () => {
         // Seventeen `all`-mode plus five `any`-mode. That count has been stale
         // four separate times — "Thirteen", then "fourteen plus the any-mode
         // one", then "fifteen … sixteen in all", then "three any-mode … twenty"
@@ -243,6 +250,11 @@ describe('the composite guards, as the route map declares them', () => {
         //
         // ⚠ The twenty-third (`all` mode) is `GET /refunds/:refundId/activity`
         // (2026-10-05): `orders.refund.read` + `audit.read`, the payout-activity rule.
+        //
+        // ⚠ Twenty-four to twenty-six (all `any` mode) are the three
+        // `/money/transactions` reads (2026-10-12, BR-027): the route has no
+        // permission of its own and opens on any one of five existing reads, so
+        // 18 `all` + 8 `any`. Read from `money.routes.ts`.
         expect(composite).toEqual([
             'GET /accounts/:ownerType/:ownerId',
             'GET /accounts/:ownerType/:ownerId/activity',
@@ -257,6 +269,9 @@ describe('the composite guards, as the route map declares them', () => {
             'GET /cod/agents/:agentId/trust-events',
             'GET /contracts/:contractId',
             'GET /money/payouts/:payoutId/activity',
+            'GET /money/transactions',
+            'GET /money/transactions/:kind/:id',
+            'GET /money/transactions/summary',
             'GET /orders/:orderId/activity',
             'GET /refunds/:refundId/activity',
             'GET /shipments/:shipmentId/activity',

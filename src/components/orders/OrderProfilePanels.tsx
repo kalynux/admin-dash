@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { InfoHint } from '@/components/ui/info-hint';
 import { formatCount, formatInstantInZone, formatMoney, humaniseEnum } from '@/lib/format';
+import { accountSearchPath } from '@/lib/id-search';
 import { resolvePartyName } from '@/lib/party';
 import type { CanPredicate } from '@/store';
 import {
@@ -138,22 +139,23 @@ export function OrderOverviewPanel({
                         <Definition
                             label="Customer"
                             hint={
-                                <InfoHint label="Why there is no account link">
-                                    A customer id is not a user id on this platform — the two live
-                                    in different collections, and no order carries the account id
-                                    that would join them. So there is no account to link to from
-                                    here; their other orders are the closest thing.
+                                <InfoHint label="About the customer id">
+                                    A customer id is not a user id on this platform — it is the id
+                                    of the customer profile, and the account behind it has an id of
+                                    its own. “Find the account” searches the user directory for the
+                                    person who owns this profile.
                                 </InfoHint>
                             }
                         >
                             {/*
-                              ⚠ No `to` on the name, and the id is still shown.
-                              A `customers._id` resolves in neither `/users/:id`
-                              nor `?search=<24hex>`, so there is nothing to link
-                              it to — but it is the parameter of the one query
-                              that *does* work, which is exactly what makes it
-                              worth copying. The sub-line is the affordance the
-                              "their other orders" link cannot be.
+                              ⚠ Still no `to` on the name. A `customers._id` is a
+                              `404` at `/users/:id`, so the name cannot open a
+                              record — but since BR-028 the user directory's
+                              SEARCH resolves it, which is what "Find the account"
+                              uses. It lands on a list of one row, and it is a
+                              second link rather than the name's own because a
+                              name that opened a search would read as a broken
+                              detail link.
                             */}
                             <PartyValue
                                 party={resolvePartyName(
@@ -163,14 +165,24 @@ export function OrderOverviewPanel({
                                 id={order.customerId}
                                 idLabel="customer ID"
                                 after={
-                                    can('orders.read') ? (
-                                        <Link
-                                            to={`/dashboard/orders?customerId=${order.customerId}`}
-                                            className="text-muted-foreground text-xs hover:underline"
-                                        >
-                                            Their other orders
-                                        </Link>
-                                    ) : null
+                                    <>
+                                        {can('users.read') ? (
+                                            <Link
+                                                to={accountSearchPath(order.customerId)}
+                                                className="text-muted-foreground text-xs hover:underline"
+                                            >
+                                                Find the account
+                                            </Link>
+                                        ) : null}
+                                        {can('orders.read') ? (
+                                            <Link
+                                                to={`/dashboard/orders?customerId=${order.customerId}`}
+                                                className="text-muted-foreground text-xs hover:underline"
+                                            >
+                                                Their other orders
+                                            </Link>
+                                        ) : null}
+                                    </>
                                 }
                             />
                         </Definition>

@@ -13,6 +13,7 @@ import {
 } from '@/test/money-fixtures';
 import { errorResponse, renderWithProviders, stubFetch, successResponse } from '@/test/utils';
 import type { AdminTier } from '@/types/auth.types';
+import type { OrderMoneySplit } from '@/types/money-split.types';
 
 /*
  * `GET /money/orders/:orderId/split` — the order's Money tab (money-split
@@ -23,7 +24,9 @@ import type { AdminTier } from '@/types/auth.types';
  *   difference);
  * - unknown vocabulary renders as text;
  * - the platform's own amounts are FCFA for Developers and RATES for Admin and
- *   Support (owner's decision, 2026-10-04).
+ *   Support (owner's decision, 2026-10-04) — decided by the SERVICE since
+ *   2026-10-15 (`platformAmountsWithheld`, BR-030 § 3b), and by the
+ *   `money.earnings.platform.read` permission against an older one.
  */
 
 const ORDER_ID = '6670aabbccddeeff00112233';
@@ -131,6 +134,91 @@ describe('the platform’s own amounts', () => {
         expect(screen.queryByText('Platform — total')).not.toBeInTheDocument();
         expect(screen.getByText(/Commission 10% · Bargain fee 30% of the uplift/)).toBeInTheDocument();
         expect(screen.getAllByText(/52,450/).length).toBeGreaterThan(0);
+    });
+});
+
+/**
+ * The split as the service sends it below `money.earnings.platform.read` since
+ * 2026-10-15: the platform's figures `null`, each touched part marked
+ * `withheld: true`, the rates kept (money.md § Below tier 1).
+ */
+function withheldSplit(): OrderMoneySplit {
+    const split = orderMoneySplitFixture() as unknown as OrderMoneySplit;
+    return {
+        ...split,
+        platformAmountsWithheld: true,
+        totals: { ...split.totals, platform: null },
+        sections: split.sections.map((section) => ({
+            ...section,
+            lines: section.lines.map((line) =>
+                line.role === 'commission' || line.role === 'bargain_fee'
+                    ? { ...line, amount: null, withheld: true }
+                    : line,
+            ),
+            goods: section.goods
+                ? {
+                      ...section.goods,
+                      withheld: true,
+                      commission: { ...section.goods.commission, amount: null },
+                      bargainFee: {
+                          ...section.goods.bargainFee,
+                          amount: null,
+                          lines: section.goods.bargainFee.lines.map((item) => ({
+                              ...item,
+                              fee: null,
+                          })),
+                      },
+                  }
+                : section.goods,
+        })),
+    };
+}
+
+describe('the platform’s own amounts, withheld by the service (BR-030)', () => {
+    it.each([2, 3] as const)(
+        'renders a withheld split for tier %i — rates, no FCFA, and the panel is not blanked',
+        async (tier) => {
+            render(withheldSplit(), tier);
+            const payment = await section(/payment/i);
+
+            // `totals.platform: null` must not read as an unrecognised shape.
+            expect(
+                screen.queryByText(/does not recognise/i),
+            ).not.toBeInTheDocument();
+
+            const commission = payment.getByText('Platform — commission').closest('tr');
+            expect(within(commission as HTMLElement).getByText('10%')).toBeInTheDocument();
+            expect(screen.getByText(/Commission 10% · Bargain fee 30% of the uplift/)).toBeInTheDocument();
+            for (const amount of [/6,050/, /4,500/, /10,550/]) {
+                expect(screen.queryByText(amount)).not.toBeInTheDocument();
+            }
+            // The vendor's figures are still there — they are what Support explains.
+            expect(screen.getAllByText(/52,450/).length).toBeGreaterThan(0);
+        },
+    );
+
+    it('never reads a withheld amount as "not known yet"', async () => {
+        render(withheldSplit(), 2);
+        const payment = await section(/payment/i);
+
+        expect(payment.queryByText(/not known until an agent accepts/i)).not.toBeInTheDocument();
+    });
+
+    it('follows the service over the permission: withheld for a Developer means rates', async () => {
+        render(withheldSplit(), 1);
+        const payment = await section(/payment/i);
+
+        const commission = payment.getByText('Platform — commission').closest('tr');
+        expect(within(commission as HTMLElement).getByText('10%')).toBeInTheDocument();
+        expect(screen.queryByText('Platform — total')).not.toBeInTheDocument();
+    });
+
+    it('follows the service over the permission: not withheld means the amounts', async () => {
+        render({ ...orderMoneySplitFixture(), platformAmountsWithheld: false }, 2);
+        const payment = await section(/payment/i);
+
+        expect(payment.getByText(/6,050/)).toBeInTheDocument();
+        expect(screen.getByText('Platform — total')).toBeInTheDocument();
     });
 });
 

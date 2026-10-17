@@ -70,10 +70,37 @@ export type CopyableValueProps = CopyableValueBaseProps &
  * ⚠ This is the `id` variant's privilege and no other's. An email or a phone
  * number has no shared prefix and no redundant middle; shortening one hides it
  * and buys nothing.
+ *
+ * ── ⚠ Shortened for the eye, never in the text ────────────────────────────────
+ * This used to render the string `665f1c…e5f0`, and that string was then what a
+ * selection copied — eleven characters with a real ellipsis in the middle, which
+ * no search on the service can match (`lib/id-search.ts` has the measurements).
+ * It was the worse for sitting beside two promises that it broke: `select-all`
+ * on the span, so one click takes "the whole value", and a failed copy button
+ * that says *"select it instead"*.
+ *
+ * So the whole id stays in the document and only its **rendering** is shortened:
+ * the middle is set at `font-size: 0` — laid out at no width, still part of the
+ * text, still copied — and the ellipsis is a CSS `::after`, which no browser puts
+ * on the clipboard. Selecting the cell, dragging across the whole row and the
+ * browser's own find-in-page all get the real 24 characters. Checked in Chrome
+ * and Edge on 2026-10-12: same 73px, and the selection reads the id entire.
  */
-function shorten(value: string): string {
-    if (value.length <= 12) return value;
-    return `${value.slice(0, 6)}…${value.slice(-4)}`;
+const HEAD = 6;
+const TAIL = 4;
+
+function Shortened({ value }: { value: string }) {
+    if (value.length <= HEAD + TAIL + 2) return <>{value}</>;
+
+    return (
+        <>
+            <span className="after:content-['…']">{value.slice(0, HEAD)}</span>
+            <span data-shortened-middle className="text-[0px]">
+                {value.slice(HEAD, -TAIL)}
+            </span>
+            {value.slice(-TAIL)}
+        </>
+    );
 }
 
 /**
@@ -135,10 +162,11 @@ export function CopyableValue(props: CopyableValueProps) {
                 variant !== 'id' && 'min-w-0 break-words',
             )}
             // Always the whole value, however little of it is displayed — and it
-            // is the whole value that gets copied, never what is on screen.
+            // is the whole value that gets copied, by the button or by a
+            // selection: see `Shortened`.
             title={value}
         >
-            {shortened ? shorten(value) : value}
+            {shortened ? <Shortened value={value} /> : value}
         </span>
     );
 

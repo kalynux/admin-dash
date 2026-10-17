@@ -122,13 +122,20 @@ const platform = {
     VENDOR_PRODUCT_UNSUSPEND_BLOCKED: 'Quelque chose empêche encore la remise en vente de ce produit.',
     CATALOG_PRODUCT_NOT_FOUND: 'La plateforme n’a aucun produit de ce type.',
 
+    // ─── Abonnés d’un ticket (2026-10-10) ─────────────────────────────────────
+    USER_NOT_FOUND: 'Aucun utilisateur ne porte cet identifiant.',
+    TICKET_FOLLOWER_ROLE_MISMATCH: 'Cet utilisateur ne détient pas ce rôle.',
+    TICKET_ACCESS_DENIED: 'La plateforme n’autorise pas cette action sur ce ticket.',
+
     // ─── Utilisateurs ────────────────────────────────────────────────────────
     USER_STATUS_CONFLICT: 'Un autre administrateur a modifié ce compte avant vous.',
     USER_CONTACT_REQUIRED: 'Un compte doit conserver au moins un identifiant de connexion',
     AUTH_EMAIL_TAKEN: 'Cet e-mail appartient déjà à un autre compte',
     AUTH_PHONE_TAKEN: 'Ce numéro de téléphone appartient déjà à un autre compte',
     AUTH_PROFILE_NOT_FOUND:
-        'Ce compte n’a jamais utilisé le bot : il n’y a aucune mémoire à réinitialiser.',
+        'Ce compte n’a pas de profil client : il n’y a rien sur quoi agir ici.',
+    COD_RESTRICTION_UNCHANGED:
+        'Le paiement à la livraison est déjà dans cet état — un autre administrateur l’a peut-être modifié avant vous. Rechargez pour voir ce qui est enregistré.',
 
     // ─── Fermeture d'un rôle (jovi-mall ADR-A10) ──────────────────────────────
     ROLE_CLOSURE_BLOCKED:

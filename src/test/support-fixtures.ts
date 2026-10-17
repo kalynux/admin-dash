@@ -16,6 +16,12 @@
  * `/files` will resolve. Both are 24-hex and both sit on the same object, so
  * **the fixtures give them different values on purpose**: a panel that confuses
  * them fails a test rather than quietly addressing the wrong record.
+ *
+ * ⚠ **The people carry TWO ids as well, and they open different screens.**
+ * `userId` is the `users._id` and `profileId` the role's own — the fixtures
+ * give every person a different pair, so a link built on the wrong one fails a
+ * test. `assignedTo` is **always an object**; "routed to nobody" is
+ * `unroutedFixture()`, every field `null`, never `null` itself.
  */
 
 import type {
@@ -24,6 +30,8 @@ import type {
     TicketAttachment,
     TicketDetail,
     TicketEntityRef,
+    TicketFollower,
+    TicketRoutedTo,
 } from '@/types/support.types';
 
 const TICKET_ID = '66a1b2c3d4e5f60718293a4b';
@@ -61,12 +69,28 @@ export function ticketFixture(overrides: Partial<Ticket> = {}): Ticket {
             label: null,
         },
         trackingNumber: 'JM-2026-118842',
+        // A customer has no business name, and often no e-mail — they can
+        // register by phone alone.
         createdBy: {
             role: 'customer',
             userId: '665f1c2a9b3e4a91c7d2e5f0',
+            profileId: '665f1c2a9b3e4a91c7d2e5f1',
+            name: 'Awa Ndiaye',
+            businessName: null,
+            phone: '+237600000001',
+            email: null,
             administrator: null,
         },
-        assignedTo: { role: 'agency', userId: '6650aa11bb22cc33dd44ee55' },
+        // ⚠ `name` is the CONTACT PERSON; `businessName` is the agency.
+        assignedTo: {
+            role: 'agency',
+            userId: '6650aa11bb22cc33dd44ee55',
+            profileId: '6650aa11bb22cc33dd44ee56',
+            name: 'Jean Mbarga',
+            businessName: 'Rapide Livraison',
+            phone: '+237600000003',
+            email: 'contact@rapide.example',
+        },
         assignment: {
             admin: ticketAdminSnapshotFixture(),
             assignedBy: ticketAdminSnapshotFixture({
@@ -86,9 +110,77 @@ export function ticketFixture(overrides: Partial<Ticket> = {}): Ticket {
     };
 }
 
+/** `assignedTo` when the ticket was routed to nobody — an object, every field `null`. */
+export function unroutedFixture(): TicketRoutedTo {
+    return {
+        role: null,
+        userId: null,
+        profileId: null,
+        name: null,
+        businessName: null,
+        phone: null,
+        email: null,
+    };
+}
+
 /**
- * `GET /support/tickets/:ticketId` — the row plus `description`, **and with
- * `entity` resolved**. Those are the only two differences.
+ * One follower. Defaults to the order's vendor, added automatically — the
+ * removable kind, with a business name over a contact person.
+ */
+export function ticketFollowerFixture(overrides: Partial<TicketFollower> = {}): TicketFollower {
+    return {
+        role: 'vendor',
+        userId: '6640aa11bb22cc33dd44ee01',
+        profileId: '6640aa11bb22cc33dd44ee02',
+        name: 'Paul Etoa',
+        businessName: 'Chez Paul',
+        phone: '+237600000002',
+        email: 'paul@chezpaul.example',
+        source: 'order_party',
+        addedAt: '2026-08-17T08:12:00.000Z',
+        isCreator: false,
+        isAssignee: false,
+        ...overrides,
+    };
+}
+
+/**
+ * The follower list of `ticketDetailFixture`, oldest first: the customer who
+ * opened it, the agency it is assigned to, and the order's vendor. Only the
+ * third is removable.
+ */
+export function ticketFollowersFixture(): TicketFollower[] {
+    return [
+        ticketFollowerFixture({
+            role: 'customer',
+            userId: '665f1c2a9b3e4a91c7d2e5f0',
+            profileId: '665f1c2a9b3e4a91c7d2e5f1',
+            name: 'Awa Ndiaye',
+            businessName: null,
+            phone: '+237600000001',
+            email: null,
+            source: 'creator',
+            isCreator: true,
+        }),
+        ticketFollowerFixture({
+            role: 'agency',
+            userId: '6650aa11bb22cc33dd44ee55',
+            profileId: '6650aa11bb22cc33dd44ee56',
+            name: 'Jean Mbarga',
+            businessName: 'Rapide Livraison',
+            phone: '+237600000003',
+            email: 'contact@rapide.example',
+            source: 'assignee',
+            addedAt: '2026-08-17T09:30:00.000Z',
+            isAssignee: true,
+        }),
+        ticketFollowerFixture({ addedAt: '2026-08-17T15:40:00.000Z' }),
+    ];
+}
+
+/**
+ * `GET /support/tickets/:ticketId` — the row plus `description` and
+ * `followers`, **and with `entity` resolved**. Those are the three differences.
  */
 export function ticketDetailFixture(overrides: Partial<TicketDetail> = {}): TicketDetail {
     return {
@@ -101,6 +193,7 @@ export function ticketDetailFixture(overrides: Partial<TicketDetail> = {}): Tick
             // The order number, which is what an operator recognises.
             label: 'ORD-2026-008841',
         },
+        followers: ticketFollowersFixture(),
         ...overrides,
     };
 }

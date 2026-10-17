@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+    addTicketFollower,
     assignTicket,
     claimTicket,
     createTicketNote,
     deleteTicketAttachment,
     listTickets,
     lookupTicketOrders,
+    removeTicketFollower,
     setTicketPriority,
     setTicketStatus,
 } from '@/services/support.service';
@@ -161,5 +163,60 @@ describe('the reference lookups', () => {
         expect(url.pathname).toBe('/api/v1/support/tickets/reference/orders');
         expect(url.searchParams.get('search')).toBe('JM-2026');
         expect(url.searchParams.get('q')).toBeNull();
+    });
+});
+
+describe('followers', () => {
+    /**
+     * Both writes answer the refreshed ticket detail since 2026-10-10, and the
+     * body of the add is strict: `{ userId, role }` and nothing else.
+     */
+    it('adds with the user id and one of their roles, and hands back the answer', async () => {
+        const detail = { id: TICKET_ID, followers: [] };
+        const calls = stubFetch(() => successResponse(detail));
+
+        const answer = await addTicketFollower(TICKET_ID, {
+            userId: '6640aa11bb22cc33dd44ee01',
+            role: 'vendor',
+        });
+
+        const call = calls[calls.length - 1];
+        expect(call.method).toBe('POST');
+        expect(urlOf(call).pathname).toBe(`/api/v1/support/tickets/${TICKET_ID}/followers`);
+        expect(JSON.parse(call.body ?? '{}')).toEqual({
+            userId: '6640aa11bb22cc33dd44ee01',
+            role: 'vendor',
+        });
+        expect(answer).toEqual(detail);
+    });
+
+    it('removes by the follower’s USER id, with no body', async () => {
+        const calls = stubFetch(() => successResponse({ id: TICKET_ID, followers: [] }));
+
+        await removeTicketFollower(TICKET_ID, '6640aa11bb22cc33dd44ee01');
+
+        const call = calls[calls.length - 1];
+        expect(call.method).toBe('DELETE');
+        expect(urlOf(call).pathname).toBe(
+            `/api/v1/support/tickets/${TICKET_ID}/followers/6640aa11bb22cc33dd44ee01`,
+        );
+        expect(call.body).toBeUndefined();
+    });
+
+    it('surfaces jovi-mall’s refusal as platformCode, with the roles the user does hold', async () => {
+        stubFetch(() =>
+            errorResponse(422, 'PLATFORM_OPERATION_REJECTED', {
+                category: 'business_rule',
+                details: { platformCode: 'TICKET_FOLLOWER_ROLE_MISMATCH', roles: ['customer'] },
+            }),
+        );
+
+        await expect(
+            addTicketFollower(TICKET_ID, { userId: '6640aa11bb22cc33dd44ee01', role: 'vendor' }),
+        ).rejects.toMatchObject({
+            status: 422,
+            platformCode: 'TICKET_FOLLOWER_ROLE_MISMATCH',
+            details: { roles: ['customer'] },
+        });
     });
 });

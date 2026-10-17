@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
+import { CodRestrictionPanel } from '@/components/cod/CodRestrictionPanel';
 import { PartyLogsLink } from '@/components/system/PartyLogsLink';
 import { ErrorState } from '@/components/common/DataState';
 import { DetailSkeleton } from '@/components/common/Loading';
@@ -40,15 +41,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { resolveTimeZone } from '@/lib/datetime';
 import { formatInstantInZone } from '@/lib/format';
-import { getUser, listRoleClosureRequests } from '@/services/users.service';
+import {
+    getUser,
+    getUserCodRestriction,
+    liftUserCodRestriction,
+    listRoleClosureRequests,
+    restrictUserCod,
+} from '@/services/users.service';
 import { useAdmin, useCan } from '@/store';
 import { ApiError, CODE_CLIENT_INVALID_ID } from '@/types/api.types';
 import { RoleBadges } from '@/components/users/RoleBadges';
+import type { CodRestriction } from '@/types/cod-restriction.types';
 import {
+    customerCodRestriction,
     isClosableRole,
     isMissingProfile,
     userDisplayName,
     type ClosableRole,
+    type UserDetail as UserDetailRecord,
 } from '@/types/users.types';
 import { CopyableId } from '@/components/common/CopyableId';
 import { CopyableValue } from '@/components/common/CopyableValue';
@@ -76,6 +86,10 @@ const OBJECT_ID = /^[0-9a-f]{24}$/i;
  * second mapper that can drift from the first, so a successful write just calls
  * `reload()`. The activity feed reloads with it, since the write is what put a new
  * row in it.
+ *
+ * The COD restriction is the exception, and for the opposite reason: its writes
+ * answer the **same** report the page shows, so the answer replaces the state
+ * directly — see `codWritten`.
  */
 export function UserDetail() {
     const { userId = '' } = useParams();
@@ -131,6 +145,17 @@ function UserDetailScreen({ userId }: { userId: string }) {
     /** The role whose closure is being requested, or `null`. */
     const [closingRole, setClosingRole] = useState<ClosableRole | null>(null);
     const [activityToken, setActivityToken] = useState(0);
+    /**
+     * What a COD-restriction write (or its re-read) last answered, **and the
+     * record it was answered over**. It wins only while that same record is on
+     * screen: any later load — Refresh, another write's reconcile — brings a
+     * newer answer from the service and this one is dropped, so a stale local
+     * value can never outlive the read that supersedes it.
+     */
+    const [codWritten, setCodWritten] = useState<{
+        over: UserDetailRecord;
+        restriction: CodRestriction | null;
+    } | null>(null);
 
     const user = useAsyncData(`/users/${userId}`, (signal) => getUser(userId, { signal }));
     const closureRequests = useAsyncData(`/users/${userId}/closure-requests`, (signal) =>
@@ -221,6 +246,16 @@ function UserDetailScreen({ userId }: { userId: string }) {
             .filter((request) => request.status === 'pending')
             .map((request) => request.role),
     );
+    /**
+     * The customer's COD restriction (2026-10-10). `undefined` — no customer
+     * role, a missing customer profile, or a service older than the field —
+     * means there is nothing to show a switch for, so the panel is **omitted**:
+     * all three routes answer `404 AUTH_PROFILE_NOT_FOUND` there. The state
+     * rides on the detail already loaded, so the badge costs no request.
+     */
+    const storedCodRestriction = customerCodRestriction(record);
+    const codRestriction =
+        codWritten?.over === record ? codWritten.restriction : storedCodRestriction;
 
     return (
         <PageContainer
@@ -463,6 +498,33 @@ function UserDetailScreen({ userId }: { userId: string }) {
                         </CardContent>
                     </Card>
 
+                    {/*
+                      Shown on a suspended account — neither service refuses it
+                      there, and a restriction set before a restore is a real
+                      use. On a closed one the state stays visible and the
+                      button goes, by the rule `closed` states above: the row
+                      can never sign in again, so there is no order to stop.
+                    */}
+                    {codRestriction !== undefined ? (
+                        <CodRestrictionPanel
+                            subject="customer"
+                            subjectName={userDisplayName(record)}
+                            restriction={codRestriction}
+                            permission="users.cod.restrict"
+                            timeZone={timeZone}
+                            offerWrite={!closed}
+                            actions={{
+                                read: () => getUserCodRestriction(record.id),
+                                restrict: (body) => restrictUserCod(record.id, body),
+                                lift: (body) => liftUserCodRestriction(record.id, body),
+                            }}
+                            onChanged={(report) => {
+                                setCodWritten({ over: record, restriction: report.restriction });
+                                setActivityToken((token) => token + 1);
+                            }}
+                        />
+                    ) : null}
+
                     <RoleProfilesPanel
                         profiles={record.profiles}
                         timeZone={timeZone}
@@ -512,8 +574,8 @@ function UserDetailScreen({ userId }: { userId: string }) {
                     */}
                     <p className="text-muted-foreground bg-muted/40 rounded-lg border p-3 text-xs leading-relaxed">
                         Login details, suspension and reinstatement are everything this screen can
-                        change on the account itself — resetting the bot&rsquo;s memory touches none
-                        of it. There is deliberately no role editor, no force sign-out and no
+                        change on the account itself — resetting the bot&rsquo;s memory and
+                        restricting cash on delivery touch none of it. There is deliberately no role editor, no force sign-out and no
                         password reset: removing a role would strand the records it owns, the
                         platform issues stateless tokens with no session to revoke — suspending
                         already blocks the next request on every device — and it has no

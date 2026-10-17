@@ -29,6 +29,7 @@ import {
     resolveTimeZone,
 } from '@/lib/datetime';
 import { formatCount } from '@/lib/format';
+import { describeSearchMiss } from '@/lib/id-search';
 import { PAGE_SIZE_DEFAULT, withQuery } from '@/lib/query';
 import { listOrders } from '@/services/orders.service';
 import { useAdmin, useCan } from '@/store';
@@ -166,6 +167,7 @@ export function OrdersList() {
                 <SearchInput
                     label="Search orders"
                     placeholder="Order number prefix, or an order, customer, vendor or checkout id"
+                    acceptsId
                     value={values.search}
                     onChange={(next) => set({ search: next }, { replace: true })}
                 />
@@ -372,7 +374,11 @@ export function OrdersList() {
                         title={isFiltered ? 'No orders match these filters' : 'No orders yet'}
                         description={
                             isFiltered
-                                ? 'Try a different term, or clear the filters. A search matches an order-number prefix — uppercase and anchored, so a partial word from the middle finds nothing — or a 24-character id.'
+                                ? describeSearchMiss(
+                                      values.search,
+                                      'Try a different term, or clear the filters. A search matches an order-number prefix — uppercase and anchored, so a partial word from the middle finds nothing — or a 24-character id.',
+                                      'No order carries that id as its own, its customer’s, its vendor’s or its checkout’s. A user id finds nothing here: a customer id is the customer profile’s id, not the account’s.',
+                                  )
                                 : 'Orders appear here as customers place them.'
                         }
                         action={

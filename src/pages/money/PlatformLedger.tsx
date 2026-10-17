@@ -50,7 +50,8 @@ import {
 } from '@/types/money.types';
 
 /**
- * `GET /money/earnings/platform` + `/summary` + `/ledger` · `money.earnings.read`.
+ * `GET /money/earnings/platform` + `/summary` + `/ledger` · `money.earnings.platform.read`
+ * (tier 1 only since 2026-10-15, BR-030 — `money.earnings.read` until then).
  *
  * The marketplace's own money — **two accounts since 2026-10-04**, commission
  * and the bargain fee: what it holds, what it earned in a period, and every

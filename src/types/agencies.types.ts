@@ -31,6 +31,7 @@
 
 import { resolvePartyName, type ResolvedPartyName } from '@/lib/party';
 import type { ActorStamp } from '@/types/actor.types';
+import type { CodRestriction } from '@/types/cod-restriction.types';
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 
@@ -315,6 +316,17 @@ export interface AgencyDetail extends Agency {
     policyVersionPausedConnections: number;
     timezone: string | null;
     preferredLanguage: string | null;
+    /**
+     * An administrator's cash-on-delivery restriction (2026-10-10): `null` when
+     * the agency is not restricted, which is also how every agency written
+     * before the field existed reads. **Detail only** — a list row never
+     * carries it. Optional because a wi-admin older than that date omits the
+     * key, and "unknown" must not render as "not restricted".
+     *
+     * ⚠ Independent of `policies.cod.enabled`: that is the agency's own switch,
+     * and a restriction leaves it exactly as the agency set it.
+     */
+    codRestriction?: CodRestriction | null;
 }
 
 /**
@@ -364,7 +376,8 @@ export interface AgencyCascadeResult {
 export interface AgencyListQuery {
     /**
      * Matches the business name (on the Magazin), the contact name, the email,
-     * the phone, or — when the term is a 24-hex string — the agency id.
+     * the phone, or — when the term is a 24-hex string — the agency id **or its
+     * user id** (the user id since 2026-10-12, BR-028). An id matches only whole.
      *
      * Trimmed, 1–120 chars. An **empty `?search=` is rejected**, so send no
      * parameter instead.
@@ -481,17 +494,29 @@ export const AGENCY_SORT_DEFAULT = '-createdAt';
 export const AGENCY_MAX_RANGE_DAYS = 366;
 
 /**
- * The three audited actions this surface writes.
+ * The eight audited `agencies.*` actions (`audit.catalog.ts`, counted
+ * 2026-10-10).
  *
- * Derived on the backend from the audit catalog rather than typed out, so an
- * eighth `agencies.*` action would widen the filter automatically. Transcribed
- * here from `audit.catalog.ts:374-397`; if it drifts, the filter offers a value
- * the feed cannot return, which is visible immediately as an empty page.
+ * Derived on the backend from the audit catalog rather than typed out, so a
+ * ninth `agencies.*` action widens its filter automatically; this list cannot,
+ * and it had drifted — it held three while the service accepted six
+ * (`agencies.reject` and the two `cod_limit` actions were never offered). If it
+ * drifts the other way, the filter offers a value the feed cannot return,
+ * which is visible immediately as an empty page.
+ *
+ * ⚠ `agencies.cod.unrestrict` is the **only lasting record** of a restriction —
+ * lifting erases it from the agency — exactly as `agencies.cod_limit.release`
+ * is of a pin.
  */
 export const AGENCY_AUDIT_ACTIONS = [
     'agencies.verify',
+    'agencies.reject',
     'agencies.deactivate',
     'agencies.reactivate',
+    'agencies.cod_limit.set',
+    'agencies.cod_limit.release',
+    'agencies.cod.restrict',
+    'agencies.cod.unrestrict',
 ] as const;
 
 export type AgencyAuditAction = (typeof AGENCY_AUDIT_ACTIONS)[number];
@@ -503,8 +528,13 @@ export type AgencyAuditAction = (typeof AGENCY_AUDIT_ACTIONS)[number];
  */
 export const AGENCY_AUDIT_ACTION_LABELS: Record<AgencyAuditAction | (string & {}), string> = {
     'agencies.verify': 'Verified',
+    'agencies.reject': 'Verification rejected',
     'agencies.deactivate': 'Deactivated',
     'agencies.reactivate': 'Reactivated',
+    'agencies.cod_limit.set': 'COD limit pinned',
+    'agencies.cod_limit.release': 'COD limit pin released',
+    'agencies.cod.restrict': 'Cash on delivery restricted',
+    'agencies.cod.unrestrict': 'Cash on delivery restriction lifted',
     'money.statements.send_agency': 'Sent account statement',
 };
 
@@ -644,6 +674,18 @@ export interface AgencyCodLimit {
      */
     overLimit: boolean;
     override: AgencyCodLimitOverride | null;
+    /**
+     * Whether an administrator has switched cash on delivery off for the agency,
+     * and since when (2026-10-10) — passed through from jovi-mall's report. No
+     * reason and no author here; those are on the detail's `codRestriction`.
+     *
+     * ⚠ **`headroom` does not account for it**: it is computed from amounts
+     * only, so a restricted agency can show plenty of headroom and still
+     * receive no COD shipment. A screen showing one must show the other beside
+     * it. Optional — an older jovi-mall sends neither.
+     */
+    codRestricted?: boolean;
+    codRestrictedAt?: string | null;
 }
 
 /**

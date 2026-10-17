@@ -16,6 +16,7 @@ import { InfoHint } from '@/components/ui/info-hint';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { resolveTimeZone } from '@/lib/datetime';
 import { formatInstantInZone, formatMoney } from '@/lib/format';
+import { accountSearchPath } from '@/lib/id-search';
 import { getDeliveryFeeRefund } from '@/services/money.service';
 import { useAdmin, useCan } from '@/store';
 import {
@@ -259,24 +260,36 @@ export function DeliveryFeeRefundDetail() {
                             <Definition
                                 label="Customer"
                                 hint={
-                                    <InfoHint label="Why there is no account link">
-                                        A customer id is not a user id on this platform, so there
-                                        is no account to open from here — their orders are the
-                                        closest thing.
+                                    <InfoHint label="About the customer id">
+                                        A customer id is not a user id on this platform. The id
+                                        opens their orders; “Find the account” searches the user
+                                        directory for the person who owns this customer profile.
                                     </InfoHint>
                                 }
                             >
-                                <CopyableValue
-                                    variant="id"
-                                    value={record.customerId}
-                                    label="customer ID"
-                                    truncate={false}
-                                    to={
-                                        can('orders.read')
-                                            ? `/dashboard/orders?customerId=${record.customerId}`
-                                            : undefined
-                                    }
-                                />
+                                <span className="flex flex-wrap items-center gap-2">
+                                    <CopyableValue
+                                        variant="id"
+                                        value={record.customerId}
+                                        label="customer ID"
+                                        truncate={false}
+                                        to={
+                                            can('orders.read')
+                                                ? `/dashboard/orders?customerId=${record.customerId}`
+                                                : undefined
+                                        }
+                                    />
+                                    {/* A search, never `/users/:id` — a customer id
+                                        is a 404 there. BR-028 § 1. */}
+                                    {can('users.read') ? (
+                                        <Link
+                                            to={accountSearchPath(record.customerId)}
+                                            className="text-muted-foreground text-xs hover:underline"
+                                        >
+                                            Find the account
+                                        </Link>
+                                    ) : null}
+                                </span>
                             </Definition>
                             <Definition
                                 label="Support ticket"

@@ -491,6 +491,18 @@ describe('the parties, named and copyable', () => {
         expect(screen.queryByRole('link', { name: 'Amina B.' })).not.toBeInTheDocument();
         expect(screen.getByRole('link', { name: /their other orders/i })).toBeInTheDocument();
     });
+
+    /**
+     * The first route from an order to the person (BR-028 § 1): the user
+     * directory's search resolves a customer id to the account that owns it.
+     * ⚠ The SEARCH — `/dashboard/users/<customerId>` is still a 404.
+     */
+    it('finds the customer’s account through the user directory’s search', async () => {
+        detail();
+
+        const link = await screen.findByRole('link', { name: 'Find the account' });
+        expect(link.getAttribute('href')).toMatch(/^\/dashboard\/users\?search=[0-9a-f]{24}$/);
+    });
 });
 
 // ─── § C2 · the items ─────────────────────────────────────────────────────────

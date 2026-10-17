@@ -1,5 +1,11 @@
 # `/users` — platform user management
 
+**Amended 2026-10-13 (BR-029).** `GET /users` gains **`meta.idMatch`**: when `search` was read as an id, it says which kind of id it was (`user`, `customer`, `vendor`, `agency`, `agent`). Additive; absent for every other search. See [`meta.idMatch`](#metaidmatch--what-the-pasted-id-was). Pinned by `npm run test:users` § 4 and § 2b.
+
+**Amended 2026-10-12 (BR-028).** `GET /users?search=` now also finds the account behind a **profile id**: a customer, vendor, agency or agent id resolves to the person who owns it. An id still matches only whole. See [Searching by id](#searching-by-id). Pinned by `npm run test:users` § 2 and § 2b.
+
+**Amended 2026-10-10.** Three routes for the **customer's cash-on-delivery restriction** (owner decision): an administrator holding the new `users.cod.restrict` switches COD off for one customer, and back on. The customer profile on `GET /users/:userId` gains `codRestriction`. See [the section at the end](#the-customers-cod-restriction). Pinned by `npm run test:users` § 7b and § 9.
+
 **Amended 2026-10-04.** Three routes for **role closure** (jovi-mall ADR-A10): an administrator holding the new `users.close` asks a user to close ONE role, and the user confirms or declines it themselves. See [the section at the end](#role-closure). Pinned by `npm run test:users`.
 
 **Amended 2026-09-22.** A ninth route, `POST /users/:userId/bot-memory/reset`, was added under the new permission `users.bot_memory.reset`. It is the one write on this surface that **all three levels** hold. See [the section at the end](#the-customer-bots-memory). Checked against the route manifest and `tier-grants.ts`, and pinned by `npm run test:users` § 7–8.
@@ -27,6 +33,9 @@ Design record: [`../../docs/ADR-007-USER-MANAGEMENT.md`](../../docs/ADR-007-USER
 | `GET` | `/users/:userId/closure-requests` | `users.read` | direct read | — |
 | `POST` | `/users/:userId/roles/:role/closure` | `users.close` | **delegated** | ✅ |
 | `DELETE` | `/users/:userId/roles/:role/closure` | `users.close` | **delegated** | ✅ |
+| `GET` | `/users/:userId/cod-restriction` | `users.read` | **delegated** | — |
+| `PUT` | `/users/:userId/cod-restriction` | `users.cod.restrict` | **delegated** | ✅ |
+| `POST` | `/users/:userId/cod-restriction/lift` | `users.cod.restrict` | **delegated** | ✅ |
 
 Reads go straight to the platform database; every write is executed by jovi-mall. A suspension
 is only meaningful because jovi-mall's auth path refuses a non-active account, and a login
@@ -67,16 +76,94 @@ could request by query string.
 
 | Parameter | Type | Notes |
 |---|---|---|
-| `search` | string, 1–120 | Matches **email**, **phone**, or — when the term is itself a 24-hex id — the **user id**. That last branch is what makes a support conversation work: an id copied out of an order, a ticket or an audit row finds the person |
+| `search` | string, 1–120 | Matches **email**, **phone**, or — when the term is itself a 24-hex id — the **user id, or the id of one of that person's profiles** (customer, vendor, agency, agent). That last branch is what makes a support conversation work: an id copied out of an order, a ticket or an audit row finds the person. **An id matches only whole** — see [Searching by id](#searching-by-id) |
 | `role` | `vendor` \| `agency` \| `agent` \| `customer` | **`admin` is deliberately absent** — no `users` row can hold that role, so offering it would advertise a search that can only return nothing |
 | `status` | `active` \| `suspended` \| `closed` | `closed` is an account its **owner** closed (jovi-mall ADR-A02). Filterable because a closed account still owns orders and tickets, so "why does this order resolve to a customer with no name" is a real support question |
 | `from` / `to` | ISO-8601 instant | Creation range, half-open `[from, to)`. **Maximum span 366 days** |
 | `page`, `limit`, `sort` | | |
 
+### Searching by id
+
+A 24-hex term is tried as **five** ids, and any one of them finds the account:
+
+| The term is | Finds |
+|---|---|
+| a user id (`users._id`) | that account |
+| a **customer** id — the `customerId` on an order | the account that owns that customer profile |
+| a **vendor** id | the account that owns that vendor |
+| an **agency** id | the account that owns that agency |
+| an **agent** id | the account that owns that agent |
+
+The row that comes back is the **account**, so its `id` is the user id, not the id that was
+typed. The id that was typed is on the detail, as `profiles[].id`, and
+[`meta.idMatch`](#metaidmatch--what-the-pasted-id-was) says which kind of id it was.
+
+For a customer this is the only route there is: there is no customer directory, and the id on
+an order is a customer id. `GET /users?search=<customerId>` is the link from an order to the
+person.
+
+> **An id matches only whole — exactly 24 hexadecimal characters.** A shorter or longer term,
+> or one with anything round it (quotes, `ObjectId("…")`, a URL), is not read as an id. It is
+> treated as text and matched against the email and the phone, where it will normally match
+> nothing. Letter case does not matter.
+
+Matching a **part** of an id was considered and declined (BR-028 § 3). A run of digits is far
+more often part of a phone number than the start of an id, so reading `67011234` as both would
+return people whose phone does not contain it. Only the start of an id could be matched
+cheaply, and the dashboard draws an id as its start **and** its end.
+
+`role` and the other filters still apply to an id match: `?search=<customerId>&role=vendor`
+finds the person only if they are also a vendor.
+
+### `meta.idMatch` — what the pasted id was
+
+The row an id search returns is the account, so its `id` is often not the id that was typed.
+`meta.idMatch` says what the typed id **was**.
+
+```jsonc
+"meta": {
+  "total": 1, "page": 1, "limit": 20, "pages": 1,
+  "idMatch": { "kinds": ["customer"] }
+}
+```
+
+| `meta.idMatch` | Means |
+|---|---|
+| **absent** (no key) | `search` was not read as an id: no `search`, a name, an email, a phone, a part of an id. A service older than 2026-10-13 also sends no key |
+| `{ "kinds": [] }` | `search` was a whole id, and it is **nobody's**: no account has it and no profile has it. An order id pasted here is the usual case |
+| `{ "kinds": ["user"] }` | It is an account's own id |
+| `{ "kinds": ["customer"] }` | It is a customer profile's id. Likewise `vendor`, `agency`, `agent` |
+| `{ "kinds": ["user", "customer"] }` | It is both. See below |
+
+- **`kinds` is a list**, in a fixed order: `user`, `customer`, `vendor`, `agency`, `agent`. The
+  five kinds of id live in five separate collections, so nothing but probability stops one value
+  being a user id and somebody else's profile id. In that case the page has **two** rows, and the
+  row whose `id` equals the term is the `user` one.
+- **The vocabulary is open.** Treat a kind you do not recognise as unknown rather than as an
+  error; a sixth profile kind would be an additive change.
+- **It is never `null`.** Present with a list, or not there.
+
+**It describes the id, not the page.** `role`, `status` and the date range do not affect it. So
+an empty page has three different explanations, and `idMatch` tells them apart:
+
+| Request | `total` | `kinds` | What happened |
+|---|---|---|---|
+| `?search=<customerId>&role=vendor` | 0 | `["customer"]` | The id is a customer's. **A filter is hiding the account** |
+| `?search=<userId>&role=vendor` | 0 | `["user"]` | The same, for an account's own id |
+| `?search=<an order id>&role=vendor` | 0 | `[]` | The id is nobody's. Removing the filter will not help |
+| `?search=<customerId>`, **no other filter** | 0 | `["customer"]` | ⚠ The profile exists and **its account does not**. A data fault, not a search result: `users` rows are never deleted by the platform, so this needs a hand-edited database to happen |
+
+This tells a caller that an id is a customer's without returning the row. It is nothing they
+could not learn by sending the same search without the filter, and every holder of `users.read`
+may send that.
+
+It costs one extra count on `users._id`, and only for a term that is a whole id.
+
 ### Example
 
 ```
 GET /api/v1/users?role=agent&status=active&search=+237670112233&sort=-createdAt&limit=25
+GET /api/v1/users?search=66b0000000000000000000c3        ← a customer id copied from an order
 ```
 
 ### Response (200)
@@ -148,7 +235,8 @@ Every list field, plus `profiles`:
         "status": "active",
         "verified": null,
         "kycStatus": null,
-        "createdAt": "2026-02-14T10:05:31.400Z"
+        "createdAt": "2026-02-14T10:05:31.400Z",
+        "codRestriction": null
       },
       {
         "role": "agent",
@@ -171,6 +259,7 @@ One entry per role, in `roles` order.
 | `name` | string \| null | The display name on that role, when the role carries one |
 | `verified` | boolean \| null | Business verification — **vendor and agency only**; `null` where the role has none |
 | `kycStatus` | string \| null | Identity verification — **agent only** |
+| **`codRestriction`** | object \| null | **(2026-10-10) On the `customer` entry only.** `null`, or `{ reason, restrictedAt, restrictedByUserId, restrictedBySource, restrictedByName }` when an administrator has switched cash on delivery off for this customer ([below](#the-customers-cod-restriction)). ⚠ **The key is absent — not `null` — on a vendor, agency or agent entry, and on a `missing` one.** `null` means "not restricted"; an agency's restriction is on [`GET /agencies/:agencyId`](agencies.md#get-agenciesagencyid), and this read does not look at it. `reason` is the administrator's and is never shown to the customer |
 | `missing` | `true` | **Present only on a broken entry.** The role is on the `users` row but its entity does not exist — **this stops the person signing in**, and would otherwise be invisible |
 
 Render `missing: true` prominently. It is a real, recoverable-only-by-hand fault.
@@ -723,3 +812,117 @@ stored `pending` past `expiresAt` is reported `expired`. `warnings` are what the
 
 The user's confirm or decline is **not** an administrator action, so it has no row here. It is
 on the request itself (`status`, `resolvedAt`, `outcome`).
+
+---
+
+# The customer's COD restriction
+
+**(2026-10-10, owner decision.)** An administrator can switch **cash on delivery off** for one
+customer, and back on. It is the lever the Returns policy promises: refusing parcels without a
+valid reason "may lead us to restrict cash on delivery on your account". Dashboard brief:
+[`../FRONTEND-CHANGELOG-cod-restrictions.md`](../FRONTEND-CHANGELOG-cod-restrictions.md).
+
+**What a restriction does.** The customer can no longer **place** a cash-on-delivery order.
+jovi-mall refuses it at checkout (`422 COD_CUSTOMER_RESTRICTED`) and the cart quote reports
+`customer_restricted`, so the website and the bot stop offering it.
+
+**What it does not touch.** Orders already placed, parcels already on their way, and the cash
+owed on them. Every other payment method. Nothing sets it automatically — it is an
+administrator's decision each time — and with nothing recorded, COD behaves as it always did.
+
+⚠ **Customers only.** The restriction lives on the *customer profile*. An account that does not
+hold the `customer` role has none, and all three routes answer
+`404 PLATFORM_OPERATION_REJECTED` with `details.platformCode: "AUTH_PROFILE_NOT_FOUND"`. Show
+the switch only when `roles` includes `customer`.
+
+| | |
+|---|---|
+| **Read** | `users.read` — every level, Support included |
+| **Write** | `users.cod.restrict` — **Developer and Admin. Support does not hold it.** Unflagged, like `users.suspend`, and granted the same way; no dual control |
+| **Transport** | Delegated to `/api/internal/admin/users/:userId/cod-restriction` |
+
+## `GET /users/:userId/cod-restriction`
+
+```json
+{
+  "success": true,
+  "data": {
+    "subject": "customer",
+    "subjectId": "665f1c2a9b3e4a91c7d2e5f1",
+    "userId": "665f1c2a9b3e4a91c7d2e5f0",
+    "restricted": true,
+    "restriction": {
+      "reason": "Refused three parcels without a reason",
+      "restrictedAt": "2026-10-10T09:30:00.000Z",
+      "restrictedByUserId": "66b0…",
+      "restrictedBySource": "admin",
+      "restrictedByName": "Ada Admin"
+    }
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `subject` | Always `"customer"` on this mount |
+| `subjectId` | The **customer profile's** id — `profiles[].id` of the customer entry, **not** the `:userId` in the path |
+| `userId` | The account — the `:userId` in the path |
+| `restricted` | `true` while cash on delivery is switched off |
+| `restriction` | `null` when not restricted. Otherwise the reason, when, and the acting administrator — `restrictedByUserId` is a **wi-admin administrator id** |
+
+Exactly these fields. Not audited. The same record is on the detail as the customer entry's
+[`codRestriction`](#the-profiles-array), read directly, so a badge needs no second call.
+
+## `PUT /users/:userId/cod-restriction`
+
+Switch cash on delivery **off** for the customer.
+
+```json
+{ "reason": "Refused three parcels without a reason" }
+```
+
+| Field | Type | Notes |
+|---|---|---|
+| `reason` | string | **Required.** Trimmed, 3–500 characters. Stored on the restriction (jovi-mall) **and** in the audit payload. Never shown to the customer |
+
+`.strict()` — `reason` is the only key. ⚠ There is **no `restricted` field**: the direction is
+the route. Answers the same body as the GET.
+
+## `POST /users/:userId/cod-restriction/lift`
+
+Switch cash on delivery back **on**.
+
+```json
+{ "reason": "Customer explained; the parcels were damaged" }
+```
+
+`reason` is **required here too** (trimmed, 3–500, `.strict()`) — unlike `/restore`, which takes
+no body. Lifting **clears** the stored restriction in jovi-mall, so the reason given for lifting
+survives only in the audit row. Answers the report with `restricted: false` and
+`restriction: null`.
+
+### Errors (both writes; the 404s apply to the read too)
+
+| Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | A malformed user id, a missing or out-of-range `reason`, or any other key |
+| 403 | `AUTHZ_PERMISSION_DENIED` | The caller lacks `users.cod.restrict` — every Support administrator does |
+| 404 | `NOT_FOUND` | No such user. Checked here before jovi-mall is called |
+| 404 | `PLATFORM_OPERATION_REJECTED` | The account has **no customer profile**. `details.platformCode` is `AUTH_PROFILE_NOT_FOUND`. On a write it is answered by the read that precedes it, so **no audit row is written** — nothing was attempted |
+| 409 | `PLATFORM_OPERATION_REJECTED` | The customer is **already in that state** — already restricted on the PUT, not restricted on `/lift`. jovi-mall's write is a compare-and-set. `details.platformCode` is `COD_RESTRICTION_UNCHANGED`. Re-read and show what is there |
+| 500 | `INTERNAL_SERVER_ERROR` | The audit trail could not record the attempt. **Nothing changed** — jovi-mall is not called until the audit row exists |
+| 502 / 503 | `SERVICE_DEPENDENCY_UNAVAILABLE` | jovi-mall failed or is unreachable. A write is never retried automatically; re-read before pressing again |
+
+A **suspended or closed** account is not refused by either service: jovi-mall checks that the
+user and its customer profile exist, and nothing else.
+
+### Audit
+
+| Action | Sensitive | Records |
+|---|---|---|
+| `users.cod.restrict` | — | The actor, the target user, the `reason`, the outcome, and `before` / `after` as `{ codRestricted }` — `false → true` |
+| `users.cod.unrestrict` | — | The same, `true → false`. Its **own** action although it shares the permission: lifting clears the record in jovi-mall, so this row is the only surviving trace of the restriction and of why it was lifted |
+
+Both target the **user** (not the customer profile), so they appear in
+`GET /users/:userId/activity` beside every other act on the account. The row is written
+**before** jovi-mall is called; if it cannot be written, nothing changes.

@@ -239,7 +239,7 @@ function ReviewForm({
     const decidedAt = formatInstantInZone(current.decidedAt, timeZone);
 
     return (
-        <form onSubmit={submit} noValidate className="flex min-h-0 flex-col gap-4">
+        <form onSubmit={submit} noValidate className="flex max-h-[85vh] min-h-0 flex-col gap-4">
             {/*
               Only the evidence scrolls. The verdict options and the footer stay
               put, so the operator can always see what they are about to record —

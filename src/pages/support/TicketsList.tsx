@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { LifeBuoy, Plus, RotateCw } from 'lucide-react';
+import { LifeBuoy, Plus, RotateCw, X } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
 import { DataTable } from '@/components/common/DataTable';
@@ -12,6 +12,7 @@ import { SearchInput } from '@/components/common/SearchInput';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { CreateTicketDialog } from '@/components/support/CreateTicketDialog';
 import { ticketColumns } from '@/components/support/ticketColumns';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     Select,
@@ -28,6 +29,7 @@ import {
     resolveDayFilter,
     resolveTimeZone,
 } from '@/lib/datetime';
+import { describeSearchMiss, idSearchMiss } from '@/lib/id-search';
 import { PAGE_SIZE_DEFAULT, withQuery } from '@/lib/query';
 import { listTickets } from '@/services/support.service';
 import { useAdmin } from '@/store';
@@ -76,6 +78,14 @@ const FILTER_KEYS = [
     'priority',
     'importance',
     'entityType',
+    /*
+      ⚠ No control — honoured from the URL and shown as a removable chip, like
+      the audit trail's `targetId`. `search` reads a ticket's OWN id only
+      (`support.md`), so the id of the order, shipment or person a ticket is
+      about found nothing there; this is the filter that answers "tickets about
+      this record", and until BR-028 nothing on this screen sent it.
+    */
+    'entityId',
     'sort',
     'createdFrom',
     'createdTo',
@@ -117,6 +127,7 @@ export function TicketsList() {
             priority: values.priority || undefined,
             importance: values.importance || undefined,
             entityType: values.entityType || undefined,
+            entityId: values.entityId || undefined,
             sort: values.sort || TICKET_SORT_DEFAULT,
             page,
             limit: PAGE_SIZE_DEFAULT,
@@ -168,6 +179,7 @@ export function TicketsList() {
                 <SearchInput
                     label="Search tickets"
                     placeholder="Subject, or a 24-character ticket id"
+                    acceptsId
                     value={values.search}
                     onChange={(next) => set({ search: next }, { replace: true })}
                 />
@@ -226,6 +238,26 @@ export function TicketsList() {
                 />
             </FilterBar>
 
+            {values.entityId ? (
+                <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="secondary" className="gap-1 py-1 pr-1 pl-2">
+                        <span className="text-muted-foreground">About record:</span>
+                        <span className="max-w-[16rem] truncate font-mono text-xs">
+                            {values.entityId}
+                        </span>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label="Clear about-record filter"
+                            className="size-5"
+                            onClick={() => set({ entityId: null })}
+                        >
+                            <X className="size-3" />
+                        </Button>
+                    </Badge>
+                </div>
+            ) : null}
+
             <DataTable
                 caption="Support tickets you may see"
                 columns={columns}
@@ -243,8 +275,29 @@ export function TicketsList() {
                         title={isFiltered ? 'No tickets match' : 'The queue is empty'}
                         description={
                             isFiltered
-                                ? 'A status or type this platform does not use returns an empty page rather than an error — check the spelling before concluding there is nothing here.'
+                                ? describeSearchMiss(
+                                      values.search,
+                                      'A status or type this platform does not use returns an empty page rather than an error — check the spelling before concluding there is nothing here.',
+                                      'No ticket you can see has that id. This box takes a ticket’s own id — the id of the order, shipment or person a ticket is about is a different filter.',
+                                  )
                                 : 'Nothing is waiting in the queues you can see.'
+                        }
+                        action={
+                            // Lower-cased: `entityId` is an exact string match on
+                            // an id stored lower-case, and the search box is not.
+                            idSearchMiss(values.search) === 'whole' ? (
+                                <Button
+                                    size="sm"
+                                    onClick={() =>
+                                        set({
+                                            search: null,
+                                            entityId: values.search.trim().toLowerCase(),
+                                        })
+                                    }
+                                >
+                                    Tickets about this record
+                                </Button>
+                            ) : undefined
                         }
                     />
                 }

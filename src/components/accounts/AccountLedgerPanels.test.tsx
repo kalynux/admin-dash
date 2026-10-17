@@ -137,12 +137,15 @@ describe('the cash ledger', () => {
         expect(await screen.findByText('cash collection')).toBeInTheDocument();
         /*
          * Head-and-tail: the id is a `CopyableValue` in a table cell, so it is
-         * shortened for display. The whole value is still the `title` and is
-         * still what the copy button writes — which is what the assertion below
-         * pins.
+         * shortened for display — the middle is drawn at no size — while the
+         * whole value stays the cell's text, its `title`, and what the copy
+         * button and a selection both take.
          */
-        expect(screen.getByText('6674aa…2233')).toBeInTheDocument();
-        expect(screen.getByTitle('6674aabbccddeeff00112233')).toBeInTheDocument();
+        const reference = screen.getByTitle('6674aabbccddeeff00112233');
+        expect(reference).toHaveTextContent('6674aabbccddeeff00112233');
+        expect(reference.querySelector('[data-shortened-middle]')).toHaveTextContent(
+            'bbccddeeff0011',
+        );
     });
 
     it('tolerates a null reference, which the doc example does not show', async () => {
