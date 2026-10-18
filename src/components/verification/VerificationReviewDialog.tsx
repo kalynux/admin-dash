@@ -241,16 +241,24 @@ function ReviewForm({
     return (
         <form onSubmit={submit} noValidate className="flex max-h-[85vh] min-h-0 flex-col gap-4">
             {/*
-              Only the evidence scrolls. The verdict options and the footer stay
-              put, so the operator can always see what they are about to record —
-              a dialog that scrolls as a whole hides the buttons exactly when the
-              checklist is long, which is when the decision is hardest.
+              Everything but the footer scrolls; the footer stays put, so Cancel
+              and the submit button — which names the verdict being recorded —
+              are always on screen.
+
+              ⚠ **The verdict options, the extra fields and the reason are INSIDE
+              the scrolling region, and must stay there.** They used to sit below
+              it, on the theory that only the evidence would ever be long. The
+              agent's four verdicts plus its Reference field are taller than a
+              small laptop screen on their own, so the scroll region collapsed to
+              nothing and the rest — submit button included — ran off the bottom
+              of the dialog with no way to reach it (reported 2026-10-18).
 
               `min-h-0` is required on a flex child that scrolls; without it the
               default `min-height: auto` refuses to shrink and the overflow moves
-              back out to the dialog.
+              back out to the dialog. `-mx-1 px-1` keeps the radio cards' focus
+              rings from being clipped by the overflow.
             */}
-            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+            <div className="-mx-1 min-h-0 flex-1 space-y-4 overflow-y-auto px-1">
                 <CurrentVerdictLine current={current} decidedAt={decidedAt} />
 
                 {/*
@@ -274,79 +282,79 @@ function ReviewForm({
                         From the checklist on the Verification tab.
                     </span>
                 </div>
-            </div>
 
-            <div className="space-y-2">
-                <Label>Verdict</Label>
-                {/*
-                  No default when the estimate is `indeterminate`. A dialog that
-                  opens with an outcome already selected has answered the question
-                  the operator was opened to answer.
-                */}
-                <RadioGroup
-                    value={verdict ?? ''}
-                    onValueChange={chooseVerdict}
-                    className="gap-2"
-                    aria-label="Verdict"
-                >
-                    {options.map((option) => (
-                        <label
-                            key={option.value}
-                            htmlFor={`verdict-${option.value}`}
-                            className={cn(
-                                'flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm',
-                                verdict === option.value && 'border-primary bg-accent/40',
-                            )}
-                        >
-                            <RadioGroupItem
-                                id={`verdict-${option.value}`}
-                                value={option.value}
-                                className="mt-0.5"
-                            />
-                            <span className="space-y-0.5">
-                                <span className="block font-medium">{option.label}</span>
-                                <span className="text-muted-foreground block text-xs leading-relaxed">
-                                    {option.description}
+                <div className="space-y-2">
+                    <Label>Verdict</Label>
+                    {/*
+                      No default when the estimate is `indeterminate`. A dialog that
+                      opens with an outcome already selected has answered the question
+                      the operator was opened to answer.
+                    */}
+                    <RadioGroup
+                        value={verdict ?? ''}
+                        onValueChange={chooseVerdict}
+                        className="gap-2"
+                        aria-label="Verdict"
+                    >
+                        {options.map((option) => (
+                            <label
+                                key={option.value}
+                                htmlFor={`verdict-${option.value}`}
+                                className={cn(
+                                    'flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm',
+                                    verdict === option.value && 'border-primary bg-accent/40',
+                                )}
+                            >
+                                <RadioGroupItem
+                                    id={`verdict-${option.value}`}
+                                    value={option.value}
+                                    className="mt-0.5"
+                                />
+                                <span className="space-y-0.5">
+                                    <span className="block font-medium">{option.label}</span>
+                                    <span className="text-muted-foreground block text-xs leading-relaxed">
+                                        {option.description}
+                                    </span>
                                 </span>
-                            </span>
-                        </label>
-                    ))}
-                </RadioGroup>
+                            </label>
+                        ))}
+                    </RadioGroup>
+                </div>
+
+                {extraFields}
+
+                {selected && selected.textMode !== 'none' ? (
+                    <FormField
+                        id="verification-verdict-text"
+                        label={selected.textLabel ?? 'Reason'}
+                        error={textError ?? undefined}
+                        hint={selected.textHint}
+                    >
+                        {(field) => (
+                            <Textarea
+                                rows={3}
+                                maxLength={VERDICT_REASON_MAX}
+                                placeholder={selected.textPlaceholder}
+                                value={text}
+                                onChange={(event) => {
+                                    setText(event.target.value);
+                                    setTextEdited(true);
+                                }}
+                                {...field}
+                            />
+                        )}
+                    </FormField>
+                ) : null}
+
+                {selected && selected.textMode === 'none' ? (
+                    <p className="text-muted-foreground bg-muted/40 rounded-lg border p-3 text-xs leading-relaxed">
+                        This verdict takes no text. Your name and the time are recorded on the record
+                        and in the audit trail.
+                    </p>
+                ) : null}
+
+                {formError ? <AuthFormError error={formError} /> : null}
             </div>
-
-            {extraFields}
-
-            {selected && selected.textMode !== 'none' ? (
-                <FormField
-                    id="verification-verdict-text"
-                    label={selected.textLabel ?? 'Reason'}
-                    error={textError ?? undefined}
-                    hint={selected.textHint}
-                >
-                    {(field) => (
-                        <Textarea
-                            rows={3}
-                            maxLength={VERDICT_REASON_MAX}
-                            placeholder={selected.textPlaceholder}
-                            value={text}
-                            onChange={(event) => {
-                                setText(event.target.value);
-                                setTextEdited(true);
-                            }}
-                            {...field}
-                        />
-                    )}
-                </FormField>
-            ) : null}
-
-            {selected && selected.textMode === 'none' ? (
-                <p className="text-muted-foreground bg-muted/40 rounded-lg border p-3 text-xs leading-relaxed">
-                    This verdict takes no text. Your name and the time are recorded on the record
-                    and in the audit trail.
-                </p>
-            ) : null}
-
-            {formError ? <AuthFormError error={formError} /> : null}
 
             <DialogFooter>
                 <Button
