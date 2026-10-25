@@ -28,6 +28,7 @@ import { DetailSkeleton } from '@/components/common/Loading';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { Button } from '@/components/ui/button';
 import { ReviewsPanel } from '@/components/reviews/ReviewsPanel';
+import { AgencyClaimsPanel } from '@/components/agencies/AgencyClaimsPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { resolveTimeZone } from '@/lib/datetime';
@@ -275,6 +276,7 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
                     {canSeeRoster ? <TabsTrigger value="roster">Roster</TabsTrigger> : null}
                     <TabsTrigger value="history">Contract history</TabsTrigger>
                     {canSeeReviews ? <TabsTrigger value="reviews">Reviews</TabsTrigger> : null}
+                    <TabsTrigger value="claims">Damage claims</TabsTrigger>
                     {canSeeAccount ? <TabsTrigger value="account">Account</TabsTrigger> : null}
                     {canSeeActivity ? <TabsTrigger value="activity">Activity</TabsTrigger> : null}
                 </TabsList>
@@ -395,6 +397,20 @@ function AgencyDetailScreen({ agencyId }: { agencyId: string }) {
                         />
                     </TabsContent>
                 ) : null}
+
+                {/*
+                  What this agency was charged for parcels damaged in its
+                  delivery (2026-10-22). `agencies.read`, which this page already
+                  requires — so Support sees it. Charging happens on the parcel.
+                */}
+                <TabsContent value="claims">
+                    <AgencyClaimsPanel
+                        scope={{ agencyId: record.id }}
+                        timeZone={timeZone}
+                        noun="this agency"
+                        hide={['agency']}
+                    />
+                </TabsContent>
 
                 {canSeeAccount ? (
                     <TabsContent value="account">

@@ -5,7 +5,13 @@ import { Badge } from '@/components/ui/badge';
 import { formatInstantInZone, formatMoney, formatRelative } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Approval } from '@/types/approvals.types';
-import { refundStatusLabel, refundStatusNote, type RefundRequest } from '@/types/refunds.types';
+import {
+    feesPaidBySeller,
+    refundStatusLabel,
+    refundStatusNote,
+    type RefundFees,
+    type RefundRequest,
+} from '@/types/refunds.types';
 
 const STATUS_TONES: Record<string, string> = {
     awaiting_approval: 'border-warning/40 bg-warning/10 text-warning',
@@ -28,9 +34,39 @@ export function RefundStatusBadge({ status }: { status: string }) {
     );
 }
 
+interface FeeLine {
+    key: string;
+    label: string;
+    amount: number;
+}
+
 /**
- * **Gross, fee and net, always together** — the changelog's one rule for this
- * screen (§ 3). Printed as sent: ⛔ nothing here is computed.
+ * The fee lines to print — **only the fees that happened** (a card refund has
+ * no transfer fee, cash on delivery no payment fee). A line is kept when its
+ * rate or its amount is non-zero, so a `0` that the server did charge at a
+ * non-zero rate still shows.
+ */
+function feeLines(fees: RefundFees, rateLabel: (rate: number) => string): FeeLine[] {
+    const lines: FeeLine[] = [];
+    if (fees.paymentFeePercent > 0 || fees.paymentFee > 0) {
+        lines.push({ key: 'payment', label: `Payment fee ${rateLabel(fees.paymentFeePercent)}`, amount: fees.paymentFee });
+    }
+    if (fees.transferFeePercent > 0 || fees.transferFee > 0) {
+        lines.push({ key: 'transfer', label: `Transfer fee ${rateLabel(fees.transferFeePercent)}`, amount: fees.transferFee });
+    }
+    return lines;
+}
+
+const percent = (rate: number) => `${rate}%`;
+
+/**
+ * **Gross, fees and net, always together** — the refund flow's one rule for
+ * this screen (§ 3). Printed as sent: ⛔ nothing here is computed.
+ *
+ * `fees` (2026-10-22) splits the deduction in two — the payment fee and the
+ * transfer fee — and says who pays. `paidBy: 'vendor'` (the seller cancelled a
+ * paid order) prints *Fees charged to the seller* and the customer's 100%.
+ * Absent or `null` (an older wi-admin): the single transfer-fee line, as before.
  *
  * `compact` is the table cell; the full form names each figure.
  */
@@ -39,39 +75,88 @@ export function RefundMoney({
     fee,
     net,
     currency,
+    fees = null,
+    feeRate,
     compact = false,
 }: {
     gross: number;
+    /** `feeAmount` — everything deducted from the customer. */
     fee: number;
     net: number;
     currency: string;
+    fees?: RefundFees | null;
+    /** The transfer-fee rate, for the legacy single line. */
+    feeRate?: number;
     compact?: boolean;
 }) {
+    const sellerPays = feesPaidBySeller(fees);
+    const lines = fees && !sellerPays ? feeLines(fees, percent) : null;
+
     if (compact) {
         return (
             <div className="space-y-0.5 tabular-nums">
                 <p className="font-medium">{formatMoney(gross, currency)}</p>
                 <p className="text-muted-foreground text-xs">
-                    fee {formatMoney(fee, currency)} · customer gets {formatMoney(net, currency)}
+                    {sellerPays && fees
+                        ? `fees charged to the seller ${formatMoney(fees.vendorCharge, currency)}`
+                        : lines
+                          ? lines.length > 0
+                              ? lines
+                                    .map((line) => `${line.label.toLowerCase()} ${formatMoney(line.amount, currency)}`)
+                                    .join(' · ')
+                              : 'no fee'
+                          : `fee ${formatMoney(fee, currency)}`}{' '}
+                    · customer gets {formatMoney(net, currency)}
                 </p>
             </div>
         );
     }
+
+    const feeCells: FeeLine[] =
+        sellerPays && fees
+            ? [{ key: 'seller', label: 'Fees charged to the seller', amount: fees.vendorCharge }]
+            : lines
+              ? lines.length > 0
+                  ? lines
+                  : [{ key: 'none', label: 'Fees', amount: 0 }]
+              : [
+                    {
+                        key: 'legacy',
+                        label: typeof feeRate === 'number' ? `Transfer fee ${feeRate}%` : 'Transfer fee kept',
+                        amount: fee,
+                    },
+                ];
+
     return (
-        <dl className="grid grid-cols-3 gap-3 text-sm">
-            <div className="min-w-0">
-                <dt className="text-muted-foreground text-xs">Refund (gross)</dt>
-                <dd className="font-medium tabular-nums">{formatMoney(gross, currency)}</dd>
-            </div>
-            <div className="min-w-0">
-                <dt className="text-muted-foreground text-xs">Transfer fee kept</dt>
-                <dd className="tabular-nums">{formatMoney(fee, currency)}</dd>
-            </div>
-            <div className="min-w-0">
-                <dt className="text-muted-foreground text-xs">Customer receives</dt>
-                <dd className="font-medium tabular-nums">{formatMoney(net, currency)}</dd>
-            </div>
-        </dl>
+        <div className="space-y-2">
+            <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                <div className="min-w-0">
+                    <dt className="text-muted-foreground text-xs">Refund (gross)</dt>
+                    <dd className="font-medium tabular-nums">{formatMoney(gross, currency)}</dd>
+                </div>
+                {feeCells.map((line) => (
+                    <div key={line.key} className="min-w-0">
+                        <dt className="text-muted-foreground text-xs">{line.label}</dt>
+                        <dd className="tabular-nums">{formatMoney(line.amount, currency)}</dd>
+                    </div>
+                ))}
+                <div className="min-w-0">
+                    <dt className="text-muted-foreground text-xs">Customer receives</dt>
+                    <dd className="font-medium tabular-nums">{formatMoney(net, currency)}</dd>
+                </div>
+            </dl>
+            {sellerPays && fees ? (
+                <p className="text-muted-foreground text-xs">
+                    The seller cancelled after payment, so the seller pays the fees
+                    {feeLines(fees, percent).length > 0
+                        ? ` (${feeLines(fees, percent)
+                              .map((line) => `${line.label.toLowerCase()} ${formatMoney(line.amount, currency)}`)
+                              .join(' + ')})`
+                        : ''}{' '}
+                    on top of their share, and the customer receives the full amount.
+                </p>
+            ) : null}
+        </div>
     );
 }
 

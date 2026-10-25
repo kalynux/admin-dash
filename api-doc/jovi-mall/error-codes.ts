@@ -393,6 +393,18 @@ export const ERROR_CODES = Object.freeze({
     REFUND_INSUFFICIENT_GATEWAY_BALANCE: 'REFUND_INSUFFICIENT_GATEWAY_BALANCE',
     /** A refund paid outside the platform needs its picture proof (R-7b). 422. */
     REFUND_EXTERNAL_PROOF_REQUIRED: 'REFUND_EXTERNAL_PROOF_REQUIRED',
+    /** A parcel named as delivered at fault is not this order's, or the source has no parcels (2026-10-22). 422. */
+    REFUND_DELIVERY_FAULT_INVALID: 'REFUND_DELIVERY_FAULT_INVALID',
+    /** Damage claims on an agency (owner F-8, 2026-10-22). */
+    AGENCY_CLAIM_NOT_FOUND: 'AGENCY_CLAIM_NOT_FOUND',
+    /** One damage claim per parcel. 409. */
+    AGENCY_CLAIM_EXISTS: 'AGENCY_CLAIM_EXISTS',
+    /** The problem was raised outside the agency's own window (its damage-claim deadline). 422. */
+    AGENCY_CLAIM_OUTSIDE_WINDOW: 'AGENCY_CLAIM_OUTSIDE_WINDOW',
+    /** More than the agency's max refund per item × the damaged items. 422. */
+    AGENCY_CLAIM_EXCEEDS_CAP: 'AGENCY_CLAIM_EXCEEDS_CAP',
+    /** The parcel cannot carry a claim: not delivered, no agency, or the agency allows nothing per item. 422. */
+    AGENCY_CLAIM_NOT_ELIGIBLE: 'AGENCY_CLAIM_NOT_ELIGIBLE',
     /** Boot wiring: `registerRefundPorts` was never called. Never skipped silently. 500. */
     REFUND_PORT_NOT_REGISTERED: 'REFUND_PORT_NOT_REGISTERED',
     /**
@@ -1053,6 +1065,10 @@ export const ERROR_CODES = Object.freeze({
     // refuse it, and the simple endpoints refuse an advanced product.
     CATALOG_PRODUCT_SIMPLE_MODE_LOCKED: 'CATALOG_PRODUCT_SIMPLE_MODE_LOCKED',
     CATALOG_PRODUCT_NOT_SIMPLE_MODE: 'CATALOG_PRODUCT_NOT_SIMPLE_MODE',
+    // Permanent deletion refused (422). `details.blockers[]` carries EVERY reason, each with
+    // a vendor-facing `message` — see `product-permanent-delete.rule.ts`. A product must be
+    // archived and never ordered, booked, downloaded or reviewed.
+    CATALOG_PRODUCT_DELETE_BLOCKED: 'CATALOG_PRODUCT_DELETE_BLOCKED',
     // Variants
     CATALOG_VARIANT_NOT_FOUND: 'CATALOG_VARIANT_NOT_FOUND',
     CATALOG_VARIANT_ACCESS_DENIED: 'CATALOG_VARIANT_ACCESS_DENIED',
@@ -1745,6 +1761,13 @@ export const ERROR_CODES = Object.freeze({
     // A customer-paid ONLINE order whose payment is no longer simply `paid` (refunded,
     // disputed): its delivery money cannot be moved by a fee change. `details.paymentStatus`. // 422
     DELIVERY_FEE_PROPOSAL_ORDER_NOT_PAID: 'DELIVERY_FEE_PROPOSAL_ORDER_NOT_PAID',
+    // ── Payer proposals (2026-10-14): the one who PAYS the delivery proposes, the agency answers ──
+    // The caller does not pay this parcel's delivery (a vendor on a customer-paid parcel, or a
+    // customer on a vendor-paid one). `details.deliveryPayer`. // 422
+    DELIVERY_FEE_PROPOSAL_NOT_PAYER: 'DELIVERY_FEE_PROPOSAL_NOT_PAYER',
+    // The order has several parcels the caller could propose on and none was named (chat).
+    // `details.shipments[] { shipmentId, agencyName, fee }`. // 422
+    DELIVERY_FEE_PROPOSAL_SHIPMENT_AMBIGUOUS: 'DELIVERY_FEE_PROPOSAL_SHIPMENT_AMBIGUOUS',
     // ── Cash for delivery (ADR-A11 § Cash for delivery, W-F) ──
     // `deliveryFeePayment: cash_to_rider` at checkout that cannot be honoured: the order is COD,
     // no shop part is customer-paid, or a carrying agency does not accept the fee in cash.

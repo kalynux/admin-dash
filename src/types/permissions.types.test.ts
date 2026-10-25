@@ -169,10 +169,15 @@ describe('the permission catalogue matches api-doc/admin/api/permissions.md', ()
         //
         // ⚠ **Moved 142 → 143 on 2026-10-15** (BR-030): `money.earnings.platform.read`,
         // `financial`, tier 1 only — so 143 / 120 / 47 and only the top rung moved.
-        expect(PERMISSION_NAMES.length).toBe(143);
+        //
+        // ⚠ **Moved 143 → 144 on 2026-10-25** — 144 / 121 / 47 by `authz:matrix`:
+        // `agencies.claims.charge` (`financial`, tiers 1–2), the damage claim.
+        // Taken from source: `permissions.md` says 144 but has no matrix row for
+        // it, so the two doc-diffing assertions above are red until BR-032 lands.
+        expect(PERMISSION_NAMES.length).toBe(144);
         expect(UNROUTED_PERMISSION_NAMES.length).toBe(4);
         expect(PERMISSION_FAMILIES.length).toBe(23);
-        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(139);
+        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(140);
     });
 
     /**

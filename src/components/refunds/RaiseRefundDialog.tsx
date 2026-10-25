@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 import { AuthFormError } from '@/components/auth/AuthFormError';
 import { FormField } from '@/components/common/FormField';
 import { InlineLoader } from '@/components/common/Loading';
+import { DeliveryFaultList } from '@/components/refunds/DeliveryFaultList';
+import { DeliveryFaultPicker } from '@/components/refunds/DeliveryFaultPicker';
 import { RefundMoney, RefundNotice } from '@/components/refunds/RefundBits';
 import { RefundProofPicker } from '@/components/refunds/RefundProof';
 import { Button } from '@/components/ui/button';
@@ -35,11 +37,13 @@ import { useCan } from '@/store';
 import { ApiError } from '@/types/api.types';
 import { refundQueueForSourcePath } from '@/types/earnings-pause.types';
 import {
+    eligibilityFeesOf,
     isBillingRefundSource,
     isTypedPhoneValid,
     needsTypedDestination,
     offersItemDefective,
     PLATFORM_CODE_REFUND_ALREADY_OPEN,
+    PLATFORM_CODE_REFUND_DELIVERY_FAULT_INVALID,
     PLATFORM_CODE_REFUND_DESTINATION_PROOF_REQUIRED,
     PLATFORM_CODE_REFUND_NO_DESTINATION,
     proofFileIdOf,
@@ -87,6 +91,14 @@ import {
  *   uploaded first to `POST /refunds/proofs` (private tree), sent as
  *   `destinationProofFileId`. And **another administrator must approve it**.
  * - **One open request per source** — `REFUND_ALREADY_OPEN` links to it.
+ *
+ * ── Delivery at fault (2026-10-22) ────────────────────────────────────────────
+ * On an ORDER, and under `shipments.read` (the parcels are a separate read), the
+ * form offers the order's parcels as *delivered at fault* →
+ * `deliveryFaultShipmentIds`. Each tick re-asks the eligibility, which judges
+ * every named parcel against its agency's own window and, inside it, adds that
+ * parcel's delivery money to the ceiling; the verdicts are printed under the
+ * picker as the platform sent them.
  */
 export interface RaiseRefundSource {
     kind: RefundSourceKind;
@@ -238,6 +250,7 @@ function SourcePicker({
 
 interface FieldErrors {
     amount?: string;
+    deliveryFault?: string;
     reason?: string;
     phone?: string;
     name?: string;
@@ -261,6 +274,7 @@ function RaiseRefundForm({
     const can = useCan();
     const canApprove = can('orders.refund');
     const billing = isBillingRefundSource(source.kind);
+    const offersDeliveryFault = source.kind === 'order' && can('shipments.read');
 
     // The inputs to the eligibility read. `null` reason kind = the server's default.
     const [reasonKind, setReasonKind] = useState<string | null>(null);
@@ -268,6 +282,8 @@ function RaiseRefundForm({
     const [amountText, setAmountText] = useState('');
     /** The amount the read was last asked about — committed on blur, not per keystroke. */
     const [askedAmount, setAskedAmount] = useState<number | undefined>(undefined);
+    /** Parcels named as delivered at fault — an input to the read, like the reason. */
+    const [faultIds, setFaultIds] = useState<string[]>([]);
 
     const [reason, setReason] = useState('');
     const [overridePolicy, setOverridePolicy] = useState(false);
@@ -288,8 +304,14 @@ function RaiseRefundForm({
         reasonKind: reasonKind ?? undefined,
         itemDefective: itemDefective || undefined,
         amount: askedAmount,
+        deliveryFaultShipmentIds: faultIds.length > 0 ? faultIds : undefined,
     };
-    const eligibility = useAsyncData(withQuery('/refunds/eligibility', { ...query }), (signal) =>
+    const eligibility = useAsyncData(
+        withQuery('/refunds/eligibility', {
+            ...query,
+            deliveryFaultShipmentIds: faultIds.length > 0 ? faultIds.join(',') : undefined,
+        }),
+        (signal) =>
         getRefundEligibility(query, { signal }),
     );
 
@@ -351,6 +373,8 @@ function RaiseRefundForm({
     const overrides = serverOverrides ?? verdict.overrides ?? [];
     const typed = needsTypedDestination(verdict);
     const feePercent = verdict.feePercent;
+    const paymentFeePercent = verdict.paymentFeePercent;
+    const faultVerdicts = verdict.deliveryFault ?? [];
 
     function commitAmount() {
         const trimmed = amountText.trim();
@@ -411,6 +435,7 @@ function RaiseRefundForm({
                     : {}),
                 ...(canApprove && approveNow ? { approveNow: true } : {}),
                 ...(ticketId ? { ticketId } : {}),
+                ...(offersDeliveryFault && faultIds.length > 0 ? { deliveryFaultShipmentIds: faultIds } : {}),
             });
             onRaised(result);
         } catch (error) {
@@ -421,9 +446,11 @@ function RaiseRefundForm({
                 'destination.name',
                 'destinationProofFileId',
                 'overridePolicy',
+                'deliveryFaultShipmentIds',
             ] as const);
             const placed: FieldErrors = {
                 amount: fields.amount,
+                deliveryFault: fields.deliveryFaultShipmentIds,
                 reason: fields.reason,
                 phone: fields['destination.phone'],
                 name: fields['destination.name'],
@@ -461,6 +488,13 @@ function RaiseRefundForm({
             if (code === PLATFORM_CODE_REFUND_DESTINATION_PROOF_REQUIRED) {
                 setProof({ status: 'empty' });
                 setErrors({ proof: 'That picture is no longer stored. Upload it again.' });
+                return;
+            }
+            if (code === PLATFORM_CODE_REFUND_DELIVERY_FAULT_INVALID) {
+                setErrors({
+                    deliveryFault:
+                        'One of these parcels is not on this order any more. Untick it, or reload and choose again.',
+                });
                 return;
             }
             if (code === PLATFORM_CODE_REFUND_NO_DESTINATION) {
@@ -501,6 +535,8 @@ function RaiseRefundForm({
                         gross={byReason.maxRefundable}
                         fee={byReason.feeAmount}
                         net={byReason.netAmount}
+                        fees={eligibilityFeesOf(verdict, byReason)}
+                        feeRate={feePercent}
                         currency={currency}
                     />
                 ) : (
@@ -511,11 +547,10 @@ function RaiseRefundForm({
                 )}
                 <p className="text-muted-foreground text-xs">
                     {byReason ? 'The most that can be refunded for this reason. ' : ''}
-                    {typeof feePercent === 'number'
-                        ? feePercent > 0
-                            ? `A ${feePercent}% transfer fee is kept by the platform; the customer receives the rest.`
-                            : 'No fee — a card refund goes back in full.'
-                        : null}
+                    {feeSentence(paymentFeePercent, feePercent)}
+                    {!billing
+                        ? ' If the seller cancelled after payment, the seller pays the fees and the customer receives the full amount.'
+                        : ''}
                     {eligibility.isRefreshing ? ' Updating…' : ''}
                 </p>
             </section>
@@ -557,6 +592,24 @@ function RaiseRefundForm({
                         </span>
                     </span>
                 </label>
+            ) : null}
+
+            {offersDeliveryFault ? (
+                <div className="space-y-2">
+                    <DeliveryFaultPicker
+                        orderId={source.id}
+                        selected={faultIds}
+                        onChange={(next) => {
+                            setFaultIds(next);
+                            setErrors((current) => ({ ...current, deliveryFault: undefined }));
+                        }}
+                        disabled={submitting}
+                        error={errors.deliveryFault}
+                    />
+                    {faultIds.length > 0 && faultVerdicts.length > 0 ? (
+                        <DeliveryFaultList faults={faultVerdicts} currency={currency} />
+                    ) : null}
+                </div>
             ) : null}
 
             {billing ? (
@@ -717,3 +770,22 @@ function RaiseRefundForm({
     );
 }
 
+/**
+ * The preview's fee sentence. Both rates come from the platform; ⛔ nothing is
+ * applied here. An older jovi-mall sends no `paymentFeePercent` — then only the
+ * transfer fee is spoken of, as before.
+ */
+function feeSentence(paymentFeePercent: number | undefined, transferFeePercent: number | undefined): string | null {
+    if (typeof transferFeePercent !== 'number') return null;
+    const payment = typeof paymentFeePercent === 'number' && paymentFeePercent > 0 ? paymentFeePercent : 0;
+    if (payment > 0 && transferFeePercent > 0) {
+        return `A ${payment}% payment fee (kept when the customer paid) and a ${transferFeePercent}% transfer fee are deducted; the customer receives the rest.`;
+    }
+    if (payment > 0) {
+        return `A ${payment}% payment fee (kept when the customer paid) is deducted — no transfer fee on a card refund.`;
+    }
+    if (transferFeePercent > 0) {
+        return `A ${transferFeePercent}% transfer fee is kept by the platform; the customer receives the rest.`;
+    }
+    return 'No fee — the customer receives the full amount.';
+}

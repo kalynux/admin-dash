@@ -269,6 +269,8 @@ function ApproveForm({ refund, onDone, onQueued, onSwitch, onCancel }: FormProps
                 gross={refund.grossAmount}
                 fee={refund.feeAmount}
                 net={refund.netAmount}
+                fees={refund.fees}
+                feeRate={refund.feeRate}
                 currency={refund.currency}
             />
             {refund.destination?.phone ? (
@@ -517,6 +519,8 @@ function SettleForm({ refund, onDone, onSwitch, onCancel }: FormProps) {
                 gross={refund.grossAmount}
                 fee={refund.feeAmount}
                 net={refund.netAmount}
+                fees={refund.fees}
+                feeRate={refund.feeRate}
                 currency={refund.currency}
             />
             <p className="text-muted-foreground text-sm">

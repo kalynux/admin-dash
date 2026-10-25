@@ -25,8 +25,9 @@ import { withQuery } from '@/lib/query';
 import { listEarningsPauses } from '@/services/money.service';
 import { useAdmin, useCan } from '@/store';
 import {
-    PAUSE_KIND_LABELS,
+    PAUSE_KIND_PLURALS,
     PAUSE_KINDS,
+    pauseTargetNoun,
     type EarningsPauseListQuery,
     type EarningsPauseRow,
     type PauseKind,
@@ -36,7 +37,9 @@ import {
  * `GET /money/earnings/pauses` · **`money.earnings.read`** (tiers 1–2) ·
  * delegated.
  *
- * Every order and booking whose earnings are paused **now**, newest pause first.
+ * Every order, booking and delivery whose earnings are paused **now**, newest
+ * pause first. A delivery (`shipment`, 2026-10-22) holds only its agency's and
+ * rider's shares.
  * Paused money is never paid out, so this is the list of payouts somebody has
  * to decide on: refund the customer, or resume. **Resume** per row is
  * `money.earnings.pause` and absent without it.
@@ -44,8 +47,8 @@ import {
  * ── A strict list ─────────────────────────────────────────────────────────────
  * `kind`, `page`, `limit` and nothing else — an unknown key is a `400`, so there
  * is no `sort` (the order is fixed) and no address-only filter. `kind` is pinned
- * to `order` · `booking`, and a hand-edited value outside them is dropped rather
- * than sent.
+ * to `order` · `booking` · `shipment`, and a hand-edited value outside them is
+ * dropped rather than sent.
  *
  * ── What the row cannot say ──────────────────────────────────────────────────
  * The vendor is an id: the row carries no name, and resolving one per row would
@@ -89,7 +92,7 @@ export function EarningsPausesList() {
     return (
         <PageContainer
             title="Paused earnings"
-            description="Orders and bookings whose payout is on hold. Nobody on them is paid until an administrator resumes it."
+            description="Orders, bookings and deliveries whose payout is on hold. A delivery's pause holds only its agency and rider; an order's holds the seller, the platform and any agency held by its own terms."
         >
             <div className="space-y-4">
                 <FilterBar isFiltered={isFiltered} onClear={reset}>
@@ -102,7 +105,8 @@ export function EarningsPausesList() {
                                     The platform pauses a payout on its own when a seller cancels a
                                     paid order or a paid booking (a high-priority refund ticket
                                     opens too) and when a customer disputes a card payment.
-                                    Administrators may also pause one by hand.
+                                    Administrators may also pause one by hand — an order, or one
+                                    delivery to stop its agency and rider.
                                 </InfoHint>
                             </>
                         }
@@ -111,14 +115,14 @@ export function EarningsPausesList() {
                             value={kind ?? 'all'}
                             onValueChange={(next) => set({ kind: next === 'all' ? '' : next })}
                         >
-                            <SelectTrigger id="pause-kind" className="w-[170px]">
+                            <SelectTrigger id="pause-kind" className="w-[190px]">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">Orders and bookings</SelectItem>
+                                <SelectItem value="all">Every kind</SelectItem>
                                 {PAUSE_KINDS.map((value) => (
                                     <SelectItem key={value} value={value}>
-                                        {PAUSE_KIND_LABELS[value]}s only
+                                        {PAUSE_KIND_PLURALS[value]} only
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -147,8 +151,8 @@ export function EarningsPausesList() {
                             title="Nothing is paused"
                             description={
                                 kind
-                                    ? `No ${kind}'s payout is on hold.`
-                                    : 'Every order and booking is free to pay out once its hold ends.'
+                                    ? `No ${pauseTargetNoun(kind)}'s payout is on hold.`
+                                    : 'Every order, booking and delivery is free to pay out once its hold ends.'
                             }
                         />
                     }

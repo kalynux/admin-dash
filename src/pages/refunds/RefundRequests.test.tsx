@@ -366,3 +366,55 @@ describe('a completed request', () => {
         expect(screen.queryByText(/still being finalised/i)).not.toBeInTheDocument();
     });
 });
+
+describe('the 2026-10-22 money on a request', () => {
+    it('lists the parcels named as delivered at fault, each with its verdict', async () => {
+        renderDetail({
+            refund: refundRequestFixture({
+                deliveryFault: [
+                    {
+                        shipmentId: '6671aabbccddeeff00112233',
+                        agencyId: '665c0011223344556677889a',
+                        trackingNumber: 'ACR-260812-103000-4K7QP',
+                        deliveredAt: '2026-10-20T09:00:00.000Z',
+                        raisedAt: '2026-10-21T08:00:00.000Z',
+                        windowDays: 2,
+                        insideWindow: false,
+                        customerDeliveryAmount: 0,
+                        claimDeadlineDays: 2,
+                        returnsPayer: null,
+                    },
+                ],
+            }),
+        });
+        expect(await screen.findByText('Delivery at fault')).toBeInTheDocument();
+        expect(screen.getByText(/outside the agency’s 2-day window — the agency keeps its fee/i)).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: /ACR-260812-103000-4K7QP/ })).toHaveAttribute(
+            'href',
+            '/dashboard/shipments/6671aabbccddeeff00112233',
+        );
+    });
+
+    it('shows no fault card when none was named', async () => {
+        renderDetail({ refund: refundRequestFixture({ deliveryFault: [] }) });
+        await screen.findByText(/sandals arrived/i);
+        expect(screen.queryByText('Delivery at fault')).not.toBeInTheDocument();
+    });
+
+    it('shows the two fees on the detail', async () => {
+        renderDetail({
+            refund: refundRequestFixture({
+                fees: {
+                    paidBy: 'customer',
+                    paymentFeePercent: 2,
+                    paymentFee: 100,
+                    transferFeePercent: 2,
+                    transferFee: 98,
+                    vendorCharge: 0,
+                },
+            }),
+        });
+        expect(await screen.findByText('Payment fee 2%')).toBeInTheDocument();
+        expect(screen.getByText('Transfer fee 2%')).toBeInTheDocument();
+    });
+});

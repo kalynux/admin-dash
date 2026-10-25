@@ -29,6 +29,43 @@ two before it closed with Phase F on 2026-08-27 (`GET /files/library`, `POST /fi
 pins the services against the map — so take it by grepping each ROUTE-MAP path in
 `src/services`, not by reading it here.
 
+✅ **Delivery pause, two refund fees, delivery at fault and damage claims — built 2026-10-25.**
+Contracts: [FRONTEND-CHANGELOG-delivery-pause.md](api-doc/admin/FRONTEND-CHANGELOG-delivery-pause.md) ·
+[FRONTEND-CHANGELOG-refund-fees-and-claims.md](api-doc/admin/FRONTEND-CHANGELOG-refund-fees-and-claims.md);
+`agency-claims.md` new, `money.md`, `refunds.md`, `dev-tools.md`, `permissions.md` and
+`api/README.md` re-copied (byte-identical), `api-doc/jovi-mall/error-codes.ts` re-taken (additive).
+⚠ `api-doc/admin/README.md` still **not** re-copied (it links two unmirrored changelogs).
+**Upstream committed (`439bfb2`), not deployed.** ⚠ **An admin's ORDER pause no longer stops an
+agency whose terms release it without a hold** — the order Pause dialog says so (changelog § 3,
+`ORDER_PAUSE_FREE_AGENCY_WARNING`), and its old *"not the vendor, the agency or the agent"*
+sentence is gone. **`:kind = shipment`** pauses **one delivery** (its agency and rider only, never
+the seller): `EarningsPauseCard kind="shipment"` above the shipment tabs on `money.earnings.read`
+(button *"Pause this delivery's payment"*), and a *Deliveries* filter + row on the queue
+(`reference` = tracking number, `amount` = delivery fee, `orderId` / `agencyId` read `?? null`).
+No refund ever holds a delivery pause. **Refunds:** `feeAmount` is now payment fee + transfer fee;
+`fees` holds them apart and `RefundMoney` prints **only the fees that happened**, or *"Fees charged
+to the seller"* when `fees.paidBy = 'vendor'`; absent/`null` → the legacy single line. ⚠ The
+eligibility preview's split is read from `byReasonKind[reason]` — `refunds.md`'s example also puts
+it on `attributionPreview`, which jovi-mall's DTO does not (BR-032 § 2). **Delivery at fault**
+(`DeliveryFaultPicker`, orders only, on `shipments.read` — the parcels are `GET /shipments?orderId=`)
+→ `deliveryFaultShipmentIds`, **comma-separated on the eligibility, omitted when empty** (both
+schemas are `.min(1)`); each verdict is printed as sent by `DeliveryFaultList`, also on the refund
+detail. **Damage claims**: the 30th route group, `/agency-claims` (4 routes, all delegated, all
+strict) → `agency-claims.service.ts`; **Charge a damage claim** on the shipment header behind
+**`agencies.claims.charge`** (`financial`, tiers 1–2, the 144th name) — eligibility → form with the
+ceiling `maxPerItem × items` (shown, never the answer: `AGENCY_CLAIM_EXCEEDS_CAP`'s `details.cap`
+wins) and the investigation fee → the claim's `explanation` as sent. ⛔ A claim cannot be edited
+or undone. `AgencyClaimsPanel` lists claims on the shipment Overview and a **Damage claims** tab on
+agency and vendor detail (`agencies.read` — **Support sees them**). Both Support gates are
+perturbation-tested. **Payments**: *Payment fee kept on refunds (%)* → `payinFeePercent` (0–20,
+offered only when reported); the old field is relabelled *Transfer fee kept on refunds (%)*.
+Audit: `agencies.claims.charge` joined `AGENCY_AUDIT_ACTIONS`; the two `…_shipment` pause actions are
+**labelled, not offered**, on the shipment feed (its enum is `shipments.*` only). Measured:
+`dump-routes.js` **`TOTAL 320` = 319 routes**, `authz:matrix` **144 / 121 / 47**. 🔴
+**`permissions.md` says 144 but has no `agencies.claims.charge` row**, so two assertions in
+`permissions.types.test.ts` are red until [BR-032](api-doc/admin/dashboard/backend-requests/BR-032-refund-fees-and-claims-doc-corrections.md)
+is answered and re-copied — do not loosen the test.
+
 ✅ **Transactions built 2026-10-13 — every money movement in one list, a filter per column, and a
 detail page (BR-027).** Contract: [transactions.md](api-doc/admin/api/transactions.md) ·
 [FRONTEND-CHANGELOG-platform-transactions.md](api-doc/admin/FRONTEND-CHANGELOG-platform-transactions.md) ·
@@ -1065,7 +1102,7 @@ machine, not the code.
 npm run dev       # 5175, strictPort
 npm run build     # tsc -b && vite build   ← the typecheck runs here
 npm run lint      # eslint .
-npm test          # vitest run — 3326 tests in 214 files (2026-10-17, after the payer-proposal labels; 7 failures, all in the recorded contention set). No sibling dashboard has one.
+npm test          # vitest run — 3365 tests in 217 files (2026-10-25, the delivery-pause / damage-claims round; 2 expected red in permissions.types until BR-032, the rest the contention set, which passes alone). No sibling dashboard has one.
 ```
 
 **Every phase closes the same way**: typecheck, lint, tests, build, then a written summary naming

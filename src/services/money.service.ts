@@ -701,7 +701,8 @@ export function getEarningsPause(
 /**
  * `POST /money/earnings/pauses/:kind/:id/pause` · **`money.earnings.pause`**
  * (financial, tiers 1–2, never Support). Delegated, audited fail-closed as
- * `money.earnings.pause_order` / `pause_booking`.
+ * `money.earnings.pause_order` / `pause_booking` / `pause_shipment` (2026-10-22:
+ * one delivery — its agency's and rider's shares only).
  *
  * `note` is required, 3–500 after trimming. Refusals arrive as
  * `details.platformCode` — read them with `earningsPauseRefusalOf`.

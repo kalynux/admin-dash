@@ -24,9 +24,13 @@ import { pauseEarnings, resumeEarnings } from '@/services/money.service';
 import { ApiError } from '@/types/api.types';
 import {
     earningsPauseRefusalOf,
+    ORDER_PAUSE_FREE_AGENCY_WARNING,
     PAUSE_NOTE_MAX,
     PAUSE_NOTE_MIN,
     pauseReasonLabel,
+    pauseScopeSentence,
+    pauseTargetNoun,
+    pauseTitle,
     pausedByLabel,
     refundQueueForSourcePath,
     RESUME_NOTE_MAX,
@@ -71,7 +75,7 @@ interface DialogProps extends PauseTarget {
 }
 
 function targetNoun(kind: PauseKind): string {
-    return kind === 'booking' ? 'booking' : 'order';
+    return pauseTargetNoun(kind);
 }
 
 function targetName({ kind, reference }: PauseTarget): string {
@@ -93,13 +97,23 @@ export function PauseEarningsDialog({ open, onOpenChange, ...rest }: DialogProps
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>Pause payout</DialogTitle>
+                    <DialogTitle>{pauseTitle(rest.kind)}</DialogTitle>
                     <DialogDescription>
-                        Nobody on {targetName(rest)} is paid while it is paused — not the vendor,
-                        the agency or the agent. Resuming later continues the hold where it
-                        stopped.
+                        {capitalise(targetName(rest))}: {pauseScopeSentence(rest.kind)} Resuming
+                        later continues the hold where it stopped.
                     </DialogDescription>
                 </DialogHeader>
+                {rest.kind === 'order' ? (
+                    // Changelog (delivery pause) § 3: an order pause no longer
+                    // reaches an agency whose own terms release it without a hold.
+                    <div
+                        role="note"
+                        className="border-warning/40 bg-warning/10 flex gap-2 rounded-md border p-3 text-sm"
+                    >
+                        <AlertTriangle className="text-warning mt-0.5 size-4 shrink-0" />
+                        <p>{ORDER_PAUSE_FREE_AGENCY_WARNING}</p>
+                    </div>
+                ) : null}
                 {/* Radix unmounts this on close, so every open starts clean. */}
                 <PauseForm {...rest} onCancel={() => onOpenChange(false)} />
             </DialogContent>

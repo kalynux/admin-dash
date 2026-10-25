@@ -171,6 +171,8 @@ export function RefundRequestsList() {
                         gross={row.grossAmount}
                         fee={row.feeAmount}
                         net={row.netAmount}
+                        fees={row.fees}
+                        feeRate={row.feeRate}
                         currency={row.currency}
                         compact
                     />

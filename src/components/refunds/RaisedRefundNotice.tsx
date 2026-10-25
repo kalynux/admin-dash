@@ -99,6 +99,8 @@ export function RaisedRefundNotice({
                     gross={full.grossAmount}
                     fee={full.feeAmount}
                     net={full.netAmount}
+                    fees={full.fees}
+                    feeRate={full.feeRate}
                     currency={full.currency}
                     compact
                 />

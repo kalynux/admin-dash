@@ -29,6 +29,7 @@ import { useCan } from '@/store';
 import {
     PAYMENT_STATS_WINDOWS,
     buildSettingsPatch,
+    payinFeePercentError,
     refundFeePercentError,
     classifyPaymentSettingsRefusal,
     collectCapabilities,
@@ -408,6 +409,7 @@ function RoutingForm({
     const expectedVersion = draft?.baseVersion ?? settings.version;
     const movedUnderneath = draft !== null && draft.baseVersion !== null && draft.baseVersion !== settings.version;
     const feeError = draft ? refundFeePercentError(settings, values) : null;
+    const payinFeeError = draft ? payinFeePercentError(settings, values) : null;
 
     const [open, setOpen] = useState(false);
     const [isBusy, setBusy] = useState(false);
@@ -576,9 +578,38 @@ function RoutingForm({
                   platform reports it — an older jovi-mall sends no
                   `refundFeePercent`, and a field that saved nothing would lie.
                 */}
+                {/*
+                  The payment fee (2026-10-22), by the same rule: offered only
+                  when the platform reports `payinFeePercent`.
+                */}
+                {settings.payinFeePercent !== undefined ? (
+                    <div className="space-y-1.5">
+                        <Label htmlFor="payin-fee-percent">Payment fee kept on refunds (%)</Label>
+                        <Input
+                            id="payin-fee-percent"
+                            inputMode="decimal"
+                            autoComplete="off"
+                            className="w-32"
+                            value={values.payinFeePercent}
+                            onChange={(event) => set({ payinFeePercent: event.target.value })}
+                            disabled={!canSet}
+                            aria-invalid={payinFeeError ? true : undefined}
+                            aria-describedby="payin-fee-percent-hint"
+                        />
+                        <p id="payin-fee-percent-hint" className="text-muted-foreground text-xs">
+                            What every aggregator is assumed to keep when a customer pays — one rate
+                            for all of them, so switching aggregators never changes a refund. A
+                            refund does not give it back: mobile money loses both fees, a card refund
+                            this one only, cash on delivery none. 0 to 20, default 2. Applies to refund
+                            requests raised from now on.
+                        </p>
+                        {payinFeeError ? <p className="text-destructive text-xs">{payinFeeError}</p> : null}
+                    </div>
+                ) : null}
+
                 {settings.refundFeePercent !== undefined ? (
                     <div className="space-y-1.5">
-                        <Label htmlFor="refund-fee-percent">Refund fee (%)</Label>
+                        <Label htmlFor="refund-fee-percent">Transfer fee kept on refunds (%)</Label>
                         <Input
                             id="refund-fee-percent"
                             inputMode="decimal"
@@ -591,9 +622,13 @@ function RoutingForm({
                             aria-describedby="refund-fee-percent-hint"
                         />
                         <p id="refund-fee-percent-hint" className="text-muted-foreground text-xs">
-                            Kept by the platform on every refund sent by transfer or paid outside the
-                            platform — never on a card refund. 0 to 20, default 2. Applies to refund
-                            requests raised from now on; one already raised keeps its own rate.
+                            The transfer fee, kept by the platform on every refund sent by transfer or
+                            paid outside the platform — never on a card refund
+                            {settings.payinFeePercent !== undefined
+                                ? ', and taken off what is left after the payment fee'
+                                : ''}
+                            . 0 to 20, default 2. Applies to refund requests raised from now on; one
+                            already raised keeps its own rate.
                         </p>
                         {feeError ? <p className="text-destructive text-xs">{feeError}</p> : null}
                     </div>
@@ -645,7 +680,7 @@ function RoutingForm({
                         ) : null}
                         <div className="flex flex-wrap items-center gap-2">
                             <Button
-                                disabled={!patch || feeError !== null}
+                                disabled={!patch || feeError !== null || payinFeeError !== null}
                                 onClick={() => {
                                     setError(null);
                                     setRefusal(null);
@@ -863,9 +898,16 @@ function describePatch(
             to: onOff(patch.stripeEnabled),
         });
     }
+    if (patch.payinFeePercent !== undefined) {
+        lines.push({
+            label: 'Payment fee kept on refunds',
+            from: settings.payinFeePercent === undefined ? '—' : `${settings.payinFeePercent}%`,
+            to: `${patch.payinFeePercent}%`,
+        });
+    }
     if (patch.refundFeePercent !== undefined) {
         lines.push({
-            label: 'Refund fee',
+            label: 'Transfer fee kept on refunds',
             from: settings.refundFeePercent === undefined ? '—' : `${settings.refundFeePercent}%`,
             to: `${patch.refundFeePercent}%`,
         });

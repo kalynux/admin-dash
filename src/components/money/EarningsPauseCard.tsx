@@ -20,14 +20,23 @@ import {
     pauseReasonLabel,
     refundQueueForSourcePath,
     pauseReasonRemedy,
+    pauseScopeSentence,
+    pauseTargetNoun,
+    pauseTitle,
     pausedByLabel,
     resumedByLabel,
     type PauseKind,
 } from '@/types/earnings-pause.types';
 
 /**
- * The payout status of one order or booking —
+ * The payout status of one order, booking or delivery —
  * `GET /money/earnings/pauses/:kind/:id`, with **Pause payout** or **Resume**.
+ *
+ * On a **delivery** (`kind: 'shipment'`, 2026-10-22) the button reads
+ * *Pause this delivery's payment*: it reaches that parcel's agency and rider
+ * shares only, never the seller's — and it is the only way to stop an agency
+ * whose own terms release it without a hold, which an order pause no longer
+ * reaches. No refund ever holds a delivery pause, so Resume is always offered.
  *
  * ── Who sees what ─────────────────────────────────────────────────────────────
  * Callers mount this only under **`money.earnings.read`** (tiers 1–2): it is a
@@ -125,7 +134,7 @@ export function EarningsPauseCard({
                         <div className="text-muted-foreground flex flex-wrap items-center gap-2">
                             <span>
                                 {earningsPauseRefusalOf(record.error) === 'target_not_found'
-                                    ? `The platform has no record of this ${kind}, so its payout cannot be read.`
+                                    ? `The platform has no record of this ${pauseTargetNoun(kind)}, so its payout cannot be read.`
                                     : resolveErrorMessage(record.error)}
                             </span>
                             {earningsPauseRefusalOf(record.error) !== 'target_not_found' ? (
@@ -157,7 +166,7 @@ export function EarningsPauseCard({
                                 </p>
                             ) : null}
                             <p className="text-muted-foreground text-xs">
-                                Nobody on this {kind} is paid until it is resumed.
+                                {pauseScopeSentence(kind)}
                             </p>
                         </div>
                     ) : null}
@@ -190,7 +199,7 @@ export function EarningsPauseCard({
                     ) : (
                         <Button variant="outline" size="sm" onClick={() => setDialog('pause')}>
                             <CirclePause className="size-4" />
-                            Pause payout
+                            {pauseTitle(kind)}
                         </Button>
                     )
                 ) : null}

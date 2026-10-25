@@ -22,7 +22,15 @@ import type { AdminTier } from '@/types/auth.types';
 // ─── The catalogue ────────────────────────────────────────────────────────────
 
 /**
- * All 143 permissions, `family.resource.action`, in the doc's own family order.
+ * All 144 permissions, `family.resource.action`, in the doc's own family order.
+ *
+ * The 144th is `agencies.claims.charge` (2026-10-22,
+ * `FRONTEND-CHANGELOG-refund-fees-and-claims.md`): `financial`, tiers 1–2, never
+ * Support — charging a damage claim to a delivery agency. 144 / 121 / 47,
+ * measured with `npm run authz:matrix` on 2026-10-25. ⚠ Taken from source:
+ * `permissions.md` states 144 in its prose but its `agencies` matrix has **no
+ * row** for it, so the doc-diffing assertions in `permissions.types.test.ts` are
+ * red until the row is added upstream and re-copied (BR-032).
  *
  * The 143rd is `money.earnings.platform.read` (2026-10-15, BR-030,
  * `FRONTEND-CHANGELOG-transactions-owner-decisions.md`): `financial`, held by
@@ -146,6 +154,9 @@ export const PERMISSION_NAMES = [
     // Switches cash on delivery off for one agency, and back on. `financial`,
     // tiers 1–2. A different control from the limit above, which is an amount.
     'agencies.cod.restrict',
+    // Charges a damage claim to an agency for one parcel (2026-10-22). `financial`,
+    // tiers 1–2, never Support — who reads the claims on `agencies.read`.
+    'agencies.claims.charge',
 
     // billing
     'billing.plans.read',
@@ -492,14 +503,14 @@ export const PERMISSION_FAMILIES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Any of the 143. Use for what the *server* may send us. */
+/** Any of the 144. Use for what the *server* may send us. */
 export type PermissionName = (typeof PERMISSION_NAMES)[number];
 
 /** One of the four `†`. */
 export type UnroutedPermissionName = (typeof UNROUTED_PERMISSION_NAMES)[number];
 
 /**
- * The 139 that gate a real endpoint — 143 less the four `†`. **Use for what *our code* asks for** — nav
+ * The 140 that gate a real endpoint — 144 less the four `†`. **Use for what *our code* asks for** — nav
  * items, `<Can>`, `RequirePermission` — so that gating a screen on a permission
  * whose endpoint does not exist is a `tsc` error.
  */

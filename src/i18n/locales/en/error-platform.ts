@@ -480,6 +480,17 @@ const platform = {
     REFUND_NOT_ELIGIBLE:
         'This cannot be refunded that way. A plan purchase or a credit top-up is refunded in full only.',
     EARNINGS_CLAWBACK_NOTHING_OWED: 'This owner owes nothing any more — later earnings repaid the debt.',
+    // Delivery at fault and damage claims (2026-10-22).
+    REFUND_DELIVERY_FAULT_INVALID:
+        'One of the parcels named as delivered at fault is not on this order. Untick it and try again.',
+    AGENCY_CLAIM_OUTSIDE_WINDOW:
+        'The problem was raised after the agency’s damage-claim window closed, so it cannot be charged.',
+    AGENCY_CLAIM_EXCEEDS_CAP:
+        'That is more than the agency’s terms allow per damaged item. Lower the amount.',
+    AGENCY_CLAIM_EXISTS: 'This parcel already has a damage claim. Only one is allowed per parcel.',
+    AGENCY_CLAIM_NOT_ELIGIBLE:
+        'This parcel cannot carry a damage claim — it was not delivered, has no agency, or the agency set no per-item limit.',
+    AGENCY_CLAIM_NOT_FOUND: 'This damage claim no longer exists.',
 };
 
 export default platform;

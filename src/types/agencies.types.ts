@@ -517,6 +517,8 @@ export const AGENCY_AUDIT_ACTIONS = [
     'agencies.cod_limit.release',
     'agencies.cod.restrict',
     'agencies.cod.unrestrict',
+    // A damage claim charged to the agency (2026-10-22) — filed against the agency.
+    'agencies.claims.charge',
 ] as const;
 
 export type AgencyAuditAction = (typeof AGENCY_AUDIT_ACTIONS)[number];
@@ -535,6 +537,7 @@ export const AGENCY_AUDIT_ACTION_LABELS: Record<AgencyAuditAction | (string & {}
     'agencies.cod_limit.release': 'COD limit pin released',
     'agencies.cod.restrict': 'Cash on delivery restricted',
     'agencies.cod.unrestrict': 'Cash on delivery restriction lifted',
+    'agencies.claims.charge': 'Charged a damage claim',
     'money.statements.send_agency': 'Sent account statement',
 };
 

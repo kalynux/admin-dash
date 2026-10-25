@@ -6,6 +6,7 @@ import {
     classifyPaymentSettingsRefusal,
     collectCapabilities,
     draftFromSettings,
+    payinFeePercentError,
     refundFeePercentError,
     formatSuccessRate,
     issueTarget,
@@ -256,6 +257,32 @@ describe('the refund fee (2026-10-05)', () => {
         const current = settings();
         const draft = { ...draftFromSettings(current), refundFeePercent: '3' };
         expect(refundFeePercentError(current, draft)).toBeNull();
+        expect(buildSettingsPatch(current, draft)).toBeNull();
+    });
+});
+
+describe('the payment fee kept on refunds (2026-10-22)', () => {
+    it('sends payinFeePercent only when it moved, beside the transfer fee', () => {
+        const current = settings({ refundFeePercent: 2, payinFeePercent: 2 });
+        const draft = draftFromSettings(current);
+        expect(draft.payinFeePercent).toBe('2');
+        expect(buildSettingsPatch(current, draft)).toBeNull();
+
+        draft.payinFeePercent = '2.5';
+        expect(buildSettingsPatch(current, draft)).toEqual({ payinFeePercent: 2.5 });
+    });
+
+    it('refuses a value outside 0–20', () => {
+        const current = settings({ payinFeePercent: 2 });
+        const draft = { ...draftFromSettings(current), payinFeePercent: '21' };
+        expect(payinFeePercentError(current, draft)).toMatch(/0 to 20/);
+        expect(buildSettingsPatch(current, draft)).toBeNull();
+    });
+
+    it('never sends it to an older jovi-mall that does not report it', () => {
+        const current = settings({ refundFeePercent: 2 });
+        const draft = { ...draftFromSettings(current), payinFeePercent: '3' };
+        expect(payinFeePercentError(current, draft)).toBeNull();
         expect(buildSettingsPatch(current, draft)).toBeNull();
     });
 });

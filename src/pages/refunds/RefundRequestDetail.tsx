@@ -9,6 +9,7 @@ import { DetailSkeleton } from '@/components/common/Loading';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { RefundActionDialog, type RefundActionKind } from '@/components/refunds/RefundActionDialogs';
 import { RefundActivityPanel } from '@/components/refunds/RefundActivityPanel';
+import { DeliveryFaultList } from '@/components/refunds/DeliveryFaultList';
 import {
     ApprovalQueuedNotice,
     RefundMoney,
@@ -374,10 +375,12 @@ function Overview({ refund, timeZone }: { refund: RefundRequest; timeZone: strin
                         gross={refund.grossAmount}
                         fee={refund.feeAmount}
                         net={refund.netAmount}
+                        fees={refund.fees}
+                        feeRate={refund.feeRate}
                         currency={refund.currency}
                     />
                     <DefinitionList>
-                        <Definition label="Fee rate">{refund.feeRate}%</Definition>
+                        <Definition label="Transfer fee rate">{refund.feeRate}%</Definition>
                         <Definition label="Of which goods">
                             {formatMoney(refund.attribution.goods, refund.currency)}
                         </Definition>
@@ -394,6 +397,26 @@ function Overview({ refund, timeZone }: { refund: RefundRequest; timeZone: strin
                     </DefinitionList>
                 </CardContent>
             </Card>
+
+            {refund.deliveryFault && refund.deliveryFault.length > 0 ? (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Delivery at fault</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                        <p className="text-muted-foreground text-sm">
+                            Parcels named as damaged or lost in delivery, each judged against its
+                            agency&rsquo;s own window. To charge an agency for the damaged goods
+                            themselves, charge a damage claim from the parcel.
+                        </p>
+                        <DeliveryFaultList
+                            faults={refund.deliveryFault}
+                            currency={refund.currency}
+                            timeZone={timeZone}
+                        />
+                    </CardContent>
+                </Card>
+            ) : null}
 
             <Card>
                 <CardHeader>

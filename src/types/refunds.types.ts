@@ -9,9 +9,17 @@
  *
  * ── ⛔ Nothing here computes money ─────────────────────────────────────────────
  * `grossAmount`, `feeAmount` and `netAmount` are printed as sent, always side by
- * side. The fee is the platform's (`refundFeePercent`, set on the payments
- * screen and frozen on the request as `feeRate`) — a client-side `gross × rate`
- * would be a second definition of what a customer receives.
+ * side. The fees are the platform's (`payinFeePercent` and `refundFeePercent`,
+ * set on the payments screen and frozen on the request) — a client-side
+ * `gross × rate` would be a second definition of what a customer receives.
+ *
+ * ── Two fees since 2026-10-22 ─────────────────────────────────────────────────
+ * [The changelog](../../api-doc/admin/FRONTEND-CHANGELOG-refund-fees-and-claims.md):
+ * the **payment fee** (kept by the aggregator when the customer paid) and the
+ * **transfer fee** (2% of what is left). `feeAmount` is now **both together**,
+ * and `fees` holds them apart — `RefundMoney` prints them. When the
+ * seller cancelled a paid order they pay both (`fees.paidBy: 'vendor'`) and the
+ * customer receives 100%.
  *
  * ── Every vocabulary is OPEN ───────────────────────────────────────────────────
  * A status, channel or failure reason this build has never seen renders by its
@@ -224,11 +232,26 @@ export interface RefundRequest {
     earningsImpact: string;
     attribution: { goods: number; delivery: number };
     grossAmount: number;
-    /** Percent, frozen at creation. `0` on a card refund. */
+    /** The TRANSFER fee percent, frozen at creation. `0` on a card refund. */
     feeRate: number;
+    /**
+     * Everything deducted from the customer — payment fee + transfer fee since
+     * 2026-10-22, `0` when the seller pays them.
+     */
     feeAmount: number;
     /** What the customer receives. */
     netAmount: number;
+    /**
+     * The two fees apart, and who pays them (2026-10-22). wi-admin synthesises
+     * it for a row written before (transfer fee only, customer), so it is
+     * **absent** only from an older wi-admin — and `null` is read the same way.
+     */
+    fees?: RefundFees | null;
+    /**
+     * Parcels named as delivered at fault (2026-10-22), each with its agency's
+     * verdict. Absent from an older wi-admin; `[]` when none was named.
+     */
+    deliveryFault?: RefundDeliveryFault[];
     currency: string;
     paymentChannel: string | null;
     /** `null` until it is decided how the money leaves. */
@@ -265,6 +288,70 @@ export interface RefundRequest {
     billingReversedAt: string | null;
     createdAt: string | null;
     updatedAt: string | null;
+}
+
+/** `fees` on a request — wi-admin's `RefundRequestDto['fees']`. */
+export interface RefundFees {
+    /** `customer` · `vendor`. Open: an unknown value is read as the customer. */
+    paidBy: string;
+    paymentFeePercent: number;
+    paymentFee: number;
+    transferFeePercent: number;
+    transferFee: number;
+    /** Charged to the seller beyond their share when THEY pay the fees. */
+    vendorCharge: number;
+}
+
+/**
+ * One parcel named as delivered at fault — the request's `deliveryFault[]` and
+ * the eligibility preview's (jovi-mall `DeliveryFaultAssessment`). Every id may
+ * be `null` on the request (wi-admin maps a stored row that lost one).
+ */
+export interface RefundDeliveryFault {
+    shipmentId: string | null;
+    agencyId: string | null;
+    trackingNumber: string | null;
+    deliveredAt: string | null;
+    raisedAt: string | null;
+    /** The agency's own window, in days; `0` = its terms give none. */
+    windowDays: number;
+    insideWindow: boolean;
+    /** The parcel's customer-paid delivery money the agency and rider fund; `0` outside the window. */
+    customerDeliveryAmount: number;
+    /** The agency's damage-claim deadline, the term that made the window. */
+    claimDeadlineDays: number | null;
+    /** Who pays returns under the agency's terms. Open vocabulary. */
+    returnsPayer: string | null;
+}
+
+/** At most this many parcels may be named — `deliveryFaultShipmentIds` is `.min(1).max(20)`. */
+export const DELIVERY_FAULT_MAX = 20;
+
+/** The field's explanation (changelog § 2). */
+export const DELIVERY_FAULT_HINT = 'Only when the parcel was damaged or lost in delivery.';
+
+/** Did the seller pay this refund's fees? An unknown `paidBy` is read as the customer. */
+export function feesPaidBySeller(fees: RefundFees | null): boolean {
+    return fees?.paidBy === 'vendor';
+}
+
+/**
+ * One parcel's verdict in words — the changelog's sentences (§ 2), plus the
+ * two cases they leave out: an agency whose terms give no window at all, and
+ * a free delivery inside it (the agency then relieves the seller of the
+ * courier cost rather than refunding the customer — refunds.md § Delivery at
+ * fault).
+ */
+export function deliveryFaultVerdict(fault: RefundDeliveryFault, formatAmount: (n: number) => string): string {
+    if (fault.insideWindow) {
+        return fault.customerDeliveryAmount > 0
+            ? `The agency and rider will refund this delivery (${formatAmount(fault.customerDeliveryAmount)}).`
+            : 'Inside the agency’s window — the customer paid no delivery, so the agency and rider relieve the seller of the courier cost instead.';
+    }
+    if (fault.windowDays <= 0) {
+        return 'The agency’s terms give no window (no damage-claim deadline, and it does not pay returns) — the agency keeps its fee.';
+    }
+    return `Outside the agency’s ${fault.windowDays}-day window — the agency keeps its fee.`;
 }
 
 // ─── What may be done, by status — the server's own `ACTIONABLE_FROM` ─────────
@@ -351,13 +438,19 @@ export function isExceedsRefundable(reason: string | null | undefined): boolean 
 
 // ─── Eligibility (delegated, passed through) ──────────────────────────────────
 
-/** One reason's preview — the same five numbers for every reason, from one call. */
+/**
+ * One reason's preview — the same numbers for every reason, from one call.
+ * `paymentFee` / `transferFee` (2026-10-22) are the two parts of `feeAmount`;
+ * absent from an older jovi-mall.
+ */
 export interface RefundReasonPreview {
     maxRefundable: number;
     goods: number;
     delivery: number;
     feeAmount: number;
     netAmount: number;
+    paymentFee?: number;
+    transferFee?: number;
 }
 
 export interface RefundCodCoverageRow {
@@ -404,8 +497,38 @@ export interface RefundEligibility {
     /** Non-empty ⇒ `POST /refunds` needs `overridePolicy: true`, confirmed by a person. */
     overrides?: string[];
     codCoverage?: RefundCodCoverageRow[];
-    /** `0` for a card payment. */
+    /** The TRANSFER fee percent; `0` for a card payment. */
     feePercent?: number;
+    /** 2026-10-22: the PAYMENT fee percent; `0` for cash on delivery. */
+    paymentFeePercent?: number;
+    /**
+     * 2026-10-22: one verdict per parcel in `deliveryFaultShipmentIds`. Inside
+     * its agency's window, that parcel's delivery money is already in
+     * `maxRefundable`.
+     */
+    deliveryFault?: RefundDeliveryFault[];
+}
+
+/**
+ * The fees of one reason's preview, shaped like a request's, or `null` when the
+ * platform did not split them (an older jovi-mall). The preview is always
+ * computed as **paid by the customer** — whether the seller pays is decided when
+ * the request is created, from how the order ended.
+ *
+ * ⚠ `refunds.md`'s example puts `paymentFee` / `transferFee` on
+ * `attributionPreview` itself; jovi-mall's `RefundEligibilityDto` carries them
+ * only on each `byReasonKind` row, which is what this reads.
+ */
+export function eligibilityFeesOf(eligibility: RefundEligibility, row: RefundReasonPreview | undefined): RefundFees | null {
+    if (!row || typeof row.paymentFee !== 'number' || typeof row.transferFee !== 'number') return null;
+    return {
+        paidBy: 'customer',
+        paymentFeePercent: eligibility.paymentFeePercent ?? 0,
+        paymentFee: row.paymentFee,
+        transferFeePercent: eligibility.feePercent ?? 0,
+        transferFee: row.transferFee,
+        vendorCharge: 0,
+    };
 }
 
 export interface RefundEligibilityQuery {
@@ -414,6 +537,8 @@ export interface RefundEligibilityQuery {
     reasonKind?: string;
     itemDefective?: boolean;
     amount?: number;
+    /** 2026-10-22, orders only: sent comma-separated, omitted when empty. */
+    deliveryFaultShipmentIds?: string[];
 }
 
 /** "item was defective" only matters under this return-shipping setting (C-1). */
@@ -445,6 +570,8 @@ export interface CreateRefundBody {
     destinationProofFileId?: string;
     approveNow?: boolean;
     ticketId?: string;
+    /** 2026-10-22, orders only: 1–20 parcels whose delivery was at fault. Omitted when none. */
+    deliveryFaultShipmentIds?: string[];
 }
 
 /** `meta.approveNow` on a `201` from `POST /refunds`. */
@@ -554,6 +681,8 @@ export const PLATFORM_CODE_REFUND_INSUFFICIENT_GATEWAY_BALANCE = 'REFUND_INSUFFI
 export const PLATFORM_CODE_REFUND_DESTINATION_PROOF_REQUIRED = 'REFUND_DESTINATION_PROOF_REQUIRED';
 export const PLATFORM_CODE_REFUND_EXTERNAL_PROOF_REQUIRED = 'REFUND_EXTERNAL_PROOF_REQUIRED';
 export const PLATFORM_CODE_REFUND_NOT_ELIGIBLE = 'REFUND_NOT_ELIGIBLE';
+/** `422` (2026-10-22) — a parcel named as delivered at fault is not this order's. */
+export const PLATFORM_CODE_REFUND_DELIVERY_FAULT_INVALID = 'REFUND_DELIVERY_FAULT_INVALID';
 
 /** The refusal's name, whichever field carried it. `null` for anything that is not an `ApiError`. */
 export function refundRefusalCode(error: unknown): string | null {

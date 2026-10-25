@@ -56,6 +56,13 @@ function stubDetail({
         if (call.url.includes('/agents')) {
             return successResponse([], { meta: { total: 0, page: 1, limit: 8, pages: 0 } });
         }
+        // The delivery's payout card and its damage claim (2026-10-22).
+        if (call.url.includes('/money/earnings/pauses/shipment/')) {
+            return successResponse({ kind: 'shipment', id: SHIPMENT_ID, pause: null });
+        }
+        if (call.url.includes('/agency-claims')) {
+            return successResponse([], { meta: { total: 0, page: 1, limit: 10, pages: 0 } });
+        }
         /*
           ⚠ **No `/vendors/` branch at all, deliberately.** Phase C made two
           reads here — one `GET /vendors/:vendorId` for the business name and one
@@ -315,8 +322,11 @@ describe('reassigning', () => {
                 return successResponse({ status: 'assigned' });
             }
             if (call.url.includes('/offers')) return successResponse([]);
-            if (call.url.includes('/activity')) {
+            if (call.url.includes('/activity') || call.url.includes('/agency-claims')) {
                 return successResponse([], { meta: { total: 0, page: 1, limit: 20, pages: 0 } });
+            }
+            if (call.url.includes('/money/earnings/pauses/')) {
+                return successResponse({ kind: 'shipment', id: SHIPMENT_ID, pause: null });
             }
             // ⚠ The two `/vendors/` branches that used to sit here went with the
             // reads they answered — see the note in `stubDetail`.

@@ -573,11 +573,19 @@ export const SHIPMENT_AUDIT_ACTIONS = [
     'shipments.cancel',
 ] as const;
 
+/**
+ * Labels for the feed. **Wider than the filter**: the two delivery-pause
+ * actions (2026-10-22) are filed against the shipment, so they land on its
+ * feed, but they are outside the `shipments.*` prefix the feed's `?action=`
+ * enum accepts — labelled, never offered (an offered one would be a `400`).
+ */
 export const SHIPMENT_AUDIT_ACTION_LABELS: Record<string, string> = {
     'shipments.reassign': 'Reassigned to a different agent',
     'shipments.agent.assign': 'Offered to a named agent',
     'shipments.agency.move': 'Moved to another agency',
     'shipments.cancel': 'Cancelled and returned for re-routing',
+    'money.earnings.pause_shipment': "Paused this delivery's payment",
+    'money.earnings.resume_shipment': "Resumed this delivery's payment",
 };
 
 /**

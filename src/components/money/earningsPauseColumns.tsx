@@ -32,6 +32,11 @@ function isKind(value: string): value is PauseKind {
  * ⛔ **Except a `refund_in_progress` pause** (2026-10-05): a refund request holds
  * it and lifts it itself, and wi-admin refuses a manual resume with `409
  * EARNINGS_PAUSE_HELD_BY_REFUND`. That row links to the refund instead.
+ *
+ * A **`shipment`** row (2026-10-22) is one delivery: `reference` is its
+ * tracking number, `amount` its delivery fee, and it carries `orderId` and
+ * `agencyId`, shown under the reference. Both are read with `?? null` — they are
+ * absent on every other kind.
  */
 export function earningsPauseColumns({
     timeZone,
@@ -48,15 +53,24 @@ export function earningsPauseColumns({
     const columns: (Column<EarningsPauseRow> | null)[] = [
         {
             id: 'reference',
-            header: 'Order / booking',
+            header: 'Reference',
             className: 'align-top',
             cell: (row) => {
-                const label = row.kind === 'booking' ? 'booking number' : 'order number';
-                // Only an order has a screen here; a booking opens from its ticket.
+                const label =
+                    row.kind === 'booking'
+                        ? 'booking number'
+                        : row.kind === 'shipment'
+                          ? 'tracking number'
+                          : 'order number';
+                // An order and a delivery have a screen here; a booking opens from its ticket.
                 const to =
                     row.kind === 'order' && can('orders.read')
                         ? `/dashboard/orders/${encodeURIComponent(row.id)}`
-                        : undefined;
+                        : row.kind === 'shipment' && can('shipments.read')
+                          ? `/dashboard/shipments/${encodeURIComponent(row.id)}`
+                          : undefined;
+                const orderId = row.kind === 'shipment' ? (row.orderId ?? null) : null;
+                const agencyId = row.kind === 'shipment' ? (row.agencyId ?? null) : null;
                 return (
                     <div className="space-y-0.5">
                         <CopyableValue
@@ -69,6 +83,34 @@ export function earningsPauseColumns({
                         <p className="text-muted-foreground text-xs">
                             {isKind(row.kind) ? PAUSE_KIND_LABELS[row.kind] : row.kind}
                         </p>
+                        {orderId ? (
+                            <p className="text-muted-foreground flex flex-wrap items-center gap-1 text-xs">
+                                Order
+                                <CopyableValue
+                                    value={orderId}
+                                    label="order ID"
+                                    to={
+                                        can('orders.read')
+                                            ? `/dashboard/orders/${encodeURIComponent(orderId)}`
+                                            : undefined
+                                    }
+                                />
+                            </p>
+                        ) : null}
+                        {agencyId ? (
+                            <p className="text-muted-foreground flex flex-wrap items-center gap-1 text-xs">
+                                Agency
+                                <CopyableValue
+                                    value={agencyId}
+                                    label="agency ID"
+                                    to={
+                                        can('agencies.read')
+                                            ? `/dashboard/agencies/${encodeURIComponent(agencyId)}`
+                                            : undefined
+                                    }
+                                />
+                            </p>
+                        ) : null}
                     </div>
                 );
             },
@@ -99,7 +141,10 @@ export function earningsPauseColumns({
             className: 'align-top',
             cell: (row) =>
                 typeof row.amount === 'number' ? (
-                    <span className="font-medium tabular-nums" title="What the customer paid">
+                    <span
+                        className="font-medium tabular-nums"
+                        title={row.kind === 'shipment' ? 'Its delivery fee' : 'What the customer paid'}
+                    >
                         {formatMoney(row.amount, row.currency ?? 'XAF')}
                     </span>
                 ) : (

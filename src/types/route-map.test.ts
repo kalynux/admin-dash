@@ -183,7 +183,10 @@ describe('the route total is the sum of its parts', () => {
         //
         // ⚠ 312 → 315 on 2026-10-12, measured (`TOTAL 316`): platform transactions —
         // `GET /money/transactions`, `…/summary` and `…/:kind/:id` (`/money` 28 → 31).
-        expect(totalDeclared).toBe(315);
+        //
+        // ⚠ 315 → 319 on 2026-10-25, measured (`TOTAL 320`): damage claims — the new
+        // `/agency-claims` group (list, eligibility, detail, charge).
+        expect(totalDeclared).toBe(319);
     });
 });
 

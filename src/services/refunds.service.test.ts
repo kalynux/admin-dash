@@ -24,6 +24,36 @@ describe('the refund queue service', () => {
         expect([...url.searchParams.keys()].sort()).toEqual(['amount', 'reasonKind', 'sourceId', 'sourceKind']);
     });
 
+    it('sends the parcels at fault comma-separated, and omits the key when there are none', async () => {
+        const calls = stubFetch(() => successResponse({ maxRefundable: 1 }));
+        await getRefundEligibility({ sourceKind: 'order', sourceId: 'abc', deliveryFaultShipmentIds: ['a1', 'b2'] });
+        await getRefundEligibility({ sourceKind: 'order', sourceId: 'abc', deliveryFaultShipmentIds: [] });
+        expect(new URL(calls[0].url, 'http://localhost').searchParams.get('deliveryFaultShipmentIds')).toBe('a1,b2');
+        expect(new URL(calls[1].url, 'http://localhost').searchParams.has('deliveryFaultShipmentIds')).toBe(false);
+    });
+
+    it('never sends an empty deliveryFaultShipmentIds on create — the schema is .min(1)', async () => {
+        const calls = stubFetch(() =>
+            successResponse(refundRequestFixture(), { status: 201, meta: { approveNow: { status: 'not_requested' } } }),
+        );
+        await createRefundRequest({
+            sourceKind: 'order',
+            sourceId: 'abc',
+            reasonKind: 'return',
+            reason: 'Crushed',
+            deliveryFaultShipmentIds: [],
+        });
+        await createRefundRequest({
+            sourceKind: 'order',
+            sourceId: 'abc',
+            reasonKind: 'return',
+            reason: 'Crushed',
+            deliveryFaultShipmentIds: ['a1'],
+        });
+        expect(JSON.parse(calls[0].body!)).not.toHaveProperty('deliveryFaultShipmentIds');
+        expect(JSON.parse(calls[1].body!).deliveryFaultShipmentIds).toEqual(['a1']);
+    });
+
     it('omits a blank destination name, an unticked override and approve-now', async () => {
         const calls = stubFetch(() =>
             successResponse(refundRequestFixture(), { status: 201, meta: { approveNow: { status: 'not_requested' } } }),

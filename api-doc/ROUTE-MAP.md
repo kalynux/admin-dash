@@ -1,4 +1,18 @@
-# Route map — all 315 wi-admin routes
+# Route map — all 319 wi-admin routes
+
+✅ **315 → 319 on 2026-10-25, MEASURED — the recipe printed `TOTAL 320`**, and the four new rows
+were in its output by name. They are **damage claims** (owner decision F-8, 2026-10-22), a new
+**`/agency-claims`** group (the 30th): `GET /agency-claims`, `GET /agency-claims/eligibility`,
+`GET /agency-claims/:claimId` (`agencies.read`) and `POST /agency-claims`
+(**`agencies.claims.charge`**, `financial`, tiers 1–2 — the 144th name). Contract:
+[agency-claims.md](admin/api/agency-claims.md) ·
+[FRONTEND-CHANGELOG-refund-fees-and-claims.md](admin/FRONTEND-CHANGELOG-refund-fees-and-claims.md).
+The four `/money/earnings/pauses` routes gained `:kind = shipment` and two audit actions
+(`money.earnings.{pause,resume}_shipment`) — no new route
+([FRONTEND-CHANGELOG-delivery-pause.md](admin/FRONTEND-CHANGELOG-delivery-pause.md)).
+`authz:matrix` printed **144 / 121 / 47**, measured. **Committed upstream (`439bfb2`), not
+deployed.** No composite guard changed. Permission and audit cells were read from
+`agencies/routes/agency-claim.routes.ts`.
 
 ✅ **Still 315 on 2026-10-15, MEASURED — the recipe printed `TOTAL 316`.** BR-030 added no route;
 it moved three. `GET /money/earnings/platform`, `…/platform/ledger` and `…/platform/summary` now
@@ -272,8 +286,8 @@ failure is not caught, so with the audit store down nothing is disclosed. See
 ```bash
 cd backend/admin
 node -r ts-node/register/transpile-only -r dotenv/config \
-    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 316 (2026-10-15, BR-030 — unchanged)
-npm run authz:matrix                                                      # 143 / 120 / 47 (2026-10-15, BR-030 — money.earnings.platform.read)
+    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 320 (2026-10-25 — /agency-claims)
+npm run authz:matrix                                                      # 144 / 121 / 47 (2026-10-25 — agencies.claims.charge)
 ```
 
 ✅ **`authz:matrix` and the contract agree again: 124 / 104 / 38**, re-derived from source on
@@ -295,7 +309,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 
 ---
 
-## The 315 routes, by namespace
+## The 319 routes, by namespace
 
 ### `/support` — 19 routes
 
@@ -447,8 +461,8 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | POST | `/money/earnings/clawbacks/:ownerType/:ownerId/write-off` | `money.earnings.clawback.write_off` | ✅ money.earnings.clawback.write_off_vendor / _agency / _agent | [`money.md`](admin/api/money.md) |
 | GET | `/money/earnings/pauses` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
 | GET | `/money/earnings/pauses/:kind/:id` | `money.earnings.read` | — | [`money.md`](admin/api/money.md) |
-| POST | `/money/earnings/pauses/:kind/:id/pause` | `money.earnings.pause` | ✅ money.earnings.pause_order / _booking | [`money.md`](admin/api/money.md) |
-| POST | `/money/earnings/pauses/:kind/:id/resume` | `money.earnings.pause` | ✅ money.earnings.resume_order / _booking | [`money.md`](admin/api/money.md) |
+| POST | `/money/earnings/pauses/:kind/:id/pause` | `money.earnings.pause` | ✅ money.earnings.pause_order / _booking / _shipment | [`money.md`](admin/api/money.md) |
+| POST | `/money/earnings/pauses/:kind/:id/resume` | `money.earnings.pause` | ✅ money.earnings.resume_order / _booking / _shipment | [`money.md`](admin/api/money.md) |
 | GET | `/money/earnings/platform` | `money.earnings.platform.read` | — | [`money.md`](admin/api/money.md) |
 | GET | `/money/earnings/platform/ledger` | `money.earnings.platform.read` | — | [`money.md`](admin/api/money.md) |
 | GET | `/money/earnings/platform/summary` | `money.earnings.platform.read` | — | [`money.md`](admin/api/money.md) |
@@ -609,6 +623,15 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | POST | `/agencies/:agencyId/reactivate` | `agencies.reactivate` | ✅ agencies.reactivate | [`agencies.md`](admin/api/agencies.md) |
 | POST | `/agencies/:agencyId/reject` | `agencies.verify` | ✅ agencies.reject | [`agencies.md`](admin/api/agencies.md) |
 | POST | `/agencies/:agencyId/verify` | `agencies.verify` | ✅ agencies.verify | [`agencies.md`](admin/api/agencies.md) |
+
+### `/agency-claims` — 4 routes
+
+| Method | Path | Permission | Audited | Documented in |
+|---|---|---|---|---|
+| GET | `/agency-claims/` | `agencies.read` | — | [`agency-claims.md`](admin/api/agency-claims.md) |
+| POST | `/agency-claims/` | `agencies.claims.charge` | ✅ agencies.claims.charge | [`agency-claims.md`](admin/api/agency-claims.md) |
+| GET | `/agency-claims/:claimId` | `agencies.read` | — | [`agency-claims.md`](admin/api/agency-claims.md) |
+| GET | `/agency-claims/eligibility` | `agencies.read` | — | [`agency-claims.md`](admin/api/agency-claims.md) |
 
 ### `/dev-tools` — 11 routes
 

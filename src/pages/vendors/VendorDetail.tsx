@@ -33,6 +33,7 @@ import { VendorStatusPanel } from '@/components/vendors/VendorStatusPanel';
 import { VendorSuspensionPanel } from '@/components/vendors/VendorSuspensionPanel';
 import { Button } from '@/components/ui/button';
 import { ReviewsPanel } from '@/components/reviews/ReviewsPanel';
+import { AgencyClaimsPanel } from '@/components/agencies/AgencyClaimsPanel';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { resolveTimeZone } from '@/lib/datetime';
@@ -186,6 +187,8 @@ function VendorDetailScreen({ vendorId }: { vendorId: string }) {
     const canSeeActivity = can(['vendors.read', 'audit.read'], 'all');
     const canSeeAccount = can(ACCOUNT_READ_PERMISSIONS, 'all');
     const canSeeReviews = can('reviews.read');
+    /* Damage claims credited to this shop — read on `agencies.read`, delegated (2026-10-22). */
+    const canSeeClaims = can('agencies.read');
     /*
       ⚠ `all`, and `satisfies` takes no default mode precisely so this cannot be
       read as `any`. Both tiers holding either permission hold both today, so this
@@ -295,6 +298,7 @@ function VendorDetailScreen({ vendorId }: { vendorId: string }) {
                     <TabsTrigger value="verification">Verification</TabsTrigger>
                     <TabsTrigger value="catalogue">Catalogue</TabsTrigger>
                     {canSeeReviews ? <TabsTrigger value="reviews">Reviews</TabsTrigger> : null}
+                    {canSeeClaims ? <TabsTrigger value="claims">Damage claims</TabsTrigger> : null}
                     {canSeeAccount ? <TabsTrigger value="account">Account</TabsTrigger> : null}
                     {canSeeActivity ? <TabsTrigger value="activity">Activity</TabsTrigger> : null}
                 </TabsList>
@@ -423,6 +427,18 @@ function VendorDetailScreen({ vendorId }: { vendorId: string }) {
                             timeZone={timeZone}
                             hide={['shop']}
                             noun="this shop"
+                        />
+                    </TabsContent>
+                ) : null}
+
+                {canSeeClaims ? (
+                    <TabsContent value="claims">
+                        {/* What agencies were charged for this shop's damaged parcels — credited to it. */}
+                        <AgencyClaimsPanel
+                            scope={{ vendorId: record.id }}
+                            timeZone={timeZone}
+                            noun="this shop"
+                            hide={['vendor']}
                         />
                     </TabsContent>
                 ) : null}

@@ -183,10 +183,60 @@ describe('the paused-earnings queue', () => {
         });
     });
 
-    it('drops a hand-edited kind outside the two rather than sending a 400', async () => {
+    /** 2026-10-22: one delivery — `reference` is its tracking number, `amount` its delivery fee. */
+    it('shows a delivery with its tracking number, order and agency, each linked', async () => {
+        const SHIPMENT_ID = '6671aabbccddeeff00112233';
+        const AGENCY_ID = '665c0011223344556677889a';
+        stubQueue([
+            rowFixture({
+                kind: 'shipment',
+                id: SHIPMENT_ID,
+                reference: 'ACR-260812-103000-4K7QP',
+                amount: 1500,
+                orderId: ORDER_ID,
+                agencyId: AGENCY_ID,
+                pause: pauseFixture({ reason: 'admin', paused_by_user_id: ADMIN_ID, paused_by_name: 'Nadia Admin' }),
+            }),
+        ]);
+
+        renderQueue(heldFixture(1));
+
+        const row = (await screen.findAllByRole('row')).find((r) =>
+            within(r).queryByText('ACR-260812-103000-4K7QP'),
+        )!;
+        expect(within(row).getByRole('link', { name: /ACR-260812-103000-4K7QP/ })).toHaveAttribute(
+            'href',
+            `/dashboard/shipments/${SHIPMENT_ID}`,
+        );
+        expect(within(row).getByText('Delivery')).toBeInTheDocument();
+        const hrefs = within(row)
+            .getAllByRole('link')
+            .map((link) => link.getAttribute('href'));
+        expect(hrefs).toContain(`/dashboard/orders/${ORDER_ID}`);
+        expect(hrefs).toContain(`/dashboard/agencies/${AGENCY_ID}`);
+        expect(within(row).getByTitle('Its delivery fee')).toBeInTheDocument();
+    });
+
+    it('offers deliveries in the kind filter', async () => {
+        const calls = stubQueue();
+        const user = userEvent.setup();
+
+        renderQueue(ADMIN);
+        await screen.findByText('ORD-2026-008841');
+        await user.click(screen.getByRole('combobox', { name: /kind/i }));
+        await user.click(await screen.findByRole('option', { name: /deliveries only/i }));
+
+        await waitFor(() => {
+            const last = new URL(calls.at(-1)!.url, 'http://localhost').searchParams;
+            expect(last.get('kind')).toBe('shipment');
+        });
+    });
+
+    it('drops a hand-edited kind outside the three rather than sending a 400', async () => {
+        // `shipment` was the invalid example until 2026-10-22, when it became a kind.
         const calls = stubQueue();
 
-        renderQueue(ADMIN, '/dashboard/money/earnings-pauses?kind=shipment');
+        renderQueue(ADMIN, '/dashboard/money/earnings-pauses?kind=parcel');
 
         await screen.findByText('ORD-2026-008841');
         expect(new URL(calls[0].url, 'http://localhost').searchParams.has('kind')).toBe(false);
@@ -353,6 +403,25 @@ describe('the order payout card', () => {
 
         expect(await within(dialog).findByText(/at least 3 characters/i)).toBeInTheDocument();
         expect(pauseWrites(calls)).toHaveLength(0);
+    });
+
+    /** Delivery-pause changelog § 3 — nobody should expect an order pause to stop every courier. */
+    it('warns that an order pause does not stop an agency its terms release', async () => {
+        stubOrder(null);
+        const user = userEvent.setup();
+
+        renderOrder(ADMIN);
+        const card = await screen.findByRole('region', { name: 'Payout' });
+        await user.click(await within(card).findByRole('button', { name: /pause payout/i }));
+        const dialog = within(await screen.findByRole('dialog'));
+
+        expect(
+            dialog.getByText(
+                'This does not stop agencies whose terms release them without a hold. To stop one, pause its delivery.',
+            ),
+        ).toBeInTheDocument();
+        // And it no longer claims to stop "nobody is paid" — the agency may still be.
+        expect(dialog.queryByText(/not the vendor, the agency or the agent/i)).not.toBeInTheDocument();
     });
 
     it('pauses with the trimmed note', async () => {

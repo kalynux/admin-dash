@@ -22,15 +22,61 @@ import { ApiError } from '@/types/api.types';
 /**
  * `:kind` and the queue's `?kind=` — **pinned** at wi-admin (`z.enum`), because
  * the audit action is chosen from it. An unknown value is a `400`, so the filter
- * offers exactly these two.
+ * offers exactly these.
+ *
+ * `shipment` (2026-10-22, [the changelog](../../api-doc/admin/FRONTEND-CHANGELOG-delivery-pause.md))
+ * is **one delivery**: it stops only that parcel's agency and rider shares,
+ * never the seller's. It exists because an ORDER pause no longer stops an
+ * agency whose own terms release it without a hold.
  */
-export const PAUSE_KINDS = ['order', 'booking'] as const;
+export const PAUSE_KINDS = ['order', 'booking', 'shipment'] as const;
 export type PauseKind = (typeof PAUSE_KINDS)[number];
 
 export const PAUSE_KIND_LABELS: Record<PauseKind, string> = {
     order: 'Order',
     booking: 'Booking',
+    shipment: 'Delivery',
 };
+
+export const PAUSE_KIND_PLURALS: Record<PauseKind, string> = {
+    order: 'Orders',
+    booking: 'Bookings',
+    shipment: 'Deliveries',
+};
+
+/** The word a sentence uses for the target — a `shipment` is "delivery" on screen. */
+export function pauseTargetNoun(kind: PauseKind): string {
+    return kind === 'shipment' ? 'delivery' : kind;
+}
+
+/** A delivery's pause reaches its couriers only, and its button says so (changelog § 1). */
+export function pauseTitle(kind: PauseKind): string {
+    return kind === 'shipment' ? "Pause this delivery's payment" : 'Pause payout';
+}
+
+/**
+ * The one line every ORDER pause must carry (changelog § 3), so nobody expects
+ * it to stop every courier. Only an agency held by its own terms (returns, a
+ * claim deadline) is stopped by an order pause; a "free" one is not.
+ */
+export const ORDER_PAUSE_FREE_AGENCY_WARNING =
+    'This does not stop agencies whose terms release them without a hold. To stop one, pause its delivery.';
+
+/**
+ * Who a pause on this kind keeps unpaid — the sentence the card and the
+ * dialogs share. ⚠ The order sentence is **not** "nobody": since 2026-10-22 it
+ * stops the seller, the platform and any agency that is held, and no more.
+ */
+export function pauseScopeSentence(kind: PauseKind): string {
+    switch (kind) {
+        case 'shipment':
+            return "This delivery's agency and rider are not paid until it is resumed. The seller is still paid.";
+        case 'order':
+            return 'The seller, the platform and any agency held by its own terms are not paid until it is resumed.';
+        default:
+            return 'Nobody on this booking is paid until it is resumed.';
+    }
+}
 
 /**
  * The pause record, **passed through from jovi-mall unrenamed — so it is
@@ -72,12 +118,18 @@ export interface EarningsPauseView {
 export interface EarningsPauseRow {
     kind: PauseKind | (string & {});
     id: string;
-    /** The order number (`ORD-…`) or booking number (`BKG-…`). */
+    /** The order number (`ORD-…`), booking number (`BKG-…`), or a delivery's tracking number. */
     reference: string | null;
     vendorId: string | null;
-    /** What the customer paid, in `currency`. */
+    /** What the customer paid, in `currency`; for a `shipment`, its delivery fee. */
     amount: number | null;
     currency: string | null;
+    /**
+     * A `shipment` row only: its order and its agency. **Absent** (not `null`)
+     * on an order or a booking, and on every row from a pre-2026-10-22 wi-admin.
+     */
+    orderId?: string | null;
+    agencyId?: string | null;
     pause: EarningsPause;
 }
 
@@ -181,7 +233,7 @@ export function resumedByLabel(
 export const PLATFORM_CODE_EARNINGS_ALREADY_PAUSED = 'EARNINGS_ALREADY_PAUSED';
 /** `409` — resuming something that is not paused (usually: someone got there first). */
 export const PLATFORM_CODE_EARNINGS_NOT_PAUSED = 'EARNINGS_NOT_PAUSED';
-/** `404` — no order or booking with this id. */
+/** `404` — no order, booking or delivery with this id. */
 export const PLATFORM_CODE_EARNINGS_PAUSE_TARGET_NOT_FOUND = 'EARNINGS_PAUSE_TARGET_NOT_FOUND';
 
 /**

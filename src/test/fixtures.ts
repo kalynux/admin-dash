@@ -1654,7 +1654,7 @@ const TIER_2_EXCLUSIONS: readonly string[] = [
     'money.earnings.platform.read',
 ];
 
-/** Admin — the operational level, including the money. 120 of 143. */
+/** Admin — the operational level, including the money. 121 of 144. */
 export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
     (name) => !TIER_2_EXCLUSIONS.includes(name) && !name.startsWith('developer_tools.'),
 );

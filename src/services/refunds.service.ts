@@ -86,14 +86,18 @@ export function listRefundActivity(
 /**
  * `GET /refunds/eligibility` · `orders.refund.request` · **delegated**.
  *
- * Only the five documented keys are built — jovi-mall's query is strict and
+ * Only the six documented keys are built — jovi-mall's query is strict and
  * wi-admin drops anything else. Call it again as the reason, the "defective"
- * flag or the amount changes.
+ * flag, the amount or the parcels at fault change.
+ *
+ * `deliveryFaultShipmentIds` (2026-10-22) goes **comma-separated** and is
+ * **omitted when empty** — wi-admin's schema is `.min(1)`, so `?…=` is a `400`.
  */
 export function getRefundEligibility(
     query: RefundEligibilityQuery,
     options?: RequestOptions,
 ): Promise<RefundEligibility> {
+    const faults = query.deliveryFaultShipmentIds ?? [];
     return api.get<RefundEligibility>(
         withQuery('/refunds/eligibility', {
             sourceKind: query.sourceKind,
@@ -101,6 +105,7 @@ export function getRefundEligibility(
             reasonKind: query.reasonKind,
             itemDefective: query.itemDefective,
             amount: query.amount,
+            deliveryFaultShipmentIds: faults.length > 0 ? faults.join(',') : undefined,
         }),
         options,
     );
@@ -140,6 +145,10 @@ export async function createRefundRequest(
             : {}),
         ...(body.approveNow ? { approveNow: true } : {}),
         ...(body.ticketId ? { ticketId: body.ticketId } : {}),
+        // `.min(1)` upstream: an empty list is omitted, never sent as `[]`.
+        ...(body.deliveryFaultShipmentIds && body.deliveryFaultShipmentIds.length > 0
+            ? { deliveryFaultShipmentIds: body.deliveryFaultShipmentIds }
+            : {}),
     };
 
     const { data, meta, message } = await api.mutate<

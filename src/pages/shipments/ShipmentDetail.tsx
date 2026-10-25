@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Ban, Building2, Shuffle, UserPlus } from 'lucide-react';
+import { ArrowLeft, Ban, Building2, PackageX, Shuffle, UserPlus } from 'lucide-react';
+
+import { AgencyClaimsPanel } from '@/components/agencies/AgencyClaimsPanel';
+import { ChargeDamageClaimDialog } from '@/components/agencies/ChargeDamageClaimDialog';
+import { EarningsPauseCard } from '@/components/money/EarningsPauseCard';
 
 import { ShipmentActivityPanel } from '@/components/shipments/ShipmentActivityPanel';
 import { ShipmentOffersPanel } from '@/components/shipments/ShipmentOffersPanel';
@@ -68,6 +72,15 @@ const OBJECT_ID = /^[0-9a-f]{24}$/i;
  * the compare-and-set that makes two actors on one shipment safe. `delivered` is
  * not reachable from here by any means.
  *
+ * ── The delivery's money (2026-10-22) ──────────────────────────────────────────
+ * **Pause this delivery's payment** — the payout card, `kind: 'shipment'`, on
+ * `money.earnings.read` (tiers 1–2), as on the order page. It stops only this
+ * parcel's agency and rider, never the seller, and it is the only way to stop
+ * an agency whose own terms release it without a hold: an order pause no longer
+ * reaches one. **Charge a damage claim** is a header action on
+ * `agencies.claims.charge` (financial, tiers 1–2, never Support); the parcel's
+ * claim is listed on the Overview under `agencies.read`, which Support holds.
+ *
  * ── Cancel is disabled outside `assigned`, and that is authorised by name ─────
  * It maps to the platform's `reject`, which refuses anything past pickup, and
  * ADR-010 D-4 says the dashboard must disable the button rather than let it be
@@ -113,6 +126,7 @@ function ShipmentDetailScreen({ shipmentId }: { shipmentId: string }) {
     const [assigning, setAssigning] = useState(false);
     const [moving, setMoving] = useState(false);
     const [cancelling, setCancelling] = useState(false);
+    const [claiming, setClaiming] = useState(false);
     const navigate = useNavigate();
     const location = useLocation();
     const moved = readMovedState(location.state);
@@ -169,6 +183,9 @@ function ShipmentDetailScreen({ shipmentId }: { shipmentId: string }) {
       present and refusing.
     */
     const canSeeTracking = can('shipments.tracking.read');
+    /* The pause read is delegated and on `money.earnings.read`, which Support lacks. */
+    const canSeePayout = can('money.earnings.read');
+    const canSeeClaims = can('agencies.read');
     const cancellable = canCancelShipment(record);
     const agentless = hasNoAgent(record);
     const movable = canMoveShipmentAgency(record);
@@ -254,6 +271,18 @@ function ShipmentDetailScreen({ shipmentId }: { shipmentId: string }) {
                             ) : null}
                         </span>
                     </Can>
+
+                    {/*
+                      Offered on every shipment: whether this one can be claimed —
+                      delivered, inside the agency's window, a per-item limit — is
+                      jovi-mall's verdict, read when the dialog opens.
+                    */}
+                    <Can permission="agencies.claims.charge">
+                        <Button variant="outline" size="sm" onClick={() => setClaiming(true)}>
+                            <PackageX className="size-4" />
+                            Charge a damage claim
+                        </Button>
+                    </Can>
                 </>
             }
         >
@@ -265,6 +294,17 @@ function ShipmentDetailScreen({ shipmentId }: { shipmentId: string }) {
                     currentShipmentId={record.id}
                     canOpenOrder={can('orders.read')}
                     onDismiss={() => setMovedDismissed(location.key)}
+                />
+            ) : null}
+
+            {canSeePayout ? (
+                <EarningsPauseCard
+                    kind="shipment"
+                    id={record.id}
+                    reference={record.trackingNumber}
+                    timeZone={timeZone}
+                    reloadToken={reloadToken}
+                    onChanged={reconcile}
                 />
             ) : null}
 
@@ -281,6 +321,20 @@ function ShipmentDetailScreen({ shipmentId }: { shipmentId: string }) {
                 <TabsContent value="overview" className="space-y-4">
                     <ShipmentOverviewPanel shipment={record} timeZone={timeZone} can={can} />
                     <TrackingOutboxPanel outbox={record.tracking.outbox} timeZone={timeZone} />
+                    {canSeeClaims ? (
+                        <section aria-labelledby="shipment-claims-heading" className="space-y-2">
+                            <h2 id="shipment-claims-heading" className="text-base font-semibold">
+                                Damage claim
+                            </h2>
+                            <AgencyClaimsPanel
+                                scope={{ shipmentId: record.id }}
+                                timeZone={timeZone}
+                                noun="this parcel"
+                                hide={['parcel']}
+                                reloadToken={reloadToken}
+                            />
+                        </section>
+                    ) : null}
                 </TabsContent>
 
                 <TabsContent value="delivery">
@@ -346,6 +400,16 @@ function ShipmentDetailScreen({ shipmentId }: { shipmentId: string }) {
                 onOpenChange={setCancelling}
                 onDone={reconcile}
             />
+            {can('agencies.claims.charge') ? (
+                <ChargeDamageClaimDialog
+                    shipmentId={record.id}
+                    reference={record.trackingNumber}
+                    timeZone={timeZone}
+                    open={claiming}
+                    onOpenChange={setClaiming}
+                    onCharged={reconcile}
+                />
+            ) : null}
         </PageContainer>
     );
 }

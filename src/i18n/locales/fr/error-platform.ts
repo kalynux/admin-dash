@@ -271,6 +271,16 @@ const platform = {
         'Ce remboursement n’est pas possible ainsi. Un achat de forfait ou une recharge de crédits se rembourse uniquement en totalité.',
     EARNINGS_CLAWBACK_NOTHING_OWED:
         'Ce titulaire ne doit plus rien — des gains ultérieurs ont remboursé la dette.',
+    REFUND_DELIVERY_FAULT_INVALID:
+        'Un des colis indiqués comme mal livrés n’appartient pas à cette commande. Décochez-le et réessayez.',
+    AGENCY_CLAIM_OUTSIDE_WINDOW:
+        'Le problème a été signalé après la fin du délai de réclamation de l’agence ; il ne peut pas lui être facturé.',
+    AGENCY_CLAIM_EXCEEDS_CAP:
+        'C’est plus que ce que les conditions de l’agence autorisent par article endommagé. Réduisez le montant.',
+    AGENCY_CLAIM_EXISTS: 'Ce colis a déjà une réclamation pour dommage. Une seule est permise par colis.',
+    AGENCY_CLAIM_NOT_ELIGIBLE:
+        'Ce colis ne peut pas faire l’objet d’une réclamation — il n’a pas été livré, n’a pas d’agence, ou l’agence n’a fixé aucune limite par article.',
+    AGENCY_CLAIM_NOT_FOUND: 'Cette réclamation pour dommage n’existe plus.',
 };
 
 export default platform;
