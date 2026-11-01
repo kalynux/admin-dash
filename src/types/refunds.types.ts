@@ -719,9 +719,16 @@ export function refundDetailPath(refundId: string): string {
 export function refundSourcePath(source: RefundRequest['source']): string | null {
     if (!source.id) return null;
     if (source.kind === 'order') return `/dashboard/orders/${encodeURIComponent(source.id)}`;
-    // ⚠ No booking screen exists, and wi-admin serves no booking read — a
-    // booking is reachable only from its ticket. Plan purchases and credit
-    // top-ups have no screen either.
+    // Since 2026-10-27 a booking has its own screen. Plan purchases and credit
+    // top-ups still have none.
+    if (source.kind === 'booking') return `/dashboard/bookings/${encodeURIComponent(source.id)}`;
+    return null;
+}
+
+/** What the screen `refundSourcePath` opens requires, or `null` when there is none. */
+export function refundSourcePermission(kind: string): 'orders.read' | 'bookings.read' | null {
+    if (kind === 'order') return 'orders.read';
+    if (kind === 'booking') return 'bookings.read';
     return null;
 }
 

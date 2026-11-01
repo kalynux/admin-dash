@@ -18,9 +18,12 @@ import type { TicketEntityRef } from '@/types/support.types';
  * different sizes from different services, and the audit row carries a `label`
  * on every type where a ticket carries one on three.
  *
- * ── ⚠ Eight of eleven link, and the three that do not are DIFFERENT facts ─────
- * `BOOKING` and `DELIVERY` have no administrative surface on this service at
- * all. `OTHER` names nothing by definition — it is the one type jovi-mall lets
+ * ── ⚠ Nine of eleven link, and the two that do not are DIFFERENT facts ───────
+ * `DELIVERY` has no administrative surface on this service at all. `BOOKING`
+ * did not either until 2026-10-27, when `/bookings` arrived and its tickets
+ * began to carry the booking number as `entity.label` — ⚠ `support.md`'s
+ * routability table still says ❌ for it; `bookings.md` § Tickets is the newer
+ * word. `OTHER` names nothing by definition — it is the one type jovi-mall lets
  * `entityId` be omitted for. And `CUSTOMER` links, but not like the rest: see
  * below.
  *
@@ -89,6 +92,9 @@ const ENTITY_ROUTES: Record<string, EntityRoute> = {
     AGENCY: { path: (_, id) => `/dashboard/agencies/${id}`, permission: 'agencies.read' },
     AGENT: { path: (_, id) => `/dashboard/agents/${id}`, permission: 'agents.read' },
     USER: { path: (_, id) => `/dashboard/users/${id}`, permission: 'users.read' },
+    // Since 2026-10-27 (`bookings.md` § Tickets): the booking detail, and
+    // `entity.label` carries the booking number.
+    BOOKING: { path: (_, id) => `/dashboard/bookings/${id}`, permission: 'bookings.read' },
     // ⚠ The search, not the record — see the note above. `entity.id` rather than
     // the pre-encoded `id`: `accountSearchPath` encodes for a query string itself.
     CUSTOMER: { path: (entity) => accountSearchPath(entity.id ?? ''), permission: 'users.read' },

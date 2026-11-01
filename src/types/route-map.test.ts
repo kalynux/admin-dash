@@ -76,6 +76,11 @@ function parseNamespaces(): Namespace[] {
 }
 
 const namespaces = parseNamespaces();
+
+const permissionsDoc = readFileSync(
+    resolve(dirname(fileURLToPath(import.meta.url)), '../../api-doc/admin/api/permissions.md'),
+    'utf8',
+);
 const totalDeclared = namespaces.reduce((sum, ns) => sum + ns.declared, 0);
 
 describe('ROUTE-MAP.md parses', () => {
@@ -186,7 +191,11 @@ describe('the route total is the sum of its parts', () => {
         //
         // ⚠ 315 → 319 on 2026-10-25, measured (`TOTAL 320`): damage claims — the new
         // `/agency-claims` group (list, eligibility, detail, charge).
-        expect(totalDeclared).toBe(319);
+        //
+        // ⚠ 319 → 332 on 2026-10-27, measured (`TOTAL 333`): service bookings — the
+        // new `/bookings` group (13: list, queues, detail, access, availability,
+        // activity, and seven writes).
+        expect(totalDeclared).toBe(332);
     });
 });
 
@@ -238,7 +247,7 @@ describe('the composite guards, as the route map declares them', () => {
         .map((row) => `${row.method} ${row.path}`)
         .sort();
 
-    it('is exactly the twenty-six the service declares', () => {
+    it('is exactly the twenty-seven the service declares', () => {
         // Seventeen `all`-mode plus five `any`-mode. That count has been stale
         // four separate times — "Thirteen", then "fourteen plus the any-mode
         // one", then "fifteen … sixteen in all", then "three any-mode … twenty"
@@ -258,6 +267,11 @@ describe('the composite guards, as the route map declares them', () => {
         // `/money/transactions` reads (2026-10-12, BR-027): the route has no
         // permission of its own and opens on any one of five existing reads, so
         // 18 `all` + 8 `any`. Read from `money.routes.ts`.
+        //
+        // ⚠ The twenty-seventh (`all` mode) is `GET /bookings/:bookingId/activity`
+        // (2026-10-27): `bookings.read` + `audit.read`, read from
+        // `booking.routes.ts`. `permissions.md` § "Composite guards" does not list
+        // it, so 19 `all` + 8 `any` is the service's figure and the page is behind.
         expect(composite).toEqual([
             'GET /accounts/:ownerType/:ownerId',
             'GET /accounts/:ownerType/:ownerId/activity',
@@ -269,6 +283,7 @@ describe('the composite guards, as the route map declares them', () => {
             'GET /agents/:agentId/contracts',
             'GET /automation/failures',
             'GET /automation/summary',
+            'GET /bookings/:bookingId/activity',
             'GET /cod/agents/:agentId/trust-events',
             'GET /contracts/:contractId',
             'GET /money/payouts/:payoutId/activity',
@@ -286,5 +301,25 @@ describe('the composite guards, as the route map declares them', () => {
             'POST /money/payouts/:payoutId/reject',
             'POST /money/payouts/:payoutId/resolve-unknown',
         ]);
+    });
+
+    /**
+     * The two lists agree, row for row. They were counted separately until
+     * 2026-11-01, when BR-033 found `permissions.md` six rows short of this map:
+     * its own prose matched its own table, so nothing could notice. This compares
+     * the page's tables with the map, which is what would have.
+     */
+    it('is the set permissions.md lists in its composite tables', () => {
+        const start = permissionsDoc.indexOf('## Composite guards');
+        const end = permissionsDoc.indexOf('\n## ', start + 1);
+        const documented = [
+            ...permissionsDoc
+                .slice(start, end === -1 ? permissionsDoc.length : end)
+                .matchAll(/^\| `((?:GET|POST|PUT|PATCH|DELETE) \/[^`]+)` \|/gm),
+        ]
+            .map((match) => match[1])
+            .sort();
+
+        expect(documented).toEqual(composite);
     });
 });

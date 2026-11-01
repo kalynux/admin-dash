@@ -192,7 +192,10 @@ export function pauseReasonRemedy(reason: string | null | undefined): string | n
         case 'seller_cancelled_paid_order':
             return 'Raise a refund for the customer — completing it claws the earnings back — or resume if no refund is owed.';
         case 'booking_cancelled_unrefunded':
-            return 'Raise a refund for the customer, or resume if no refund is owed.';
+            // ⚠ Not for cash (BR-033 § 4): that has no payment to refund from, so the
+            // queue answers `404 REFUND_PAYMENT_NOT_FOUND`. This line sees only the
+            // reason, so it says both.
+            return 'Raise a refund for the customer, or resume if no refund is owed. If it was paid in cash, the shop hands the money back instead: follow the ticket.';
         case 'card_dispute':
             return 'Lifts by itself when the dispute ends.';
         case 'refund_in_progress':

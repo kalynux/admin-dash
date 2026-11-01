@@ -46,6 +46,7 @@ import {
     refundReasonKindLabel,
     refundSourceKindLabel,
     refundSourcePath,
+    refundSourcePermission,
     type RefundRequest,
 } from '@/types/refunds.types';
 
@@ -361,7 +362,8 @@ function Notices({
 
 function Overview({ refund, timeZone }: { refund: RefundRequest; timeZone: string }) {
     const can = useCan();
-    const sourcePath = refundSourcePath(refund.source);
+    const sourceNeeds = refundSourcePermission(refund.source.kind);
+    const sourcePath = sourceNeeds && can(sourceNeeds) ? refundSourcePath(refund.source) : null;
     const typed = refund.destination?.source === 'typed';
 
     return (

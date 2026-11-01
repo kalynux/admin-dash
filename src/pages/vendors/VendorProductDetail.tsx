@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, PackageX, RotateCcw, RotateCw } from 'lucide-react';
 
 import { Can } from '@/components/auth/Can';
+import { BookingAvailabilityPanel } from '@/components/bookings/BookingAvailabilityPanel';
 import { CopyableValue } from '@/components/common/CopyableValue';
 import { ErrorState } from '@/components/common/DataState';
 import { DetailSkeleton } from '@/components/common/Loading';
@@ -209,6 +210,17 @@ function VendorProductDetailScreen({
             <ProductIdentityPanel product={record} timeZone={timeZone} />
 
             {/*
+              A bookable service's times, as the storefront offers them
+              (2026-10-27, `bookings.read` — every tier). Asked on a click, not on
+              mount: it is a delegated read most visits here do not need.
+            */}
+            {record.type === 'service' ? (
+                <Can permission="bookings.read">
+                    <ServiceTimes productId={record.id} vendorId={vendorId} timeZone={timeZone} />
+                </Can>
+            ) : null}
+
+            {/*
               The customers' reviews of this listing. A section rather than a tab
               because this screen has none; gated on `reviews.read`, which every
               tier holds, and moderated from right here.
@@ -307,6 +319,35 @@ function asListRow(product: VendorProductDetailRecord): VendorProduct {
         createdAt: product.createdAt,
         updatedAt: product.updatedAt,
     };
+}
+
+/** The service's bookable times behind a button, and its bookings one click away. */
+function ServiceTimes({ productId, vendorId, timeZone }: { productId: string; vendorId: string; timeZone: string }) {
+    const [shown, setShown] = useState(false);
+
+    if (shown) return <BookingAvailabilityPanel productId={productId} timeZone={timeZone} />;
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Bookable times</CardTitle>
+                <CardDescription>
+                    What a customer would be offered for this service, as the storefront works it out.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="flex flex-wrap items-center gap-3">
+                <Button variant="outline" size="sm" onClick={() => setShown(true)}>
+                    Show bookable times
+                </Button>
+                <Link
+                    to={`/dashboard/bookings?vendorId=${encodeURIComponent(vendorId)}&productId=${encodeURIComponent(productId)}`}
+                    className="text-sm font-medium hover:underline"
+                >
+                    See this service’s bookings
+                </Link>
+            </CardContent>
+        </Card>
+    );
 }
 
 function BackLink({ vendorId }: { vendorId: string | null }) {

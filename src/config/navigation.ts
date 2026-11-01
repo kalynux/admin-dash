@@ -9,6 +9,7 @@ import {
     LayoutDashboard,
     ListChecks,
     PackageSearch,
+    CalendarClock,
     ScrollText,
     ServerCog,
     LifeBuoy,
@@ -319,6 +320,21 @@ export const NAV_SECTIONS: NavSection[] = [
                 icon: PackageSearch,
                 path: '/dashboard/shipments',
                 permission: 'shipments.read',
+                implemented: true,
+                phase: 9,
+            },
+            {
+                /**
+                 * Service bookings (2026-10-27) — the orders module's counterpart
+                 * for bookable services. On the read, which every tier holds;
+                 * each action is gated per button on `bookings.settle`,
+                 * `bookings.intervene` or `bookings.remind`.
+                 */
+                id: 'bookings',
+                label: 'Bookings',
+                icon: CalendarClock,
+                path: '/dashboard/bookings',
+                permission: 'bookings.read',
                 implemented: true,
                 phase: 9,
             },

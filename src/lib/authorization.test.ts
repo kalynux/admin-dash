@@ -164,9 +164,11 @@ describe('the tier fixtures match the documented levels', () => {
         // tier 1 only (BR-030) — the platform's own amounts.
         // ⚠ **143 / 120 / 47 → 144 / 121 / 47 on 2026-10-25**: `agencies.claims.charge`,
         // the damage claim — `financial`, tiers 1–2, never Support.
-        expect(TIER_1_PERMISSIONS.length).toBe(144);
-        expect(TIER_2_PERMISSIONS.length).toBe(121);
-        expect(TIER_3_PERMISSIONS.length).toBe(47);
+        // ⚠ **144 / 121 / 47 → 149 / 126 / 49 on 2026-10-27**: the `bookings` family —
+        // Support holds `read` and `remind`, never the link or an intervention.
+        expect(TIER_1_PERMISSIONS.length).toBe(149);
+        expect(TIER_2_PERMISSIONS.length).toBe(126);
+        expect(TIER_3_PERMISSIONS.length).toBe(49);
     });
 
     it('withholds from Admin exactly what the doc says it withholds', () => {
@@ -204,6 +206,11 @@ describe('the tier fixtures match the documented levels', () => {
             // can rename, merge or delete nothing on it.
             'catalog.categories.manage',
             'orders.refund',
+            // 2026-10-27: Support reads bookings and resends reminders — it never
+            // sees the meeting link, re-checks, withdraws, cancels or completes.
+            'bookings.access.read',
+            'bookings.intervene',
+            'bookings.settle',
             'audit.export',
             'administrators.read',
         ]) {
@@ -215,7 +222,7 @@ describe('the tier fixtures match the documented levels', () => {
         expect(heldFixture(3).has('money.payments.read')).toBe(true);
     });
 
-    it('leaves Support holding 47 permissions, every one of them usable', () => {
+    it('leaves Support holding 49 permissions, every one of them usable', () => {
         // 24 held / 12 usable before Phase 5 built the `support` and `content`
         // surfaces; 29 until `files.content.read` was granted to all three tiers
         // at BR-011; 30 until `support.automation.lookup` arrived with
@@ -223,11 +230,12 @@ describe('the tier fixtures match the documented levels', () => {
         // (two triage names, the bot-memory reset, four COD/payout reads); 38 until
         // `money.statements.send` (2026-09-27); 39 until `shipments.reassign`
         // (2026-10-02); 40 until `catalog.categories.read` and 41 until `money.splits.read` (both 2026-10-04);
-        // 42 until the three `reviews.*` (2026-10-05). 45 until the refund queue's two (same day). Support holds none of the four `†` names,
+        // 42 until the three `reviews.*` (2026-10-05). 45 until the refund queue's two (same day).
+        // 47 until `bookings.read` and `bookings.remind` (2026-10-27). Support holds none of the four `†` names,
         // so there is nothing in their set they cannot reach.
         const unrouted = new Set<string>(UNROUTED_PERMISSION_NAMES);
         const usable = TIER_3_PERMISSIONS.filter((name) => !unrouted.has(name));
-        expect(usable.length).toBe(47);
+        expect(usable.length).toBe(49);
     });
 
     it('gives Support file resolution, but not the orphan listing', () => {

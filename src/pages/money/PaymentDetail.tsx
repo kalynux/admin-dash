@@ -260,7 +260,12 @@ function SettlesDetail({
 
     if (ids.length === 0) {
         return bookingId ? (
-            <CopyableValue value={bookingId} label="booking ID" truncate={false} />
+            <CopyableValue
+                value={bookingId}
+                label="booking ID"
+                truncate={false}
+                to={can('bookings.read') ? `/dashboard/bookings/${bookingId}` : undefined}
+            />
         ) : (
             /* The screen's own gap text, kept rather than falling through to `NotSet`'s. */
             <NotSet>Nothing linked</NotSet>

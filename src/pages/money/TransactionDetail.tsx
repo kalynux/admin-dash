@@ -639,8 +639,12 @@ function LinksCard({ detail }: { detail: TransactionDetailShape }) {
         });
     };
 
-    // A booking has no screen here — wi-admin serves no booking read.
-    single('Booking', links.bookingId, 'booking ID', undefined);
+    single(
+        'Booking',
+        links.bookingId,
+        'booking ID',
+        can('bookings.read') && links.bookingId ? `/dashboard/bookings/${links.bookingId}` : undefined,
+    );
     single(
         'Shipment',
         links.shipmentId,

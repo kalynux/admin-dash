@@ -1,4 +1,16 @@
-# Route map — all 319 wi-admin routes
+# Route map — all 332 wi-admin routes
+
+✅ **319 → 332 on 2026-10-27, MEASURED — the recipe printed `TOTAL 333`**, and the thirteen new
+rows were in its output by name. They are **service bookings**, a new **`/bookings`** group (the
+31st): the list, the "needs attention" queue counts, the detail, the access verdict, the
+service's bookable times, the activity feed, and seven writes — cancel, cancel the class,
+complete, record cash, re-check payment, withdraw a proposal, resend the reminder. Contract:
+[bookings.md](admin/api/bookings.md) ·
+[FRONTEND-CHANGELOG-bookings.md](admin/FRONTEND-CHANGELOG-bookings.md). `authz:matrix` printed
+**149 / 126 / 49**, measured (the `bookings` family, five names). **Built upstream, not
+deployed.** Permission and audit cells were read from `bookings/routes/booking.routes.ts`.
+`GET /bookings/:bookingId/activity` is the twenty-seventh composite guard (`all` mode,
+`bookings.read` + `audit.read`) — ⚠ `permissions.md` § "Composite guards" does not list it.
 
 ✅ **315 → 319 on 2026-10-25, MEASURED — the recipe printed `TOTAL 320`**, and the four new rows
 were in its output by name. They are **damage claims** (owner decision F-8, 2026-10-22), a new
@@ -286,8 +298,8 @@ failure is not caught, so with the audit store down nothing is disclosed. See
 ```bash
 cd backend/admin
 node -r ts-node/register/transpile-only -r dotenv/config \
-    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 320 (2026-10-25 — /agency-claims)
-npm run authz:matrix                                                      # 144 / 121 / 47 (2026-10-25 — agencies.claims.charge)
+    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 333 (2026-10-27 — /bookings)
+npm run authz:matrix                                                      # 149 / 126 / 49 (2026-10-27 — bookings)
 ```
 
 ✅ **`authz:matrix` and the contract agree again: 124 / 104 / 38**, re-derived from source on
@@ -309,7 +321,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 
 ---
 
-## The 319 routes, by namespace
+## The 332 routes, by namespace
 
 ### `/support` — 19 routes
 
@@ -602,6 +614,24 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/orders/:orderId/refund-eligibility` | `orders.refund` | — | [`orders.md`](admin/api/orders.md) |
 | GET | `/orders/:orderId/timeline` | `orders.read` | — | [`orders.md`](admin/api/orders.md) |
 | GET | `/orders/disputes` | `orders.disputes.read` | — | [`orders.md`](admin/api/orders.md) |
+
+### `/bookings` — 13 routes
+
+| Method | Path | Permission | Audited | Documented in |
+|---|---|---|---|---|
+| GET | `/bookings/` | `bookings.read` | — | [`bookings.md`](admin/api/bookings.md) |
+| GET | `/bookings/queues` | `bookings.read` | — | [`bookings.md`](admin/api/bookings.md) |
+| GET | `/bookings/services/:productId/availability` | `bookings.read` | — | [`bookings.md`](admin/api/bookings.md) |
+| GET | `/bookings/:bookingId` | `bookings.read` | — | [`bookings.md`](admin/api/bookings.md) |
+| GET | `/bookings/:bookingId/activity` | `bookings.read` + `audit.read` | — | [`bookings.md`](admin/api/bookings.md) |
+| GET | `/bookings/:bookingId/access` | `bookings.read` | — | [`bookings.md`](admin/api/bookings.md) |
+| POST | `/bookings/:bookingId/cancel` | `bookings.settle` | ✅ bookings.cancel | [`bookings.md`](admin/api/bookings.md) |
+| POST | `/bookings/:bookingId/session/cancel` | `bookings.settle` | ✅ bookings.cancel_session | [`bookings.md`](admin/api/bookings.md) |
+| POST | `/bookings/:bookingId/complete` | `bookings.settle` | ✅ bookings.complete | [`bookings.md`](admin/api/bookings.md) |
+| POST | `/bookings/:bookingId/payment/cash` | `bookings.settle` | ✅ bookings.payment.mark_cash | [`bookings.md`](admin/api/bookings.md) |
+| POST | `/bookings/:bookingId/payment/recheck` | `bookings.intervene` | ✅ bookings.payment.recheck | [`bookings.md`](admin/api/bookings.md) |
+| POST | `/bookings/:bookingId/proposal/withdraw` | `bookings.intervene` | ✅ bookings.proposal.withdraw | [`bookings.md`](admin/api/bookings.md) |
+| POST | `/bookings/:bookingId/reminder` | `bookings.remind` | ✅ bookings.reminder.resend | [`bookings.md`](admin/api/bookings.md) |
 
 ### `/agencies` — 16 routes
 

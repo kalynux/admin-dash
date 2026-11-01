@@ -491,6 +491,35 @@ const platform = {
     AGENCY_CLAIM_NOT_ELIGIBLE:
         'This parcel cannot carry a damage claim — it was not delivered, has no agency, or the agency set no per-item limit.',
     AGENCY_CLAIM_NOT_FOUND: 'This damage claim no longer exists.',
+
+    // ─── Service bookings (2026-10-27) ───────────────────────────────────────
+    /*
+      The seven booking writes, `bookings.md` § The writes. The dialogs close and
+      re-read on the "it moved" ones (`BOOKING_STALE_REFUSALS`); this copy is
+      what they and anything else show.
+    */
+    BOOKING_NOT_FOUND: 'The platform has no such booking any more. It was deleted while this was open.',
+    BOOKING_ALREADY_CANCELLED: 'This booking is already cancelled. Reload to see who cancelled it.',
+    BOOKING_TERMINAL_STATE:
+        'This booking is completed, so it cannot be cancelled. Refund it through the refund queue, which also takes the shop’s earnings back.',
+    BOOKING_SESSION_EMPTY: 'No other booking in this class is still on, so there is nothing to cancel.',
+    BOOKING_ADMIN_COMPLETE_UNPAID:
+        'This booking is not paid, so there is no held money to release. Record the cash payment first, or leave completion to the shop.',
+    BOOKING_NOT_STARTED: 'The appointment has not started yet, so it cannot be completed.',
+    BOOKING_INVALID_STATUS_TRANSITION:
+        'The booking is no longer in a state that can be completed. Reload to see where it is now.',
+    BOOKING_ALREADY_PAID: 'This booking is already paid. Nothing was recorded twice.',
+    BOOKING_PAYMENT_NOT_REQUIRED: 'This booking does not require payment, so there is no cash to record.',
+    BOOKING_INVALID_PAYMENT_METHOD:
+        'This booking was paid another way, not in cash, so a cash payment cannot be recorded for it.',
+    BOOKING_PAYMENT_NOT_PENDING:
+        'The payment is not waiting on the provider any more, so there is nothing to re-check. Reload to see where it is.',
+    BOOKING_PAYMENT_STATE_MISMATCH:
+        'The provider says the payment succeeded but the booking still reads in progress. This needs an engineer — report it with the request ID.',
+    BOOKING_PROPOSAL_NOT_FOUND:
+        'There is no open proposal of a new time any more — it was answered, withdrawn or expired.',
+    BOOKING_REMINDER_NOT_APPLICABLE:
+        'A reminder is only sent for a confirmed booking that has not started yet.',
 };
 
 export default platform;

@@ -174,10 +174,16 @@ describe('the permission catalogue matches api-doc/admin/api/permissions.md', ()
         // `agencies.claims.charge` (`financial`, tiers 1–2), the damage claim.
         // Taken from source: `permissions.md` says 144 but has no matrix row for
         // it, so the two doc-diffing assertions above are red until BR-032 lands.
-        expect(PERMISSION_NAMES.length).toBe(144);
+        //
+        // ⚠ **Moved 144 → 149 on 2026-10-27** — 149 / 126 / 49 per the re-copied
+        // page: the `bookings` family (the 24th). `read` and `remind` every tier;
+        // `access.read`, `intervene` and `settle` (`financial`) tiers 1–2. The
+        // page carries all five rows — and still no `agencies.claims.charge` row,
+        // so BR-032's two red assertions are unchanged.
+        expect(PERMISSION_NAMES.length).toBe(149);
         expect(UNROUTED_PERMISSION_NAMES.length).toBe(4);
-        expect(PERMISSION_FAMILIES.length).toBe(23);
-        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(140);
+        expect(PERMISSION_FAMILIES.length).toBe(24);
+        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(145);
     });
 
     /**
@@ -301,9 +307,11 @@ describe('the composite-guard tables match the prose that counts them', () => {
 
     it('states in prose the number of rows each table holds', () => {
         const WORDS: Record<number, string> = {
-            4: 'Four',
-            17: 'Seventeen',
-            21: 'twenty-one',
+            // The numbers this section has stated. 19 + 8 = 27 since 2026-11-01
+            // (BR-033 § 1), when the page was found six rows short of the service.
+            8: 'Eight',
+            19: 'Nineteen',
+            27: 'twenty-seven',
         };
 
         expect(doc, 'the `all`-mode count').toContain(
@@ -329,6 +337,15 @@ describe('the composite-guard tables match the prose that counts them', () => {
         const named = new Set(
             [...cells.matchAll(/`([a-z_]+(?:\.[a-z_]+)+)`/g)].map((match) => match[1]),
         );
+
+        // ⚠ One name the page mentions in order to say it does NOT exist: *"No
+        // `money.transactions.read` exists, deliberately"* (2026-11-01). Excused by
+        // name, and only while it stays undeclared — the day it becomes a real
+        // permission this goes red and the excuse has to go.
+        const SAID_NOT_TO_EXIST = 'money.transactions.read';
+        expect(doc).toMatch(/No `money\.transactions\.read`\s+exists/);
+        expect(declared.has(SAID_NOT_TO_EXIST)).toBe(false);
+        named.delete(SAID_NOT_TO_EXIST);
 
         expect(
             [...named].filter((name) => !declared.has(name)).sort(),

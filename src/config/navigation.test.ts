@@ -365,6 +365,10 @@ describe('permittedSections', () => {
         // `orders.refund.read` and `orders.refund.request`: it reads the queue and
         // RAISES requests, and never approves or sends — those buttons are gated
         // inside the screen, never by hiding the module.
+        //
+        // **Operations gained Bookings on 2026-10-27.** Support holds `bookings.read`
+        // and `bookings.remind` — it reads every booking and resends the reminder;
+        // the meeting link and every intervention stay at tiers 1–2.
         const sections = permittedSections(heldFixture(3));
 
         expect(
@@ -372,7 +376,7 @@ describe('permittedSections', () => {
         ).toEqual([
             ['overview', ['home', 'notifications']],
             ['directories', ['users', 'vendors', 'agencies', 'agents']],
-            ['operations', ['orders', 'shipments', 'categories', 'reviews']],
+            ['operations', ['orders', 'shipments', 'bookings', 'categories', 'reviews']],
             ['support', ['support-tickets', 'content']],
             ['finance', ['refunds', 'cod', 'money']],
             ['administration', ['audit']],

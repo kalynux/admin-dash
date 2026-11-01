@@ -109,10 +109,28 @@ describe('a customer opens a search, never a record', () => {
     });
 });
 
-describe('the three types that do not open', () => {
+describe('a booking opens its own screen (2026-10-27)', () => {
+    /** `bookings.md` § Tickets: the label is the booking number, and the id stays beside it. */
+    it('routes a booking to the booking detail under its number', () => {
+        show(ticketEntityFixture({ type: 'BOOKING', id: '6690aabbccddeeff00112233', label: 'BKG-2026-000117' }));
+        expect(href('BKG-2026-000117')).toBe('/dashboard/bookings/6690aabbccddeeff00112233');
+        expect(screen.getByText('6690aabbccddeeff00112233')).toBeInTheDocument();
+    });
 
-    it.each(['BOOKING', 'DELIVERY'])('renders %s as a value, having no screen', (type) => {
-        show(ticketEntityFixture({ type, id: '6670aabbccddeeff00112233' }));
+    it('gates it on bookings.read', () => {
+        show(
+            ticketEntityFixture({ type: 'BOOKING', id: '6690aabbccddeeff00112233', label: 'BKG-2026-000117' }),
+            new Set(['support.tickets.read']),
+        );
+        expect(screen.queryByRole('link')).not.toBeInTheDocument();
+        expect(screen.getByText('BKG-2026-000117')).toBeInTheDocument();
+    });
+});
+
+describe('the two types that do not open', () => {
+
+    it('renders DELIVERY as a value, having no screen', () => {
+        show(ticketEntityFixture({ type: 'DELIVERY', id: '6670aabbccddeeff00112233' }));
         expect(screen.queryByRole('link')).not.toBeInTheDocument();
     });
 

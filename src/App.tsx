@@ -55,6 +55,7 @@ import { HoldersModule } from '@/pages/cod/HoldersModule';
 import { RemittancesModule } from '@/pages/cod/RemittancesModule';
 import { EarningsModule } from '@/pages/money/EarningsModule';
 import { OrdersModule } from '@/pages/orders/OrdersModule';
+import { BookingsModule } from '@/pages/bookings/BookingsModule';
 import { CacheInspector } from '@/pages/dev-tools/CacheInspector';
 import { CatalogueTools } from '@/pages/dev-tools/CatalogueTools';
 import { DatabaseInspector } from '@/pages/dev-tools/DatabaseInspector';
@@ -187,6 +188,8 @@ const SCREENS: Record<string, ReactNode> = {
     'orders-all': <OrdersModule />,
     'orders-disputes': <DisputesQueue />,
     shipments: <ShipmentsModule />,
+    /** Childless, mounted at `bookings/*` — owns `:bookingId` and its own 404 (2026-10-27). */
+    bookings: <BookingsModule />,
     /** Childless, mounted at `categories/*` — owns `:categoryId` and its own 404. */
     categories: <CategoriesModule />,
     /** Childless, mounted at `reviews/*` — owns `:reviewId` and its own 404. */

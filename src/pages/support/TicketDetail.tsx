@@ -377,10 +377,10 @@ function TicketDetailScreen({ ticketId }: { ticketId: string }) {
                       administrator closes it by refunding the customer, or —
                       when no refund is owed — by resuming here.
 
-                      ⚠ **This is the ONLY place a booking's payout can be
-                      reached.** This dashboard has no booking screen and wi-admin
-                      serves no booking read, so an order opens from the link
-                      above and a booking is handled here or nowhere.
+                      Kept here as well as on the order and booking screens
+                      (a booking has had one since 2026-10-27, linked above):
+                      the operator resolving the ticket should not have to
+                      leave it to lift the pause.
 
                       Gated on `money.earnings.read` (tiers 1–2). Support reads
                       these tickets without it, so the card is omitted for them.

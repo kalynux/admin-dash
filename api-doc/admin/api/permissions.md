@@ -1,5 +1,7 @@
 # Permissions and administrator levels
 
+⚠ **2026-10-27: 149 permissions across 24 families, tier totals 149 / 126 / 49.** Five are new, in a new `bookings` family ([§ bookings](#bookings), [bookings.md](bookings.md)): `bookings.read` and `bookings.remind` (every tier, Support included), `bookings.access.read` and `bookings.intervene` (unflagged, tiers 1 + 2 through the family grant — Support does **not** name them), and `bookings.settle` (**financial**, named into the tier-2 money block, refused to Support at boot). Re-derive with `npm run authz:matrix` rather than quoting.
+
 ⚠ **2026-10-22: 144 permissions, tier totals 144 / 121 / 47.** One is new: `agencies.claims.charge` (**financial**, tiers 1 + 2, never Support) — charging a damage claim to a delivery agency ([agency-claims.md](agency-claims.md)).
 
 ⚠ **Re-measured against source 2026-10-15 (`npm run authz:matrix`): 143 permissions across 23 families, tier totals 143 / 120 / 47.** One is new, and **only tier 1 gained it**: `money.earnings.platform.read` (**financial**) — what the platform itself earned, in amounts. It now guards `GET /money/earnings/platform`, `…/platform/ledger` and `…/platform/summary` (previously `money.earnings.read`, which tier 2 keeps), and it decides who is sent the platform's amounts on the order split and its own rows on `/money/transactions`. The owner's rule (2026-10-04, restated 2026-10-13): Admin and Support see the platform's commission and bargain fee as rates, never as amounts ([money.md](money.md#the-platforms-own-amounts-are-tier-1-only-2026-10-15-br-030--3), BR-030). It is the **second** `financial` read in the catalog after `money.payouts.destination.read`, flagged for the same reason: the flag keeps it out of `allInFamily('money')`, so tier 2 does not inherit it, and refuses it to tier 3 at boot.
@@ -41,9 +43,9 @@ Design records: [`../../docs/ADR-003-GRANULAR-PERMISSIONS.md`](../../docs/ADR-00
 
 | Level (`tier`) | Label | Holds | Shape of the job |
 |---|---|---|---|
-| **1** | Developer | 144 of 144 | Everything, including the developer tools and every escalation-flagged action |
-| **2** | Admin | 121 of 144 | The operational tier — runs the platform day to day, including the money |
-| **3** | Support | 47 of 144 | Ticket work, **raising refund requests** for an approver (which holds the seller's earnings), the lookups needed to answer a ticket, sending an account holder their statement, editorial write on articles and bylines, resetting the customer bot's memory of a chat, **moderating reviews** (hide, put back, delete), and **pre-screening** a declared COD handover or a payout request. Nothing destructive except deleting a review (the one named exception), publishing stays a level above, and the two `financial` permissions it holds cannot send money anywhere |
+| **1** | Developer | 149 of 149 | Everything, including the developer tools and every escalation-flagged action |
+| **2** | Admin | 126 of 149 | The operational tier — runs the platform day to day, including the money |
+| **3** | Support | 49 of 149 | Ticket work, **reading service bookings and resending their reminder**, **raising refund requests** for an approver (which holds the seller's earnings), the lookups needed to answer a ticket, sending an account holder their statement, editorial write on articles and bylines, resetting the customer bot's memory of a chat, **moderating reviews** (hide, put back, delete), and **pre-screening** a declared COD handover or a payout request. Nothing destructive except deleting a review (the one named exception), publishing stays a level above, and the two `financial` permissions it holds cannot send money anywhere |
 
 A level is an administrator's **entire** authorization state. `tier` appears on the profile
 returned by `GET /auth/me`.
@@ -201,7 +203,7 @@ record were one decision, not two. See [ADR-020](../../docs/ADR-020-ADMIN-DATA-D
 ## The matrix
 
 ● granted  ·  not granted  ·  **†** = catalogued policy with **no endpoint built yet**
-(**4** of 144 permissions — down from 27, and the four that remain each have a written reason
+(**4** of 149 permissions — down from 27, and the four that remain each have a written reason
 below. The policy is decided ahead of the surface, deliberately.)
 
 ### `agents`
@@ -228,6 +230,7 @@ below. The policy is decided ahead of the surface, deliberately.)
 | `agencies.reactivate` | write | ● | ● | · | — | Reactivate a previously deactivated delivery agency |
 | `agencies.cod_limit.set` | write | ● | ● | · | financial | Pin (or release) how much cash on delivery an agency may hold, overriding the 1 000 000 default (2026-10-02) |
 | `agencies.cod.restrict` | write | ● | ● | · | financial | Switch cash on delivery off for a delivery agency, or back on — it receives no new COD work while restricted (2026-10-10) |
+| `agencies.claims.charge` | write | ● | ● | · | financial | Charge a damage claim to a delivery agency for a parcel damaged in delivery, up to its own per-item limit (2026-10-22) |
 
 ### `billing`
 
@@ -297,7 +300,7 @@ this surface a Support administrator can **write** with, and — with `money.pay
 makes.** `POST /money/payouts/:payoutId/reject` accepts **either** `money.payouts.reject` **or**
 `money.payouts.triage`, so a reviewer and an approver reach one code path and close the record one
 way. That release is what makes the triage permission `financial` — see the § on the flags above,
-and the fourth `any`-mode row under Composite guards below.
+and the `/reject` row among the `any`-mode writes under Composite guards below.
 
 ⛔ **Endorsement is advisory. A payout nobody has endorsed is exactly as payable as one that has
 been** — do not disable an approve control on a missing `triage`, because an empty Support queue
@@ -519,6 +522,20 @@ and `reviews.delete` is named by hand for every tier.
 | `shipments.reassign` | write | ● | ● | ● | — | Manually move a shipment to a different agent or agency — incl. `force: true` (Support since 2026-10-02) |
 | `shipments.cancel` | write | ● | ● | · | destructive | Cancel a shipment already in progress |
 
+### `bookings`
+
+Service bookings (2026-10-27) — the counterpart of `orders` for bookable services. See [bookings.md](bookings.md).
+
+| Permission | Action | 1 Dev | 2 Admin | 3 Support | Flags | Summary |
+|---|---|:-:|:-:|:-:|---|---|
+| `bookings.read` | read | ● | ● | ● | — | Search bookings and view a booking with everyone involved, its payments, refunds and history |
+| `bookings.access.read` | read | ● | ● | · | — | See a booking’s meeting link and the vendor’s instructions |
+| `bookings.remind` | write | ● | ● | ● | — | Send the customer their appointment reminder again |
+| `bookings.intervene` | write | ● | ● | · | — | Re-check a stuck booking payment with the provider, or withdraw a stale proposal of a new time |
+| `bookings.settle` | write | ● | ● | · | financial | Cancel a booking (the customer is refunded), complete it (the vendor is paid), or record a cash payment |
+
+Support reads every booking and can resend its reminder, but never sees the meeting link itself: "I can't see my link" is answered with `GET /bookings/:id/access` (why it is locked) and a resent reminder. `bookings.access.read` and `bookings.intervene` are unflagged, so they reach tier 2 through `allInFamily('bookings')`; Support simply does not name them.
+
 ### `administrators`
 
 | Permission | Action | 1 Dev | 2 Admin | 3 Support | Flags | Summary |
@@ -651,8 +668,15 @@ name is not the same kind of thing as an ungranted one.
 
 ## Composite guards
 
-**Seventeen** endpoints require **more than one** permission (`all` mode) because they compose
+**Nineteen** endpoints require **more than one** permission (`all` mode) because they compose
 data from two or three domains. A caller missing any one of them is refused.
+
+⚠ **Corrected 2026-10-28 (BR-033 § 1).** This read *"Seventeen"*, and the `any`-mode section below
+read *"four … twenty-one in all"*, while the route manifest held **19 + 8 = 27**. Two `all`-mode
+activity feeds had landed unlisted (`/refunds/:refundId/activity` with the refund flow,
+`/bookings/:bookingId/activity` with the bookings round), and so had four `any`-mode routes
+(`/money/payouts/:payoutId/resolve-unknown` and the three `/money/transactions*` routes). Every
+count here was re-derived from `routeManifest()`, not from grep.
 
 | Endpoint | Requires |
 |---|---|
@@ -671,6 +695,8 @@ data from two or three domains. A caller missing any one of them is refused.
 | `GET /shipments/:shipmentId/offers` | `shipments.read` + `agents.read` |
 | `GET /cod/agents/:agentId/trust-events` | `cod.holders.read` + `agents.read` |
 | `GET /money/payouts/:payoutId/activity` | `money.payouts.read` + `audit.read` |
+| `GET /refunds/:refundId/activity` | `orders.refund.read` + `audit.read` |
+| `GET /bookings/:bookingId/activity` | `bookings.read` + `audit.read` |
 | `GET /accounts/:ownerType/:ownerId` | `money.earnings.read` + `billing.plans.read` + `cod.overview.read` |
 | `GET /accounts/:ownerType/:ownerId/activity` | `money.earnings.read` + `billing.plans.read` |
 
@@ -686,9 +712,9 @@ to see it. (This row was missing from the table until BR-012, and the count abov
 "Thirteen". admin-dash's own `ROUTE-MAP.md` and `MIGRATION-2026-08.md` § 8 — authored in
 `frontend/admin-dash/api-doc/`, not part of this tree — were both already right.)
 
-### The four `any`-mode guards
+### The eight `any`-mode guards
 
-Four endpoints accept **any** of several permissions. **They are not all the same shape**, and the
+Eight endpoints accept **any** of several permissions. **They are not all the same shape**, and the
 difference decides what a client should do with them.
 
 **Three are graded reads.** They return a *different projection* per level: the permission does not
@@ -700,24 +726,40 @@ decide whether you get an answer, it decides how much of the answer you see.
 | `GET /automation/failures` | `developer_tools.logs.read`, `system.automation.read`, `support.automation.lookup` | [automation.md](automation.md) |
 | `GET /automation/summary` | `developer_tools.logs.read`, `system.automation.read`, `support.automation.lookup` | [automation.md](automation.md) |
 
-**The fourth is a write, and it is not graded at all** — both holders perform exactly the same
-thing, with the same body and the same result.
+**Three more are a door onto a per-row filter.** Any one of five existing reads opens the route;
+each transaction *kind* is then returned only to a caller who holds that kind's own reads, and a
+detail whose kind the caller cannot read is a `403` naming them. No `money.transactions.read`
+exists, deliberately: one granted to every tier would be a second way to reach rows the first
+way withholds.
+
+| Endpoint | Accepts any of | Contract |
+|---|---|---|
+| `GET /money/transactions` | `money.payments.read`, `money.payouts.read`, `cod.deposits.read`, `cod.remittances.read`, `money.earnings.read` | [transactions.md](transactions.md) |
+| `GET /money/transactions/summary` | the same five | [transactions.md](transactions.md) |
+| `GET /money/transactions/:kind/:id` | the same five | [transactions.md](transactions.md) |
+
+**Two are writes.** The first is not graded at all: both holders perform exactly the same
+thing, with the same body and the same result. The second is graded **by its body**: the door
+admits either holder, and the handler then requires the permission matching `outcome`.
 
 | Endpoint | Accepts any of | Contract |
 |---|---|---|
 | `POST /money/payouts/:payoutId/reject` | `money.payouts.reject`, `money.payouts.triage` | [money.md](money.md) |
+| `POST /money/payouts/:payoutId/resolve-unknown` | `money.payouts.mark_paid`, `money.payouts.triage`. `outcome: "paid"` needs `mark_paid` (and is dual-controlled); `outcome: "failed"` needs `triage`, so Support can record it | [money.md](money.md#post-moneypayoutspayoutidresolve-unknown) |
 
-⚠ **Do not model that one as a graded read.** A reviewer's rejection is *terminal* — it closes the
+⚠ **Do not model `/reject` as a graded read.** A reviewer's rejection is *terminal* — it closes the
 request and releases the hold back to the owner's available balance — and there is deliberately no
 second "reject" verdict on `/triage`, because two routes writing the same terminal state is how a
 record ends up closed two different ways. This is also the route that makes `money.payouts.triage`
 `financial`: without it accepting that name, the flag and its tier-3 exemption would be describing
 a capability the permission did not have.
 
-**These four are not counted in the seventeen above**: seventeen `all`-mode guards plus four
-`any`-mode ones, **twenty-one** composite guards in all.
+**These eight are not counted in the nineteen above**: nineteen `all`-mode guards plus eight
+`any`-mode ones, **twenty-seven** composite guards in all.
 
-⚠ **This count has been stale four separate times, so derive it rather than quoting it.** It
+⚠ **This count has been stale five separate times, so derive it rather than quoting it.** The
+fifth was *"seventeen … four … twenty-one"* until 2026-10-28 (BR-033 § 1, see the note at the top
+of this section). It
 read *"Thirteen"* until BR-012 added `GET /contracts/:contractId`; *"fourteen `all`-mode plus the
 `any`-mode one"* until BR-018 added `GET /vendors/:vendorId/agencies`; *"fifteen … sixteen in
 all"* until a re-count found that `GET /agents/:agentId/cod-allocation` and

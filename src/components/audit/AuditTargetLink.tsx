@@ -60,6 +60,7 @@ const TARGET_ROUTES: Record<string, TargetRoute> = {
     agency: { path: (id) => `/dashboard/agencies/${id}`, permission: 'agencies.read' },
     agent: { path: (id) => `/dashboard/agents/${id}`, permission: 'agents.read' },
     order: { path: (id) => `/dashboard/orders/${id}`, permission: 'orders.read' },
+    booking: { path: (id) => `/dashboard/bookings/${id}`, permission: 'bookings.read' },
     shipment: { path: (id) => `/dashboard/shipments/${id}`, permission: 'shipments.read' },
     payout: { path: (id) => `/dashboard/money/payouts/${id}`, permission: 'money.payouts.read' },
     plan: { path: (id) => `/dashboard/billing/${id}`, permission: 'billing.plans.read' },

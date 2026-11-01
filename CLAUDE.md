@@ -29,6 +29,69 @@ two before it closed with Phase F on 2026-08-27 (`GET /files/library`, `POST /fi
 pins the services against the map — so take it by grepping each ROUTE-MAP path in
 `src/services`, not by reading it here.
 
+✅ **Service bookings built 2026-10-28 — the 31st route group (`/bookings`, 13 routes) and the
+24th permission family.** Contract: [FRONTEND-CHANGELOG-bookings.md](api-doc/admin/FRONTEND-CHANGELOG-bookings.md) ·
+[bookings.md](api-doc/admin/api/bookings.md); `permissions.md`, `api/README.md` and
+`api-doc/admin/README.md` re-copied byte-for-byte (⚠ the README now links two changelogs not
+mirrored here — `payment-code`, `wi-mall-protection` — left dead on purpose),
+`api-doc/jovi-mall/error-codes.ts` re-taken (additive). **Built upstream, not deployed.**
+**Operations › Bookings** (`/dashboard/bookings[/:bookingId]`, on `bookings.read` — **every
+tier**): tabs **All** + the seven queues with counts from `GET /bookings/queues` (wi-admin's own
+pinned enum — an unknown `?tab=` reads as All); **paid no-shows** get a red banner from every
+tab. Detail tabs: Overview (who, when/where, the shop's money **without amounts**), Status
+history (⚠ **empty = "not recorded"**, pre-2026-10-27), Payments and refunds (refunds link to
+the queue), Class (only when `sessionSeats` is non-empty), Meeting link (`GET /:id/access` — the
+customer's view), Bookable times, Activity (`bookings.read` + `audit.read`, the 27th composite
+guard). ⛔ **The link TEXT is absent (not `null`) for Support** — read it through
+`bookingAccessText()`; Support sees *"Yes"* from `hasMeetingUrl`, never an empty field
+(tested). Actions in `BookingActionDialogs.tsx`, each gated on its permission **and** a
+predicate in [`bookings.types.ts`](src/types/bookings.types.ts) read from jovi-mall's own guards:
+`bookings.settle` (Cancel, Cancel whole class, Complete, Record cash), `bookings.intervene`
+(Re-check, Withdraw), `bookings.remind` (Resend reminder — **Support's only button**,
+perturbation-tested). ⛔ **Complete is never offered on an unpaid booking** — Record cash is,
+and a raced `BOOKING_ADMIN_COMPLETE_UNPAID` offers it in the dialog. ⚠ **The cancel reason is
+public** and the form says so; **no fault is pre-selected**; the dialog prints the payments as
+sent and says cash sends nothing. Every write answers `{ booking, result }`, held as
+`{ over, next }` (no re-read — tested); ⚠ `booking: null` → reload. "It moved" refusals
+(`BOOKING_STALE_REFUSALS`) close the dialog and re-read. 13 `BOOKING_*` codes have copy in both
+`error-platform.ts`. Booking links now open from tickets (`entity.label` = booking number), audit
+targets, refund rows, paused-earnings rows, payment and transaction details; the product detail
+of a `service` listing has **Bookable times** behind a click. `EarningsPauseCard kind="booking"`
+sits on the detail (`money.earnings.read`). Measured: `dump-routes.js` **`TOTAL 333` = 332
+routes**, `authz:matrix` **149 / 126 / 49**.
+
+✅ **BR-032 and BR-033 answered 2026-11-01 and built the same day — the permission guard is GREEN
+again, and a cancel now says what its refund did.** Reply:
+[RESPONSE-2026-11-01-BR-032-033.md](api-doc/admin/dashboard/backend-requests/RESPONSE-2026-11-01-BR-032-033.md).
+`permissions.md`, `support.md`, `bookings.md`, `refunds.md`, `audit.md`, the bookings changelog, the BR
+folder's README and both BR files re-copied (⚠ two links re-neutralised by hand, `support.md`'s
+wi-mall-protection changelog and `audit.md`'s Phase 5 plan — everything else byte-identical).
+**Upstream uncommitted in wi-admin AND jovi-mall, not deployed.** 🔴 **`result.refund`** on `POST
+/bookings/:id/cancel` and per seat in `result.cancelled[]` on the session cancel: `none` ·
+`requested` · `refunded` · `manual` · `failed`. jovi-mall cancels FIRST and refunds best-effort
+after, so ⚠ **a `200` says nothing about the money.** ⚠ **Absent = not known** (it is absent until
+jovi-mall deploys), and an unknown value reads the same. `bookingRefundFollowUp()` in
+[`bookings.types.ts`](src/types/bookings.types.ts) is the one rule, rendered by
+`components/bookings/BookingRefundNotice.tsx`: the write's outcome wins; without one a **cancelled
+booking still reading `paid`** is `unflagged` and `refund_pending` with no request is `manual`, so a
+reload tells the same story; an open or completed request ends it. ⛔ **`failed` is loud on purpose
+— no ticket and no flag exist**, so this notice is the only trace, and it offers no ticket link.
+⛔ **Never offer *Raise a refund* on a cash booking** (`canRaiseBookingRefund`,
+perturbation-tested): the queue answers `404 REFUND_PAYMENT_NOT_FOUND`; the shop hands the money
+back and the ticket follows it. `pauseReasonRemedy` said *Raise a refund* for every
+`booking_cancelled_unrefunded` and now names cash too. ⚠ **The dialog says a refund "opens", never
+"has been refunded"** — the usual result is `requested`, money still on its way. The toast shows the
+server's `message`, with its tone set by the outcome. `BookingSessionNotice` lists every seat with
+`manual` / `failed`, a refund not reported, or a seat not cancelled — it exists on that response
+alone, because those seats leave `sessionSeats`. `BOOKING_NOT_FOUND` joined the "it moved" refusals.
+⚠ `proposal.slotId` and `settlement.balanceTransactionId` reach us and are deliberately undeclared.
+⚠ **`permissions.md`'s composite section was six rows short, not one**, and its prose matched its
+own table, so nothing here noticed — `route-map.test.ts` now compares that page's tables with this
+route map row for row (perturbation-tested; all five other routes were already in the map).
+**19 `all` + 8 `any` = 27.** `permissions.types.test.ts`'s number-word lookup gained 8 / 19 / 27, and
+its "names only permissions we declare" scan excuses one name, `money.transactions.read`, which
+the page mentions to say it does not exist — excused by name, and only while it stays undeclared.
+
 ✅ **Delivery pause, two refund fees, delivery at fault and damage claims — built 2026-10-25.**
 Contracts: [FRONTEND-CHANGELOG-delivery-pause.md](api-doc/admin/FRONTEND-CHANGELOG-delivery-pause.md) ·
 [FRONTEND-CHANGELOG-refund-fees-and-claims.md](api-doc/admin/FRONTEND-CHANGELOG-refund-fees-and-claims.md);
@@ -64,7 +127,8 @@ Audit: `agencies.claims.charge` joined `AGENCY_AUDIT_ACTIONS`; the two `…_ship
 `dump-routes.js` **`TOTAL 320` = 319 routes**, `authz:matrix` **144 / 121 / 47**. 🔴
 **`permissions.md` says 144 but has no `agencies.claims.charge` row**, so two assertions in
 `permissions.types.test.ts` are red until [BR-032](api-doc/admin/dashboard/backend-requests/BR-032-refund-fees-and-claims-doc-corrections.md)
-is answered and re-copied — do not loosen the test.
+is answered and re-copied — do not loosen the test. ✅ **Closed 2026-11-01**, see the BR-032 / BR-033
+block above.
 
 ✅ **Transactions built 2026-10-13 — every money movement in one list, a filter per column, and a
 detail page (BR-027).** Contract: [transactions.md](api-doc/admin/api/transactions.md) ·
@@ -1102,7 +1166,7 @@ machine, not the code.
 npm run dev       # 5175, strictPort
 npm run build     # tsc -b && vite build   ← the typecheck runs here
 npm run lint      # eslint .
-npm test          # vitest run — 3365 tests in 217 files (2026-10-25, the delivery-pause / damage-claims round; 2 expected red in permissions.types until BR-032, the rest the contention set, which passes alone). No sibling dashboard has one.
+npm test          # vitest run — 3431 tests in 220 files, ALL GREEN with --maxWorkers=3 (2026-11-01, the BR-032/033 round, nothing else running, 628 s). At default workers the same code failed 3 ArticleCreateDialog cover tests, which take ~14 s of the 20 s limit on an idle machine and pass alone: the suite's own workers are enough load to trip them. No sibling dashboard has one.
 ```
 
 **Every phase closes the same way**: typecheck, lint, tests, build, then a written summary naming

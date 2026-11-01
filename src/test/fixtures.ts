@@ -1654,7 +1654,7 @@ const TIER_2_EXCLUSIONS: readonly string[] = [
     'money.earnings.platform.read',
 ];
 
-/** Admin — the operational level, including the money. 121 of 144. */
+/** Admin — the operational level, including the money. 126 of 149. */
 export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
     (name) => !TIER_2_EXCLUSIONS.includes(name) && !name.startsWith('developer_tools.'),
 );
@@ -1715,6 +1715,10 @@ export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
  * seller's earnings and sends nothing. `orders.refund.request` is the second
  * `financial` name on `TIER_3_FINANCIAL_ALLOWLIST`; approving, settling and
  * writing off stay at tiers 1–2.
+ *
+ * ⚠ **47 → 49 on 2026-10-27**: `bookings.read` and `bookings.remind` — Support
+ * reads every booking and resends its reminder, and holds neither the meeting
+ * link (`bookings.access.read`) nor any intervention.
  */
 export const TIER_3_PERMISSIONS: readonly string[] = [
     'agents.read',
@@ -1764,6 +1768,9 @@ export const TIER_3_PERMISSIONS: readonly string[] = [
     'shipments.read',
     'shipments.reassign',
     'shipments.tracking.read',
+    // Read every booking and resend its reminder — never the link, never a settle.
+    'bookings.read',
+    'bookings.remind',
     'audit.read',
     'notifications.read',
 ];

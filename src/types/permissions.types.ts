@@ -22,7 +22,14 @@ import type { AdminTier } from '@/types/auth.types';
 // ─── The catalogue ────────────────────────────────────────────────────────────
 
 /**
- * All 144 permissions, `family.resource.action`, in the doc's own family order.
+ * All 149 permissions, `family.resource.action`, in the doc's own family order.
+ *
+ * The 145th–149th are the **`bookings`** family (2026-10-27, the 24th —
+ * `bookings.md`, `FRONTEND-CHANGELOG-bookings.md`): `bookings.read` and
+ * `bookings.remind` (every tier, Support included), `bookings.access.read` and
+ * `bookings.intervene` (unflagged, tiers 1–2) and `bookings.settle`
+ * (`financial`, tiers 1–2). 149 / 126 / 49, from `permissions.md`'s banner and
+ * its matrix that day.
  *
  * The 144th is `agencies.claims.charge` (2026-10-22,
  * `FRONTEND-CHANGELOG-refund-fees-and-claims.md`): `financial`, tiers 1–2, never
@@ -349,6 +356,19 @@ export const PERMISSION_NAMES = [
     'shipments.reassign',
     'shipments.cancel',
 
+    // bookings — service bookings (2026-10-27), the counterpart of `orders` for
+    // bookable services. `read` and `remind` are every tier, Support included.
+    'bookings.read',
+    // The meeting link and the vendor's instructions on the detail — no route of
+    // its own. Tiers 1–2: Support learns only that a link exists.
+    'bookings.access.read',
+    'bookings.remind',
+    // Re-check a stuck payment, withdraw a stale proposal. Tiers 1–2.
+    'bookings.intervene',
+    // Cancel (refunds the customer at once, no second approver), complete (the
+    // vendor is paid after the hold), record cash. `financial`, tiers 1–2.
+    'bookings.settle',
+
     // administrators
     'administrators.read',
     'administrators.create',
@@ -462,7 +482,10 @@ export const UNROUTED_PERMISSION_NAMES = [
 ] as const;
 
 /**
- * The 23 families, in the matrix's declaration order.
+ * The 24 families, in the matrix's declaration order.
+ *
+ * `bookings` is the 24th, added 2026-10-27 for service bookings and placed
+ * after `shipments`, where `permissions.md` puts it.
  *
  * `reviews` is the 23rd, added 2026-10-05 for review moderation and placed
  * after `catalog`, where `permissions.md` puts it.
@@ -491,6 +514,7 @@ export const PERMISSION_FAMILIES = [
     'catalog',
     'reviews',
     'shipments',
+    'bookings',
     'administrators',
     'employees',
     'approvals',
@@ -503,14 +527,14 @@ export const PERMISSION_FAMILIES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Any of the 144. Use for what the *server* may send us. */
+/** Any of the 149. Use for what the *server* may send us. */
 export type PermissionName = (typeof PERMISSION_NAMES)[number];
 
 /** One of the four `†`. */
 export type UnroutedPermissionName = (typeof UNROUTED_PERMISSION_NAMES)[number];
 
 /**
- * The 140 that gate a real endpoint — 144 less the four `†`. **Use for what *our code* asks for** — nav
+ * The 145 that gate a real endpoint — 149 less the four `†`. **Use for what *our code* asks for** — nav
  * items, `<Can>`, `RequirePermission` — so that gating a screen on a permission
  * whose endpoint does not exist is a `tsc` error.
  */

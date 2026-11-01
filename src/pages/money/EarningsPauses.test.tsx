@@ -157,14 +157,18 @@ describe('the paused-earnings queue', () => {
         expect(within(booking).getByText('Nadia Admin')).toBeInTheDocument();
     });
 
-    it('links an order to its detail and leaves a booking as text — no booking screen exists', async () => {
+    /** A booking has had its own screen since 2026-10-27; until then it stayed text. */
+    it('links an order and a booking each to its detail', async () => {
         stubQueue();
 
         renderQueue(ADMIN);
 
         const orderLink = await screen.findByRole('link', { name: /ORD-2026-008841/ });
         expect(orderLink).toHaveAttribute('href', `/dashboard/orders/${ORDER_ID}`);
-        expect(screen.queryByRole('link', { name: /BKG-2026-000117/ })).not.toBeInTheDocument();
+        expect(screen.getByRole('link', { name: /BKG-2026-000117/ })).toHaveAttribute(
+            'href',
+            `/dashboard/bookings/${BOOKING_ID}`,
+        );
     });
 
     it('filters by kind with the pinned value', async () => {

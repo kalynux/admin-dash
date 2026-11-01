@@ -281,6 +281,31 @@ const platform = {
     AGENCY_CLAIM_NOT_ELIGIBLE:
         'Ce colis ne peut pas faire l’objet d’une réclamation — il n’a pas été livré, n’a pas d’agence, ou l’agence n’a fixé aucune limite par article.',
     AGENCY_CLAIM_NOT_FOUND: 'Cette réclamation pour dommage n’existe plus.',
+
+    // Réservations de services (2026-10-27).
+    BOOKING_NOT_FOUND: 'La plateforme n’a plus cette réservation. Elle a été supprimée pendant que ceci était ouvert.',
+    BOOKING_ALREADY_CANCELLED: 'Cette réservation est déjà annulée. Rechargez pour voir qui l’a annulée.',
+    BOOKING_TERMINAL_STATE:
+        'Cette réservation est terminée ; elle ne peut pas être annulée. Remboursez-la via la file des remboursements, qui reprend aussi les gains de la boutique.',
+    BOOKING_SESSION_EMPTY: 'Aucune autre réservation de ce cours n’est encore active ; il n’y a rien à annuler.',
+    BOOKING_ADMIN_COMPLETE_UNPAID:
+        'Cette réservation n’est pas payée ; il n’y a donc aucun argent retenu à libérer. Enregistrez d’abord le paiement en espèces, ou laissez la boutique la terminer.',
+    BOOKING_NOT_STARTED: 'Le rendez-vous n’a pas encore commencé ; il ne peut pas être terminé.',
+    BOOKING_INVALID_STATUS_TRANSITION:
+        'La réservation n’est plus dans un état qui permet de la terminer. Rechargez pour voir où elle en est.',
+    BOOKING_ALREADY_PAID: 'Cette réservation est déjà payée. Rien n’a été enregistré deux fois.',
+    BOOKING_PAYMENT_NOT_REQUIRED:
+        'Cette réservation ne demande pas de paiement ; il n’y a pas d’espèces à enregistrer.',
+    BOOKING_INVALID_PAYMENT_METHOD:
+        'Cette réservation a été payée autrement qu’en espèces ; un paiement en espèces ne peut pas être enregistré.',
+    BOOKING_PAYMENT_NOT_PENDING:
+        'Le paiement n’attend plus le prestataire ; il n’y a rien à revérifier. Rechargez pour voir où il en est.',
+    BOOKING_PAYMENT_STATE_MISMATCH:
+        'Le prestataire indique que le paiement a réussi, mais la réservation le montre toujours en cours. Cela demande un ingénieur — signalez-le avec l’identifiant de la requête.',
+    BOOKING_PROPOSAL_NOT_FOUND:
+        'Il n’y a plus de proposition de nouvel horaire ouverte — elle a reçu une réponse, a été retirée ou a expiré.',
+    BOOKING_REMINDER_NOT_APPLICABLE:
+        'Un rappel n’est envoyé que pour une réservation confirmée qui n’a pas encore commencé.',
 };
 
 export default platform;

@@ -62,13 +62,15 @@ export function earningsPauseColumns({
                         : row.kind === 'shipment'
                           ? 'tracking number'
                           : 'order number';
-                // An order and a delivery have a screen here; a booking opens from its ticket.
+                // Each kind opens its own screen — a booking's since 2026-10-27.
                 const to =
                     row.kind === 'order' && can('orders.read')
                         ? `/dashboard/orders/${encodeURIComponent(row.id)}`
                         : row.kind === 'shipment' && can('shipments.read')
                           ? `/dashboard/shipments/${encodeURIComponent(row.id)}`
-                          : undefined;
+                          : row.kind === 'booking' && can('bookings.read')
+                            ? `/dashboard/bookings/${encodeURIComponent(row.id)}`
+                            : undefined;
                 const orderId = row.kind === 'shipment' ? (row.orderId ?? null) : null;
                 const agencyId = row.kind === 'shipment' ? (row.agencyId ?? null) : null;
                 return (

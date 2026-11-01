@@ -42,6 +42,7 @@ import {
     refundPaymentChannelLabel,
     refundSourceKindLabel,
     refundSourcePath,
+    refundSourcePermission,
     refundStatusLabel,
     type CreateRefundResult,
     type RefundListQuery,
@@ -141,7 +142,8 @@ export function RefundRequestsList() {
                 header: 'For',
                 className: 'align-top',
                 cell: (row) => {
-                    const to = row.source.kind === 'order' && can('orders.read') ? refundSourcePath(row.source) : null;
+                    const needs = refundSourcePermission(row.source.kind);
+                    const to = needs && can(needs) ? refundSourcePath(row.source) : null;
                     return (
                         <div className="space-y-0.5">
                             <p className="text-muted-foreground text-xs">{refundSourceKindLabel(row.source.kind)}</p>

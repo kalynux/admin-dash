@@ -1,6 +1,6 @@
 # BR-032 · Three doc gaps left by the 2026-10-22 round (delivery pause, refund fees, damage claims)
 
-**Opened 2026-10-25. Status: open. Documentation only — no code, no wire change.**
+**Opened 2026-10-25. Status: ✅ ANSWERED 2026-11-01 — [`RESPONSE-2026-11-01-BR-032-033.md`](RESPONSE-2026-11-01-BR-032-033.md). Documentation only — no code, no wire change.**
 
 Found while building the two 2026-10-22 changelogs
 ([`FRONTEND-CHANGELOG-delivery-pause.md`](../../FRONTEND-CHANGELOG-delivery-pause.md),
