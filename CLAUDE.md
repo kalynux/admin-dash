@@ -123,6 +123,33 @@ labelled so. Gaps filed as [BR-035](api-doc/admin/dashboard/backend-requests/BR-
 including a rejected person whose frozen money no verb can release. Measured: `dump-routes.js` **`TOTAL 351` =
 350 routes**, `authz:matrix` **153 / 129 / 51**.
 
+✅ **Appointment reminders and proposed prices built 2026-11-03 — both sides remindable, the price read-only.**
+Contract: the three "Added 2026-11-03" notes in
+[FRONTEND-CHANGELOG-bookings.md](api-doc/admin/FRONTEND-CHANGELOG-bookings.md) · [bookings.md](api-doc/admin/api/bookings.md),
+both re-copied byte-for-byte. **Upstream committed (`bfc5fbb` wi-admin, `1ddd0cd` jovi-mall), not deployed, never
+called live.** No new permission. `POST /bookings/:id/reminder/vendor` → `remindBookingVendor`, behind `bookings.remind`
+(every tier) and the same `canRemindBooking`; the buttons read **Remind the customer** / **Remind the vendor**.
+`partyReminders` is keyed by who RECEIVED it, so `toCustomerAt` is *"The vendor reminded the customer"*; the card is
+omitted when the key is absent (an older wi-admin), never "Not sent". `pricing` renders through
+`components/bookings/BookingPricingCard.tsx`, above the tabs, only when `bookingPriceHasChanges()`. ⛔ **No control
+sets a price, at any tier** (tested). ⛔ Nothing computes money: jovi-mall's `amountPaid` is not on this service.
+🔴 **wi-admin sends the stored rows, not jovi-mall's `pricingView`**: an expired `open` is `lapsed`
+(`bookingPriceProposalStatus`, at `now >= expiresAt`), `open` on a booking that is not `pending` waits for nobody
+(`isPriceProposalWaiting`), and **a cancelled booking still reads `topup.status: due` and owes nothing**
+(`bookingTopupOwed`). 🔴 **`completeAsAdmin` also refuses a due difference, on a booking that reads `paid`**, so
+`isUnpaidForCompletion` includes it, Complete leaves the page **and** the paid no-show banner, and the notice says
+Record cash cannot settle it (`BOOKING_ALREADY_PAID`): no administrator route can
+([BR-036](api-doc/admin/dashboard/backend-requests/BR-036-booking-price-and-reminder-gaps.md) § 1, a decision for the
+owner). 🔴 **A price drop leaves a `goodwill` request on a booking that stays `paid`, and `bookingRefundFollowUp`
+counted any completed request as the cancel's refund**, which would have silenced a later `failed`, that notice being
+its only trace: a goodwill request older than `cancelledAt` no longer counts. ⚠ `price` is the **agreed** price
+everywhere, and the cancel and complete dialogs say so. ⚠ A price named with a new time is on `proposal.price` /
+`previousPrice`, never in `pricing.proposal`, so `ProposalCard` shows it; read from `booking.read.repository.ts`.
+⚠ `api-doc/jovi-mall/error-codes.ts` is six codes behind on purpose (`BOOKING_PRICE_*`, `BOOKING_REMINDER_ALREADY_SENT`):
+the brief did not ask for it and no administrator write can produce them. `audit.md` and `permissions.md` lag the source
+on the new action (BR-036 § 4). Six of these rules were perturbation-tested together. Measured: `dump-routes.js`
+**`TOTAL 352` = 351 routes**, `authz:matrix` unchanged at **153 / 129 / 51**.
+
 ✅ **BR-032 and BR-033 answered 2026-11-01 and built the same day — the permission guard is GREEN
 again, and a cancel now says what its refund did.** Reply:
 [RESPONSE-2026-11-01-BR-032-033.md](api-doc/admin/dashboard/backend-requests/RESPONSE-2026-11-01-BR-032-033.md).
@@ -1229,7 +1256,7 @@ machine, not the code.
 npm run dev       # 5175, strictPort
 npm run build     # tsc -b && vite build   ← the typecheck runs here
 npm run lint      # eslint .
-npm test          # vitest run — 3526 tests in 225 files with --maxWorkers=3 (2026-11-03, the referrals round, 15 node processes up, 807 s): 1 failure, a hand-written count in MyAccess.test.tsx, fixed and green alone; the whole suite was not re-run after that one-line fix. 3447 in 221, ALL GREEN, on 2026-11-02 (the partial-payment round, 15 node processes up, 753 s). 3431 in 220, green, on 2026-11-01 (the BR-032/033 round, nothing else running, 628 s). At default workers the same code failed 3 ArticleCreateDialog cover tests, which take ~14 s of the 20 s limit on an idle machine and pass alone: the suite's own workers are enough load to trip them. No sibling dashboard has one.
+npm test          # vitest run — 3559 tests in 225 files, ALL GREEN, with --maxWorkers=3 (2026-11-03, the booking reminders and prices round, 27 node processes up, 1113 s). 3526 in 225 earlier that day (the referrals round, 15 node processes up, 807 s): 1 failure, a hand-written count in MyAccess.test.tsx, fixed and green alone; the whole suite was not re-run after that one-line fix. 3447 in 221, ALL GREEN, on 2026-11-02 (the partial-payment round, 15 node processes up, 753 s). 3431 in 220, green, on 2026-11-01 (the BR-032/033 round, nothing else running, 628 s). At default workers the same code failed 3 ArticleCreateDialog cover tests, which take ~14 s of the 20 s limit on an idle machine and pass alone: the suite's own workers are enough load to trip them. No sibling dashboard has one.
 ```
 
 **Every phase closes the same way**: typecheck, lint, tests, build, then a written summary naming

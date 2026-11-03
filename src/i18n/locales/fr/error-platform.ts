@@ -293,7 +293,7 @@ const platform = {
         'Cette réservation est terminée ; elle ne peut pas être annulée. Remboursez-la via la file des remboursements, qui reprend aussi les gains de la boutique.',
     BOOKING_SESSION_EMPTY: 'Aucune autre réservation de ce cours n’est encore active ; il n’y a rien à annuler.',
     BOOKING_ADMIN_COMPLETE_UNPAID:
-        'Cette réservation n’est pas payée ; il n’y a donc aucun argent retenu à libérer. Enregistrez d’abord le paiement en espèces, ou laissez la boutique la terminer.',
+        'Cette réservation n’est pas entièrement payée ; elle ne peut donc pas être terminée. Enregistrez d’abord le paiement en espèces s’il y en a un, ou laissez la boutique la terminer. Une différence de prix est payée par le client ou enregistrée par la boutique.',
     BOOKING_NOT_STARTED: 'Le rendez-vous n’a pas encore commencé ; il ne peut pas être terminé.',
     BOOKING_INVALID_STATUS_TRANSITION:
         'La réservation n’est plus dans un état qui permet de la terminer. Rechargez pour voir où elle en est.',

@@ -63,6 +63,8 @@ export function bookingDetailFixture(overrides: Partial<BookingDetail> = {}): Bo
                 reason: null,
             },
         ],
+        pricing: { originalPrice: 10000, proposal: null, topup: null, history: [] },
+        partyReminders: { toCustomerAt: null, toVendorAt: null },
         earnings: { state: 'waiting', holdReleaseAt: null, releasedAt: null, pause: null },
         payments: [
             {

@@ -202,7 +202,10 @@ describe('the route total is the sum of its parts', () => {
         // ⚠ 333 → 350 on 2026-11-02, measured (`TOTAL 351`): the referral program — the
         // new `/referrals` group (17: settings, summary, rewards, partners, seven
         // decisions and per-partner terms).
-        expect(totalDeclared).toBe(350);
+        //
+        // ⚠ 350 → 351 on 2026-11-03, measured (`TOTAL 352`):
+        // `POST /bookings/:bookingId/reminder/vendor` (`/bookings` 13 → 14).
+        expect(totalDeclared).toBe(351);
     });
 });
 

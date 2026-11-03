@@ -24,6 +24,7 @@ import {
     BookingPaymentBadge,
     BookingStatusBadge,
 } from '@/components/bookings/BookingBadges';
+import { BookingPricingCard } from '@/components/bookings/BookingPricingCard';
 import { CopyableId } from '@/components/common/CopyableId';
 import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
@@ -49,6 +50,7 @@ import {
     bookingRefundFollowUp,
     bookingRefundOutcome,
     bookingStatusLabel,
+    bookingTopupOwed,
     canCancelBooking,
     canCancelBookingSession,
     canCompleteBooking,
@@ -56,6 +58,7 @@ import {
     canRecordCash,
     canRemindBooking,
     canWithdrawBookingProposal,
+    isGoodwillRefundLive,
     isPaidNoShow,
     isUnpaidForCompletion,
     type BookingCancelRefund,
@@ -79,7 +82,7 @@ const OBJECT_ID = /^[0-9a-f]{24}$/i;
 
 /**
  * `GET /bookings/:bookingId` · `bookings.read` — one booking, everyone involved,
- * and the seven interventions.
+ * and the eight interventions.
  *
  * ── Who sees what ─────────────────────────────────────────────────────────────
  * Every tier reads it all, except the meeting link's TEXT (`bookings.access.read`,
@@ -102,7 +105,12 @@ const OBJECT_ID = /^[0-9a-f]{24}$/i;
  *
  * ── Complete is never offered on an unpaid booking ────────────────────────────
  * jovi-mall refuses it (`BOOKING_ADMIN_COMPLETE_UNPAID`); **Record cash** is
- * offered in its place.
+ * offered in its place. ⚠ The same refusal covers a price difference still owed on
+ * a booking that reads `paid`, and Record cash cannot settle that one.
+ *
+ * ── The price is read-only ────────────────────────────────────────────────────
+ * `BookingPricingCard` shows it. ⛔ No control here sets a price: only the shop
+ * proposes and only the customer answers.
  */
 export function BookingDetail() {
     const { bookingId = '' } = useParams();
@@ -147,7 +155,8 @@ function BookingDetailScreen({ bookingId }: { bookingId: string }) {
     const [reloadToken, setReloadToken] = useState(0);
     const [fresh, setFresh] = useState<{ over: BookingRecord | null; next: BookingRecord } | null>(null);
     // When the screen opened — enough to decide whether a reminder is worth
-    // offering. jovi-mall re-checks the start time on the write itself.
+    // offering and whether a price proposal has lapsed. jovi-mall re-checks the
+    // start time on the write itself.
     const [now] = useState(() => Date.now());
     /*
       Two answers that exist on their write's response and nowhere else. The
@@ -203,6 +212,7 @@ function BookingDetailScreen({ bookingId }: { bookingId: string }) {
     const canSettle = can('bookings.settle');
     const refundFollowUp = bookingRefundFollowUp(record, refundOutcome);
     const unpaid = isUnpaidForCompletion(record);
+    const owed = bookingTopupOwed(record);
     const paidNoShow = isPaidNoShow(record);
     const canSeeActivity = can(['bookings.read', 'audit.read'], 'all');
     const canSeeMoney = can('money.earnings.read');
@@ -234,7 +244,10 @@ function BookingDetailScreen({ bookingId }: { bookingId: string }) {
                         ? button('withdraw', 'Withdraw proposal', <Undo className="size-4" />)
                         : null}
                     {can('bookings.remind') && canRemindBooking(record, now)
-                        ? button('remind', 'Resend reminder', <BellRing className="size-4" />)
+                        ? button('remind', 'Remind the customer', <BellRing className="size-4" />)
+                        : null}
+                    {can('bookings.remind') && canRemindBooking(record, now)
+                        ? button('remind-vendor', 'Remind the vendor', <BellRing className="size-4" />)
                         : null}
                     {canSettle && canCancelBookingSession(record)
                         ? button('cancel-session', 'Cancel whole class', <CalendarX2 className="size-4" />)
@@ -271,12 +284,13 @@ function BookingDetailScreen({ bookingId }: { bookingId: string }) {
                             The shop marked it no-show after the customer paid, so the money is held with no
                             release date. Complete it (the shop is paid after the hold) or cancel it (the customer
                             is refunded).
+                            {owed ? ' It cannot be completed while the customer still owes the price difference.' : null}
                             {canSettle ? null : ' An administrator who can settle bookings decides it.'}
                         </span>
                     </p>
                     {canSettle ? (
                         <div className="flex flex-wrap gap-2">
-                            {button('complete', 'Complete', <CheckCircle2 className="size-4" />)}
+                            {unpaid ? null : button('complete', 'Complete', <CheckCircle2 className="size-4" />)}
                             {button('cancel', 'Cancel and refund', <Ban className="size-4" />, 'destructive')}
                         </div>
                     ) : null}
@@ -285,14 +299,26 @@ function BookingDetailScreen({ bookingId }: { bookingId: string }) {
 
             {canSettle && canCompleteBooking(record) && unpaid ? (
                 <p className="bg-muted/40 rounded-md border p-3 text-sm">
-                    It cannot be completed yet: it is not paid, so there is no held money to release.
-                    {canRecordCash(record)
-                        ? ' If the customer paid the shop in cash, record the cash first.'
-                        : ' It was not booked for cash, so the customer has to pay through the platform.'}
+                    {owed ? (
+                        <>
+                            It cannot be completed yet: the customer still owes{' '}
+                            {formatMoney(owed.amount, record.currency)} since the price went up. Record cash does not
+                            cover a price difference: the customer pays it through the platform, or the shop records it.
+                        </>
+                    ) : (
+                        <>
+                            It cannot be completed yet: it is not paid, so there is no held money to release.
+                            {canRecordCash(record)
+                                ? ' If the customer paid the shop in cash, record the cash first.'
+                                : ' It was not booked for cash, so the customer has to pay through the platform.'}
+                        </>
+                    )}
                 </p>
             ) : null}
 
             {record.proposal ? <ProposalCard record={record} timeZone={timeZone} /> : null}
+
+            <BookingPricingCard record={record} timeZone={timeZone} now={now} />
 
             {canSeeMoney ? (
                 <EarningsPauseCard
@@ -511,6 +537,28 @@ function OverviewPanel({ record, timeZone, can }: { record: BookingRecord; timeZ
                 </CardContent>
             </Card>
 
+            {record.partyReminders ? (
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Reminders between the two sides</CardTitle>
+                        <CardDescription>
+                            Each side can send the other one reminder. The reminder buttons on this page are separate:
+                            they do not show here and do not use these up.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <DefinitionList>
+                            <Definition label="The vendor reminded the customer">
+                                {formatInstantInZone(record.partyReminders.toCustomerAt, timeZone) ?? <NotSet>Not sent</NotSet>}
+                            </Definition>
+                            <Definition label="The customer reminded the vendor">
+                                {formatInstantInZone(record.partyReminders.toVendorAt, timeZone) ?? <NotSet>Not sent</NotSet>}
+                            </Definition>
+                        </DefinitionList>
+                    </CardContent>
+                </Card>
+            ) : null}
+
             <Card>
                 <CardHeader>
                     <CardTitle>The shop’s money</CardTitle>
@@ -518,8 +566,13 @@ function OverviewPanel({ record, timeZone, can }: { record: BookingRecord; timeZ
                 </CardHeader>
                 <CardContent className="space-y-3">
                     <DefinitionList>
-                        <Definition label="Price">
+                        <Definition label="Agreed price">
                             {formatMoney(record.price, record.currency)}
+                            {record.pricing && record.pricing.originalPrice !== record.price ? (
+                                <span className="text-muted-foreground ml-2 text-xs">
+                                    booked at {formatMoney(record.pricing.originalPrice, record.currency)}
+                                </span>
+                            ) : null}
                             {!record.requiresPayment ? (
                                 <span className="text-muted-foreground ml-2 text-xs">no payment required</span>
                             ) : null}
@@ -626,6 +679,17 @@ function ProposalCard({ record, timeZone }: { record: BookingRecord; timeZone: s
                         {formatInstantInZone(proposal.previousStartAt, timeZone)} –{' '}
                         {formatInstantInZone(proposal.previousEndAt, timeZone)}
                     </Definition>
+                    {typeof proposal.price === 'number' ? (
+                        <Definition label="Price with this time">
+                            <p>{formatMoney(proposal.price, record.currency)}</p>
+                            <p className="text-muted-foreground text-xs">
+                                {typeof proposal.previousPrice === 'number'
+                                    ? `Replaces ${formatMoney(proposal.previousPrice, record.currency)}. `
+                                    : ''}
+                                The time and the price are answered together.
+                            </p>
+                        </Definition>
+                    ) : null}
                     <Definition label="Proposed">{formatInstantInZone(proposal.proposedAt, timeZone)}</Definition>
                     <Definition label="Answer due by">
                         {formatInstantInZone(proposal.expiresAt, timeZone)}
@@ -784,6 +848,12 @@ function MoneyPanel({ record, timeZone, can }: { record: BookingRecord; timeZone
                             {refundReasonKindLabel(row.reasonKind)}
                             {row.requestedBy ? ` · by ${row.requestedBy}` : ''}
                         </p>
+                        {isGoodwillRefundLive(row) && record.status !== 'cancelled' ? (
+                            <p className="text-muted-foreground text-xs">
+                                This can be the difference going back after a rescheduled price went down. The booking
+                                stays as it is.
+                            </p>
+                        ) : null}
                     </div>
                 );
             },

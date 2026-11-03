@@ -150,7 +150,8 @@ describe('who may act on a booking', () => {
             tier: 3,
             booking: supportBookingDetailFixture({ startAt: '2099-01-01T09:00:00.000Z', endAt: '2099-01-01T10:00:00.000Z', paymentStatus: 'pending' }),
         });
-        expect(await screen.findByRole('button', { name: /resend reminder/i })).toBeInTheDocument();
+        expect(await screen.findByRole('button', { name: /remind the customer/i })).toBeInTheDocument();
+        expect(button(/remind the vendor/i)).toBeInTheDocument();
         for (const name of [/^complete$/i, /^cancel$/i, /record cash/i, /re-check payment/i, /withdraw proposal/i]) {
             expect(button(name), String(name)).not.toBeInTheDocument();
         }
@@ -504,6 +505,295 @@ describe('what a session cancel’s refunds did', () => {
         });
         expect(await screen.findByRole('tab', { name: /overview/i })).toBeInTheDocument();
         expect(screen.queryByText(/booking.* cancelled;|did not say/i)).not.toBeInTheDocument();
+    });
+});
+
+describe('reminding each side', () => {
+    const upcoming = { startAt: '2099-01-01T09:00:00.000Z', endAt: '2099-01-01T10:00:00.000Z' };
+
+    it('names who each button reaches', async () => {
+        renderDetail({ booking: bookingDetailFixture(upcoming) });
+        expect(await screen.findByRole('button', { name: 'Remind the customer' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Remind the vendor' })).toBeInTheDocument();
+    });
+
+    it('offers neither on a booking that has started', async () => {
+        renderDetail();
+        await screen.findByText('Paul N.');
+        expect(button(/remind the/i)).not.toBeInTheDocument();
+    });
+
+    /** Same gate as the customer's: perturbation — drop `can('bookings.remind')` and this goes red. */
+    it('hides both from an administrator without the permission', async () => {
+        const held = new Set([...heldFixture(3)].filter((name) => name !== 'bookings.remind'));
+        renderDetail({ held, booking: supportBookingDetailFixture(upcoming) });
+        await screen.findByText('Paul N.');
+        expect(button(/remind the/i)).not.toBeInTheDocument();
+    });
+
+    it('sends the vendor’s to its own route, then redraws from the answer without reading again', async () => {
+        const after = bookingDetailFixture({ ...upcoming, customerNote: 'Read from the answer' });
+        const calls = renderDetail({
+            booking: bookingDetailFixture(upcoming),
+            write: () => successResponse({ booking: after, result: { sent: true, reason: null } }, { message: 'Reminder sent to the vendor' }),
+        });
+        await userEvent.click(await screen.findByRole('button', { name: 'Remind the vendor' }));
+        const dialog = await screen.findByRole('dialog');
+        expect(within(dialog).getByText(/from wi-mall support/i)).toBeInTheDocument();
+        await userEvent.type(within(dialog).getByRole('textbox'), 'Ticket 42');
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Remind the vendor' }));
+
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        const post = calls.find((call) => call.method === 'POST')!;
+        expect(post.url).toMatch(new RegExp(`/bookings/${BOOKING_ID}/reminder/vendor$`));
+        expect(JSON.parse(post.body!)).toEqual({ reason: 'Ticket 42' });
+        expect(await screen.findByText('Read from the answer')).toBeInTheDocument();
+        expect(calls.filter((call) => call.method === 'GET' && call.url.endsWith(`/bookings/${BOOKING_ID}`))).toHaveLength(1);
+    });
+
+    it('keeps the customer’s on the old route', async () => {
+        const calls = renderDetail({
+            booking: bookingDetailFixture(upcoming),
+            write: () => successResponse({ booking: bookingDetailFixture(upcoming), result: { sent: true, reason: null } }),
+        });
+        await userEvent.click(await screen.findByRole('button', { name: 'Remind the customer' }));
+        const dialog = await screen.findByRole('dialog');
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Remind the customer' }));
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        expect(calls.find((call) => call.method === 'POST')!.url).toMatch(new RegExp(`/bookings/${BOOKING_ID}/reminder$`));
+    });
+
+    it('says why when the booking cannot take a reminder', async () => {
+        renderDetail({
+            booking: bookingDetailFixture(upcoming),
+            write: () =>
+                errorResponse(409, 'PLATFORM_OPERATION_REJECTED', {
+                    category: 'conflict',
+                    details: { platformCode: 'BOOKING_REMINDER_NOT_APPLICABLE' },
+                }),
+        });
+        await userEvent.click(await screen.findByRole('button', { name: 'Remind the vendor' }));
+        const dialog = await screen.findByRole('dialog');
+        await userEvent.click(within(dialog).getByRole('button', { name: 'Remind the vendor' }));
+        expect(await within(dialog).findByText(/only sent for a confirmed booking/i)).toBeInTheDocument();
+    });
+
+    /** Keyed by who RECEIVED it: `toCustomerAt` is the vendor's reminder. */
+    it('shows the two sides’ own reminders under the right names', async () => {
+        renderDetail({
+            booking: bookingDetailFixture({
+                partyReminders: { toCustomerAt: '2026-10-19T08:00:00.000Z', toVendorAt: null },
+            }),
+        });
+        const vendorSent = await screen.findByText('The vendor reminded the customer');
+        expect(vendorSent.nextElementSibling).toHaveTextContent(/2026|19 Oct|Oct 19/);
+        expect(vendorSent.nextElementSibling).not.toHaveTextContent(/not sent/i);
+        expect(screen.getByText('The customer reminded the vendor').nextElementSibling).toHaveTextContent(/not sent/i);
+    });
+
+    /** "Unknown" must not read as "nobody reminded anyone". */
+    it('shows no reminder rows against an older service', async () => {
+        renderDetail({ booking: bookingDetailFixture({ partyReminders: undefined }) });
+        await screen.findByText('Paul N.');
+        expect(screen.queryByText('The vendor reminded the customer')).not.toBeInTheDocument();
+    });
+});
+
+describe('the price', () => {
+    const proposal = {
+        status: 'open',
+        amount: 7000,
+        previousAmount: 5000,
+        proposedAt: '2099-01-01T08:00:00.000Z',
+        expiresAt: '2099-01-02T08:00:00.000Z',
+        answeredAt: null,
+    };
+    const topup = { status: 'due', amount: 2000, dueAt: '2099-01-02T08:00:00.000Z', paidAt: null, method: null };
+    const pricing = (overrides = {}) => ({ originalPrice: 5000, proposal: null, topup: null, history: [], ...overrides });
+    const card = () => screen.getByRole('region', { name: /the booking’s price/i });
+
+    it('shows nothing extra on a price that never moved', async () => {
+        renderDetail();
+        await screen.findByText('Paul N.');
+        expect(screen.queryByRole('region', { name: /the booking’s price/i })).not.toBeInTheDocument();
+        expect(screen.queryByText(/booked at/i)).not.toBeInTheDocument();
+    });
+
+    it('shows nothing extra against an older service', async () => {
+        renderDetail({ booking: bookingDetailFixture({ pricing: undefined }) });
+        await screen.findByText('Paul N.');
+        expect(screen.queryByRole('region', { name: /the booking’s price/i })).not.toBeInTheDocument();
+    });
+
+    it('shows what was booked beside the agreed price when they differ', async () => {
+        renderDetail({ booking: bookingDetailFixture({ price: 7000, pricing: pricing() }) });
+        await screen.findByText('Paul N.');
+        expect(screen.getByText(/booked at\s+\D*5,000/i)).toBeInTheDocument();
+        expect(within(card()).getByText('Booked at').nextElementSibling).toHaveTextContent(/5,000/);
+        expect(within(card()).getByText('Agreed price').nextElementSibling).toHaveTextContent(/7,000/);
+    });
+
+    it('shows an open proposal as waiting for the customer', async () => {
+        renderDetail({ booking: bookingDetailFixture({ status: 'pending', price: 5000, pricing: pricing({ proposal }) }) });
+        await screen.findByText('Paul N.');
+        expect(within(card()).getByText(/a new price is proposed/i)).toBeInTheDocument();
+        expect(within(card()).getByText('Proposed price').nextElementSibling).toHaveTextContent(/7,000/);
+        expect(within(card()).getByText('Price it would replace').nextElementSibling).toHaveTextContent(/5,000/);
+        expect(within(card()).getByText('Waiting for the customer')).toBeInTheDocument();
+    });
+
+    /** ⚠ `lapsed` is written lazily. Perturbation: read `proposal.status` directly and this goes red. */
+    it('reads a stored open past its date as lapsed', async () => {
+        const stale = { ...proposal, proposedAt: '2020-01-01T08:00:00.000Z', expiresAt: '2020-01-02T08:00:00.000Z' };
+        renderDetail({ booking: bookingDetailFixture({ status: 'pending', price: 5000, pricing: pricing({ proposal: stale }) }) });
+        await screen.findByText('Paul N.');
+        expect(within(card()).getByText(/lapsed/i)).toBeInTheDocument();
+        expect(within(card()).queryByText('Waiting for the customer')).not.toBeInTheDocument();
+        expect(within(card()).queryByText(/a new price is proposed/i)).not.toBeInTheDocument();
+    });
+
+    it('says what is still owed, by when, and what happens after', async () => {
+        renderDetail({ booking: bookingDetailFixture({ price: 7000, pricing: pricing({ topup }) }) });
+        await screen.findByText('Paul N.');
+        expect(within(card()).getByText(/still owes a price difference/i)).toBeInTheDocument();
+        expect(within(card()).getByText('Amount').nextElementSibling).toHaveTextContent(/2,000/);
+        expect(within(card()).getByText('Still owed')).toBeInTheDocument();
+        expect(within(card()).getByText(/booking is cancelled and what was paid is refunded/i)).toBeInTheDocument();
+    });
+
+    /** wi-admin sends the stored row, and cancelling leaves it at `due`. */
+    it('does not call a difference owed on a cancelled booking', async () => {
+        renderDetail({
+            booking: bookingDetailFixture({ status: 'cancelled', paymentStatus: 'refunded', price: 7000, pricing: pricing({ topup }) }),
+        });
+        await screen.findByText('Paul N.');
+        expect(within(card()).queryByText(/still owes/i)).not.toBeInTheDocument();
+        expect(within(card()).getByText(/not owed: the booking was cancelled/i)).toBeInTheDocument();
+        expect(within(card()).queryByText('Due by')).not.toBeInTheDocument();
+    });
+
+    /** `completeAsAdmin` answers BOOKING_ADMIN_COMPLETE_UNPAID, though the booking reads `paid`. */
+    it('never offers Complete while a difference is owed, and says Record cash will not settle it', async () => {
+        renderDetail({ booking: bookingDetailFixture({ price: 7000, pricing: pricing({ topup }) }) });
+        await screen.findByText('Paul N.');
+        expect(button(/^complete$/i)).not.toBeInTheDocument();
+        expect(button(/record cash/i)).not.toBeInTheDocument();
+        expect(screen.getByText(/record cash does not\s+cover a price difference/i)).toBeInTheDocument();
+    });
+
+    it('takes Complete off the paid no-show banner too while a difference is owed', async () => {
+        renderDetail({ booking: bookingDetailFixture({ status: 'no-show', price: 7000, pricing: pricing({ topup }) }) });
+        const banner = (await screen.findByText(/a paid no-show waits for an administrator/i)).closest('[role="status"]') as HTMLElement;
+        expect(within(banner).queryByRole('button', { name: /^complete$/i })).not.toBeInTheDocument();
+        expect(within(banner).getByRole('button', { name: /cancel and refund/i })).toBeInTheDocument();
+        expect(banner).toHaveTextContent(/still owes the price difference/i);
+    });
+
+    it('lists every agreed change in the order sent', async () => {
+        const history = [
+            { from: 5000, to: 7000, at: '2026-10-10T08:00:00.000Z', kind: 'approval' },
+            { from: 7000, to: 6000, at: '2026-10-12T08:00:00.000Z', kind: 'reschedule' },
+        ];
+        renderDetail({ booking: bookingDetailFixture({ price: 6000, pricing: pricing({ history }) }) });
+        await screen.findByText('Paul N.');
+        const rows = within(card()).getAllByRole('listitem');
+        expect(rows).toHaveLength(2);
+        expect(rows[0]).toHaveTextContent(/5,000.*7,000/);
+        expect(rows[0]).toHaveTextContent(/before the booking was confirmed/i);
+        expect(rows[1]).toHaveTextContent(/7,000.*6,000/);
+        expect(rows[1]).toHaveTextContent(/with a new time/i);
+    });
+
+    /** ⛔ Only the shop proposes and only the customer answers. */
+    it('gives no control that could set a price, at any tier', async () => {
+        renderDetail({
+            tier: 1,
+            booking: bookingDetailFixture({
+                status: 'pending',
+                price: 7000,
+                pricing: pricing({ proposal, topup, history: [{ from: 5000, to: 7000, at: '2026-10-10T08:00:00.000Z', kind: 'approval' }] }),
+            }),
+        });
+        await screen.findByText('Paul N.');
+        for (const role of ['button', 'textbox', 'spinbutton', 'link'] as const) {
+            expect(within(card()).queryByRole(role), role).not.toBeInTheDocument();
+        }
+    });
+
+    it('shows Support the same figures', async () => {
+        renderDetail({ tier: 3, booking: supportBookingDetailFixture({ price: 7000, pricing: pricing({ topup }) }) });
+        await screen.findByText('Paul N.');
+        expect(within(card()).getByText('Amount').nextElementSibling).toHaveTextContent(/2,000/);
+    });
+
+    it('shows a price named with a new time on the proposal of that time', async () => {
+        const timeProposal = {
+            status: 'open',
+            proposedBy: 'vendor',
+            startAt: '2099-01-03T08:00:00.000Z',
+            endAt: '2099-01-03T09:00:00.000Z',
+            previousStartAt: '2099-01-02T08:00:00.000Z',
+            previousEndAt: '2099-01-02T09:00:00.000Z',
+            proposedAt: '2099-01-01T08:00:00.000Z',
+            expiresAt: '2099-01-02T07:00:00.000Z',
+            answeredAt: null,
+            live: true,
+            price: 6000,
+            previousPrice: 7000,
+        };
+        renderDetail({ booking: bookingDetailFixture({ proposal: timeProposal }) });
+        const row = (await screen.findByText('Price with this time')).nextElementSibling;
+        expect(row).toHaveTextContent(/6,000/);
+        expect(row).toHaveTextContent(/replaces\s+\D*7,000/i);
+    });
+
+    it('shows no price row on a proposal of a time alone', async () => {
+        const timeOnly = {
+            status: 'open',
+            proposedBy: 'customer',
+            startAt: '2099-01-03T08:00:00.000Z',
+            endAt: '2099-01-03T09:00:00.000Z',
+            previousStartAt: '2099-01-02T08:00:00.000Z',
+            previousEndAt: '2099-01-02T09:00:00.000Z',
+            proposedAt: '2099-01-01T08:00:00.000Z',
+            expiresAt: '2099-01-02T07:00:00.000Z',
+            live: true,
+            price: null,
+            previousPrice: null,
+        };
+        renderDetail({ booking: bookingDetailFixture({ proposal: timeOnly }) });
+        await screen.findByText('Paul N.');
+        expect(screen.queryByText('Price with this time')).not.toBeInTheDocument();
+    });
+});
+
+describe('a goodwill refund', () => {
+    const goodwill = {
+        id: '6800000000000000000000fe',
+        status: 'completed',
+        reasonKind: 'goodwill',
+        grossAmount: 1000,
+        feeAmount: 20,
+        netAmount: 980,
+        feesPaidBy: 'vendor',
+        currency: 'XAF',
+        requestedBy: 'agreed price lowered',
+        createdAt: '2026-10-12T08:00:00.000Z',
+    };
+
+    it('is explained on a booking that stays paid, not raised as a problem', async () => {
+        renderDetail({ booking: bookingDetailFixture({ paymentStatus: 'paid', refunds: [goodwill] }) });
+        await screen.findByText('Paul N.');
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        await userEvent.click(screen.getByRole('tab', { name: /payments and refunds/i }));
+        expect(await screen.findByText(/rescheduled price went down/i)).toBeInTheDocument();
+    });
+
+    it('warns the cancel dialog that less may go back than the payments listed', async () => {
+        renderDetail({ booking: bookingDetailFixture({ refunds: [goodwill] }) });
+        await userEvent.click(await screen.findByRole('button', { name: /^cancel$/i }));
+        const dialog = await screen.findByRole('dialog');
+        expect(within(dialog).getByText(/already been opened/i)).toBeInTheDocument();
     });
 });
 

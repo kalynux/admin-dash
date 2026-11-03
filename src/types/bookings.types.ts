@@ -5,9 +5,9 @@
  * Source: `api-doc/admin/api/bookings.md` and
  * `api-doc/admin/FRONTEND-CHANGELOG-bookings.md`. The nested blocks and each
  * write's `result` were read from wi-admin's source first and documented on the
- * page at BR-033 § 3 (2026-11-01), which confirmed every field. ⚠ Two more reach
- * us undeclared on purpose — `proposal.slotId` and
- * `settlement.balanceTransactionId` — and are not to be built on.
+ * page at BR-033 § 3 (2026-11-01), which confirmed every field. ⚠ Three more reach
+ * us undeclared on purpose — `proposal.slotId`, `settlement.balanceTransactionId`
+ * and `pricing.topup.seq` — and are not to be built on.
  *
  * ── Two vocabularies, two owners ──────────────────────────────────────────────
  * `status` and `paymentStatus` are **jovi-mall's**, validated by shape only
@@ -170,7 +170,10 @@ export interface BookingListItem {
     paymentMethod: string | null;
     startAt: string;
     endAt: string;
-    /** The booked price, in the account currency. Printed as sent. */
+    /**
+     * The AGREED price, in the account currency. Printed as sent. ⚠ Not always what
+     * the customer booked at — that is `pricing.originalPrice` on the detail.
+     */
     price: number;
     currency: string;
     requiresPayment: boolean;
@@ -250,6 +253,74 @@ export interface BookingProposal {
     answeredAt?: string | null;
     /** `open` and not yet expired — the same test as the list's `proposalOpen`. */
     live: boolean;
+    /**
+     * A new price named with the new time, answered together with it. `null` when the
+     * price is untouched, and absent from an older service. Read from
+     * `booking.read.repository.ts`; the page does not list these two.
+     */
+    price?: number | null;
+    previousPrice?: number | null;
+}
+
+/**
+ * The shop's latest proposal of a price (`pricing.proposal`), kept after it is
+ * answered. ⚠ Read the status through `bookingPriceProposalStatus()`: `lapsed` is
+ * written lazily, so an expired proposal can still read `open`.
+ */
+export interface BookingPriceProposal {
+    /** `open` · `accepted` · `declined` · `withdrawn` · `lapsed`. Open vocabulary. */
+    status: string;
+    amount: number;
+    previousAmount: number;
+    proposedAt: string;
+    expiresAt: string;
+    answeredAt?: string | null;
+}
+
+/**
+ * What a paid booking owes after its agreed price went up (`pricing.topup`).
+ * ⚠ wi-admin sends the stored row, so a cancelled booking can still read `due`:
+ * read what is owed through `bookingTopupOwed()`.
+ */
+export interface BookingPriceTopup {
+    /** `due` · `paid` · `superseded`. Open vocabulary. */
+    status: string;
+    amount: number;
+    dueAt: string;
+    paidAt?: string | null;
+    /** `online` · `cash`. */
+    method?: string | null;
+}
+
+/** One agreed change of price (`pricing.history`). */
+export interface BookingPriceChange {
+    from: number;
+    to: number;
+    at: string;
+    /** `approval` · `reschedule`. Open vocabulary. */
+    kind: string;
+}
+
+/**
+ * ⛔ **Read-only.** Only the shop proposes a price and only the customer answers;
+ * there is no administrator write, and no field here feeds one.
+ */
+export interface BookingPricing {
+    /** What the customer booked at. The agreed price is `price`, on the booking. */
+    originalPrice: number;
+    proposal: BookingPriceProposal | null;
+    topup: BookingPriceTopup | null;
+    /** Oldest first. */
+    history: BookingPriceChange[];
+}
+
+/**
+ * The one-time reminders the two sides send each other, keyed by who RECEIVED them.
+ * `null` until sent. ⚠ An administrator's reminder neither sets nor is limited by these.
+ */
+export interface BookingPartyReminders {
+    toCustomerAt: string | null;
+    toVendorAt: string | null;
 }
 
 /** A duration-priced booking's final reckoning. Read from `booking.read.repository.ts`. */
@@ -369,6 +440,10 @@ export interface BookingDetail extends BookingListItem {
     proposal: BookingProposal | null;
     /** Oldest first. ⚠ **Empty means "not recorded"** (before 2026-10-27), never "nothing happened". */
     statusHistory: BookingStatusChange[];
+    /** Absent from an older service, which must not read as "the price never moved". */
+    pricing?: BookingPricing;
+    /** Absent from an older service, which must not read as "nobody reminded anyone". */
+    partyReminders?: BookingPartyReminders;
     earnings: BookingEarnings;
     payments: BookingPayment[];
     refunds: BookingRefund[];
@@ -391,6 +466,94 @@ export function bookingAccessText(access: BookingAccessOnDetail | null): {
         instructions:
             typeof access.instructions === 'string' && access.instructions ? access.instructions : null,
     };
+}
+
+// ─── The price ────────────────────────────────────────────────────────────────
+
+/** The price moved, or somebody tried to move it. Most bookings have nothing to show here. */
+export function bookingPriceHasChanges(booking: Pick<BookingDetail, 'price' | 'pricing'>): boolean {
+    const pricing = booking.pricing;
+    if (!pricing) return false;
+    return (
+        pricing.originalPrice !== booking.price ||
+        pricing.proposal !== null ||
+        pricing.topup !== null ||
+        pricing.history.length > 0
+    );
+}
+
+/** jovi-mall's `effectivePriceProposalStatus`: a stored `open` at or past `expiresAt` has lapsed. */
+export function bookingPriceProposalStatus(
+    proposal: Pick<BookingPriceProposal, 'status' | 'expiresAt'>,
+    now: number,
+): string {
+    return proposal.status === 'open' && now >= new Date(proposal.expiresAt).getTime() ? 'lapsed' : proposal.status;
+}
+
+/**
+ * The customer is being asked right now. jovi-mall's `hasLivePriceProposal`: only a
+ * `pending` booking can be waiting, and cancelling one does not answer its proposal.
+ */
+export function isPriceProposalWaiting(booking: Pick<BookingDetail, 'status' | 'pricing'>, now: number): boolean {
+    const proposal = booking.pricing?.proposal;
+    return !!proposal && booking.status === 'pending' && bookingPriceProposalStatus(proposal, now) === 'open';
+}
+
+const PRICE_PROPOSAL_STATUS_LABELS: Record<string, string> = {
+    open: 'Waiting for the customer',
+    accepted: 'Accepted by the customer',
+    declined: 'Declined by the customer',
+    withdrawn: 'Withdrawn by the shop',
+    lapsed: 'Lapsed: not answered in time',
+};
+
+export function bookingPriceProposalLabel(
+    booking: Pick<BookingDetail, 'status'>,
+    proposal: Pick<BookingPriceProposal, 'status' | 'expiresAt'>,
+    now: number,
+): string {
+    const status = bookingPriceProposalStatus(proposal, now);
+    if (status === 'open' && booking.status !== 'pending') return 'Never answered';
+    return PRICE_PROPOSAL_STATUS_LABELS[status] ?? status;
+}
+
+/**
+ * What the customer still owes for a raised price, or `null`. jovi-mall's rule on
+ * every read: *"a cancelled booking owes nothing, whatever was due when it was
+ * cancelled"*, and the cancellation leaves the stored row at `due`.
+ */
+export function bookingTopupOwed(booking: Pick<BookingDetail, 'status' | 'pricing'>): BookingPriceTopup | null {
+    const topup = booking.pricing?.topup;
+    return topup?.status === 'due' && booking.status !== 'cancelled' ? topup : null;
+}
+
+const PRICE_TOPUP_STATUS_LABELS: Record<string, string> = {
+    due: 'Still owed',
+    paid: 'Paid',
+    superseded: 'Replaced by a later price',
+};
+
+export function bookingTopupStatusLabel(booking: Pick<BookingDetail, 'status'>, topup: Pick<BookingPriceTopup, 'status'>): string {
+    if (topup.status === 'due' && booking.status === 'cancelled') return 'Not owed: the booking was cancelled';
+    return PRICE_TOPUP_STATUS_LABELS[topup.status] ?? topup.status;
+}
+
+const PRICE_CHANGE_KIND_LABELS: Record<string, string> = {
+    approval: 'Accepted before the booking was confirmed',
+    reschedule: 'Agreed with a new time',
+};
+
+export function bookingPriceChangeLabel(kind: string): string {
+    return PRICE_CHANGE_KIND_LABELS[kind] ?? kind;
+}
+
+/**
+ * A goodwill request that is under way or done. On a booking still on, this is what
+ * a rescheduled price going down looks like: the difference goes back through the
+ * refund queue and the booking stays `paid`. ⚠ Not an error, and not the whole price.
+ */
+export function isGoodwillRefundLive(refund: Pick<BookingRefund, 'reasonKind' | 'status'>): boolean {
+    return refund.reasonKind === 'goodwill' && (isRefundOpen(refund.status) || refund.status === 'completed');
 }
 
 // ─── The two verdict reads ────────────────────────────────────────────────────
@@ -529,15 +692,24 @@ export function refundNeedsAPerson(refund: unknown): boolean {
  * read off the booking, so a reload (or a jovi-mall that sends no `refund`) tells
  * the same story. A request that is open or completed is the refund happening, so
  * it wins over everything: raising one by hand ends the follow-up.
+ *
+ * ⚠ **Except a goodwill request older than the cancellation.** A rescheduled price
+ * going down opens one, and it carries only that difference: it must not silence a
+ * cancellation whose own refund failed, because this notice is that failure's only trace.
  */
 export type BookingRefundFollowUp = 'failed' | 'manual' | 'unflagged';
 
 export function bookingRefundFollowUp(
-    booking: Pick<BookingDetail, 'status' | 'paymentStatus' | 'refunds'>,
+    booking: Pick<BookingDetail, 'status' | 'paymentStatus' | 'refunds' | 'cancelledAt'>,
     outcome: BookingCancelRefund | null = null,
 ): BookingRefundFollowUp | null {
     if (booking.status !== 'cancelled') return null;
-    if (booking.refunds.some((row) => isRefundOpen(row.status) || row.status === 'completed')) return null;
+    const cancelledAt = booking.cancelledAt ? new Date(booking.cancelledAt).getTime() : null;
+    const carriesTheRefund = (row: BookingRefund) => {
+        if (!isRefundOpen(row.status) && row.status !== 'completed') return false;
+        return !(row.reasonKind === 'goodwill' && cancelledAt !== null && new Date(row.createdAt).getTime() < cancelledAt);
+    };
+    if (booking.refunds.some(carriesTheRefund)) return null;
     if (outcome === 'failed' || outcome === 'manual') return outcome;
     if (outcome !== null) return null;
     if (booking.paymentStatus === 'paid') return 'unflagged';
@@ -564,7 +736,10 @@ export interface BookingRecheckResult {
     transaction: { id: string; status: string; gateway: string } | null;
 }
 
-/** `POST /:id/reminder`. `sent: false` when the account has no customer profile. */
+/**
+ * `POST /:id/reminder` and `POST /:id/reminder/vendor`. `sent: false` when the
+ * account has no customer profile — the vendor's route has no such case today.
+ */
 export interface BookingReminderResult {
     sent: boolean;
     reason: string | null;
@@ -603,12 +778,16 @@ export function canCompleteBooking(booking: Pick<BookingListItem, 'status'>): bo
 }
 
 /**
- * Unpaid for completion: `requiresPayment` and not `paid` — jovi-mall's own test
- * for `BOOKING_ADMIN_COMPLETE_UNPAID` (`completeAsAdmin`). Complete is then
- * replaced by Record cash.
+ * Unpaid for completion: `requiresPayment` and not `paid`, or a price difference
+ * still `due` — jovi-mall's own test for `BOOKING_ADMIN_COMPLETE_UNPAID`
+ * (`completeAsAdmin`). Complete is then replaced by Record cash, where the booking
+ * can take one. ⚠ **A difference still reads `paid`**, so Record cash cannot settle
+ * it (`BOOKING_ALREADY_PAID`): the customer pays it, or the shop records it.
  */
-export function isUnpaidForCompletion(booking: Pick<BookingListItem, 'requiresPayment' | 'paymentStatus'>): boolean {
-    return booking.requiresPayment && booking.paymentStatus !== 'paid';
+export function isUnpaidForCompletion(
+    booking: Pick<BookingListItem, 'requiresPayment' | 'paymentStatus'> & Pick<BookingDetail, 'pricing'>,
+): boolean {
+    return (booking.requiresPayment && booking.paymentStatus !== 'paid') || booking.pricing?.topup?.status === 'due';
 }
 
 /**
@@ -637,8 +816,8 @@ export function canWithdrawBookingProposal(booking: Pick<BookingListItem, 'propo
 }
 
 /**
- * Resend the reminder: confirmed and not started yet (`resendReminder`). `now`
- * is a parameter so the predicate stays pure.
+ * Remind either side: confirmed and not started yet (`resendReminder` and
+ * `remindVendor` apply the same rule). `now` is a parameter so the predicate stays pure.
  */
 export function canRemindBooking(booking: Pick<BookingListItem, 'status' | 'startAt'>, now: number): boolean {
     return booking.status === 'confirmed' && new Date(booking.startAt).getTime() > now;
@@ -706,6 +885,7 @@ export const BOOKING_AUDIT_ACTIONS = [
     'bookings.payment.recheck',
     'bookings.proposal.withdraw',
     'bookings.reminder.resend',
+    'bookings.reminder.vendor',
     'money.earnings.pause_booking',
     'money.earnings.resume_booking',
 ] as const;
@@ -717,7 +897,8 @@ export const BOOKING_AUDIT_ACTION_LABELS: Record<string, string> = {
     'bookings.payment.mark_cash': 'Recorded a cash payment',
     'bookings.payment.recheck': 'Re-checked the payment',
     'bookings.proposal.withdraw': 'Withdrew a proposed new time',
-    'bookings.reminder.resend': 'Resent the reminder',
+    'bookings.reminder.resend': 'Reminded the customer',
+    'bookings.reminder.vendor': 'Reminded the vendor',
     'money.earnings.pause_booking': 'Paused the payout',
     'money.earnings.resume_booking': 'Resumed the payout',
 };

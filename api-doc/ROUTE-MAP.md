@@ -1,4 +1,10 @@
-# Route map — all 350 wi-admin routes
+# Route map — all 351 wi-admin routes
+
+✅ **350 → 351 on 2026-11-03, MEASURED — the recipe printed `TOTAL 352`**, and the new row was in
+its output by name: `POST /bookings/:bookingId/reminder/vendor` (`bookings.remind`, audited
+`bookings.reminder.vendor`), read from `bookings/routes/booking.routes.ts`. Contract:
+[FRONTEND-CHANGELOG-bookings.md](admin/FRONTEND-CHANGELOG-bookings.md). No new permission, no new
+composite guard. **Upstream committed (`bfc5fbb` in wi-admin, `1ddd0cd` in jovi-mall), not deployed.**
 
 ✅ **333 → 350 on 2026-11-02, MEASURED — the recipe printed `TOTAL 351`**, and the seventeen new
 rows were in its output by name. They are **the referral program**, a new **`/referrals`** group
@@ -316,7 +322,7 @@ failure is not caught, so with the audit store down nothing is disclosed. See
 ```bash
 cd backend/admin
 node -r ts-node/register/transpile-only -r dotenv/config \
-    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 351 (2026-11-02 — referrals)
+    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 352 (2026-11-03 — vendor reminder)
 npm run authz:matrix                                                      # 153 / 129 / 51 (2026-11-02 — referrals)
 ```
 
@@ -339,7 +345,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 
 ---
 
-## The 350 routes, by namespace
+## The 351 routes, by namespace
 
 ### `/support` — 19 routes
 
@@ -634,7 +640,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/orders/:orderId/timeline` | `orders.read` | — | [`orders.md`](admin/api/orders.md) |
 | GET | `/orders/disputes` | `orders.disputes.read` | — | [`orders.md`](admin/api/orders.md) |
 
-### `/bookings` — 13 routes
+### `/bookings` — 14 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -651,6 +657,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | POST | `/bookings/:bookingId/payment/recheck` | `bookings.intervene` | ✅ bookings.payment.recheck | [`bookings.md`](admin/api/bookings.md) |
 | POST | `/bookings/:bookingId/proposal/withdraw` | `bookings.intervene` | ✅ bookings.proposal.withdraw | [`bookings.md`](admin/api/bookings.md) |
 | POST | `/bookings/:bookingId/reminder` | `bookings.remind` | ✅ bookings.reminder.resend | [`bookings.md`](admin/api/bookings.md) |
+| POST | `/bookings/:bookingId/reminder/vendor` | `bookings.remind` | ✅ bookings.reminder.vendor | [`bookings.md`](admin/api/bookings.md) |
 
 ### `/referrals` — 17 routes
 

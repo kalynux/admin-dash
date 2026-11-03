@@ -5,9 +5,15 @@ import {
     BOOKING_QUEUES,
     bookingAccessText,
     bookingPaymentStatusLabel,
+    bookingPriceChangeLabel,
+    bookingPriceHasChanges,
+    bookingPriceProposalLabel,
+    bookingPriceProposalStatus,
     bookingRefundFollowUp,
     bookingRefundOutcome,
     bookingStatusLabel,
+    bookingTopupOwed,
+    bookingTopupStatusLabel,
     canCancelBooking,
     canCancelBookingSession,
     canCompleteBooking,
@@ -16,7 +22,9 @@ import {
     canRecordCash,
     canRemindBooking,
     isBookingQueue,
+    isGoodwillRefundLive,
     isPaidNoShow,
+    isPriceProposalWaiting,
     isUnpaidForCompletion,
 } from '@/types/bookings.types';
 
@@ -60,6 +68,16 @@ describe('which actions a booking can take', () => {
         expect(isUnpaidForCompletion({ requiresPayment: true, paymentStatus: 'paid' })).toBe(false);
         // A free booking holds no money and is not refused.
         expect(isUnpaidForCompletion({ requiresPayment: false, paymentStatus: 'unpaid' })).toBe(false);
+    });
+
+    /** `completeAsAdmin` refuses `outstandingTopup > 0` too, on a booking that still reads `paid`. */
+    it('reads a price difference still due as unpaid, and one settled or replaced as not', () => {
+        const paid = { requiresPayment: true, paymentStatus: 'paid' };
+        const topup = { amount: 2000, dueAt: '2026-10-21T09:00:00.000Z' };
+        const pricing = (status: string) => ({ originalPrice: 5000, proposal: null, topup: { ...topup, status }, history: [] });
+        expect(isUnpaidForCompletion({ ...paid, pricing: pricing('due') })).toBe(true);
+        expect(isUnpaidForCompletion({ ...paid, pricing: pricing('paid') })).toBe(false);
+        expect(isUnpaidForCompletion({ ...paid, pricing: pricing('superseded') })).toBe(false);
     });
 
     it('records cash only on an unpaid booking that is cash or has no method yet', () => {
@@ -158,10 +176,89 @@ describe('what a cancel’s refund did', () => {
         expect(bookingRefundFollowUp(cancelled({ refunds: [{ ...refund, status: 'rejected' }] }))).toBe('unflagged');
     });
 
+    /**
+     * ⛔ A rescheduled price going down leaves a completed goodwill request. It carried
+     * only that difference, so it must not silence the failure of the cancellation's
+     * own refund: this notice is that failure's only trace.
+     */
+    it('does not let an older goodwill request end the follow-up', () => {
+        const goodwill = {
+            id: 'r', reasonKind: 'goodwill', status: 'completed', grossAmount: 1000, feeAmount: null, netAmount: null,
+            feesPaidBy: 'vendor', currency: 'XAF', requestedBy: 'agreed price lowered', createdAt: '2026-10-20T08:00:00.000Z',
+        };
+        const after = { cancelledAt: '2026-10-28T08:00:00.000Z', refunds: [goodwill] };
+        expect(bookingRefundFollowUp(cancelled(after), 'failed')).toBe('failed');
+        expect(bookingRefundFollowUp(cancelled({ ...after, paymentStatus: 'paid' }))).toBe('unflagged');
+        // Raised by hand after the cancellation, it is the refund happening.
+        const raisedAfter = { ...goodwill, createdAt: '2026-10-29T08:00:00.000Z' };
+        expect(bookingRefundFollowUp(cancelled({ ...after, refunds: [raisedAfter] }), 'failed')).toBeNull();
+    });
+
     /** ⛔ The queue answers 404 REFUND_PAYMENT_NOT_FOUND for cash. */
     it('never offers Raise a refund on a cash booking', () => {
         expect(canRaiseBookingRefund({ paymentMethod: 'cash' })).toBe(false);
         expect(canRaiseBookingRefund({ paymentMethod: 'online' })).toBe(true);
+    });
+});
+
+describe('the price', () => {
+    const EXPIRES = '2026-10-20T09:00:00.000Z';
+    const AT_EXPIRY = new Date(EXPIRES).getTime();
+    const proposal = { status: 'open', amount: 7000, previousAmount: 5000, proposedAt: '2026-10-19T09:00:00.000Z', expiresAt: EXPIRES };
+    const pricing = (overrides = {}) => ({ originalPrice: 5000, proposal: null, topup: null, history: [], ...overrides });
+
+    /** jovi-mall's boundary: `now >= expiresAt` has lapsed, whether or not anything wrote it down. */
+    it('reads a stored open at or past its date as lapsed', () => {
+        expect(bookingPriceProposalStatus(proposal, AT_EXPIRY - 1)).toBe('open');
+        expect(bookingPriceProposalStatus(proposal, AT_EXPIRY)).toBe('lapsed');
+        // A proposal answered in time keeps its answer after the date passes.
+        expect(bookingPriceProposalStatus({ ...proposal, status: 'accepted' }, AT_EXPIRY + 1)).toBe('accepted');
+    });
+
+    it('waits for the customer only on a pending booking before the date', () => {
+        const booking = (status: string) => ({ status, pricing: pricing({ proposal }) });
+        expect(isPriceProposalWaiting(booking('pending'), AT_EXPIRY - 1)).toBe(true);
+        expect(isPriceProposalWaiting(booking('pending'), AT_EXPIRY)).toBe(false);
+        // Cancelling does not answer the proposal, so the stored row still reads `open`.
+        expect(isPriceProposalWaiting(booking('cancelled'), AT_EXPIRY - 1)).toBe(false);
+        expect(isPriceProposalWaiting({ status: 'pending' }, AT_EXPIRY - 1)).toBe(false);
+    });
+
+    it('words every status, and prints an unknown one raw', () => {
+        const label = (status: string, bookingStatus = 'pending') =>
+            bookingPriceProposalLabel({ status: bookingStatus }, { ...proposal, status }, AT_EXPIRY - 1);
+        expect(label('open')).toMatch(/waiting/i);
+        expect(label('open', 'cancelled')).toMatch(/never answered/i);
+        expect(label('declined')).toMatch(/declined/i);
+        expect(label('withdrawn')).toMatch(/withdrawn/i);
+        expect(label('sideways')).toBe('sideways');
+        expect(bookingPriceProposalLabel({ status: 'pending' }, proposal, AT_EXPIRY)).toMatch(/lapsed/i);
+        expect(bookingPriceChangeLabel('sideways')).toBe('sideways');
+    });
+
+    /** jovi-mall: "a cancelled booking owes nothing, whatever was due when it was cancelled". */
+    it('owes nothing on a cancelled booking, whatever the stored row says', () => {
+        const topup = { status: 'due', amount: 2000, dueAt: EXPIRES };
+        expect(bookingTopupOwed({ status: 'confirmed', pricing: pricing({ topup }) })).toEqual(topup);
+        expect(bookingTopupOwed({ status: 'cancelled', pricing: pricing({ topup }) })).toBeNull();
+        expect(bookingTopupOwed({ status: 'confirmed', pricing: pricing({ topup: { ...topup, status: 'paid' } }) })).toBeNull();
+        expect(bookingTopupOwed({ status: 'confirmed' })).toBeNull();
+        expect(bookingTopupStatusLabel({ status: 'cancelled' }, topup)).toMatch(/not owed/i);
+        expect(bookingTopupStatusLabel({ status: 'confirmed' }, topup)).toMatch(/still owed/i);
+        expect(bookingTopupStatusLabel({ status: 'confirmed' }, { status: 'sideways' })).toBe('sideways');
+    });
+
+    it('has nothing to show on a price that never moved, or from an older service', () => {
+        expect(bookingPriceHasChanges({ price: 5000, pricing: pricing() })).toBe(false);
+        expect(bookingPriceHasChanges({ price: 5000 })).toBe(false);
+        expect(bookingPriceHasChanges({ price: 7000, pricing: pricing() })).toBe(true);
+        expect(bookingPriceHasChanges({ price: 5000, pricing: pricing({ proposal }) })).toBe(true);
+    });
+
+    it('counts a goodwill request only while it is under way or done', () => {
+        expect(isGoodwillRefundLive({ reasonKind: 'goodwill', status: 'completed' })).toBe(true);
+        expect(isGoodwillRefundLive({ reasonKind: 'goodwill', status: 'rejected' })).toBe(false);
+        expect(isGoodwillRefundLive({ reasonKind: 'cancellation', status: 'completed' })).toBe(false);
     });
 });
 

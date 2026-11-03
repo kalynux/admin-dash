@@ -1,5 +1,5 @@
 /**
- * `/bookings` — service bookings. **Thirteen routes** (2026-10-27).
+ * `/bookings` — service bookings. **Fourteen routes** (2026-11-03).
  *
  * Source: `api-doc/admin/api/bookings.md`. The list, the queue counts, the
  * detail and the activity feed read `bookings` directly; the access verdict,
@@ -177,7 +177,12 @@ export function withdrawBookingProposal(bookingId: string, reason?: string, opti
     return write<BookingAck>(bookingId, '/proposal/withdraw', optionalNote(reason), options);
 }
 
-/** `POST /bookings/:bookingId/reminder` · `bookings.remind` — every tier. */
+/** `POST /bookings/:bookingId/reminder` · `bookings.remind` — every tier. Reaches the customer. */
 export function resendBookingReminder(bookingId: string, reason?: string, options?: RequestOptions) {
     return write<BookingReminderResult>(bookingId, '/reminder', optionalNote(reason), options);
+}
+
+/** `POST /bookings/:bookingId/reminder/vendor` · `bookings.remind` — every tier. Reaches the vendor. */
+export function remindBookingVendor(bookingId: string, reason?: string, options?: RequestOptions) {
+    return write<BookingReminderResult>(bookingId, '/reminder/vendor', optionalNote(reason), options);
 }

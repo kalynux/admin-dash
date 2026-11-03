@@ -509,7 +509,7 @@ const platform = {
         'This booking is completed, so it cannot be cancelled. Refund it through the refund queue, which also takes the shop’s earnings back.',
     BOOKING_SESSION_EMPTY: 'No other booking in this class is still on, so there is nothing to cancel.',
     BOOKING_ADMIN_COMPLETE_UNPAID:
-        'This booking is not paid, so there is no held money to release. Record the cash payment first, or leave completion to the shop.',
+        'This booking is not fully paid, so it cannot be completed. Record the cash payment first if one is due, or leave completion to the shop. A price difference is paid by the customer or recorded by the shop.',
     BOOKING_NOT_STARTED: 'The appointment has not started yet, so it cannot be completed.',
     BOOKING_INVALID_STATUS_TRANSITION:
         'The booking is no longer in a state that can be completed. Reload to see where it is now.',

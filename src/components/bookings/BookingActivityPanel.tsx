@@ -9,7 +9,7 @@ import {
 /**
  * `GET /bookings/:bookingId/activity` · `bookings.read` **+** `audit.read`.
  *
- * What **administrators** did to this booking: the seven `bookings.*` writes
+ * What **administrators** did to this booking: the eight `bookings.*` writes
  * and its payout pause/resume. Not the booking's own history — that is the
  * status history on the Overview, and it includes the customer, the shop and
  * the system. `BookingDetail` omits the tab without both permissions.
@@ -35,7 +35,7 @@ export function BookingActivityPanel({
             reloadToken={reloadToken}
             caption="Administrative history for this booking"
             emptyTitle="No administrator has acted on this booking"
-            emptyDescription="This feed records cancellations, completions, cash payments, payment re-checks, withdrawn proposals, resent reminders and payout pauses made by administrators. The booking's own status history is on the Overview."
+            emptyDescription="This feed records cancellations, completions, cash payments, payment re-checks, withdrawn proposals, reminders and payout pauses made by administrators. The booking's own status history is on the Overview."
         />
     );
 }

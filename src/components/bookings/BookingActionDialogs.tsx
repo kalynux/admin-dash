@@ -25,6 +25,7 @@ import {
     completeBooking,
     recheckBookingPayment,
     recordBookingCash,
+    remindBookingVendor,
     resendBookingReminder,
     withdrawBookingProposal,
 } from '@/services/bookings.service';
@@ -36,6 +37,7 @@ import {
     PLATFORM_CODE_BOOKING_ADMIN_COMPLETE_UNPAID,
     bookingDisplayName,
     canRecordCash,
+    isGoodwillRefundLive,
     refundNeedsAPerson,
     type BookingCancelAck,
     type BookingDetail,
@@ -47,9 +49,9 @@ import {
 } from '@/types/bookings.types';
 
 /**
- * The seven booking writes, one dialog each, sharing one shell.
+ * The eight booking writes, one dialog each, sharing one shell.
  *
- * All seven are **delegated**, so a refusal is `PLATFORM_OPERATION_REJECTED`
+ * All eight are **delegated**, so a refusal is `PLATFORM_OPERATION_REJECTED`
  * and the reason is `details.platformCode`; its sentence comes from
  * `errors.platform.*` through `resolveErrorMessage`. Two refusals are handled
  * here rather than just shown:
@@ -71,7 +73,8 @@ export type BookingAction =
     | 'cash'
     | 'recheck'
     | 'withdraw'
-    | 'remind';
+    | 'remind'
+    | 'remind-vendor';
 
 const REASON_MIN = 3;
 const REASON_MAX = 500;
@@ -113,7 +116,7 @@ const ACTION_COPY: Record<
     },
     complete: {
         title: (name) => `Complete ${name} for the shop?`,
-        description: 'It is completed at the booked price. The shop is paid when the ordinary hold ends, and the customer keeps their protection window.',
+        description: 'It is completed at the agreed price. The shop is paid when the ordinary hold ends, and the customer keeps their protection window.',
         submit: 'Complete booking',
         reason: 'required',
         reasonLabel: 'Reason',
@@ -140,7 +143,7 @@ const ACTION_COPY: Record<
     },
     withdraw: {
         title: (name) => `Withdraw the proposed new time on ${name}?`,
-        description: 'The original time stands. Nobody is notified.',
+        description: 'The original time and price stand. Nobody is notified.',
         submit: 'Withdraw proposal',
         reason: 'optional',
         reasonLabel: 'Note (optional)',
@@ -148,9 +151,18 @@ const ACTION_COPY: Record<
         placeholder: 'Why the proposal is stale',
     },
     remind: {
-        title: (name) => `Resend the reminder for ${name}?`,
-        description: 'Sends the customer their appointment reminder again. It carries no meeting link — the link reaches them through their booking when it opens.',
-        submit: 'Resend reminder',
+        title: (name) => `Remind the customer of ${name}?`,
+        description: 'Sends the customer their appointment reminder again. It carries no meeting link — the link reaches them through their booking when it opens. It does not use up the one reminder the vendor can send them.',
+        submit: 'Remind the customer',
+        reason: 'optional',
+        reasonLabel: 'Note (optional)',
+        reasonHint: 'Kept for administrators.',
+        placeholder: 'For example, the ticket that asked',
+    },
+    'remind-vendor': {
+        title: (name) => `Remind the vendor of ${name}?`,
+        description: 'Sends the vendor an appointment reminder from Wi-Mall support. It does not use up the one reminder the customer can send them.',
+        submit: 'Remind the vendor',
         reason: 'optional',
         reasonLabel: 'Note (optional)',
         reasonHint: 'Kept for administrators.',
@@ -261,6 +273,8 @@ function ActionForm({
                 return withdrawBookingProposal(booking.id, reason);
             case 'remind':
                 return resendBookingReminder(booking.id, reason);
+            case 'remind-vendor':
+                return remindBookingVendor(booking.id, reason);
         }
     }
 
@@ -442,8 +456,14 @@ function CancelMoney({ booking, session }: { booking: BookingDetail; session: bo
                             ))}
                         </ul>
                     ) : (
-                        <p>The booked price is {formatMoney(booking.price, booking.currency)}.</p>
+                        <p>The agreed price is {formatMoney(booking.price, booking.currency)}.</p>
                     )}
+                    {booking.refunds.some(isGoodwillRefundLive) ? (
+                        <p>
+                            A goodwill refund has already been opened on this booking, so less than these payments may
+                            go back. It is listed under Payments and refunds.
+                        </p>
+                    ) : null}
                     <p className="text-muted-foreground text-xs">
                         This follows the same path as a customer’s own cancellation. The money may not have
                         arrived when this closes: the request usually carries on in the refund queue. This
@@ -492,6 +512,13 @@ function announce(action: BookingAction, write: BookingWriteResult<unknown>) {
         const result = write.result as BookingReminderResult | undefined;
         if (result && !result.sent) {
             notify.warning(write.message ?? 'Nothing sent — this account has no customer profile to notify');
+            return;
+        }
+    }
+    if (action === 'remind-vendor') {
+        const result = write.result as BookingReminderResult | undefined;
+        if (result && !result.sent) {
+            notify.warning(write.message ?? 'Nothing was sent to the vendor');
             return;
         }
     }

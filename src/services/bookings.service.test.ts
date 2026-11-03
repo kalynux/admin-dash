@@ -7,6 +7,7 @@ import {
     getServiceAvailability,
     listBookings,
     recheckBookingPayment,
+    remindBookingVendor,
     resendBookingReminder,
 } from '@/services/bookings.service';
 
@@ -53,6 +54,20 @@ describe('the writes', () => {
         expect(bodyOf(calls)).toEqual({});
         await recheckBookingPayment(BOOKING_ID, 'ticket 42');
         expect(JSON.parse(calls[1].body ?? 'null')).toEqual({ reason: 'ticket 42' });
+    });
+
+    it('reminds each side on its own route, with the note omitted when blank', async () => {
+        const calls = stubFetch(() => successResponse({ booking: bookingDetailFixture(), result: { sent: true, reason: null } }));
+        await resendBookingReminder(BOOKING_ID);
+        const write = await remindBookingVendor(BOOKING_ID, '  ticket 42  ');
+        await remindBookingVendor(BOOKING_ID, '   ');
+        expect(new URL(calls[0].url, 'http://localhost').pathname).toMatch(new RegExp(`/bookings/${BOOKING_ID}/reminder$`));
+        expect(new URL(calls[1].url, 'http://localhost').pathname).toMatch(new RegExp(`/bookings/${BOOKING_ID}/reminder/vendor$`));
+        expect(calls[1].method).toBe('POST');
+        expect(JSON.parse(calls[1].body ?? 'null')).toEqual({ reason: 'ticket 42' });
+        expect(JSON.parse(calls[2].body ?? 'null')).toEqual({});
+        expect(write.result).toEqual({ sent: true, reason: null });
+        expect(write.booking?.id).toBe(BOOKING_ID);
     });
 
     /** wi-admin answers `booking: null` when the re-read after a committed write misses. */
