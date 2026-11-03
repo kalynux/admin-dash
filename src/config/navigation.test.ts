@@ -378,7 +378,7 @@ describe('permittedSections', () => {
             ['directories', ['users', 'vendors', 'agencies', 'agents']],
             ['operations', ['orders', 'shipments', 'bookings', 'categories', 'reviews']],
             ['support', ['support-tickets', 'content']],
-            ['finance', ['refunds', 'cod', 'money']],
+            ['finance', ['refunds', 'cod', 'money', 'referrals']],
             ['administration', ['audit']],
             ['platform', ['system', 'automation']],
         ]);

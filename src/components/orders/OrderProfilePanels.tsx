@@ -24,8 +24,10 @@ import type { CanPredicate } from '@/store';
 import {
     deliveryPayerLabel,
     deliveryPayerReasonLabel,
+    isPartialPaymentOrder,
     weightSourceLabel,
     type OrderDetail,
+    type OrderPartialPayment,
 } from '@/types/orders.types';
 
 /**
@@ -199,15 +201,30 @@ export function OrderOverviewPanel({
                         <Definition label="Payment">
                             <span className="flex flex-wrap items-center gap-2">
                                 <PaymentStatusBadge status={order.paymentStatus} />
-                                {/* Absent on orders older than the field — see
-                                    the note on `Order['paymentMethod']`. */}
-                                <span className="text-muted-foreground text-xs capitalize">
-                                    {humaniseEnum(order.paymentMethod) ?? (
-                                        <NotSet>Method not recorded</NotSet>
-                                    )}
-                                </span>
+                                {/* A partial order reads `cash_on_delivery` too, so
+                                    `partialPayment` decides the words. Absent on
+                                    orders older than the field — see the note on
+                                    `Order['paymentMethod']`. */}
+                                {isPartialPaymentOrder(order) ? (
+                                    <span className="text-muted-foreground text-xs">
+                                        Part online, part cash at delivery
+                                    </span>
+                                ) : (
+                                    <span className="text-muted-foreground text-xs capitalize">
+                                        {humaniseEnum(order.paymentMethod) ?? (
+                                            <NotSet>Method not recorded</NotSet>
+                                        )}
+                                    </span>
+                                )}
                             </span>
                         </Definition>
+                        {isPartialPaymentOrder(order) ? (
+                            <PartialPaymentDefinitions
+                                order={order}
+                                partial={order.partialPayment}
+                                timeZone={timeZone}
+                            />
+                        ) : null}
                         <Definition label="Fulfilment">
                             <FulfillmentStatusBadge status={order.fulfillmentStatus} />
                         </Definition>
@@ -696,6 +713,63 @@ export function OrderItemsPanel({
  * and a document-wide `getElementById` on a bare one would collide with any
  * other element that happened to be keyed on the same record.
  */
+/**
+ * A partial order's two halves — the changelog's sentence (§ 1), and the
+ * vendor's limits. Every figure as sent; nothing is subtracted here.
+ */
+function PartialPaymentDefinitions({
+    order,
+    partial,
+    timeZone,
+}: {
+    order: OrderDetail;
+    partial: OrderPartialPayment;
+    timeZone: string;
+}) {
+    const money = (amount: number) => formatMoney(amount, order.currency);
+    return (
+        <>
+            <Definition label="Paid in two parts">
+                {partial.paidAt === null ? (
+                    <span>
+                        Nothing paid online yet. The customer must pay at least{' '}
+                        {money(partial.minimumAmount)} online before this order can be dispatched.
+                    </span>
+                ) : order.paymentStatus === 'paid' ? (
+                    <span>
+                        {money(partial.amountPaidOnline)} paid online, {money(partial.balanceDue)} in cash
+                        at delivery — all collected.
+                    </span>
+                ) : (
+                    <span>
+                        {money(partial.amountPaidOnline)} paid online, {money(partial.balanceDue)} due in
+                        cash at delivery.
+                    </span>
+                )}
+                {partial.paidAt ? (
+                    <span className="text-muted-foreground block text-xs">
+                        Online part paid {formatInstantInZone(partial.paidAt, timeZone) ?? '—'}
+                    </span>
+                ) : null}
+            </Definition>
+            <Definition
+                label="Minimum online"
+                hint={
+                    <InfoHint label="About the online minimum">
+                        The shop&apos;s minimum share of the order paid online, and the most the
+                        customer could pay online — some cash must always be left for each parcel.
+                    </InfoHint>
+                }
+            >
+                {money(partial.minimumAmount)}{' '}
+                <span className="text-muted-foreground">
+                    ({partial.minPercent}%) · at most {money(partial.maximumAmount)}
+                </span>
+            </Definition>
+        </>
+    );
+}
+
 function orderItemDomId(orderItemId: string): string {
     return `order-item-${orderItemId}`;
 }

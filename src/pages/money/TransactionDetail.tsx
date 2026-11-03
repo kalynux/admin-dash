@@ -511,7 +511,7 @@ function RecordCard({
                         )}
                     </Definition>
                     {record.actor ? (
-                        <Definition label="Forgiven by">
+                        <Definition label={record.adjustment === 'write_off' ? 'Forgiven by' : 'Recorded by'}>
                             {record.actor.name ?? (
                                 <CopyableValue
                                     value={record.actor.id}
@@ -527,17 +527,25 @@ function RecordCard({
                                 humaniseEnum(record.payoutEvent)}
                         </Definition>
                     ) : null}
-                    <Definition
-                        label="Debt before and after"
-                        hint={
-                            <InfoHint label="About the debt before and after">
-                                Not stored on this record. For a write-off, the audit trail holds
-                                it, along with whether a second administrator approved it.
-                            </InfoHint>
-                        }
-                    >
-                        <NotSet>In the audit trail</NotSet>
-                    </Definition>
+                    {record.adjustment === 'refund_clawback' ? (
+                        // A fault charge: the reason above says why. It names no
+                        // order or refund — the owner's debt is a running balance.
+                        <Definition label="Order and refund">
+                            <NotSet>Not linked on this record</NotSet>
+                        </Definition>
+                    ) : (
+                        <Definition
+                            label="Debt before and after"
+                            hint={
+                                <InfoHint label="About the debt before and after">
+                                    Not stored on this record. For a write-off, the audit trail holds
+                                    it, along with whether a second administrator approved it.
+                                </InfoHint>
+                            }
+                        >
+                            <NotSet>In the audit trail</NotSet>
+                        </Definition>
+                    )}
                 </DetailCard>
             );
 
@@ -555,6 +563,7 @@ const COLLECTS_LABELS: Record<string, string> = {
 const ADJUSTMENT_LABELS: Record<string, string> = {
     write_off: 'An administrator forgave the debt',
     clawback_recovery: 'A payout came back and paid the debt down',
+    refund_clawback: 'Charged for a returned parcel that was their fault',
 };
 
 const PAYOUT_EVENT_LABELS: Record<string, string> = {

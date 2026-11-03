@@ -325,7 +325,7 @@ export interface ClawbackTotals {
     owners: number;
 }
 
-export const CLAWBACK_OWNER_TYPES = ['vendor', 'agency', 'agent'] as const;
+export const CLAWBACK_OWNER_TYPES = ['vendor', 'agency', 'agent', 'referral_partner'] as const;
 export const CLAWBACK_SORT_OPTIONS = [
     { value: '-amount', label: 'Largest debt first' },
     { value: 'amount', label: 'Smallest debt first' },
@@ -865,6 +865,35 @@ export const PAYOUT_ORIGIN_LABELS: Record<string, string> = {
  * rather than an empty page. The filter offers exactly these three.
  */
 export const EARNINGS_ACCOUNT_OWNER_TYPES = ['vendor', 'agency', 'agent'] as const;
+
+/**
+ * Who can hold a wallet and ask for a payout: jovi-mall's `PAYOUT_OWNER_TYPES`, so
+ * the `ownerType` filter on Payouts and Accounts.
+ *
+ * ⚠ **One more than the list above, which Allocations also filters on**: a referral
+ * reward is deliberately not an `earnings_allocations` row, so a partner is never
+ * an allocation's beneficiary and that filter must not offer one.
+ */
+export const PAYOUT_OWNER_TYPES = [...EARNINGS_ACCOUNT_OWNER_TYPES, 'referral_partner'] as const;
+
+/** An owner type in words. A CSS `capitalize` finishes it where it heads a line. */
+export function moneyOwnerLabel(ownerType: string): string {
+    return ownerType.replace(/_/g, ' ');
+}
+
+/**
+ * Where an owner's money is explained.
+ *
+ * ⚠ **A partner has no account page, and a link to one is a `400`**:
+ * `GET /accounts/:ownerType/:ownerId` validates against the three roles only, and
+ * only the money lists learned about `referral_partner`. Their wallet is on their
+ * partner page.
+ */
+export function moneyOwnerPath(ownerType: string, ownerId: string): string {
+    return ownerType === 'referral_partner'
+        ? `/dashboard/referrals/partners/${ownerId}`
+        : `/dashboard/accounts/${ownerType}/${ownerId}`;
+}
 
 /** Max span on every `from`/`to` pair under `/money`. */
 export const MONEY_MAX_RANGE_DAYS = 366;

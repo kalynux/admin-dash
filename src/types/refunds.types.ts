@@ -21,6 +21,14 @@
  * seller cancelled a paid order they pay both (`fees.paidBy: 'vendor'`) and the
  * customer receives 100%.
  *
+ * ── A partial order's returned parcel, since 2026-11-01 ───────────────────────
+ * [The changelog](../../api-doc/admin/FRONTEND-CHANGELOG-partial-payment.md):
+ * `partialReturn` on a request, and `fees.paidBy` may be `agency`. ⚠ **The fault
+ * call REPLACES the request**: the old one becomes `rejected` and the answer is a
+ * new id — except when the return fee used everything prepaid, where the answer is
+ * the OLD row, rejected, and no request exists to approve (jovi-mall's
+ * `PartialReturnService.setFault`; the changelog does not mention that case).
+ *
  * ── Every vocabulary is OPEN ───────────────────────────────────────────────────
  * A status, channel or failure reason this build has never seen renders by its
  * raw name. The `status` *filter* is a pinned `z.enum` server-side, so the list
@@ -252,6 +260,11 @@ export interface RefundRequest {
      * verdict. Absent from an older wi-admin; `[]` when none was named.
      */
     deliveryFault?: RefundDeliveryFault[];
+    /**
+     * A partial order's returned parcel (2026-11-01), `null` on every other
+     * request. Absent from an older wi-admin, and read the same way.
+     */
+    partialReturn?: RefundPartialReturn | null;
     currency: string;
     paymentChannel: string | null;
     /** `null` until it is decided how the money leaves. */
@@ -292,7 +305,7 @@ export interface RefundRequest {
 
 /** `fees` on a request — wi-admin's `RefundRequestDto['fees']`. */
 export interface RefundFees {
-    /** `customer` · `vendor`. Open: an unknown value is read as the customer. */
+    /** `customer` · `vendor` · `agency`. Open: an unknown value is read as the customer. */
     paidBy: string;
     paymentFeePercent: number;
     paymentFee: number;
@@ -300,6 +313,133 @@ export interface RefundFees {
     transferFee: number;
     /** Charged to the seller beyond their share when THEY pay the fees. */
     vendorCharge: number;
+    /**
+     * Charged to the delivery agency when a returned parcel was its fault
+     * (2026-11-01). `0` on every other request, absent from an older wi-admin.
+     */
+    agencyCharge?: number;
+}
+
+/**
+ * `partialReturn` on a request — wi-admin's `RefundRequestDto['partialReturn']`.
+ *
+ * ⚠ jovi-mall's own DTO also has `faultSetBy`; wi-admin reads the row itself and
+ * does not serve it. `requestedBy` on the replacement says who decided.
+ */
+export interface RefundPartialReturn {
+    shipmentId: string | null;
+    /**
+     * What the agent's report proposed, or what an administrator then decided.
+     * **`null` = nobody is named yet**: it cannot be approved or settled by hand,
+     * and the request's figures are provisional (the whole prepaid part).
+     */
+    fault: string | null;
+    returnFee: number;
+    prepaidAmount: number;
+    /** Why the agent could not deliver — jovi-mall's failure reason. Open. */
+    agentReason: string | null;
+    agentNote: string | null;
+}
+
+export const PARTIAL_RETURN_FAULTS = ['customer', 'vendor', 'agency'] as const;
+export type PartialReturnFault = (typeof PARTIAL_RETURN_FAULTS)[number];
+
+export const PARTIAL_RETURN_FAULT_LABELS: Record<string, string> = {
+    customer: 'The customer',
+    vendor: 'The seller',
+    agency: 'The delivery agency',
+};
+
+export function partialReturnFaultLabel(fault: string): string {
+    return PARTIAL_RETURN_FAULT_LABELS[fault] ?? fault.replace(/_/g, ' ');
+}
+
+/** What each fault means — the changelog's table (§ 2). */
+export const PARTIAL_RETURN_FAULT_EFFECTS: Record<
+    PartialReturnFault,
+    { customerGets: string; feesPaidBy: string; returnFee: string }
+> = {
+    customer: {
+        customerGets: 'What they prepaid, minus the return fee and the normal refund fees',
+        feesPaidBy: 'The customer',
+        returnFee: 'Paid from what they prepaid',
+    },
+    vendor: {
+        customerGets: 'Everything they prepaid',
+        feesPaidBy: 'The seller',
+        returnFee: 'Paid, and charged to the seller',
+    },
+    agency: {
+        customerGets: 'Everything they prepaid',
+        feesPaidBy: 'The agency',
+        returnFee: 'Not paid: it earns nothing for the trip',
+    },
+};
+
+export function isPartialReturnFault(fault: string | null | undefined): fault is PartialReturnFault {
+    return (PARTIAL_RETURN_FAULTS as readonly string[]).includes(fault ?? '');
+}
+
+/** jovi-mall's `SHIPMENT_FAILURE_REASONS`. Open: an unknown reason prints in words. */
+const PARTIAL_RETURN_AGENT_REASON_LABELS: Record<string, string> = {
+    customer_unreachable: 'The customer could not be reached',
+    customer_absent: 'The customer was not there',
+    customer_refused: 'The customer refused the parcel',
+    address_not_found: 'The address could not be found',
+    address_inaccessible: 'The address could not be reached',
+    payment_refused: 'The customer would not pay the cash',
+    package_damaged: 'The parcel was damaged',
+    rescheduled_by_customer: 'The customer asked for another time',
+    other: 'Another reason',
+};
+
+export function partialReturnAgentReasonLabel(reason: string): string {
+    return PARTIAL_RETURN_AGENT_REASON_LABELS[reason] ?? reason.replace(/_/g, ' ');
+}
+
+/** Why Approve and Settle are disabled while nobody is named. */
+export const PARTIAL_RETURN_FAULT_REQUIRED_HINT = 'Say whose fault this returned parcel is first';
+
+/**
+ * Must an administrator say whose fault it is before any money can go? The server
+ * refuses both roads to the money (`approve`, `settle-external`) on exactly this.
+ */
+export function partialReturnNeedsFault(refund: Pick<RefundRequest, 'partialReturn'>): boolean {
+    return refund.partialReturn != null && refund.partialReturn.fault === null;
+}
+
+/** The fault call is refused from every other status. */
+export function canSetPartialReturnFault(status: string): boolean {
+    return status === 'awaiting_approval';
+}
+
+/**
+ * Would the customer's fault leave nothing to refund? Then the fault call opens no
+ * replacement and closes the case at once, paying the agency from what was prepaid.
+ * **For copy only** — the answer's `id` is what decides.
+ */
+export function partialReturnFeeUsesEverything(partialReturn: RefundPartialReturn): boolean {
+    return partialReturn.returnFee >= partialReturn.prepaidAmount;
+}
+
+/**
+ * The newest later request on the same parcel, among an order's requests. The old
+ * row carries no pointer to its replacement, so this is how a stale link, or an
+ * answer lost to a `502`, finds it.
+ */
+export function laterRequestForParcel(refund: RefundRequest, rows: RefundRequest[]): RefundRequest | null {
+    const shipmentId = refund.partialReturn?.shipmentId;
+    if (!shipmentId || !refund.createdAt) return null;
+    const after = new Date(refund.createdAt).getTime();
+    const later = rows.filter(
+        (row) =>
+            row.id !== refund.id &&
+            row.partialReturn?.shipmentId === shipmentId &&
+            row.createdAt !== null &&
+            new Date(row.createdAt).getTime() >= after,
+    );
+    later.sort((a, b) => new Date(b.createdAt ?? 0).getTime() - new Date(a.createdAt ?? 0).getTime());
+    return later[0] ?? null;
 }
 
 /**
@@ -330,9 +470,24 @@ export const DELIVERY_FAULT_MAX = 20;
 /** The field's explanation (changelog § 2). */
 export const DELIVERY_FAULT_HINT = 'Only when the parcel was damaged or lost in delivery.';
 
-/** Did the seller pay this refund's fees? An unknown `paidBy` is read as the customer. */
-export function feesPaidBySeller(fees: RefundFees | null): boolean {
-    return fees?.paidBy === 'vendor';
+/** Who pays the fees when the customer does not, and what they are charged. */
+export interface RefundFeesCharge {
+    party: 'seller' | 'agency';
+    /** As it reads in a sentence. */
+    name: string;
+    amount: number;
+}
+
+/**
+ * `null` when the customer bears the fees. An unknown `paidBy` is read as the
+ * customer. Each charge is printed as sent, never added up here.
+ */
+export function refundFeesCharge(fees: RefundFees | null): RefundFeesCharge | null {
+    if (fees?.paidBy === 'vendor') return { party: 'seller', name: 'the seller', amount: fees.vendorCharge };
+    if (fees?.paidBy === 'agency') {
+        return { party: 'agency', name: 'the delivery agency', amount: fees.agencyCharge ?? 0 };
+    }
+    return null;
 }
 
 /**
@@ -424,6 +579,9 @@ export function refundFinalisingNote(refund: RefundRequest): string | null {
     const billing = isBillingRefundSource(refund.source.kind);
     if (billing && refund.billingReversedAt === null) {
         return 'Still being finalised — the plan or credits have not been taken back yet. A nightly sweep retries it.';
+    }
+    if (refund.partialReturn && refund.earningsSettledAt === null) {
+        return 'Still being finalised — the agency’s return fee and any charge for the return have not been settled yet. A nightly sweep retries it.';
     }
     if (!billing && refund.earningsImpact === 'clawback' && refund.earningsSettledAt === null) {
         return 'Still being finalised — the seller’s earnings have not been fully recovered yet, so their pause stays until a nightly sweep finishes it.';
@@ -683,6 +841,10 @@ export const PLATFORM_CODE_REFUND_EXTERNAL_PROOF_REQUIRED = 'REFUND_EXTERNAL_PRO
 export const PLATFORM_CODE_REFUND_NOT_ELIGIBLE = 'REFUND_NOT_ELIGIBLE';
 /** `422` (2026-10-22) — a parcel named as delivered at fault is not this order's. */
 export const PLATFORM_CODE_REFUND_DELIVERY_FAULT_INVALID = 'REFUND_DELIVERY_FAULT_INVALID';
+/** `422` (2026-11-01) — approved or settled by hand while nobody is named. */
+export const PLATFORM_CODE_REFUND_PARTIAL_RETURN_FAULT_REQUIRED = 'REFUND_PARTIAL_RETURN_FAULT_REQUIRED';
+/** `422` (2026-11-01) — not a returned parcel, or no longer awaiting approval. */
+export const PLATFORM_CODE_REFUND_PARTIAL_RETURN_NOT_APPLICABLE = 'REFUND_PARTIAL_RETURN_NOT_APPLICABLE';
 
 /** The refusal's name, whichever field carried it. `null` for anything that is not an `ApiError`. */
 export function refundRefusalCode(error: unknown): string | null {
@@ -740,6 +902,14 @@ export function refundSourcePermission(kind: string): 'orders.read' | 'bookings.
  * nothing to say.
  */
 export function refundStatusNote(refund: RefundRequest): { tone: 'warning' | 'muted'; text: string } | null {
+    if (refund.status === 'awaiting_approval' && refund.partialReturn) {
+        return refund.partialReturn.fault === null
+            ? { tone: 'warning', text: 'Returned parcel — say whose fault it is before it can be approved' }
+            : {
+                  tone: 'muted',
+                  text: `Returned parcel — at fault: ${partialReturnFaultLabel(refund.partialReturn.fault).toLowerCase()}`,
+              };
+    }
     if (refund.status === 'waiting_for_cash') {
         return {
             tone: 'muted',
@@ -787,6 +957,7 @@ export const REFUND_AUDIT_ACTIONS = [
     'orders.refund.request',
     'orders.refund.approve',
     'orders.refund.reject',
+    'orders.refund.partial_return_fault',
     'orders.refund.retry',
     'orders.refund.settle_external',
     'orders.refund.resolve_unknown',
@@ -798,6 +969,7 @@ export const REFUND_AUDIT_ACTION_LABELS: Record<string, string> = {
     'orders.refund.request': 'Raised',
     'orders.refund.approve': 'Approved',
     'orders.refund.reject': 'Rejected',
+    'orders.refund.partial_return_fault': 'Fault decided on a returned parcel',
     'orders.refund.retry': 'Transfer retried',
     'orders.refund.settle_external': 'Settled outside the platform',
     'orders.refund.resolve_unknown': 'Stuck transfer resolved',

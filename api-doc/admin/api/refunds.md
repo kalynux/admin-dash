@@ -43,7 +43,8 @@ One source can have **one open request** at a time (`409 REFUND_ALREADY_OPEN`).
 | `grossAmount` | What the refund is worth. What analytics deduct and what is clawed back from earnings |
 | `feeAmount` | 🆕 2026-10-22: **everything deducted from the customer** — the payment fee the aggregator kept when they paid plus the transfer fee. **0 when the seller pays them** |
 | `feeRate` | The TRANSFER fee percent (2 by default); 0 on a card refund |
-| `fees` | 🆕 `{ paidBy: customer|vendor, paymentFeePercent, paymentFee, transferFeePercent, transferFee, vendorCharge }` — the two fees apart (below) |
+| `fees` | 🆕 `{ paidBy: customer|vendor|agency, paymentFeePercent, paymentFee, transferFeePercent, transferFee, vendorCharge, agencyCharge }` — the two fees apart (below). `agency` and `agencyCharge` occur only on a partial order's returned parcel |
+| `partialReturn` | A partial order's returned parcel, `null` otherwise: `{ shipmentId, fault, returnFee, prepaidAmount, agentReason, agentNote }`. See [the fault decision](#post-apiv1refundsrefundidpartial-return-fault--ordersrefund) |
 | `netAmount` | What the customer receives: `grossAmount − feeAmount`. Mobile money 5 000 → 100 → 98 → **4 802** |
 | `attribution` | `{ goods, delivery }` — which part is goods and which is delivery money (sums to `grossAmount`) |
 | `deliveryFault` | 🆕 parcels named as delivered at fault, each `{ shipmentId, agencyId, trackingNumber, deliveredAt, raisedAt, windowDays, insideWindow, customerDeliveryAmount, claimDeadlineDays, returnsPayer }` |
@@ -360,6 +361,27 @@ Errors: `404 NOT_FOUND` · `409 REFUND_REQUEST_STATUS_CONFLICT` (`details.status
 
 `{ "reason": "…" }` (3–500, required). Only from `awaiting_approval` or `failed` — **never from
 `sending`**: the transfer may already be in flight. The earnings pause lifts. Never four-eyed.
+
+## POST /api/v1/refunds/:refundId/partial-return-fault — `orders.refund`
+
+A partial order's parcel came back while the customer had prepaid on it (2026-11-01). The request
+carries `partialReturn`: `fault` is what the agent's report proposed, `null` when it names nobody,
+and `agentReason` / `agentNote` are what you weigh. `null` cannot be approved
+(`422 REFUND_PARTIAL_RETURN_FAULT_REQUIRED`).
+
+Body `{ "fault": "customer" | "vendor" | "agency" }`. Moves no money. **It REPLACES the request**, because
+the amount and who pays the fees depend on it: the old one becomes `rejected`, and the response is the
+new one, **with a new `id`**, still `awaiting_approval`. Approve that one.
+
+| Fault | The customer gets | Who pays the fees | The agency's return fee |
+|---|---|---|---|
+| `customer` | What they prepaid minus the return fee, minus normal refund fees | The customer | Paid from what they prepaid |
+| `vendor` | Everything they prepaid | The vendor | Paid, and charged to the vendor |
+| `agency` | Everything they prepaid | The agency | Not paid: it earns nothing for the trip |
+
+A charge the party cannot cover from its balance is recorded as money it owes (`clawback_balance`).
+`422 REFUND_PARTIAL_RETURN_NOT_APPLICABLE` when the request is not a returned parcel, or no longer
+awaiting approval.
 
 ## POST /api/v1/refunds/:refundId/retry — `orders.refund`
 

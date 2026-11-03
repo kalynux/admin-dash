@@ -60,6 +60,69 @@ of a `service` listing has **Bookable times** behind a click. `EarningsPauseCard
 sits on the detail (`money.earnings.read`). Measured: `dump-routes.js` **`TOTAL 333` = 332
 routes**, `authz:matrix` **149 / 126 / 49**.
 
+✅ **Partial payment built 2026-11-02 — part online, the rest in cash, and a returned parcel waits for
+an administrator to say whose fault it was.** Contract:
+[FRONTEND-CHANGELOG-partial-payment.md](api-doc/admin/FRONTEND-CHANGELOG-partial-payment.md);
+`refunds.md`, `orders.md`, `transactions.md`, `audit.md` (Phase 5 link re-neutralised by hand), the
+README and the `transaction-dto.ts` mirror re-copied, `api-doc/jovi-mall/error-codes.ts` re-taken
+(additive). **Upstream committed (`9ad6fc6`, `1e4d731`), not deployed, never called live.** No new
+permission. `POST /refunds/:refundId/partial-return-fault` → `setPartialReturnFault`, rendered by
+`components/refunds/PartialReturnPanel.tsx` at the top of the request's Overview (Support sees the
+facts, no choice). ⚠ **`partialReturn.fault: null` → Approve and Settle are disabled with the reason**
+(`partialReturnNeedsFault`, perturbation-tested); `REFUND_PARTIAL_RETURN_FAULT_REQUIRED` is the
+backstop in the dialogs, and the figures on such a request are **provisional** (the whole prepaid
+part) and the page says so. ⛔ **No choice is pre-selected**, even when the agent's report proposed
+one; the fault already on the request cannot be chosen again. 🔴 **The call REPLACES the request**: the
+screen moves to the new `id` with `replace` (and `key={refundId}`). 🔴 **The changelog's "new id, moves
+no money" has one exception it does not mention**: `fault: customer` with `returnFee >= prepaidAmount`
+answers the OLD row, `rejected`, with the agency already paid and nothing to approve — and wi-admin's
+`message` still says to approve it, so that `message` is not shown. **Compare the answer's `id`**,
+never assume it changed. ⚠ jovi-mall rejects the old row **before** opening the new one, so a failed
+call is read back, and a `rejected` returned-parcel request looks up its successor
+(`laterRequestForParcel`, by parcel, because the row names none). All of that, plus a plain Reject
+leaving the parcel with nothing to reopen it, is filed as
+[BR-034](api-doc/admin/dashboard/backend-requests/BR-034-partial-return-fault-gaps.md). **Fees:**
+`paidBy: 'agency'` + `agencyCharge` (optional here, an older wi-admin omits it) through
+`refundFeesCharge()`, which replaced `feesPaidBySeller`; `RefundMoney`'s `returnedParcel` prop stops it
+saying *"the seller cancelled"* about a parcel nobody cancelled. **Order:** `partialPayment` (detail
+only) → *"6,000 paid online, 14,000 due in cash at delivery"*; ⚠ `paymentMethod` still reads
+`cash_on_delivery`, and ⚠ `balanceDue` is fixed, it does not fall as cash arrives, so
+`paymentStatus: paid` words it as collected. An unpaid online part gets its own dispatch caveat.
+**Transactions:** `partial_return_fault` and `refund_clawback` labelled; the detail shows no *"Debt
+before and after"* for a fault charge, because that sentence is about write-offs. Audit:
+`orders.refund.partial_return_fault` joined `REFUND_AUDIT_ACTIONS`. Measured: `dump-routes.js`
+**`TOTAL 334` = 333 routes**.
+
+✅ **The referral program built 2026-11-03 — the 32nd route group (`/referrals`, 17 routes) and the
+25th permission family.** Contract: [FRONTEND-CHANGELOG-referrals.md](api-doc/admin/FRONTEND-CHANGELOG-referrals.md) ·
+[referrals.md](api-doc/admin/api/referrals.md); `permissions.md` and the README re-copied,
+`api-doc/jovi-mall/error-codes.ts` re-taken (additive). **Upstream uncommitted in wi-admin, not deployed,
+never called live; the program stays off until tier 1 switches it on from the Settings screen.** Shapes
+come from `referrals/read-models/referral.dto.ts`, because the page is short. **Finance › Referrals** (no
+index, lands on Applications): Applications (`?status=pending`, longest waiting first), Partners, Rewards,
+Summary, Settings, all on `referrals.read` (**every tier**). The rules live in
+[`referrals.types.ts`](src/types/referrals.types.ts); dialogs and the terms panel in
+`components/referrals/`. Verbs need **both** `referralPartnerVerbs()` (status) **and**
+`REFERRAL_VERB_PERMISSION`. Decide is every tier, **Release balance is tiers 1–2, and term edits and
+Settings are tier 1 — all three perturbation-tested**. ⛔ **There is no way to change a referrer.**
+⚠ **Only reject, suspend and terminate reasons reach the partner**, and those fields say so; approve and
+reinstate notes and the release reason do not (read from jovi-mall's notification catalogue), and their
+fields say that. 🔴 **`balanceFrozen` is also `true` on a new applicant**: read it through
+`isReferralBalanceFrozen()`. ⚠ `allow-reapply` is hidden once `canReapply` is true and `release-balance` once
+released, because both are `409`s. ⚠ `commissionWithheld: true` renders **Hidden**, never 0
+(perturbation-tested). ⚠ Settings sends **only the changed fields** (`referralSettingsPatch`), and the
+switch has its own confirmation, because commissions earned while it is off never pay. ⚠ Writes answer
+`{ partner, result }`, held as `{ over, next }`; `partner: null` re-reads. 🔴 **`/accounts/:ownerType/:id`
+still refuses `referral_partner`**, so `moneyOwnerPath()` sends those rows to the partner page. ⚠ **A partner's
+payout answers `verification: unverified`** and has no KYC at all: *No verification*, and out of the "not
+vetted" filter. ⚠ `EARNINGS_ACCOUNT_OWNER_TYPES` stays three because Allocations filters on it; Payouts and
+Accounts use `PAYOUT_OWNER_TYPES`. ⚠ **`?role=referral_partner` on transactions is a `400`**, so the role is
+not offered; the three reasons are `reasonCode` suggestions. ⛔ **The Summary's total per currency (held +
+released) is the one money figure computed in the browser**, the owner's decision on 2026-11-03, and it is
+labelled so. Gaps filed as [BR-035](api-doc/admin/dashboard/backend-requests/BR-035-referral-program-gaps.md),
+including a rejected person whose frozen money no verb can release. Measured: `dump-routes.js` **`TOTAL 351` =
+350 routes**, `authz:matrix` **153 / 129 / 51**.
+
 ✅ **BR-032 and BR-033 answered 2026-11-01 and built the same day — the permission guard is GREEN
 again, and a cancel now says what its refund did.** Reply:
 [RESPONSE-2026-11-01-BR-032-033.md](api-doc/admin/dashboard/backend-requests/RESPONSE-2026-11-01-BR-032-033.md).
@@ -1166,7 +1229,7 @@ machine, not the code.
 npm run dev       # 5175, strictPort
 npm run build     # tsc -b && vite build   ← the typecheck runs here
 npm run lint      # eslint .
-npm test          # vitest run — 3431 tests in 220 files, ALL GREEN with --maxWorkers=3 (2026-11-01, the BR-032/033 round, nothing else running, 628 s). At default workers the same code failed 3 ArticleCreateDialog cover tests, which take ~14 s of the 20 s limit on an idle machine and pass alone: the suite's own workers are enough load to trip them. No sibling dashboard has one.
+npm test          # vitest run — 3526 tests in 225 files with --maxWorkers=3 (2026-11-03, the referrals round, 15 node processes up, 807 s): 1 failure, a hand-written count in MyAccess.test.tsx, fixed and green alone; the whole suite was not re-run after that one-line fix. 3447 in 221, ALL GREEN, on 2026-11-02 (the partial-payment round, 15 node processes up, 753 s). 3431 in 220, green, on 2026-11-01 (the BR-032/033 round, nothing else running, 628 s). At default workers the same code failed 3 ArticleCreateDialog cover tests, which take ~14 s of the 20 s limit on an idle machine and pass alone: the suite's own workers are enough load to trip them. No sibling dashboard has one.
 ```
 
 **Every phase closes the same way**: typecheck, lint, tests, build, then a written summary naming

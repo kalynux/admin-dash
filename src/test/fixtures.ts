@@ -1652,9 +1652,14 @@ const TIER_2_EXCLUSIONS: readonly string[] = [
       Admin sees the platform's commission and bargain fee as rates only.
     */
     'money.earnings.platform.read',
+    /*
+      Rates, durations and the program's switch (2026-11-02): `financial`, so outside
+      any family grant, and the owner keeps it to tier 1.
+    */
+    'referrals.settings.write',
 ];
 
-/** Admin — the operational level, including the money. 126 of 149. */
+/** Admin — the operational level, including the money. 129 of 153. */
 export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
     (name) => !TIER_2_EXCLUSIONS.includes(name) && !name.startsWith('developer_tools.'),
 );
@@ -1719,6 +1724,10 @@ export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
  * ⚠ **47 → 49 on 2026-10-27**: `bookings.read` and `bookings.remind` — Support
  * reads every booking and resends its reminder, and holds neither the meeting
  * link (`bookings.access.read`) nor any intervention.
+ *
+ * ⚠ **49 → 51 on 2026-11-02**: `referrals.read` and `referrals.partners.decide` —
+ * Support reads the program and decides on partners, by the owner's decision. It
+ * releases no balance and changes no rate.
  */
 export const TIER_3_PERMISSIONS: readonly string[] = [
     'agents.read',
@@ -1771,6 +1780,9 @@ export const TIER_3_PERMISSIONS: readonly string[] = [
     // Read every booking and resend its reminder — never the link, never a settle.
     'bookings.read',
     'bookings.remind',
+    // Read the referral program and decide on its partners — never its money.
+    'referrals.read',
+    'referrals.partners.decide',
     'audit.read',
     'notifications.read',
 ];

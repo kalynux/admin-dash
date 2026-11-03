@@ -12,7 +12,7 @@ import {
 } from '@/components/money/PayoutBadges';
 import { formatInstantInZone, formatMoney } from '@/lib/format';
 import type { CanPredicate } from '@/store';
-import type { Payout } from '@/types/money.types';
+import { moneyOwnerLabel, type Payout } from '@/types/money.types';
 
 /**
  * The payout row, defined once and shared by the queue and an account's Payouts
@@ -99,7 +99,14 @@ export function payoutColumns({
             id: 'verification',
             header: 'Owner vetted',
             className: 'align-top',
-            cell: (payout) => <PayoutVerificationBadge verification={payout.verification} />,
+            cell: (payout) =>
+                // A partner has no KYC of their own, and the service still answers
+                // `unverified` for one. Their ticket carries the checks instead.
+                payout.owner.type === 'referral_partner' ? (
+                    <span className="text-muted-foreground text-sm">No verification</span>
+                ) : (
+                    <PayoutVerificationBadge verification={payout.verification} />
+                ),
         },
         {
             id: 'status',
@@ -205,7 +212,11 @@ function ownerCell(payout: Payout, can: CanPredicate) {
                 ? can('agents.read') && id
                     ? `/dashboard/agents/${id}`
                     : null
-                : null;
+                : type === 'referral_partner'
+                  ? can('referrals.read') && id
+                      ? `/dashboard/referrals/partners/${id}`
+                      : null
+                  : null;
 
     return (
         <div className="min-w-0 space-y-0.5">
@@ -216,7 +227,7 @@ function ownerCell(payout: Payout, can: CanPredicate) {
             ) : (
                 <span className="font-medium">{label}</span>
             )}
-            <p className="text-muted-foreground text-xs capitalize">{type}</p>
+            <p className="text-muted-foreground text-xs capitalize">{moneyOwnerLabel(type)}</p>
         </div>
     );
 }

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Ban, Check, HandCoins, RotateCw, Scale } from 'lucide-react';
 
 import { CopyableValue } from '@/components/common/CopyableValue';
@@ -10,6 +10,7 @@ import { PageContainer } from '@/components/layout/PageContainer';
 import { RefundActionDialog, type RefundActionKind } from '@/components/refunds/RefundActionDialogs';
 import { RefundActivityPanel } from '@/components/refunds/RefundActivityPanel';
 import { DeliveryFaultList } from '@/components/refunds/DeliveryFaultList';
+import { PartialReturnPanel, PartialReturnSuccessorNotice } from '@/components/refunds/PartialReturnPanel';
 import {
     ApprovalQueuedNotice,
     RefundMoney,
@@ -24,6 +25,7 @@ import { useAsyncData } from '@/hooks/use-async-data';
 import { resolveTimeZone } from '@/lib/datetime';
 import { formatInstantInZone, formatMoney } from '@/lib/format';
 import { accountSearchPath } from '@/lib/id-search';
+import { notify } from '@/lib/notify';
 import { REFUND_ACTIVITY_PERMISSIONS, getRefundRequest } from '@/services/refunds.service';
 import { useAdmin, useCan } from '@/store';
 import { ApiError, CODE_CLIENT_INVALID_ID } from '@/types/api.types';
@@ -38,6 +40,11 @@ import {
     exceedsRefundableCopy,
     isOwnTypedNumber,
     isRefundOpen,
+    isRefundRequest,
+    PARTIAL_RETURN_FAULT_REQUIRED_HINT,
+    partialReturnFaultLabel,
+    partialReturnNeedsFault,
+    refundDetailPath,
     refundChannelLabel,
     refundFailureReasonLabel,
     refundFinalisingNote,
@@ -47,6 +54,7 @@ import {
     refundSourceKindLabel,
     refundSourcePath,
     refundSourcePermission,
+    type PartialReturnFault,
     type RefundRequest,
 } from '@/types/refunds.types';
 
@@ -76,6 +84,12 @@ const OBJECT_ID = /^[0-9a-f]{24}$/i;
  *    administrator agrees at `/approvals`. Said before the click, and the
  *    queued notice links there.
  *
+ * ── A returned parcel's fault (2026-11-01) ─────────────────────────────────────
+ * With `partialReturn.fault: null`, Approve and Settle are **disabled with the
+ * reason** — the server refuses both (`REFUND_PARTIAL_RETURN_FAULT_REQUIRED`).
+ * Recording a fault REPLACES the request, so the screen moves to the new id
+ * (`replace`, so Back returns to the queue, not to a rejected row).
+ *
  * ── The phone is in full here ─────────────────────────────────────────────────
  * The list masks it; the detail does not, because the approver of a typed
  * number compares it digit for digit with the proof picture beside it.
@@ -99,12 +113,22 @@ export function RefundRequestDetail() {
             </PageContainer>
         );
     }
-    return <RefundRequestScreen refundId={refundId} />;
+    // Keyed: moving to a replacement request must start every dialog and notice clean.
+    return <RefundRequestScreen key={refundId} refundId={refundId} />;
+}
+
+/** What the screen carries to the request that replaced the one it was on. */
+interface ReplacedState {
+    replacedRefundId?: string;
+    fault?: string;
 }
 
 function RefundRequestScreen({ refundId }: { refundId: string }) {
     const admin = useAdmin();
     const can = useCan();
+    const navigate = useNavigate();
+    const location = useLocation();
+    const replaced = (location.state ?? null) as ReplacedState | null;
     const timeZone = resolveTimeZone(admin.timezone);
 
     const [action, setAction] = useState<RefundActionKind | null>(null);
@@ -141,10 +165,38 @@ function RefundRequestScreen({ refundId }: { refundId: string }) {
     const exceeds = exceedsRefundableCopy(refund);
     const finalising = refundFinalisingNote(refund);
     const canSeeActivity = can([...REFUND_ACTIVITY_PERMISSIONS], 'all');
+    const faultMissing = partialReturnNeedsFault(refund);
+    const approveBlocked = faultMissing
+        ? PARTIAL_RETURN_FAULT_REQUIRED_HINT
+        : ownTypedNumber
+          ? 'Another administrator must approve a number you typed'
+          : undefined;
 
     function reconcile() {
         setAction(null);
         setReloadToken((current) => current + 1);
+    }
+
+    /**
+     * The fault call answered. A new id is the replacement — go there. The same
+     * id (rejected) means the return fee used everything prepaid: there is
+     * nothing to approve, and wi-admin's own message saying otherwise is not shown.
+     */
+    function faultDecided(next: RefundRequest, fault: PartialReturnFault) {
+        if (isRefundRequest(next) && next.id !== refund.id) {
+            notify.success(`Recorded: ${partialReturnFaultLabel(fault).toLowerCase()} at fault. Approve the new request to send the refund.`);
+            navigate(refundDetailPath(next.id), {
+                replace: true,
+                state: { replacedRefundId: refund.id, fault } satisfies ReplacedState,
+            });
+            return;
+        }
+        notify.warning(
+            isRefundRequest(next) && next.status === 'rejected'
+                ? 'Recorded. The return fee used everything prepaid, so there is nothing to refund and the case is closed.'
+                : 'Recorded. Reloading to see where the request is now.',
+        );
+        reconcile();
     }
 
     return (
@@ -165,13 +217,9 @@ function RefundRequestScreen({ refundId }: { refundId: string }) {
                         <Button
                             size="sm"
                             onClick={() => setAction('approve')}
-                            // R-7: disabled, never hidden — the reason is the point.
-                            disabled={ownTypedNumber}
-                            title={
-                                ownTypedNumber
-                                    ? 'Another administrator must approve a number you typed'
-                                    : undefined
-                            }
+                            // R-7 and the fault rule: disabled, never hidden — the reason is the point.
+                            disabled={approveBlocked !== undefined}
+                            title={approveBlocked}
                         >
                             <Check className="size-4" />
                             Approve
@@ -184,7 +232,13 @@ function RefundRequestScreen({ refundId }: { refundId: string }) {
                         </Button>
                     ) : null}
                     {can('orders.refund.settle_external') && canSettleRefundExternally(status) ? (
-                        <Button variant="outline" size="sm" onClick={() => setAction('settle')}>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setAction('settle')}
+                            disabled={faultMissing}
+                            title={faultMissing ? PARTIAL_RETURN_FAULT_REQUIRED_HINT : undefined}
+                        >
                             <HandCoins className="size-4" />
                             Settle outside the platform
                         </Button>
@@ -222,6 +276,23 @@ function RefundRequestScreen({ refundId }: { refundId: string }) {
                     </div>
                 ) : null}
 
+                {replaced?.replacedRefundId && status === 'awaiting_approval' ? (
+                    <RefundNotice
+                        tone="info"
+                        title={`Fault recorded${replaced.fault ? `: ${partialReturnFaultLabel(replaced.fault).toLowerCase()}` : ''}. This request replaces the earlier one.`}
+                        action={
+                            <Button asChild variant="outline" size="sm">
+                                <Link to={refundDetailPath(replaced.replacedRefundId)}>The earlier request</Link>
+                            </Button>
+                        }
+                    >
+                        The figures below are the new ones. Nothing has moved yet — approve this
+                        request to send the refund.
+                    </RefundNotice>
+                ) : null}
+
+                {refund.partialReturn && status === 'rejected' ? <PartialReturnSuccessorNotice refund={refund} /> : null}
+
                 <Notices
                     refund={refund}
                     ownTypedNumber={ownTypedNumber}
@@ -237,7 +308,12 @@ function RefundRequestScreen({ refundId }: { refundId: string }) {
                         {canSeeActivity ? <TabsTrigger value="activity">Activity</TabsTrigger> : null}
                     </TabsList>
                     <TabsContent value="overview" className="space-y-4">
-                        <Overview refund={refund} timeZone={timeZone} />
+                        <Overview
+                            refund={refund}
+                            timeZone={timeZone}
+                            onFaultDecided={faultDecided}
+                            onStale={reconcile}
+                        />
                     </TabsContent>
                     {canSeeActivity ? (
                         <TabsContent value="activity">
@@ -280,6 +356,16 @@ function Notices({
     const awaiting = refund.status === 'awaiting_approval';
     return (
         <>
+            {awaiting && partialReturnNeedsFault(refund) ? (
+                <RefundNotice tone="warning" title="Say whose fault this returned parcel is first.">
+                    The agent&rsquo;s report names nobody, so this cannot be approved or settled
+                    outside the platform yet, and the figures below are provisional.{' '}
+                    {canDecide
+                        ? 'Choose in the Returned parcel card on the Overview.'
+                        : 'An administrator who decides refunds has to choose.'}
+                </RefundNotice>
+            ) : null}
+
             {awaiting && refund.secondApproverRequired ? (
                 <RefundNotice
                     tone={ownTypedNumber ? 'warning' : 'info'}
@@ -360,7 +446,17 @@ function Notices({
     );
 }
 
-function Overview({ refund, timeZone }: { refund: RefundRequest; timeZone: string }) {
+function Overview({
+    refund,
+    timeZone,
+    onFaultDecided,
+    onStale,
+}: {
+    refund: RefundRequest;
+    timeZone: string;
+    onFaultDecided: (next: RefundRequest, fault: PartialReturnFault) => void;
+    onStale: () => void;
+}) {
     const can = useCan();
     const sourceNeeds = refundSourcePermission(refund.source.kind);
     const sourcePath = sourceNeeds && can(sourceNeeds) ? refundSourcePath(refund.source) : null;
@@ -368,6 +464,15 @@ function Overview({ refund, timeZone }: { refund: RefundRequest; timeZone: strin
 
     return (
         <>
+            {refund.partialReturn ? (
+                <PartialReturnPanel
+                    refund={refund}
+                    partialReturn={refund.partialReturn}
+                    onDecided={onFaultDecided}
+                    onStale={onStale}
+                />
+            ) : null}
+
             <Card>
                 <CardHeader>
                     <CardTitle>Money</CardTitle>
@@ -380,7 +485,14 @@ function Overview({ refund, timeZone }: { refund: RefundRequest; timeZone: strin
                         fees={refund.fees}
                         feeRate={refund.feeRate}
                         currency={refund.currency}
+                        returnedParcel={refund.partialReturn != null}
                     />
+                    {partialReturnNeedsFault(refund) ? (
+                        <p className="text-muted-foreground text-xs">
+                            Provisional: with nobody named at fault, this shows everything prepaid on
+                            the parcel. Saying whose fault it is replaces these figures.
+                        </p>
+                    ) : null}
                     <DefinitionList>
                         <Definition label="Transfer fee rate">{refund.feeRate}%</Definition>
                         <Definition label="Of which goods">
@@ -390,7 +502,9 @@ function Overview({ refund, timeZone }: { refund: RefundRequest; timeZone: strin
                             {formatMoney(refund.attribution.delivery, refund.currency)}
                         </Definition>
                         <Definition label="Seller’s earnings">
-                            {refund.earningsImpact === 'clawback'
+                            {refund.partialReturn
+                                ? 'Nothing held — this parcel earned nobody anything. Whoever is at fault is charged once it completes.'
+                                : refund.earningsImpact === 'clawback'
                                 ? 'Held while open, clawed back when completed'
                                 : refund.earningsImpact === 'none'
                                   ? 'Not affected — delivery money nobody was paid'
@@ -662,6 +776,12 @@ function Overview({ refund, timeZone }: { refund: RefundRequest; timeZone: strin
                             refund.source.kind === 'plan_purchase' || refund.source.kind === 'credit_topup' ? (
                                 <Definition label="Plan or credits taken back">
                                     {formatInstantInZone(refund.billingReversedAt, timeZone) ?? (
+                                        <NotSet>Still being finalised</NotSet>
+                                    )}
+                                </Definition>
+                            ) : refund.partialReturn ? (
+                                <Definition label="Return fee and charges settled">
+                                    {formatInstantInZone(refund.earningsSettledAt, timeZone) ?? (
                                         <NotSet>Still being finalised</NotSet>
                                     )}
                                 </Definition>

@@ -195,7 +195,14 @@ describe('the route total is the sum of its parts', () => {
         // ⚠ 319 → 332 on 2026-10-27, measured (`TOTAL 333`): service bookings — the
         // new `/bookings` group (13: list, queues, detail, access, availability,
         // activity, and seven writes).
-        expect(totalDeclared).toBe(332);
+        //
+        // ⚠ 332 → 333 on 2026-11-02, measured (`TOTAL 334`): partial payment —
+        // `POST /refunds/:refundId/partial-return-fault` (`/refunds` 12 → 13).
+        //
+        // ⚠ 333 → 350 on 2026-11-02, measured (`TOTAL 351`): the referral program — the
+        // new `/referrals` group (17: settings, summary, rewards, partners, seven
+        // decisions and per-partner terms).
+        expect(totalDeclared).toBe(350);
     });
 });
 

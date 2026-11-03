@@ -11,6 +11,7 @@ import {
     TX_PAYOUT_ID,
     codCollectionDetailFixture,
     debtRecoveryDetailFixture,
+    transactionLinksFixture,
     TX_ORDER_ID,
     TX_PAYMENT_ID,
     TX_REFUND_ID,
@@ -532,6 +533,34 @@ describe('the two kinds the owner added (BR-030)', () => {
             'href',
             `/dashboard/money/payouts/${TX_PAYOUT_ID}`,
         );
+    });
+
+    /** 2026-11-01: a returned parcel's charge. `links` to an order and a refund are empty. */
+    it('shows a returned parcel’s fault charge, with the reason in words and nothing to link', async () => {
+        const base = debtRecoveryDetailFixture();
+        const text = 'A parcel on order WM-1 came back through your fault, and the customer got back everything they paid online.';
+        stubTransactions({
+            detail: {
+                ...base,
+                transaction: {
+                    ...base.transaction,
+                    status: 'refund_clawback',
+                    reason: { code: 'partial_return_fault', text },
+                    links: transactionLinksFixture(),
+                },
+                record: { kind: 'earnings_adjustment', adjustment: 'refund_clawback', actor: null, payoutEvent: null },
+            },
+        });
+
+        render(ADMIN, `${LIST}/earnings_adjustment/66d0aabbccddeeff00112233`);
+
+        expect(await screen.findByText('Charged for a returned parcel that was their fault')).toBeInTheDocument();
+        expect(screen.getByText('Charged for a returned parcel')).toBeInTheDocument();
+        expect(screen.getByText(text)).toBeInTheDocument();
+        expect(screen.getByText('Not linked on this record')).toBeInTheDocument();
+        // Only a write-off's debt figures are in the audit trail.
+        expect(screen.queryByText('Debt before and after')).not.toBeInTheDocument();
+        expect(screen.queryByText('Payout')).not.toBeInTheDocument();
     });
 
     it('lists the two new types in the type picker, under their families', async () => {

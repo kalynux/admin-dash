@@ -273,6 +273,10 @@ const platform = {
         'Ce titulaire ne doit plus rien — des gains ultérieurs ont remboursé la dette.',
     REFUND_DELIVERY_FAULT_INVALID:
         'Un des colis indiqués comme mal livrés n’appartient pas à cette commande. Décochez-le et réessayez.',
+    REFUND_PARTIAL_RETURN_FAULT_REQUIRED:
+        'Indiquez à qui revient la faute de ce colis retourné avant d’approuver ou de régler son remboursement.',
+    REFUND_PARTIAL_RETURN_NOT_APPLICABLE:
+        'Ce remboursement n’est pas celui d’un colis retourné encore en attente d’approbation. Rechargez-le pour voir où il en est.',
     AGENCY_CLAIM_OUTSIDE_WINDOW:
         'Le problème a été signalé après la fin du délai de réclamation de l’agence ; il ne peut pas lui être facturé.',
     AGENCY_CLAIM_EXCEEDS_CAP:
@@ -306,6 +310,15 @@ const platform = {
         'Il n’y a plus de proposition de nouvel horaire ouverte — elle a reçu une réponse, a été retirée ou a expiré.',
     BOOKING_REMINDER_NOT_APPLICABLE:
         'Un rappel n’est envoyé que pour une réservation confirmée qui n’a pas encore commencé.',
+
+    // Programme de parrainage (2026-11-02).
+    REFERRAL_PARTNER_STATUS_CONFLICT:
+        'Le statut de ce partenaire a changé pendant que ceci était ouvert ; cette décision ne s’applique plus. Rechargez pour voir où il en est.',
+    REFERRAL_BALANCE_NOT_FROZEN:
+        'Il n’y a aucun solde gelé à libérer : le partenaire est actif, ou le solde a déjà été libéré.',
+    REFERRAL_PARTNER_NOT_FOUND: 'La plateforme n’a pas ce partenaire de parrainage.',
+    ACCOUNT_CLOSURE_REFERRAL_BALANCE:
+        'Le portefeuille de parrainage de ce compte contient ou doit encore de l’argent ; le compte ne peut pas encore être fermé.',
 };
 
 export default platform;

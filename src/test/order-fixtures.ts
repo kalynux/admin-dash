@@ -121,6 +121,8 @@ export function orderDetailFixture(overrides: Partial<OrderDetail> = {}): OrderD
             owedManually: 0,
             returned: 0,
         },
+        // Not a partial order — the DTO's `null` on every other order.
+        partialPayment: null,
         ...overrides,
     };
 }

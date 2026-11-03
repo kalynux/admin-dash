@@ -1,5 +1,5 @@
 /**
- * `/refunds` — the refund queue. **Twelve routes** (2026-10-05).
+ * `/refunds` — the refund queue. **Thirteen routes** (the thirteenth 2026-11-01).
  *
  * Source: `api-doc/admin/api/refunds.md`. The list, the detail and the activity
  * feed read `refund_requests` directly; **every write, the eligibility read and
@@ -31,6 +31,7 @@ import type {
     ApproveNowOutcome,
     CreateRefundBody,
     CreateRefundResult,
+    PartialReturnFault,
     RefundEligibility,
     RefundEligibilityQuery,
     RefundListQuery,
@@ -189,6 +190,27 @@ export function rejectRefundRequest(refundId: string, reason: string, options?: 
         'POST',
         refundPath(refundId, '/reject'),
         { reason: reason.trim() },
+        options,
+    );
+}
+
+/**
+ * `POST /refunds/:refundId/partial-return-fault` · `orders.refund`. Whose fault a
+ * partial order's returned parcel is. Audited. Moves no money — with one exception.
+ *
+ * ⚠ **It REPLACES the request**: the old one becomes `rejected` and the answer is
+ * the new one, **with a new `id`**, still `awaiting_approval`. Approve that one.
+ *
+ * ⚠ **Compare the answer's `id` with what you sent.** When the customer is at fault
+ * and the return fee used everything prepaid, nothing is left to send, so no
+ * replacement exists and the answer is the OLD row, `rejected`, with the agency
+ * already paid. wi-admin's `message` still says to approve it, so it is not shown.
+ */
+export function setPartialReturnFault(refundId: string, fault: PartialReturnFault, options?: RequestOptions) {
+    return api.mutate<RefundRequest>(
+        'POST',
+        refundPath(refundId, '/partial-return-fault'),
+        { fault },
         options,
     );
 }

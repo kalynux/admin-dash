@@ -56,6 +56,11 @@ import { RemittancesModule } from '@/pages/cod/RemittancesModule';
 import { EarningsModule } from '@/pages/money/EarningsModule';
 import { OrdersModule } from '@/pages/orders/OrdersModule';
 import { BookingsModule } from '@/pages/bookings/BookingsModule';
+import { ReferralApplications } from '@/pages/referrals/ReferralApplications';
+import { ReferralPartnersModule } from '@/pages/referrals/ReferralPartnersModule';
+import { ReferralRewardsModule } from '@/pages/referrals/ReferralRewardsModule';
+import { ReferralSettingsScreen } from '@/pages/referrals/ReferralSettingsScreen';
+import { ReferralSummary } from '@/pages/referrals/ReferralSummary';
 import { CacheInspector } from '@/pages/dev-tools/CacheInspector';
 import { CatalogueTools } from '@/pages/dev-tools/CatalogueTools';
 import { DatabaseInspector } from '@/pages/dev-tools/DatabaseInspector';
@@ -225,6 +230,15 @@ const SCREENS: Record<string, ReactNode> = {
      */
     'billing-plans': <BillingModule />,
     'billing-subscriptions': <SubscriptionsModule />,
+    /**
+     * Keyed by child id. All five stand on `referrals.read`, and Partners and Rewards
+     * each own their `:id` and their own 404 (2026-11-02).
+     */
+    'referrals-applications': <ReferralApplications />,
+    'referrals-partners': <ReferralPartnersModule />,
+    'referrals-rewards': <ReferralRewardsModule />,
+    'referrals-summary': <ReferralSummary />,
+    'referrals-settings': <ReferralSettingsScreen />,
     /**
      * A childless module, mounted at `permissions/*`, so it owns its own 404.
      *

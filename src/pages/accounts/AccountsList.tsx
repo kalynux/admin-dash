@@ -24,8 +24,10 @@ import { withQuery } from '@/lib/query';
 import { listEarningsAccounts } from '@/services/money.service';
 import { useAdmin } from '@/store';
 import {
-    EARNINGS_ACCOUNT_OWNER_TYPES,
+    moneyOwnerLabel,
+    moneyOwnerPath,
     owesRefundDebt,
+    PAYOUT_OWNER_TYPES,
     readEarningsAccountRow,
     type EarningsAccountRow,
 } from '@/types/money.types';
@@ -113,8 +115,8 @@ export function AccountsList() {
                         {row.ownerId ? (
                             <CopyableId
                                 value={row.ownerId}
-                                label={`${row.ownerType} ID`}
-                                to={`/dashboard/accounts/${row.ownerType}/${row.ownerId}`}
+                                label={`${moneyOwnerLabel(row.ownerType)} ID`}
+                                to={moneyOwnerPath(row.ownerType, row.ownerId)}
                             />
                         ) : (
                             <span className="text-muted-foreground font-mono text-xs">
@@ -123,7 +125,7 @@ export function AccountsList() {
                         )}
                         <div>
                             <Badge variant="outline" className="capitalize">
-                                {row.ownerType}
+                                {moneyOwnerLabel(row.ownerType)}
                             </Badge>
                         </div>
                     </div>
@@ -205,7 +207,7 @@ export function AccountsList() {
     return (
         <PageContainer
             title="Accounts"
-            description="What the platform owes each vendor, agency and agent."
+            description="What the platform owes each vendor, agency, agent and referral partner."
         >
             <div className="space-y-4">
                 <FilterBar isFiltered={isFiltered} onClear={reset}>
@@ -220,13 +222,13 @@ export function AccountsList() {
                             <SelectContent>
                                 <SelectItem value={ANY}>Every owner</SelectItem>
                                 {/*
-                                  jovi-mall pins these three, so anything else is a
+                                  jovi-mall pins these four, so anything else is a
                                   delegated 400 rather than an empty page — no
                                   widening from the URL here.
                                 */}
-                                {EARNINGS_ACCOUNT_OWNER_TYPES.map((value) => (
+                                {PAYOUT_OWNER_TYPES.map((value) => (
                                     <SelectItem key={value} value={value} className="capitalize">
-                                        {value}
+                                        {moneyOwnerLabel(value)}
                                     </SelectItem>
                                 ))}
                             </SelectContent>

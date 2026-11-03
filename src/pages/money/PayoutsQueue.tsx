@@ -45,7 +45,8 @@ import { useAdmin, useCan } from '@/store';
 import {
     canMarkPayoutPaid,
     canRejectPayout,
-    EARNINGS_ACCOUNT_OWNER_TYPES,
+    moneyOwnerLabel,
+    PAYOUT_OWNER_TYPES,
     isGatewaySendableDestination,
     isPayoutSendable,
     MONEY_MAX_RANGE_DAYS,
@@ -286,7 +287,10 @@ export function PayoutsQueue() {
     */
     const [unvettedOnly, setUnvettedOnly] = useState(false);
     const rows = payouts.data?.data ?? [];
-    const visibleRows = unvettedOnly ? rows.filter((row) => !row.verification.verified) : rows;
+    // A partner has no verification to be missing, so "not vetted" does not describe one.
+    const visibleRows = unvettedOnly
+        ? rows.filter((row) => !row.verification.verified && row.owner.type !== 'referral_partner')
+        : rows;
     const hiddenByVetting = rows.length - visibleRows.length;
 
     return (
@@ -357,11 +361,11 @@ export function PayoutsQueue() {
                             <SelectContent>
                                 <SelectItem value={ANY}>Any owner</SelectItem>
                                 {withCurrent(
-                                    EARNINGS_ACCOUNT_OWNER_TYPES,
+                                    PAYOUT_OWNER_TYPES,
                                     values.ownerType || ANY,
                                 ).map((value) => (
                                     <SelectItem key={value} value={value} className="capitalize">
-                                        {value}
+                                        {moneyOwnerLabel(value)}
                                     </SelectItem>
                                 ))}
                             </SelectContent>

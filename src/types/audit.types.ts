@@ -81,6 +81,10 @@ export const AUDIT_TARGET_TYPES: readonly string[] = [
     // A customer refund REQUEST (2026-10-05) — its own type, not `order`. In
     // wi-admin's `audit.types.ts`; ⚠ `audit.md` does not list it yet.
     'refund',
+    // The referral program (2026-11-02). In wi-admin's `audit.types.ts`; ⚠ `audit.md`
+    // does not list them yet.
+    'referral_partner',
+    'referral_settings',
     'ticket',
     'article',
     'plan',

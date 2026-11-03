@@ -555,6 +555,12 @@ export const ROLE_CLOSURE_BLOCKER_LABELS: Record<string, { what: string; settle:
         what: 'Refund debt owed to the platform',
         settle: 'Later earnings repay it, or an administrator writes it off on Money › Refund debt',
     },
+    // 2026-11-02: only on the account's LAST open role. With another role left, the
+    // person can still reach their referral wallet.
+    referral_balance: {
+        what: 'A referral wallet that still holds or owes money',
+        settle: 'The balance is withdrawn, or the debt is repaid or written off on Money › Refund debt',
+    },
     earnings_allocations_held: {
         what: 'Earnings still in their hold period',
         settle: 'The hold period ends',

@@ -6,7 +6,7 @@ import { formatInstantInZone, formatMoney, formatRelative } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { Approval } from '@/types/approvals.types';
 import {
-    feesPaidBySeller,
+    refundFeesCharge,
     refundStatusLabel,
     refundStatusNote,
     type RefundFees,
@@ -67,6 +67,9 @@ const percent = (rate: number) => `${rate}%`;
  * transfer fee — and says who pays. `paidBy: 'vendor'` (the seller cancelled a
  * paid order) prints *Fees charged to the seller* and the customer's 100%.
  * Absent or `null` (an older wi-admin): the single transfer-fee line, as before.
+ * `paidBy: 'agency'` (2026-11-01) is printed the same way, from `agencyCharge`.
+ * `returnedParcel` changes why the sentence says they pay: on a partial order's
+ * returned parcel nobody cancelled anything, the fault decided it.
  *
  * `compact` is the table cell; the full form names each figure.
  */
@@ -78,6 +81,7 @@ export function RefundMoney({
     fees = null,
     feeRate,
     compact = false,
+    returnedParcel = false,
 }: {
     gross: number;
     /** `feeAmount` — everything deducted from the customer. */
@@ -88,17 +92,19 @@ export function RefundMoney({
     /** The transfer-fee rate, for the legacy single line. */
     feeRate?: number;
     compact?: boolean;
+    /** This request is a partial order's returned parcel. */
+    returnedParcel?: boolean;
 }) {
-    const sellerPays = feesPaidBySeller(fees);
-    const lines = fees && !sellerPays ? feeLines(fees, percent) : null;
+    const charge = refundFeesCharge(fees);
+    const lines = fees && !charge ? feeLines(fees, percent) : null;
 
     if (compact) {
         return (
             <div className="space-y-0.5 tabular-nums">
                 <p className="font-medium">{formatMoney(gross, currency)}</p>
                 <p className="text-muted-foreground text-xs">
-                    {sellerPays && fees
-                        ? `fees charged to the seller ${formatMoney(fees.vendorCharge, currency)}`
+                    {charge
+                        ? `fees charged to ${charge.name} ${formatMoney(charge.amount, currency)}`
                         : lines
                           ? lines.length > 0
                               ? lines
@@ -113,8 +119,8 @@ export function RefundMoney({
     }
 
     const feeCells: FeeLine[] =
-        sellerPays && fees
-            ? [{ key: 'seller', label: 'Fees charged to the seller', amount: fees.vendorCharge }]
+        charge
+            ? [{ key: charge.party, label: `Fees charged to ${charge.name}`, amount: charge.amount }]
             : lines
               ? lines.length > 0
                   ? lines
@@ -145,15 +151,18 @@ export function RefundMoney({
                     <dd className="font-medium tabular-nums">{formatMoney(net, currency)}</dd>
                 </div>
             </dl>
-            {sellerPays && fees ? (
+            {charge && fees ? (
                 <p className="text-muted-foreground text-xs">
-                    The seller cancelled after payment, so the seller pays the fees
+                    {returnedParcel || charge.party === 'agency'
+                        ? `This returned parcel is the fault of ${charge.name}, so they pay the fees`
+                        : 'The seller cancelled after payment, so the seller pays the fees'}
                     {feeLines(fees, percent).length > 0
                         ? ` (${feeLines(fees, percent)
                               .map((line) => `${line.label.toLowerCase()} ${formatMoney(line.amount, currency)}`)
                               .join(' + ')})`
                         : ''}{' '}
-                    on top of their share, and the customer receives the full amount.
+                    {charge.party === 'seller' && !returnedParcel ? 'on top of their share, ' : ''}and the
+                    customer receives the full amount.
                 </p>
             ) : null}
         </div>

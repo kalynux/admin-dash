@@ -38,9 +38,11 @@ import {
     EXTERNAL_SETTLEMENT_METHOD_LABELS,
     EXTERNAL_SETTLEMENT_METHODS,
     isExceedsRefundable,
+    partialReturnFaultLabel,
     PLATFORM_CODE_REFUND_EXTERNAL_PROOF_REQUIRED,
     PLATFORM_CODE_REFUND_INSUFFICIENT_GATEWAY_BALANCE,
     PLATFORM_CODE_REFUND_NO_DESTINATION,
+    PLATFORM_CODE_REFUND_PARTIAL_RETURN_FAULT_REQUIRED,
     PLATFORM_CODE_REFUND_PAYOUT_UNAVAILABLE,
     proofFileIdOf,
     REFUND_REFERENCE_MAX,
@@ -76,7 +78,8 @@ import {
  * reload. `REFUND_SECOND_APPROVER_REQUIRED` is R-7 — another administrator must
  * approve a typed number. Both names arrive as `error.code` (wi-admin's
  * pre-flight) or `details.platformCode` (jovi-mall) — `refundRefusalCode` reads
- * either.
+ * either. `REFUND_PARTIAL_RETURN_FAULT_REQUIRED` (2026-11-01) is the backstop to
+ * the disabled Approve and Settle on a returned parcel nobody is named for.
  */
 export type RefundActionKind = 'approve' | 'reject' | 'retry' | 'settle' | 'resolve';
 
@@ -141,7 +144,8 @@ type Outcome =
     | { kind: 'second_approver' }
     | { kind: 'payouts_off' }
     | { kind: 'short_float' }
-    | { kind: 'no_destination' };
+    | { kind: 'no_destination' }
+    | { kind: 'fault_required' };
 
 function outcomeOf(error: unknown): Outcome | null {
     const code = refundRefusalCode(error);
@@ -152,6 +156,7 @@ function outcomeOf(error: unknown): Outcome | null {
     if (code === PLATFORM_CODE_REFUND_PAYOUT_UNAVAILABLE) return { kind: 'payouts_off' };
     if (code === PLATFORM_CODE_REFUND_INSUFFICIENT_GATEWAY_BALANCE) return { kind: 'short_float' };
     if (code === PLATFORM_CODE_REFUND_NO_DESTINATION) return { kind: 'no_destination' };
+    if (code === PLATFORM_CODE_REFUND_PARTIAL_RETURN_FAULT_REQUIRED) return { kind: 'fault_required' };
     return null;
 }
 
@@ -230,6 +235,13 @@ function OutcomeBox({
                     reject it and raise a new request with the customer&rsquo;s number and its picture.
                 </RefundNotice>
             );
+        case 'fault_required':
+            return (
+                <RefundNotice tone="warning" title="Say whose fault this returned parcel is first." action={reload}>
+                    Nothing was sent. How much goes back, and who pays the fees, depend on whose fault
+                    the return was. Choose it on the request, then approve the new request it opens.
+                </RefundNotice>
+            );
     }
 }
 
@@ -272,7 +284,14 @@ function ApproveForm({ refund, onDone, onQueued, onSwitch, onCancel }: FormProps
                 fees={refund.fees}
                 feeRate={refund.feeRate}
                 currency={refund.currency}
+                returnedParcel={refund.partialReturn != null}
             />
+            {refund.partialReturn?.fault ? (
+                <p className="text-sm">
+                    <span className="text-muted-foreground">Returned parcel, at fault: </span>
+                    {partialReturnFaultLabel(refund.partialReturn.fault)}
+                </p>
+            ) : null}
             {refund.destination?.phone ? (
                 <p className="text-sm">
                     <span className="text-muted-foreground">To: </span>
@@ -364,6 +383,13 @@ function RejectForm({ refund, onDone, onSwitch, onCancel }: FormProps) {
                     ? 'The pause on the seller’s earnings lifts.'
                     : 'No earnings were held by this request.'}
             </p>
+            {refund.partialReturn ? (
+                <RefundNotice tone="warning" title="A returned parcel’s refund does not reopen by itself.">
+                    If the customer is still owed what they prepaid, you will have to raise a new
+                    refund from the order. To change whose fault the return was, record it on the
+                    request instead — that replaces it at the right amount.
+                </RefundNotice>
+            ) : null}
             <FormField
                 id="refund-reject-reason"
                 label="Reason"
@@ -522,6 +548,7 @@ function SettleForm({ refund, onDone, onSwitch, onCancel }: FormProps) {
                 fees={refund.fees}
                 feeRate={refund.feeRate}
                 currency={refund.currency}
+                returnedParcel={refund.partialReturn != null}
             />
             <p className="text-muted-foreground text-sm">
                 Send the customer their money first, then record it here — this completes the

@@ -98,9 +98,11 @@ export function OrderDeliveryFeePanel({
                                 />
                             ) : (
                                 <NotSet>
-                                    {order.paymentMethod === 'cash_on_delivery'
-                                        ? 'Cash on delivery — no online payment'
-                                        : 'No payment recorded'}
+                                    {order.partialPayment != null
+                                        ? 'Part online, part cash — no checkout payment linked here'
+                                        : order.paymentMethod === 'cash_on_delivery'
+                                          ? 'Cash on delivery — no online payment'
+                                          : 'No payment recorded'}
                                 </NotSet>
                             )}
                         </Definition>

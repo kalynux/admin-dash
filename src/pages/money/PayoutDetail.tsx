@@ -40,6 +40,8 @@ import { ACCOUNT_READ_PERMISSIONS } from '@/services/accounts.service';
 import {
     canMarkPayoutPaid,
     canRejectPayout,
+    moneyOwnerLabel,
+    moneyOwnerPath,
     isGatewaySendableDestination,
     isPayoutOutcomeUnknown,
     isPayoutSendable,
@@ -191,7 +193,7 @@ export function PayoutDetail() {
     return (
         <PageContainer
             title={formatMoney(record.amount, record.currency)}
-            description={`Payout to ${record.owner.name ?? record.owner.type}`}
+            description={`Payout to ${record.owner.name ?? moneyOwnerLabel(record.owner.type)}`}
             actions={
                 showEndorse || showReject || showSend || showMarkPaid || showResolveUnknown ? (
                     <div className="flex flex-wrap gap-2">
@@ -504,7 +506,10 @@ function RequestCard({ record, timeZone }: { record: Payout; timeZone: string })
               ? `/dashboard/agencies/${owner.id}`
               : owner.type === 'agent' && can('agents.read') && owner.id
                 ? `/dashboard/agents/${owner.id}`
-                : null;
+                : owner.type === 'referral_partner' && can('referrals.read') && owner.id
+                  ? `/dashboard/referrals/partners/${owner.id}`
+                  : null;
+    const isPartner = owner.type === 'referral_partner';
 
     return (
         <Card>
@@ -546,7 +551,7 @@ function RequestCard({ record, timeZone }: { record: Payout; timeZone: string })
                                 <span className="font-medium">{owner.name ?? owner.id}</span>
                             )}
                             <span className="text-muted-foreground text-xs capitalize">
-                                {owner.type}
+                                {moneyOwnerLabel(owner.type)}
                             </span>
                         </span>
                     </Definition>
@@ -563,7 +568,15 @@ function RequestCard({ record, timeZone }: { record: Payout; timeZone: string })
                       would invent an enforcement rule the service does not have.
                     */}
                     <Definition label="Owner vetted">
-                        <PayoutVerificationBadge verification={record.verification} />
+                        {isPartner ? (
+                            // ⚠ A partner has no KYC of their own, and the service
+                            // answers `unverified` for one. The ticket replaces the line.
+                            <span className="text-muted-foreground text-sm">
+                                No verification: read the checks on the payout’s ticket
+                            </span>
+                        ) : (
+                            <PayoutVerificationBadge verification={record.verification} />
+                        )}
                     </Definition>
 
                     <Definition label="Their account">
@@ -572,12 +585,12 @@ function RequestCard({ record, timeZone }: { record: Payout; timeZone: string })
                           screen needs one. The link is offered only where it
                           leads somewhere.
                         */}
-                        {owner.id && can(ACCOUNT_READ_PERMISSIONS, 'all') ? (
+                        {owner.id && (isPartner ? can('referrals.read') : can(ACCOUNT_READ_PERMISSIONS, 'all')) ? (
                             <Link
-                                to={`/dashboard/accounts/${owner.type}/${owner.id}`}
+                                to={moneyOwnerPath(owner.type, owner.id)}
                                 className="hover:underline"
                             >
-                                Open the account
+                                {isPartner ? 'Open the partner' : 'Open the account'}
                             </Link>
                         ) : (
                             <NotSet>Not available to you</NotSet>

@@ -483,6 +483,11 @@ const platform = {
     // Delivery at fault and damage claims (2026-10-22).
     REFUND_DELIVERY_FAULT_INVALID:
         'One of the parcels named as delivered at fault is not on this order. Untick it and try again.',
+    // A partial order's returned parcel (2026-11-01).
+    REFUND_PARTIAL_RETURN_FAULT_REQUIRED:
+        'Say whose fault this returned parcel is before approving or settling its refund.',
+    REFUND_PARTIAL_RETURN_NOT_APPLICABLE:
+        'This refund is not a returned parcel still waiting for approval. Reload it to see where it is now.',
     AGENCY_CLAIM_OUTSIDE_WINDOW:
         'The problem was raised after the agency’s damage-claim window closed, so it cannot be charged.',
     AGENCY_CLAIM_EXCEEDS_CAP:
@@ -520,6 +525,20 @@ const platform = {
         'There is no open proposal of a new time any more — it was answered, withdrawn or expired.',
     BOOKING_REMINDER_NOT_APPLICABLE:
         'A reminder is only sent for a confirmed booking that has not started yet.',
+
+    // ─── The referral program (2026-11-02) ───────────────────────────────────
+    /*
+      The dialogs close and re-read on the first two; this copy is what anything else
+      shows. jovi-mall's own sentences for the rest of its `REFERRAL_*` codes address
+      the partner, and an administrator never receives them.
+    */
+    REFERRAL_PARTNER_STATUS_CONFLICT:
+        'This partner’s status changed while this was open, so that decision no longer applies. Reload to see where they are now.',
+    REFERRAL_BALANCE_NOT_FROZEN:
+        'There is no frozen balance to release: the partner is active, or it was already released.',
+    REFERRAL_PARTNER_NOT_FOUND: 'The platform has no such referral partner.',
+    ACCOUNT_CLOSURE_REFERRAL_BALANCE:
+        'This account’s referral wallet still holds or owes money, so the account cannot be closed yet.',
 };
 
 export default platform;

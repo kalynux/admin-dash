@@ -22,7 +22,14 @@ import type { AdminTier } from '@/types/auth.types';
 // ─── The catalogue ────────────────────────────────────────────────────────────
 
 /**
- * All 149 permissions, `family.resource.action`, in the doc's own family order.
+ * All 153 permissions, `family.resource.action`, in the doc's own family order.
+ *
+ * The 150th–153rd are the **`referrals`** family (2026-11-02, the 25th —
+ * `referrals.md`, `FRONTEND-CHANGELOG-referrals.md`): `referrals.read` and
+ * `referrals.partners.decide` (every tier, Support included, by the owner's
+ * decision), `referrals.partners.balance` (`financial`, tiers 1–2) and
+ * `referrals.settings.write` (`financial`, tier 1). 153 / 129 / 51, measured with
+ * `npm run authz:matrix`.
  *
  * The 145th–149th are the **`bookings`** family (2026-10-27, the 24th —
  * `bookings.md`, `FRONTEND-CHANGELOG-bookings.md`): `bookings.read` and
@@ -369,6 +376,15 @@ export const PERMISSION_NAMES = [
     // vendor is paid after the hold), record cash. `financial`, tiers 1–2.
     'bookings.settle',
 
+    // referrals — the referral program (2026-11-02). Read and decide are every
+    // tier, Support included, by the owner's decision.
+    'referrals.read',
+    'referrals.partners.decide',
+    // Let a suspended or terminated partner withdraw. `financial`, tiers 1–2.
+    'referrals.partners.balance',
+    // Rates, durations, the program's switch. `financial`, tier 1 only.
+    'referrals.settings.write',
+
     // administrators
     'administrators.read',
     'administrators.create',
@@ -515,6 +531,7 @@ export const PERMISSION_FAMILIES = [
     'reviews',
     'shipments',
     'bookings',
+    'referrals',
     'administrators',
     'employees',
     'approvals',
@@ -527,14 +544,14 @@ export const PERMISSION_FAMILIES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Any of the 149. Use for what the *server* may send us. */
+/** Any of the 153. Use for what the *server* may send us. */
 export type PermissionName = (typeof PERMISSION_NAMES)[number];
 
 /** One of the four `†`. */
 export type UnroutedPermissionName = (typeof UNROUTED_PERMISSION_NAMES)[number];
 
 /**
- * The 145 that gate a real endpoint — 149 less the four `†`. **Use for what *our code* asks for** — nav
+ * The 149 that gate a real endpoint — 153 less the four `†`. **Use for what *our code* asks for** — nav
  * items, `<Can>`, `RequirePermission` — so that gating a screen on a permission
  * whose endpoint does not exist is a `tsc` error.
  */

@@ -12,6 +12,7 @@ import {
     CalendarClock,
     ScrollText,
     ServerCog,
+    Share2,
     LifeBuoy,
     Newspaper,
     ShieldCheck,
@@ -744,6 +745,69 @@ export const NAV_SECTIONS: NavSection[] = [
                         label: 'Subscriptions',
                         path: '/dashboard/billing/subscriptions',
                         permission: 'billing.plans.read',
+                        implemented: true,
+                        phase: 11,
+                    },
+                ],
+            },
+            {
+                /**
+                 * The referral program (2026-11-02). **Every child stands on
+                 * `referrals.read`, which every tier holds, Support included**,
+                 * and each write gates itself inside: `referrals.partners.decide`
+                 * (every tier), `referrals.partners.balance` (tiers 1–2),
+                 * `referrals.settings.write` (tier 1).
+                 *
+                 * No index child, so `/dashboard/referrals` lands on Applications,
+                 * declared first because it is the only part that waits for
+                 * somebody.
+                 */
+                id: 'referrals',
+                label: 'Referrals',
+                icon: Share2,
+                path: '/dashboard/referrals',
+                implemented: true,
+                phase: 11,
+                children: [
+                    {
+                        id: 'referrals-applications',
+                        label: 'Applications',
+                        path: '/dashboard/referrals/applications',
+                        permission: 'referrals.read',
+                        implemented: true,
+                        phase: 11,
+                    },
+                    {
+                        id: 'referrals-partners',
+                        label: 'Partners',
+                        path: '/dashboard/referrals/partners',
+                        permission: 'referrals.read',
+                        implemented: true,
+                        phase: 11,
+                    },
+                    {
+                        id: 'referrals-rewards',
+                        label: 'Rewards',
+                        path: '/dashboard/referrals/rewards',
+                        permission: 'referrals.read',
+                        implemented: true,
+                        phase: 11,
+                    },
+                    {
+                        id: 'referrals-summary',
+                        label: 'Summary',
+                        path: '/dashboard/referrals/summary',
+                        permission: 'referrals.read',
+                        implemented: true,
+                        phase: 11,
+                    },
+                    {
+                        // On the read: everyone sees the settings, and only
+                        // `referrals.settings.write` gets inputs.
+                        id: 'referrals-settings',
+                        label: 'Settings',
+                        path: '/dashboard/referrals/settings',
+                        permission: 'referrals.read',
                         implemented: true,
                         phase: 11,
                     },

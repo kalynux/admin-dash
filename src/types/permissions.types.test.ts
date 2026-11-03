@@ -180,10 +180,15 @@ describe('the permission catalogue matches api-doc/admin/api/permissions.md', ()
         // `access.read`, `intervene` and `settle` (`financial`) tiers 1–2. The
         // page carries all five rows — and still no `agencies.claims.charge` row,
         // so BR-032's two red assertions are unchanged.
-        expect(PERMISSION_NAMES.length).toBe(149);
+        //
+        // ⚠ **Moved 149 → 153 on 2026-11-02** — 153 / 129 / 51 by `authz:matrix`: the
+        // `referrals` family (the 25th). `read` and `partners.decide` every tier,
+        // `partners.balance` (`financial`) tiers 1–2, `settings.write` (`financial`)
+        // tier 1.
+        expect(PERMISSION_NAMES.length).toBe(153);
         expect(UNROUTED_PERMISSION_NAMES.length).toBe(4);
-        expect(PERMISSION_FAMILIES.length).toBe(24);
-        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(145);
+        expect(PERMISSION_FAMILIES.length).toBe(25);
+        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(149);
     });
 
     /**

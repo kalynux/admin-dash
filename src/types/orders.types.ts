@@ -405,6 +405,34 @@ export interface OrderDetail extends Order {
      * that omits the key.
      */
     deliveryFee: OrderDeliveryFee | null;
+    /**
+     * Paid part online, part in cash at delivery (2026-11-01). **Detail only**,
+     * `null` on every other order, absent from an older wi-admin.
+     *
+     * ⚠ Such an order reads `paymentMethod: "cash_on_delivery"` — this field is the
+     * only thing that tells the two apart. Read it with {@link isPartialPaymentOrder}.
+     */
+    partialPayment?: OrderPartialPayment | null;
+}
+
+/**
+ * `partialPayment` — wi-admin's `OrderDetailDto['partialPayment']`. Every amount
+ * is printed as sent. ⚠ `balanceDue` is `total − amountPaidOnline`, fixed: it does
+ * NOT fall as the cash is collected — `paymentStatus: "paid"` says it all was.
+ */
+export interface OrderPartialPayment {
+    minPercent: number;
+    minimumAmount: number;
+    maximumAmount: number;
+    /** `0` until the online part is paid. */
+    amountPaidOnline: number;
+    balanceDue: number;
+    /** `null` until the online part is paid — and the order cannot dispatch before. */
+    paidAt: string | null;
+}
+
+export function isPartialPaymentOrder(order: OrderDetail): order is OrderDetail & { partialPayment: OrderPartialPayment } {
+    return order.partialPayment != null;
 }
 
 // ─── Customer-paid delivery (jovi-mall ADR-A11, 2026-10-04) ───────────────────
@@ -944,7 +972,11 @@ export function dispatchCaveats(order: OrderDetail): string[] {
     if (order.disputeHeld) {
         caveats.push('This order is frozen by a payment dispute, which blocks dispatch.');
     }
-    if (order.paymentStatus === 'pending' || order.paymentStatus === 'AWAITING_PAYMENT') {
+    if (isPartialPaymentOrder(order) && order.partialPayment.paidAt === null) {
+        caveats.push(
+            'The customer has not paid the online part of this order yet, and the platform does not dispatch it until they do.',
+        );
+    } else if (order.paymentStatus === 'pending' || order.paymentStatus === 'AWAITING_PAYMENT') {
         caveats.push(
             'Payment has not settled. The platform dispatches an unpaid order only when it is cash on delivery.',
         );

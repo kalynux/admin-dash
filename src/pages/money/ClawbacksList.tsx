@@ -32,6 +32,8 @@ import {
     CLAWBACK_SORT_DEFAULT,
     CLAWBACK_SORT_OPTIONS,
     clawbackTotalsOf,
+    moneyOwnerLabel,
+    moneyOwnerPath,
     type ClawbackDebtRow,
     type ClawbackListQuery,
 } from '@/types/money.types';
@@ -91,12 +93,12 @@ export function ClawbacksList() {
                         {row.owner.id ? (
                             <CopyableValue
                                 value={row.owner.id}
-                                label={`${row.owner.type} ID`}
-                                to={`/dashboard/accounts/${row.owner.type}/${row.owner.id}`}
+                                label={`${moneyOwnerLabel(row.owner.type)} ID`}
+                                to={moneyOwnerPath(row.owner.type, row.owner.id)}
                             />
                         ) : null}
                         <Badge variant="outline" className="capitalize">
-                            {row.owner.type}
+                            {moneyOwnerLabel(row.owner.type)}
                         </Badge>
                     </div>
                 ),
@@ -188,7 +190,7 @@ export function ClawbacksList() {
                                 <SelectItem value={ANY}>Every owner</SelectItem>
                                 {CLAWBACK_OWNER_TYPES.map((value) => (
                                     <SelectItem key={value} value={value} className="capitalize">
-                                        {value}
+                                        {moneyOwnerLabel(value)}
                                     </SelectItem>
                                 ))}
                             </SelectContent>

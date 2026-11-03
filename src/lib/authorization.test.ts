@@ -166,9 +166,11 @@ describe('the tier fixtures match the documented levels', () => {
         // the damage claim — `financial`, tiers 1–2, never Support.
         // ⚠ **144 / 121 / 47 → 149 / 126 / 49 on 2026-10-27**: the `bookings` family —
         // Support holds `read` and `remind`, never the link or an intervention.
-        expect(TIER_1_PERMISSIONS.length).toBe(149);
-        expect(TIER_2_PERMISSIONS.length).toBe(126);
-        expect(TIER_3_PERMISSIONS.length).toBe(49);
+        // ⚠ **149 / 126 / 49 → 153 / 129 / 51 on 2026-11-02**: the `referrals` family —
+        // Support holds `read` and `partners.decide`, Admin everything but the settings.
+        expect(TIER_1_PERMISSIONS.length).toBe(153);
+        expect(TIER_2_PERMISSIONS.length).toBe(129);
+        expect(TIER_3_PERMISSIONS.length).toBe(51);
     });
 
     it('withholds from Admin exactly what the doc says it withholds', () => {
@@ -222,7 +224,7 @@ describe('the tier fixtures match the documented levels', () => {
         expect(heldFixture(3).has('money.payments.read')).toBe(true);
     });
 
-    it('leaves Support holding 49 permissions, every one of them usable', () => {
+    it('leaves Support holding 51 permissions, every one of them usable', () => {
         // 24 held / 12 usable before Phase 5 built the `support` and `content`
         // surfaces; 29 until `files.content.read` was granted to all three tiers
         // at BR-011; 30 until `support.automation.lookup` arrived with
@@ -235,7 +237,7 @@ describe('the tier fixtures match the documented levels', () => {
         // so there is nothing in their set they cannot reach.
         const unrouted = new Set<string>(UNROUTED_PERMISSION_NAMES);
         const usable = TIER_3_PERMISSIONS.filter((name) => !unrouted.has(name));
-        expect(usable.length).toBe(49);
+        expect(usable.length).toBe(51);
     });
 
     it('gives Support file resolution, but not the orphan listing', () => {

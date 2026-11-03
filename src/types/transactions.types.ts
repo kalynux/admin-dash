@@ -137,6 +137,7 @@ const REASON_CODE_LABELS: Record<string, string> = {
     cod_delivery_fee: 'A delivery fee paid in cash',
     debt_write_off: 'Refund debt written off',
     debt_recovered_from_payout: 'Refund debt paid by a returned payout',
+    partial_return_fault: 'Charged for a returned parcel',
     order_split: 'Share of an order',
     cod_split: 'Share of a cash order',
     delivery_split: 'Share of a delivery fee',
@@ -147,6 +148,10 @@ const REASON_CODE_LABELS: Record<string, string> = {
     delivery_fee_adjustment: 'Delivery fee adjusted',
     refund_clawback: 'Taken back by a refund',
     clawback_recovery: 'Refund debt paid down',
+    // A partner's ledger (2026-11-02), on rows whose party role is `referral_partner`.
+    referral_reward: 'Referral reward earned',
+    referral_reward_matured: 'Referral reward available',
+    referral_reward_clawback: 'Referral reward reduced by a refund',
 };
 
 function labelOf(labels: Record<string, string>, value: string | null | undefined): string {
@@ -376,7 +381,11 @@ export type TransactionRecord =
       }
     | {
           kind: 'earnings_adjustment';
-          /** `write_off` or `clawback_recovery` — the stored kind. Open. */
+          /**
+           * `write_off`, `clawback_recovery` or `refund_clawback` — the stored kind.
+           * Open. `refund_clawback` (2026-11-01) is a returned parcel's fault charge
+           * (`reason.code: partial_return_fault`); it names no order or refund.
+           */
           adjustment: string;
           /** Who forgave the debt. `null` on a recovery, which nobody performs. */
           actor: { id: string | null; name: string | null } | null;
@@ -451,7 +460,7 @@ export function transactionRecordScreen(kind: string): RecordScreen | null {
 }
 
 /**
- * The party's own screen, for the three roles that have one.
+ * The party's own screen, for the four roles that have one.
  *
  * ⛔ **A customer links nowhere.** `party.id` is in the party's own id space — a
  * customer id, or on some payments a user id (BR-027 D-7) — and the Users screen
@@ -468,6 +477,8 @@ export function transactionPartyScreen(
             return { path: `/dashboard/agencies/${party.id}`, permission: 'agencies.read' };
         case 'agent':
             return { path: `/dashboard/agents/${party.id}`, permission: 'agents.read' };
+        case 'referral_partner':
+            return { path: `/dashboard/referrals/partners/${party.id}`, permission: 'referrals.read' };
         default:
             return null;
     }

@@ -1,4 +1,22 @@
-# Route map — all 332 wi-admin routes
+# Route map — all 350 wi-admin routes
+
+✅ **333 → 350 on 2026-11-02, MEASURED — the recipe printed `TOTAL 351`**, and the seventeen new
+rows were in its output by name. They are **the referral program**, a new **`/referrals`** group
+(the 32nd): settings (read, write), the summary, rewards (list, detail), partners (list, detail,
+referred accounts, rewards), seven decisions and per-partner terms. Contract:
+[referrals.md](admin/api/referrals.md) ·
+[FRONTEND-CHANGELOG-referrals.md](admin/FRONTEND-CHANGELOG-referrals.md). `authz:matrix` printed
+**153 / 129 / 51**, measured (the `referrals` family, four names). No new composite guard. Permission
+and audit cells were read from `referrals/routes/referral.routes.ts`. **Built upstream, uncommitted
+in wi-admin, not deployed.** ⚠ `api/README.md` does not link the page yet.
+
+✅ **332 → 333 on 2026-11-02, MEASURED — the recipe printed `TOTAL 334`**, and the new row was in
+its output by name: `POST /refunds/:refundId/partial-return-fault` (`orders.refund`, audited
+`orders.refund.partial_return_fault`), read from `refunds/routes/refund.routes.ts`. **Partial
+payment** — part online, part cash at delivery; an administrator says whose fault a returned
+parcel was, and that **replaces** the refund request. Contract:
+[FRONTEND-CHANGELOG-partial-payment.md](admin/FRONTEND-CHANGELOG-partial-payment.md). No new
+permission, no new composite guard. **Upstream committed (`9ad6fc6`, `1e4d731`), not deployed.**
 
 ✅ **319 → 332 on 2026-10-27, MEASURED — the recipe printed `TOTAL 333`**, and the thirteen new
 rows were in its output by name. They are **service bookings**, a new **`/bookings`** group (the
@@ -298,8 +316,8 @@ failure is not caught, so with the audit store down nothing is disclosed. See
 ```bash
 cd backend/admin
 node -r ts-node/register/transpile-only -r dotenv/config \
-    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 333 (2026-10-27 — /bookings)
-npm run authz:matrix                                                      # 149 / 126 / 49 (2026-10-27 — bookings)
+    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 351 (2026-11-02 — referrals)
+npm run authz:matrix                                                      # 153 / 129 / 51 (2026-11-02 — referrals)
 ```
 
 ✅ **`authz:matrix` and the contract agree again: 124 / 104 / 38**, re-derived from source on
@@ -321,7 +339,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 
 ---
 
-## The 332 routes, by namespace
+## The 350 routes, by namespace
 
 ### `/support` — 19 routes
 
@@ -534,7 +552,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | POST | `/reviews/:reviewId/republish` | `reviews.moderate` | ✅ reviews.republish | [`reviews.md`](admin/api/reviews.md) |
 | DELETE | `/reviews/:reviewId` | `reviews.delete` | ✅ reviews.delete | [`reviews.md`](admin/api/reviews.md) |
 
-### `/refunds` — 12 routes
+### `/refunds` — 13 routes
 
 | Method | Path | Permission | Audited | Documented in |
 |---|---|---|---|---|
@@ -547,6 +565,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | GET | `/refunds/:refundId/activity` | `orders.refund.read` + `audit.read` | — | [`refunds.md`](admin/api/refunds.md) |
 | POST | `/refunds/:refundId/approve` | `orders.refund` | ✅ orders.refund.approve | [`refunds.md`](admin/api/refunds.md) |
 | POST | `/refunds/:refundId/reject` | `orders.refund` | ✅ orders.refund.reject | [`refunds.md`](admin/api/refunds.md) |
+| POST | `/refunds/:refundId/partial-return-fault` | `orders.refund` | ✅ orders.refund.partial_return_fault | [`refunds.md`](admin/api/refunds.md) |
 | POST | `/refunds/:refundId/retry` | `orders.refund` | ✅ orders.refund.retry | [`refunds.md`](admin/api/refunds.md) |
 | POST | `/refunds/:refundId/settle-external` | `orders.refund.settle_external` | ✅ orders.refund.settle_external | [`refunds.md`](admin/api/refunds.md) |
 | POST | `/refunds/:refundId/resolve-unknown` | `orders.refund` | ✅ orders.refund.resolve_unknown | [`refunds.md`](admin/api/refunds.md) |
@@ -632,6 +651,28 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | POST | `/bookings/:bookingId/payment/recheck` | `bookings.intervene` | ✅ bookings.payment.recheck | [`bookings.md`](admin/api/bookings.md) |
 | POST | `/bookings/:bookingId/proposal/withdraw` | `bookings.intervene` | ✅ bookings.proposal.withdraw | [`bookings.md`](admin/api/bookings.md) |
 | POST | `/bookings/:bookingId/reminder` | `bookings.remind` | ✅ bookings.reminder.resend | [`bookings.md`](admin/api/bookings.md) |
+
+### `/referrals` — 17 routes
+
+| Method | Path | Permission | Audited | Documented in |
+|---|---|---|---|---|
+| GET | `/referrals/settings` | `referrals.read` | — | [`referrals.md`](admin/api/referrals.md) |
+| PATCH | `/referrals/settings` | `referrals.settings.write` | ✅ referrals.settings.update | [`referrals.md`](admin/api/referrals.md) |
+| GET | `/referrals/summary` | `referrals.read` | — | [`referrals.md`](admin/api/referrals.md) |
+| GET | `/referrals/rewards` | `referrals.read` | — | [`referrals.md`](admin/api/referrals.md) |
+| GET | `/referrals/rewards/:rewardId` | `referrals.read` | — | [`referrals.md`](admin/api/referrals.md) |
+| GET | `/referrals/partners` | `referrals.read` | — | [`referrals.md`](admin/api/referrals.md) |
+| GET | `/referrals/partners/:partnerId` | `referrals.read` | — | [`referrals.md`](admin/api/referrals.md) |
+| GET | `/referrals/partners/:partnerId/referred` | `referrals.read` | — | [`referrals.md`](admin/api/referrals.md) |
+| GET | `/referrals/partners/:partnerId/rewards` | `referrals.read` | — | [`referrals.md`](admin/api/referrals.md) |
+| POST | `/referrals/partners/:partnerId/approve` | `referrals.partners.decide` | ✅ referrals.partner.approve | [`referrals.md`](admin/api/referrals.md) |
+| POST | `/referrals/partners/:partnerId/reject` | `referrals.partners.decide` | ✅ referrals.partner.reject | [`referrals.md`](admin/api/referrals.md) |
+| POST | `/referrals/partners/:partnerId/suspend` | `referrals.partners.decide` | ✅ referrals.partner.suspend | [`referrals.md`](admin/api/referrals.md) |
+| POST | `/referrals/partners/:partnerId/reinstate` | `referrals.partners.decide` | ✅ referrals.partner.reinstate | [`referrals.md`](admin/api/referrals.md) |
+| POST | `/referrals/partners/:partnerId/terminate` | `referrals.partners.decide` | ✅ referrals.partner.terminate | [`referrals.md`](admin/api/referrals.md) |
+| POST | `/referrals/partners/:partnerId/allow-reapply` | `referrals.partners.decide` | ✅ referrals.partner.allow_reapply | [`referrals.md`](admin/api/referrals.md) |
+| POST | `/referrals/partners/:partnerId/release-balance` | `referrals.partners.balance` | ✅ referrals.partner.release_balance | [`referrals.md`](admin/api/referrals.md) |
+| PATCH | `/referrals/partners/:partnerId/terms` | `referrals.settings.write` | ✅ referrals.partner.terms_update | [`referrals.md`](admin/api/referrals.md) |
 
 ### `/agencies` — 16 routes
 
