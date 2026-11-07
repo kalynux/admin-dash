@@ -401,6 +401,54 @@ describe('Integrations', () => {
         expect(screen.getAllByText('Not checked').length).toBeGreaterThan(0);
     });
 
+    /**
+     * `orangeCodeUssd` left the `novasend` row on 2026-11-04 (Orange through NovaSend takes no
+     * code). The screen reads no `detail` key of any row, so the row must render whole without it
+     * and must not grow an empty "Orange code" cell.
+     */
+    it('renders the NovaSend row whole, with no Orange code field', async () => {
+        const novasend = {
+            key: 'novasend',
+            label: 'NovaSend (mobile money)',
+            impact: 'Mobile-money collection through NovaSend stops, and so do NovaSend payouts when it is the payout aggregator. Refunds are unaffected: they are sent as payouts either way',
+            configured: true,
+            detail: {
+                implemented: true,
+                credentialsSet: true,
+                webhookSecretSet: true,
+                sandbox: false,
+                baseUrl: 'https://api.novasend.example',
+                returnUrlSet: true,
+                refundSupported: false,
+                payoutsEnabled: true,
+                activeForCollections: true,
+                activeForPayouts: false,
+            },
+            reachability: {
+                mode: 'passive',
+                note: 'Same as NotchPay. `configured` requires the WEBHOOK secret as well as the key pair.',
+                status: null,
+                checkedAt: null,
+                latencyMs: null,
+                error: null,
+            },
+        };
+        stubSystem((call) =>
+            call.url.includes('/system/integrations')
+                ? successResponse(integrationsFixture({ integrations: [novasend] }))
+                : undefined,
+        );
+        render(<SystemIntegrations />);
+
+        const row = (await screen.findByText('NovaSend (mobile money)')).closest('tr')!;
+        const cells = within(row).getAllByRole('cell');
+        expect(cells).toHaveLength(3);
+        for (const cell of cells) expect(cell.textContent?.trim()).not.toBe('');
+        expect(within(row).getByText('Yes')).toBeInTheDocument();
+        expect(within(row).getByText('From real traffic')).toBeInTheDocument();
+        expect(row).not.toHaveTextContent(/orange|ussd|#150/i);
+    });
+
     it('explains why the mobile-money gateways report as unconfigured', async () => {
         stubSystem();
         render(<SystemIntegrations />);

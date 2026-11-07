@@ -25,6 +25,7 @@
  * here: a missing or malformed value renders as "not reported", never as a crash.
  */
 
+import { formatCount } from '@/lib/format';
 import { ApiError } from '@/types/api.types';
 
 // ─── Providers ────────────────────────────────────────────────────────────────
@@ -92,11 +93,30 @@ export interface PaymentSettingsIssue {
     aggregator?: string;
 }
 
-/** One provider an aggregator can collect, and how. From `GatewayCapabilities.collect`. */
+/**
+ * One provider an aggregator can collect, and how. From `GatewayCapabilities.collect`.
+ *
+ * ⚠ **`codeUssd` is deliberately not read.** It belongs to the `CODE_FIRST` flow, which NovaSend's
+ * Orange route was built for and which a live test on 2026-11-04 showed Orange Cameroon does not
+ * use: NovaSend now reports Orange as `PUSH` with no code (FRONTEND-CHANGELOG-payment-code.md,
+ * the AMENDED note). No gateway sends it today, so nothing here says "dial a code first".
+ */
 export interface ProviderCollectCapability {
-    /** `PUSH` · `OTP` · `CARD_ELEMENT` · `REDIRECT` — open. */
+    /** `PUSH` · `OTP` · `CARD_ELEMENT` · `REDIRECT` · `CODE_FIRST` — open, rendered raw. */
     flow: string;
     requires: string[];
+    /**
+     * The amounts this route accepts, in XAF — NovaSend's are 301–500,000 today. **Absent means
+     * no known limit**, never zero. Outside them a charge is refused `422
+     * PAYMENT_AMOUNT_OUT_OF_RANGE` with **no automatic fallback**. Always read from the response,
+     * never written down here: the figure moved once already (200 → 301).
+     */
+    limits?: CollectAmountLimits;
+}
+
+export interface CollectAmountLimits {
+    min: number;
+    max: number;
 }
 
 export interface PaymentAggregator {
@@ -198,12 +218,67 @@ function readCapability(value: unknown): ProviderCollectCapability | null {
     if (typeof value !== 'object' || value === null) return null;
     const record = value as Record<string, unknown>;
     if (typeof record.flow !== 'string') return null;
+    const limits = readLimits(record.limits);
     return {
         flow: record.flow,
         requires: Array.isArray(record.requires)
             ? record.requires.filter((item): item is string => typeof item === 'string')
             : [],
+        ...(limits ? { limits } : {}),
     };
+}
+
+/** `{ min, max }` with two finite numbers, or `undefined` — a malformed value is "no known limit". */
+function readLimits(value: unknown): CollectAmountLimits | undefined {
+    if (typeof value !== 'object' || value === null) return undefined;
+    const { min, max } = value as Record<string, unknown>;
+    if (typeof min !== 'number' || typeof max !== 'number') return undefined;
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return undefined;
+    return { min, max };
+}
+
+/** `{ min: 301, max: 500000 }` → `301 – 500,000 FCFA`. */
+export function formatCollectLimits(limits: CollectAmountLimits): string {
+    return `${formatCount(limits.min)} – ${formatCount(limits.max)} FCFA`;
+}
+
+// ─── NovaSend ─────────────────────────────────────────────────────────────────
+
+/**
+ * The one aggregator whose selection as the **collection** aggregator earns its own warning
+ * (FRONTEND-CHANGELOG-payment-code.md, the AMENDED 2026-11-04 note). Customers are asked to
+ * confirm a request from the merchant NovaSend collects as, not from Wi-Mall, and an Orange
+ * customer gets no prompt at all unless they dial for it. Both facts are NovaSend's, so the name
+ * is compared here, as `STRIPE` is on the screen.
+ */
+export const NOVASEND = 'NOVASEND';
+
+/**
+ * The confirmation drawn when NovaSend is chosen to collect, in the owner's words.
+ *
+ * The amount ceiling is read from NovaSend's own `capabilities.collect[*].limits` — **never a
+ * constant**. When every provider shares one ceiling it is one figure; when they differ each is
+ * named, because "payments above 500,000" would be false for a provider allowed more. When the
+ * response states no limit, the sentence is left out rather than guessed.
+ *
+ * ⚠ "Moon SARL" and `#150*50#` are written here because the routing read does not carry them:
+ * `payeeName` and `ussdCode` arrive per charge, on `instructions`, which this screen never sees.
+ */
+export function novasendCollectionWarning(aggregator: PaymentAggregator | undefined): string {
+    const base =
+        'Customers will be asked to confirm a request from Moon SARL; Orange Money customers must dial #150*50# to see it.';
+    const ceilings = collectCapabilities(aggregator?.capabilities).flatMap(([provider, capability]) =>
+        capability.limits ? [{ provider, max: capability.limits.max }] : [],
+    );
+    if (ceilings.length === 0) return base;
+    const distinct = [...new Set(ceilings.map((ceiling) => ceiling.max))];
+    const refused =
+        distinct.length === 1
+            ? `Payments above ${formatCount(distinct[0])} FCFA`
+            : ceilings
+                  .map(({ provider, max }) => `${provider} payments above ${formatCount(max)} FCFA`)
+                  .join(' and ');
+    return `${base} ${refused} will be refused while NovaSend is active.`;
 }
 
 /**

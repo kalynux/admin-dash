@@ -8,13 +8,16 @@ import {
     draftFromSettings,
     payinFeePercentError,
     refundFeePercentError,
+    formatCollectLimits,
     formatSuccessRate,
+    novasendCollectionWarning,
     issueTarget,
     payoutTransferGateway,
     providerNames,
     readEffectiveProviders,
     switchesAggregator,
     turnsOffEveryMobileProvider,
+    type PaymentAggregator,
     type PaymentSettingsView,
 } from '@/types/payment-routing.types';
 
@@ -284,5 +287,79 @@ describe('the payment fee kept on refunds (2026-10-22)', () => {
         const draft = { ...draftFromSettings(current), payinFeePercent: '3' };
         expect(payinFeePercentError(current, draft)).toBeNull();
         expect(buildSettingsPatch(current, draft)).toBeNull();
+    });
+});
+
+describe('NovaSend (the 2026-11-04 amendment)', () => {
+    const LEAD =
+        'Customers will be asked to confirm a request from Moon SARL; Orange Money customers must dial #150*50# to see it.';
+
+    function novasend(collect: Record<string, unknown>): PaymentAggregator {
+        return {
+            name: 'NOVASEND',
+            configured: true,
+            capabilities: { collect },
+            payoutImplemented: true,
+            payoutAvailable: true,
+            refundAvailable: false,
+            activeForCollections: false,
+            activeForPayouts: false,
+        };
+    }
+
+    it('reads limits off a capability, and drops a malformed one rather than inventing a zero', () => {
+        const pairs = collectCapabilities({
+            collect: {
+                MTN: { flow: 'PUSH', requires: [], limits: { min: 301, max: 500000 } },
+                ORANGE: { flow: 'PUSH', requires: [], limits: { min: '301', max: 500000 } },
+            },
+        });
+        expect(pairs).toEqual([
+            ['MTN', { flow: 'PUSH', requires: [], limits: { min: 301, max: 500000 } }],
+            ['ORANGE', { flow: 'PUSH', requires: [] }],
+        ]);
+        expect(formatCollectLimits({ min: 301, max: 500000 })).toBe('301 – 500,000 FCFA');
+    });
+
+    it('states the ceiling the response gives, never a constant', () => {
+        const ceiling = (max: number) =>
+            novasendCollectionWarning(
+                novasend({
+                    MTN: { flow: 'PUSH', requires: [], limits: { min: 301, max } },
+                    ORANGE: { flow: 'PUSH', requires: [], limits: { min: 301, max } },
+                }),
+            );
+        expect(ceiling(500000)).toBe(
+            `${LEAD} Payments above 500,000 FCFA will be refused while NovaSend is active.`,
+        );
+        expect(ceiling(750000)).toContain('Payments above 750,000 FCFA');
+    });
+
+    it('names each provider when their ceilings differ', () => {
+        expect(
+            novasendCollectionWarning(
+                novasend({
+                    MTN: { flow: 'PUSH', requires: [], limits: { min: 1, max: 1000000 } },
+                    ORANGE: { flow: 'PUSH', requires: [], limits: { min: 1, max: 500000 } },
+                }),
+            ),
+        ).toBe(
+            `${LEAD} MTN payments above 1,000,000 FCFA and ORANGE payments above 500,000 FCFA will be refused while NovaSend is active.`,
+        );
+    });
+
+    it('leaves the ceiling out when none is reported, and survives a missing row', () => {
+        expect(
+            novasendCollectionWarning(novasend({ MTN: { flow: 'PUSH', requires: [] } })),
+        ).toBe(LEAD);
+        expect(novasendCollectionWarning(undefined)).toBe(LEAD);
+    });
+
+    it('never speaks of a payment code', () => {
+        expect(
+            novasendCollectionWarning(
+                novasend({ ORANGE: { flow: 'PUSH', requires: [], limits: { min: 301, max: 500000 } } }),
+            ),
+        ).not.toMatch(/payment code|codeUssd/i);
     });
 });

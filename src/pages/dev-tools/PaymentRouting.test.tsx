@@ -65,6 +65,24 @@ function routingFixture(overrides: Partial<PaymentRoutingData> = {}): PaymentRou
                 activeForPayouts: false,
             },
             {
+                // As jovi-mall reports it since the 2026-11-04 live test: Orange is a PUSH with
+                // no code, and both routes carry limits.
+                name: 'NOVASEND',
+                configured: true,
+                capabilities: {
+                    collect: {
+                        MTN: { flow: 'PUSH', requires: ['phoneNumber'], limits: { min: 301, max: 500000 } },
+                        ORANGE: { flow: 'PUSH', requires: ['phoneNumber'], limits: { min: 301, max: 500000 } },
+                    },
+                    settlesAsync: true,
+                },
+                payoutImplemented: true,
+                payoutAvailable: true,
+                refundAvailable: false,
+                activeForCollections: false,
+                activeForPayouts: false,
+            },
+            {
                 // An aggregator this build has never heard of — it must simply appear.
                 name: 'CAMPAY',
                 configured: false,
@@ -325,6 +343,99 @@ describe('Payments (developer tools)', () => {
             'aria-disabled',
             'true',
         );
+    });
+
+    it('warns about Moon SARL, #150*50# and the ceiling from the response when NovaSend is chosen to collect', async () => {
+        const user = userEvent.setup();
+        const calls = stub((call) =>
+            call.method === 'PUT' ? successResponse(writeResult()) : undefined,
+        );
+        render();
+        await screen.findByText(/what customers can pay with right now/i);
+
+        const warning =
+            'Customers will be asked to confirm a request from Moon SARL; Orange Money customers must dial #150*50# to see it. Payments above 500,000 FCFA will be refused while NovaSend is active.';
+        expect(screen.queryByText(warning)).not.toBeInTheDocument();
+
+        await chooseCollection(user, 'NOVASEND');
+        // On selection, beside the control…
+        expect(screen.getByRole('note')).toHaveTextContent(warning);
+
+        // …and again in the confirmation.
+        const dialog = await openSaveDialog(user);
+        expect(within(dialog).getByText(warning)).toBeInTheDocument();
+        // The amended flow takes no payment code, so nothing may ask for one.
+        expect(document.body).not.toHaveTextContent(/payment code/i);
+
+        await user.type(within(dialog).getByLabelText(/why are you doing this/i), REASON);
+        await user.type(within(dialog).getByLabelText(/type NOVASEND to confirm/i), 'NOVASEND');
+        await user.click(within(dialog).getByRole('button', { name: /save routing/i }));
+        await within(dialog).findByText(/takes effect within/i);
+
+        // The write is unchanged: the name, nothing else about NovaSend.
+        const put = calls.find((call) => call.method === 'PUT')!;
+        expect(JSON.parse(put.body!)).toEqual({
+            collectionAggregator: 'NOVASEND',
+            expectedVersion: 3,
+            reason: REASON,
+        });
+    });
+
+    it('does not draw the NovaSend warning for another aggregator', async () => {
+        const user = userEvent.setup();
+        stub();
+        render();
+        await screen.findByText(/what customers can pay with right now/i);
+
+        await chooseCollection(user, 'MYCOOLPAY');
+        expect(screen.queryByText(/Moon SARL/)).not.toBeInTheDocument();
+        const dialog = await openSaveDialog(user);
+        expect(within(dialog).queryByText(/Moon SARL/)).not.toBeInTheDocument();
+    });
+
+    it('shows limits as sent, and an unknown flow by its name', async () => {
+        stub((call) =>
+            call.method === 'GET'
+                ? successResponse(
+                      routingFixture({
+                          effectiveProviders: [
+                              {
+                                  provider: 'ORANGE',
+                                  aggregator: 'NOVASEND',
+                                  capability: {
+                                      flow: 'PUSH',
+                                      requires: ['phoneNumber'],
+                                      limits: { min: 301, max: 500000 },
+                                  },
+                              },
+                              {
+                                  provider: 'MTN',
+                                  aggregator: 'NOVASEND',
+                                  capability: { flow: 'TAP_TO_PAY', requires: [] },
+                              },
+                          ],
+                      }),
+                  )
+                : undefined,
+        );
+        render();
+        await screen.findByText(/what customers can pay with right now/i);
+
+        const novasend = screen.getByRole('listitem', { name: 'NOVASEND' });
+        expect(
+            within(novasend).getByText(
+                'MTN (PUSH, 301 – 500,000 FCFA), ORANGE (PUSH, 301 – 500,000 FCFA)',
+            ),
+        ).toBeInTheDocument();
+        // No limit reported → none printed.
+        expect(
+            within(screen.getByRole('listitem', { name: 'NOTCHPAY' })).getByText(
+                'MTN (PUSH), ORANGE (PUSH)',
+            ),
+        ).toBeInTheDocument();
+
+        expect(screen.getByText(/via NOVASEND · PUSH · 301 – 500,000 FCFA/)).toBeInTheDocument();
+        expect(screen.getByText(/via NOVASEND · TAP_TO_PAY/)).toBeInTheDocument();
     });
 
     it('switches the aggregator with only the changed field, the loaded version and a reason', async () => {

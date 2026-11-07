@@ -150,6 +150,22 @@ the brief did not ask for it and no administrator write can produce them. `audit
 on the new action (BR-036 § 4). Six of these rules were perturbation-tested together. Measured: `dump-routes.js`
 **`TOTAL 352` = 351 routes**, `authz:matrix` unchanged at **153 / 129 / 51**.
 
+✅ **NovaSend on the Payments screen built 2026-11-07 — labels and one warning, no route.** Contract:
+[FRONTEND-CHANGELOG-payment-code.md](api-doc/admin/FRONTEND-CHANGELOG-payment-code.md) (newly mirrored;
+⚠ **its AMENDED 2026-11-04 note at the top overrides the body**) · jovi-mall
+[payments/routing.md](api-doc/jovi-mall/payments/routing.md), re-copied with the banner and flattened links.
+⛔ **There is no payment code**: a live test showed Orange through NovaSend is `PUSH`, so `codeUssd` is not
+read and nothing on the screen says "dial a code first". Choosing `NOVASEND` to collect draws
+`novasendCollectionWarning()` (in `payment-routing.types.ts`) under the select **and** in the confirmation:
+*Moon SARL*, *#150\*50#*, and the ceiling **read from NovaSend's `capabilities.collect[*].limits`** (each
+provider named when the ceilings differ, the sentence left out when none is reported). ⚠ "Moon SARL" and
+`#150*50#` are literals because they arrive per charge on `instructions`, which this screen never sees.
+`limits` are read with `readLimits()` (malformed → absent, never 0) and printed as *"301 – 500,000 FCFA"* on
+both capability lists; an unknown `flow` still prints raw. **Integrations needed no code**: the screen reads no
+`detail` key, so the `novasend` row losing `orangeCodeUssd` changes nothing (pinned in `SystemScreens.test.tsx`).
+The admin README's link to this changelog now resolves. **Upstream jovi-mall committed (`6f34a7e`), deploy not
+confirmed.**
+
 ✅ **BR-032 and BR-033 answered 2026-11-01 and built the same day — the permission guard is GREEN
 again, and a cancel now says what its refund did.** Reply:
 [RESPONSE-2026-11-01-BR-032-033.md](api-doc/admin/dashboard/backend-requests/RESPONSE-2026-11-01-BR-032-033.md).

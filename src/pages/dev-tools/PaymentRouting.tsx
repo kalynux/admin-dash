@@ -27,8 +27,11 @@ import { cn } from '@/lib/utils';
 import { getPaymentRouting, setPaymentRouting } from '@/services/dev-tools.service';
 import { useCan } from '@/store';
 import {
+    NOVASEND,
     PAYMENT_STATS_WINDOWS,
     buildSettingsPatch,
+    formatCollectLimits,
+    novasendCollectionWarning,
     payinFeePercentError,
     refundFeePercentError,
     classifyPaymentSettingsRefusal,
@@ -362,6 +365,9 @@ function OfferedNow({ data, settings }: { data: PaymentRoutingData; settings: Pa
                                 <span className="text-muted-foreground block text-xs">
                                     via {entry.aggregator || 'an unnamed aggregator'}
                                     {entry.capability ? ` · ${entry.capability.flow}` : ''}
+                                    {entry.capability?.limits
+                                        ? ` · ${formatCollectLimits(entry.capability.limits)}`
+                                        : ''}
                                 </span>
                             </li>
                         ))}
@@ -425,7 +431,12 @@ function RoutingForm({
     const issuesAt = (matches: (target: IssueTarget) => boolean) => issuesFor(inlineIssues, matches);
 
     const stripeRow = data.aggregators.find((aggregator) => aggregator.name === STRIPE);
-    const set = (next: Partial<PaymentSettingsDraft>) => {
+    const movesCollectionToNovasend =
+        values.collectionAggregator === NOVASEND && settings.collectionAggregator !== NOVASEND;
+    const novasendWarning = novasendCollectionWarning(
+        data.aggregators.find((aggregator) => aggregator.name === NOVASEND),
+    );
+    const set =(next: Partial<PaymentSettingsDraft>) => {
         // A refused write's issues stay beside their controls until the operator changes something.
         setRefusal(null);
         onDraftChange({ ...values, ...next });
@@ -521,6 +532,11 @@ function RoutingForm({
                         <p className="text-muted-foreground text-xs">
                             Carries mobile money for every new charge.
                         </p>
+                        {movesCollectionToNovasend ? (
+                            <p className="text-warning text-xs font-medium" role="note">
+                                {novasendWarning}
+                            </p>
+                        ) : null}
                         <InlineIssues issues={issuesAt((t) => t.kind === 'collectionAggregator')} />
                     </div>
 
@@ -719,6 +735,7 @@ function RoutingForm({
                     settings={settings}
                     values={values}
                     patch={patch ?? {}}
+                    novasendWarning={novasendWarning}
                     isBusy={isBusy}
                     error={error}
                     refusal={refusal}
@@ -771,6 +788,8 @@ interface SaveDialogProps {
     settings: PaymentSettingsView;
     values: PaymentSettingsDraft;
     patch: PaymentSettingsPatch;
+    /** Shown only when this save moves collections to NovaSend. */
+    novasendWarning: string;
     isBusy: boolean;
     error: unknown;
     refusal: PaymentSettingsRefusal | null;
@@ -791,6 +810,7 @@ function SaveDialog({
     settings,
     values,
     patch,
+    novasendWarning,
     isBusy,
     error,
     refusal,
@@ -799,6 +819,7 @@ function SaveDialog({
 }: SaveDialogProps) {
     const switching = switchesAggregator(patch);
     const stopsMobile = turnsOffEveryMobileProvider(settings, values);
+    const toNovasend = patch.collectionAggregator === NOVASEND;
 
     const confirmation = stopsMobile
         ? {
@@ -835,6 +856,11 @@ function SaveDialog({
                                     : ''}
                                 . It is allowed, and it is the lever for stopping mobile money
                                 entirely.
+                            </p>
+                        ) : null}
+                        {toNovasend ? (
+                            <p>
+                                <strong>{novasendWarning}</strong>
                             </p>
                         ) : null}
                         {switching ? (
@@ -1041,7 +1067,9 @@ function AggregatorsCard({ aggregators }: { aggregators: PaymentAggregator[] }) 
                                             ) : (
                                                 collects
                                                     .map(([provider, capability]) =>
-                                                        `${provider} (${capability.flow})`,
+                                                        capability.limits
+                                                            ? `${provider} (${capability.flow}, ${formatCollectLimits(capability.limits)})`
+                                                            : `${provider} (${capability.flow})`,
                                                     )
                                                     .join(', ')
                                             )}
