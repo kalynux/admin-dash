@@ -115,15 +115,20 @@ describe('the counts, which the gap-closure plan got wrong', () => {
         // `GAP-CLOSURE-PLAN.md` § A2 tabulates 43; `CLAUDE.md` says 39. Counted
         // off the mirror, 39 is right — recorded here so the number has one
         // source rather than two prose claims that disagree.
-        expect(TICKET_TYPES.length).toBe(39);
-        expect(documented('TicketType')).toHaveLength(39);
+        //
+        // ⚠ 39 → 40 on 2026-11-07: `LISTING_LEAD_REPORT`, a provider's report on a
+        // lead (service listings). The test's name keeps the old number because it
+        // records which count the plan got wrong.
+        expect(TICKET_TYPES.length).toBe(40);
+        expect(documented('TicketType')).toHaveLength(40);
     });
 
     it('holds the other four counts the plan states', () => {
         expect(TICKET_STATUSES.length).toBe(9);
         expect(TICKET_PRIORITIES.length).toBe(4);
         expect(TICKET_IMPORTANCES.length).toBe(4);
-        expect(TICKET_ENTITY_TYPES.length).toBe(11);
+        // 11 → 12 on 2026-11-07: `LISTING_LEAD`.
+        expect(TICKET_ENTITY_TYPES.length).toBe(12);
     });
 });
 

@@ -22,7 +22,16 @@ import type { AdminTier } from '@/types/auth.types';
 // ─── The catalogue ────────────────────────────────────────────────────────────
 
 /**
- * All 153 permissions, `family.resource.action`, in the doc's own family order.
+ * All 159 permissions, `family.resource.action`, in the doc's own family order.
+ *
+ * The 154th–159th are **service listings** (2026-11-07, in the existing
+ * `catalog` family — `listings.md`, `FRONTEND-CHANGELOG-service-listings.md`):
+ * `catalog.listings.read`, `.contacts.read` (every view audited BEFORE the
+ * read), `.review`, `.suspend` and `.reveal-block` — all five every tier,
+ * Support included, by the owner's decision — and `.reveals.refund`
+ * (`financial`, tiers 1–2). ⚠ `reveal-block` is the first name on the service
+ * with a **hyphen** in it; the doc parser in `permissions.types.test.ts` had to
+ * learn that. 159 / 135 / 56, measured with `npm run authz:matrix`.
  *
  * The 150th–153rd are the **`referrals`** family (2026-11-02, the 25th —
  * `referrals.md`, `FRONTEND-CHANGELOG-referrals.md`): `referrals.read` and
@@ -348,6 +357,15 @@ export const PERMISSION_NAMES = [
     // products at once.
     'catalog.categories.read',
     'catalog.categories.manage',
+    // Service listings (2026-11-07): the review queue, the audited hidden
+    // contacts, and the lead reports. Every tier holds the first five; the
+    // refund moves credits and is tiers 1–2.
+    'catalog.listings.read',
+    'catalog.listings.contacts.read',
+    'catalog.listings.review',
+    'catalog.listings.suspend',
+    'catalog.listings.reveals.refund',
+    'catalog.listings.reveal-block',
 
     // reviews — product and delivery reviews (2026-10-05). Every review is
     // public the moment it is written; these are the after-the-fact rights.
@@ -544,14 +562,14 @@ export const PERMISSION_FAMILIES = [
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-/** Any of the 153. Use for what the *server* may send us. */
+/** Any of the 159. Use for what the *server* may send us. */
 export type PermissionName = (typeof PERMISSION_NAMES)[number];
 
 /** One of the four `†`. */
 export type UnroutedPermissionName = (typeof UNROUTED_PERMISSION_NAMES)[number];
 
 /**
- * The 149 that gate a real endpoint — 153 less the four `†`. **Use for what *our code* asks for** — nav
+ * The 155 that gate a real endpoint — 159 less the four `†`. **Use for what *our code* asks for** — nav
  * items, `<Can>`, `RequirePermission` — so that gating a screen on a permission
  * whose endpoint does not exist is a `tsc` error.
  */

@@ -369,6 +369,10 @@ describe('permittedSections', () => {
         // **Operations gained Bookings on 2026-10-27.** Support holds `bookings.read`
         // and `bookings.remind` — it reads every booking and resends the reminder;
         // the meeting link and every intervention stay at tiers 1–2.
+        //
+        // **Operations gained Listings on 2026-11-07**, beside Categories by the
+        // owner's choice. Support holds five of the six `catalog.listings.*` names —
+        // everything but the refund, which is gated inside the screen.
         const sections = permittedSections(heldFixture(3));
 
         expect(
@@ -376,7 +380,7 @@ describe('permittedSections', () => {
         ).toEqual([
             ['overview', ['home', 'notifications']],
             ['directories', ['users', 'vendors', 'agencies', 'agents']],
-            ['operations', ['orders', 'shipments', 'bookings', 'categories', 'reviews']],
+            ['operations', ['orders', 'shipments', 'bookings', 'categories', 'listings', 'reviews']],
             ['support', ['support-tickets', 'content']],
             ['finance', ['refunds', 'cod', 'money', 'referrals']],
             ['administration', ['audit']],

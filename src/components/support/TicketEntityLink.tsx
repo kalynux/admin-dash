@@ -18,7 +18,7 @@ import type { TicketEntityRef } from '@/types/support.types';
  * different sizes from different services, and the audit row carries a `label`
  * on every type where a ticket carries one on three.
  *
- * ── ⚠ Nine of eleven link, and the two that do not are DIFFERENT facts ───────
+ * ── ⚠ Ten of twelve link, and the two that do not are DIFFERENT facts ────────
  * `DELIVERY` has no administrative surface on this service at all. `BOOKING`
  * did not either until 2026-10-27, when `/bookings` arrived and its tickets
  * began to carry the booking number as `entity.label` — ⚠ `support.md`'s
@@ -98,6 +98,9 @@ const ENTITY_ROUTES: Record<string, EntityRoute> = {
     // ⚠ The search, not the record — see the note above. `entity.id` rather than
     // the pre-encoded `id`: `accountSearchPath` encodes for a query string itself.
     CUSTOMER: { path: (entity) => accountSearchPath(entity.id ?? ''), permission: 'users.read' },
+    // Since 2026-11-07 (service listings): a provider's lead, the subject of a
+    // LISTING_LEAD_REPORT. The lead page shows the customer in full.
+    LISTING_LEAD: { path: (_, id) => `/dashboard/listings/leads/${id}`, permission: 'catalog.listings.read' },
 };
 
 export function TicketEntityLink({ entity }: { entity: TicketEntityRef | null }) {

@@ -37,6 +37,7 @@ import { AuditModule } from '@/pages/audit/AuditModule';
 import { UsersModule } from '@/pages/users/UsersModule';
 import { VendorsModule } from '@/pages/vendors/VendorsModule';
 import { CategoriesModule } from '@/pages/categories/CategoriesModule';
+import { ListingsModule } from '@/pages/listings/ListingsModule';
 import { ReviewsModule } from '@/pages/reviews/ReviewsModule';
 import { AgenciesModule } from '@/pages/agencies/AgenciesModule';
 import { AgentsModule } from '@/pages/agents/AgentsModule';
@@ -197,6 +198,8 @@ const SCREENS: Record<string, ReactNode> = {
     bookings: <BookingsModule />,
     /** Childless, mounted at `categories/*` — owns `:categoryId` and its own 404. */
     categories: <CategoriesModule />,
+    /** Childless, mounted at `listings/*` — owns `:listingId`, `leads/:leadId` and its own 404. */
+    listings: <ListingsModule />,
     /** Childless, mounted at `reviews/*` — owns `:reviewId` and its own 404. */
     reviews: <ReviewsModule />,
     /**

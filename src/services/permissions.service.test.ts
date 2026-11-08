@@ -23,7 +23,8 @@ describe('fetchMyPermissions', () => {
         expect(calls[0].url).toContain('/permissions/me');
         expect(result.tier).toBe(2);
         expect(result.tierLabel).toBe('Admin');
-        expect(result.permissions).toHaveLength(129);
+        // 135 since the six `catalog.listings.*` names (2026-11-07).
+        expect(result.permissions).toHaveLength(135);
     });
 
     it('sends no CSRF header — it is a safe method', () => {
@@ -54,6 +55,7 @@ describe('the flags this service deliberately does not set', () => {
         // 136 since the `reviews` family and `money.earnings.pause` (2026-10-05);
         // 132 since `money.splits.read`; 131 since the `catalog` family and
         // 144 since `agencies.claims.charge` (2026-10-25);
+        // 159 since the six `catalog.listings.*` names (2026-11-07);
         // 153 since the `referrals` family (2026-11-02);
         // 149 since the `bookings` family (2026-10-27);
         // 129 since `users.close` (both 2026-10-04);
@@ -62,7 +64,7 @@ describe('the flags this service deliberately does not set', () => {
         // pair (2026-09-30); 125 since `money.statements.send` (2026-09-27);
         // 124 from the 2026-09-22 re-derivation, which added
         // the two ADR-024 `triage` names and `users.bot_memory.reset`.
-        expect(result.permissions).toHaveLength(153);
+        expect(result.permissions).toHaveLength(159);
     });
 
     it('lets a scoped session announce itself rather than swallowing the refusal', async () => {

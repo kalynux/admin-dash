@@ -5,7 +5,7 @@ import userEvent from '@testing-library/user-event';
 import { CreateTicketDialog } from '@/components/support/CreateTicketDialog';
 import { adminFixture } from '@/test/fixtures';
 import { renderWithProviders, stubFetch, successResponse, type FetchCall } from '@/test/utils';
-import { TICKET_TYPES } from '@/types/support.types';
+import { STAFF_TICKET_TYPES, TICKET_TYPES } from '@/types/support.types';
 
 const body = (call: FetchCall) => JSON.parse(call.body as string);
 
@@ -22,15 +22,19 @@ async function fillRequired() {
 }
 
 describe('the vocabularies are offered, not typed', () => {
-    it('offers every one of the 39 ticket types', async () => {
+    it('offers every staff ticket type — 39 of the 40, never the provider’s lead report', async () => {
         // Hard-coded from a mirror rather than fetched, because no endpoint
         // serves them and none should — they are jovi-mall's.
         open();
         await userEvent.click(screen.getByLabelText(/^type$/i));
 
         const options = await screen.findAllByRole('option');
-        expect(options.length).toBe(TICKET_TYPES.length);
-        expect(TICKET_TYPES.length).toBe(39);
+        // 2026-11-07: `LISTING_LEAD_REPORT` is filed by a provider, carrying the
+        // unlocks they named; a staff-opened one would be a report with no request.
+        expect(options.length).toBe(STAFF_TICKET_TYPES.length);
+        expect(TICKET_TYPES.length).toBe(40);
+        expect(STAFF_TICKET_TYPES.length).toBe(39);
+        expect(options.map((option) => option.textContent)).not.toContain('LISTING LEAD REPORT');
     });
 
     it('offers importance, and says it cannot be changed later', () => {

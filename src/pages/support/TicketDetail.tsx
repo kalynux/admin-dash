@@ -9,6 +9,7 @@ import { Definition, DefinitionList, NotSet } from '@/components/common/Definiti
 import { DetailSkeleton } from '@/components/common/Loading';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { TierBadge } from '@/components/layout/TierBadge';
+import { ListingLeadPanel } from '@/components/listings/ListingLeadPanel';
 import { EarningsPauseCard } from '@/components/money/EarningsPauseCard';
 import { TicketAttachmentsPanel } from '@/components/support/TicketAttachmentsPanel';
 import { TicketEntityLink } from '@/components/support/TicketEntityLink';
@@ -368,6 +369,23 @@ function TicketDetailScreen({ ticketId }: { ticketId: string }) {
                             </DefinitionList>
                         </CardContent>
                     </Card>
+
+                    {/*
+                      A provider's report on a lead (2026-11-07): the lead, the
+                      unlocks they named, the customer in full, and Refund /
+                      Block / Lift. Keyed on `listingLead` being present, which
+                      wi-admin sets on every LISTING_LEAD ticket — not on the
+                      type, so a report filed under another type still shows.
+                      Refunding or blocking does not close the ticket.
+                    */}
+                    {record.listingLead ? (
+                        <ListingLeadPanel
+                            ticketId={record.id}
+                            context={record.listingLead}
+                            timeZone={timeZone}
+                            onChanged={reconcile}
+                        />
+                    ) : null}
 
                     {/*
                       The payout of the order or booking this ticket is about

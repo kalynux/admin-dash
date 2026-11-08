@@ -1728,6 +1728,11 @@ export const TIER_2_PERMISSIONS: readonly string[] = PERMISSION_NAMES.filter(
  * ⚠ **49 → 51 on 2026-11-02**: `referrals.read` and `referrals.partners.decide` —
  * Support reads the program and decides on partners, by the owner's decision. It
  * releases no balance and changes no rate.
+ *
+ * ⚠ **51 → 56 on 2026-11-07**: five `catalog.listings.*` names — Support works
+ * the listing queue, sees the hidden contacts (every view recorded) and blocks a
+ * customer on a listing, by the owner's decision. ⛔ It does NOT hold
+ * `catalog.listings.reveals.refund`: refunding a reveal moves credits.
  */
 export const TIER_3_PERMISSIONS: readonly string[] = [
     'agents.read',
@@ -1770,6 +1775,12 @@ export const TIER_3_PERMISSIONS: readonly string[] = [
     'users.bot_memory.reset',
     'vendors.read',
     'catalog.categories.read',
+    // Every listing name except the refund.
+    'catalog.listings.read',
+    'catalog.listings.contacts.read',
+    'catalog.listings.review',
+    'catalog.listings.suspend',
+    'catalog.listings.reveal-block',
     // All three, delete included — the one destructive name Support holds.
     'reviews.read',
     'reviews.moderate',

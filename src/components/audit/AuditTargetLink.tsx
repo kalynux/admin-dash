@@ -65,6 +65,9 @@ const TARGET_ROUTES: Record<string, TargetRoute> = {
         path: (id) => `/dashboard/referrals/partners/${id}`,
         permission: 'referrals.read',
     },
+    // Service listings (2026-11-07). `listing_reveal` has no screen of its own: an
+    // unlock is shown on its lead, and the audit row names no lead.
+    listing: { path: (id) => `/dashboard/listings/${id}`, permission: 'catalog.listings.read' },
     shipment: { path: (id) => `/dashboard/shipments/${id}`, permission: 'shipments.read' },
     payout: { path: (id) => `/dashboard/money/payouts/${id}`, permission: 'money.payouts.read' },
     plan: { path: (id) => `/dashboard/billing/${id}`, permission: 'billing.plans.read' },

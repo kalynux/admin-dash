@@ -31,6 +31,7 @@
  */
 
 import type { FileDetail } from '@/types/files.types';
+import type { ListingLeadTicketContext } from '@/types/listings.types';
 
 // ─── Vocabularies that are NOT ours ───────────────────────────────────────────
 
@@ -128,10 +129,26 @@ export const TICKET_TYPES = [
     'POLICY_QUESTION',
     'COMPLIANCE',
     'LEGAL_REQUEST',
+    // Service listings — a provider's one "Report" on a lead (2026-11-07). Filed by
+    // the provider, never by staff, so `CreateTicketDialog` does not offer it.
+    'LISTING_LEAD_REPORT',
     // Other
     'OTHER',
 ] as const;
 export type TicketType = (typeof TICKET_TYPES)[number];
+
+/**
+ * The types a provider files and staff never do. `LISTING_LEAD_REPORT` is the
+ * provider's one "Report" on a lead: it carries the reveals they named and what
+ * they asked for, which a ticket opened from this dashboard cannot supply, so the
+ * lead panel would show a report with no request in it.
+ */
+export const PROVIDER_FILED_TICKET_TYPES: readonly TicketType[] = ['LISTING_LEAD_REPORT'];
+
+/** {@link TICKET_TYPES} less the provider-filed ones — what the create form offers. */
+export const STAFF_TICKET_TYPES: readonly TicketType[] = TICKET_TYPES.filter(
+    (type) => !PROVIDER_FILED_TICKET_TYPES.includes(type),
+);
 
 /** The lifecycle. Five of the nine are "waiting on" a specific party. */
 export const TICKET_STATUSES = [
@@ -182,6 +199,8 @@ export const TICKET_ENTITY_TYPES = [
     'CUSTOMER',
     'AGENT',
     'AGENCY',
+    // A provider's lead (`listing_leads`), the subject of a LISTING_LEAD_REPORT.
+    'LISTING_LEAD',
     'OTHER',
 ] as const;
 export type TicketEntityType = (typeof TICKET_ENTITY_TYPES)[number];
@@ -299,7 +318,7 @@ export interface TicketAvailableActions {
  */
 export interface TicketEntityRef {
     /**
-     * A 1–60 token. {@link TICKET_ENTITY_TYPES} is jovi-mall's closed eleven and
+     * A 1–60 token. {@link TICKET_ENTITY_TYPES} is jovi-mall's closed twelve and
      * a client may rely on it for **routing**; wi-admin still validates by shape
      * rather than membership, so render an unrecognised token as plain text.
      */
@@ -482,6 +501,14 @@ export interface TicketDetail extends Ticket {
      * "this service does not say" must not render as "nobody follows".
      */
     followers?: TicketFollower[];
+    /**
+     * A `LISTING_LEAD_REPORT` ticket's lead (2026-11-07): the lead the provider
+     * reported, the unlocks they named and what they asked for. `null` on every
+     * other ticket. Optional: a wi-admin older than the listings round sends no
+     * key. ⚠ Not in `support.md` — read from wi-admin's `ticket.dto.ts` and
+     * `listing-lead.dto.ts` (mirrored as `api-doc/admin/listing-lead-dto.ts`).
+     */
+    listingLead?: ListingLeadTicketContext | null;
 }
 
 /**

@@ -205,7 +205,14 @@ describe('the route total is the sum of its parts', () => {
         //
         // ⚠ 350 → 351 on 2026-11-03, measured (`TOTAL 352`):
         // `POST /bookings/:bookingId/reminder/vendor` (`/bookings` 13 → 14).
-        expect(totalDeclared).toBe(351);
+        //
+        // ⚠ 351 → 363 on 2026-11-07, measured (`TOTAL 364`): service listings — the
+        // new `/listings` group (12: the queue, the detail, the audited contacts, four
+        // review writes, the leads, one lead, the refund, block and lift). ⚠ The
+        // name `catalog.listings.reveal-block` has a HYPHEN, so the permission
+        // regexes in this file learned `-` in the same change — before it, that cell
+        // matched nothing and was silently skipped.
+        expect(totalDeclared).toBe(363);
     });
 });
 
@@ -218,7 +225,7 @@ describe('every permission the route map names is one we declare', () => {
     const named = new Set(
         namespaces.flatMap((ns) =>
             ns.rows.flatMap((row) =>
-                [...row.permissionCell.matchAll(/`([a-z_]+(?:\.[a-z_]+)+)`/g)].map((m) => m[1]),
+                [...row.permissionCell.matchAll(/`([a-z_]+(?:\.[a-z_-]+)+)`/g)].map((m) => m[1]),
             ),
         ),
     );
@@ -252,7 +259,7 @@ describe('the composite guards, as the route map declares them', () => {
     const composite = namespaces
         .flatMap((ns) => ns.rows)
         .filter(
-            (row) => [...row.permissionCell.matchAll(/`[a-z_]+(?:\.[a-z_]+)+`/g)].length > 1,
+            (row) => [...row.permissionCell.matchAll(/`[a-z_]+(?:\.[a-z_-]+)+`/g)].length > 1,
         )
         .map((row) => `${row.method} ${row.path}`)
         .sort();

@@ -34,7 +34,7 @@ import {
     TICKET_ENTITY_TYPES,
     TICKET_IMPORTANCES,
     TICKET_SUBJECT_MAX,
-    TICKET_TYPES,
+    STAFF_TICKET_TYPES,
     type TicketEntityType,
     type TicketImportance,
     type TicketType,
@@ -186,7 +186,7 @@ export function CreateTicketDialog({
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent className="max-h-72">
-                                    {TICKET_TYPES.map((value) => (
+                                    {STAFF_TICKET_TYPES.map((value) => (
                                         <SelectItem key={value} value={value}>
                                             {humaniseEnum(value)}
                                         </SelectItem>

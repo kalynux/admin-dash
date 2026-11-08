@@ -166,6 +166,46 @@ both capability lists; an unknown `flow` still prints raw. **Integrations needed
 The admin README's link to this changelog now resolves. **Upstream jovi-mall committed (`6f34a7e`), deploy not
 confirmed.**
 
+✅ **Service listings built 2026-11-08 — the 33rd route group (`/listings`, 12 routes), six new
+`catalog.listings.*` permissions, and a lead panel on report tickets.** Contract:
+[FRONTEND-CHANGELOG-service-listings.md](api-doc/admin/FRONTEND-CHANGELOG-service-listings.md) ·
+[listings.md](api-doc/admin/api/listings.md); `permissions.md`, both READMEs, `support.md` and `audit.md` re-copied
+(the two upstream-only links re-neutralised by hand, byte-identical to before), `api-doc/jovi-mall/error-codes.ts`
+and `ticket-vocabularies.ts` re-taken (additive — the six `BOOKING_PRICE_*` / reminder codes left behind on
+11-03 came with it). **Upstream on wi-admin's `informational-service` branch (`b47d03b`, `95eb704`), not deployed,
+never called live — the owner asked to be consulted before anything is tried against production.**
+⚠ **`listings.md` gives no response shapes**, so five source mirrors were taken —
+[`listing-dto.ts`](api-doc/admin/listing-dto.ts), `listing-contacts-dto.ts`, `listing-lead-dto.ts`,
+`listing-validator.ts`, `listing-reports-validator.ts` — and `listings.types.test.ts` diffs every fixture's keys and
+every vocabulary against them (the detail has no interface; its keys are read off the mapper's `return`).
+⚠ **`listingLead` on the ticket detail is in no doc page** — read from wi-admin's `ticket.dto.ts`; optional on the type.
+**Operations › Listings** (`/dashboard/listings`, on `catalog.listings.read` — **every tier**; beside Categories by the
+owner's choice, there is no Catalog section): **To review** (`reviewState=pending_review`, oldest submission first,
+count in the tab) and **All listings** (status + review-state filters, newest first). Rows are one responsive card
+list — no `DataTable` — so phones get a stacked card and there is one list in the DOM. Detail
+(`/dashboard/listings/:listingId`): standing, the automatic **pre-flags** (excerpts `<mark>`ed in the text), the
+public copy — ⚠ **on a change to a live listing, the change and the live copy side by side with every touched field
+marked `Changed`** (`changedListingFields()`) — and **Leads** on `?tab=leads`. ⛔ **The hidden contacts load ONLY on
+the click** of a button that says *"Your view is recorded in the audit trail"* (the route audits before the read);
+both copies are shown on a revision so a swapped WhatsApp number is visible, and they live in component state only
+(tested: no `/contacts` call on mount or from the queue). Links in the rich description show their ADDRESS and are
+not clickable — that is where a contact hides. Approve / Reject (1–5 reasons) / Take offline (a note) / Put back need
+**both** `availableActions` **and** the permission; ⚠ **the Reject reasons and the Take-offline note reach the
+provider** (read from jovi-mall's `vendor-listing.dto.ts`) and the forms say so. Writes answer the fresh detail, held
+`{ over, next }`; `LISTING_STATUS_CONFLICT` / a 404 close and re-read. **Lead panel** (`ListingLeadPanel`) on any
+ticket whose detail carries `listingLead`: what the provider asked for, the named unlocks with cost and refund
+state, and — from `GET /listings/leads/:leadId` — the customer **in full**, their block, their other leads.
+⛔ **Refund (`catalog.listings.reveals.refund`, tiers 1–2) is ABSENT for Support, not disabled** (perturbation-tested);
+Block / Lift are every tier; both carry the ticket id; neither closes the ticket and the panel says so. Lead page:
+`/dashboard/listings/leads/:leadId`; a ticket's `LISTING_LEAD` entity links there. `LISTING_LEAD_REPORT` is **not
+offered by the create form** (`STAFF_TICKET_TYPES`). ⚠ **The vendor detail carries no `kind`**, so the vendor page's
+*Service listings (n)* link appears when `GET /listings?vendorId=&limit=1` finds any. 🔴 **`reveal-block` is the first
+permission name with a HYPHEN**, and the doc parsers in `permissions.types.test.ts` and `route-map.test.ts` matched
+`[a-z_]` only — the row was silently skipped (perturbation-tested: reverting the fix goes red on two assertions).
+`listing` / `listing_reveal` joined the audit target filter (⚠ not in `audit.md` yet). Six `LISTING_*` codes have
+copy in both `error-platform.ts`. Measured: `dump-routes.js` **`TOTAL 364` = 363 routes**, `authz:matrix`
+**159 / 135 / 56**; no new composite guard.
+
 ✅ **BR-032 and BR-033 answered 2026-11-01 and built the same day — the permission guard is GREEN
 again, and a cancel now says what its refund did.** Reply:
 [RESPONSE-2026-11-01-BR-032-033.md](api-doc/admin/dashboard/backend-requests/RESPONSE-2026-11-01-BR-032-033.md).
@@ -1272,7 +1312,7 @@ machine, not the code.
 npm run dev       # 5175, strictPort
 npm run build     # tsc -b && vite build   ← the typecheck runs here
 npm run lint      # eslint .
-npm test          # vitest run — 3559 tests in 225 files, ALL GREEN, with --maxWorkers=3 (2026-11-03, the booking reminders and prices round, 27 node processes up, 1113 s). 3526 in 225 earlier that day (the referrals round, 15 node processes up, 807 s): 1 failure, a hand-written count in MyAccess.test.tsx, fixed and green alone; the whole suite was not re-run after that one-line fix. 3447 in 221, ALL GREEN, on 2026-11-02 (the partial-payment round, 15 node processes up, 753 s). 3431 in 220, green, on 2026-11-01 (the BR-032/033 round, nothing else running, 628 s). At default workers the same code failed 3 ArticleCreateDialog cover tests, which take ~14 s of the 20 s limit on an idle machine and pass alone: the suite's own workers are enough load to trip them. No sibling dashboard has one.
+npm test          # vitest run — 3629 tests in 229 files with --maxWorkers=3 (2026-11-08, the service-listings round, 26 node processes up, 941 s): 1 failure, an ArticleCreateDialog cover test at the 20 s timeout, which passed alone (3/3) — the recorded contention residue. 3559 tests in 225 files, ALL GREEN, on 2026-11-03 (the booking reminders and prices round, 27 node processes up, 1113 s). 3526 in 225 earlier that day (the referrals round, 15 node processes up, 807 s): 1 failure, a hand-written count in MyAccess.test.tsx, fixed and green alone; the whole suite was not re-run after that one-line fix. 3447 in 221, ALL GREEN, on 2026-11-02 (the partial-payment round, 15 node processes up, 753 s). 3431 in 220, green, on 2026-11-01 (the BR-032/033 round, nothing else running, 628 s). At default workers the same code failed 3 ArticleCreateDialog cover tests, which take ~14 s of the 20 s limit on an idle machine and pass alone: the suite's own workers are enough load to trip them. No sibling dashboard has one.
 ```
 
 **Every phase closes the same way**: typecheck, lint, tests, build, then a written summary naming

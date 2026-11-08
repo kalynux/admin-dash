@@ -539,6 +539,20 @@ const platform = {
     REFERRAL_PARTNER_NOT_FOUND: 'The platform has no such referral partner.',
     ACCOUNT_CLOSURE_REFERRAL_BALANCE:
         'This account’s referral wallet still holds or owes money, so the account cannot be closed yet.',
+
+    // ─── Service listings (2026-11-07) ───────────────────────────────────────
+    /*
+      The dialogs close and re-read on the conflicts; this copy is what anything else
+      shows. The customer-facing `LISTING_*` codes (unreachable, daily limit, …) are
+      never answered to an administrator.
+    */
+    LISTING_NOT_FOUND: 'The platform has no such listing any more.',
+    LISTING_STATUS_CONFLICT:
+        'This listing changed while this was open — someone else may have decided first. Reload to see where it is now.',
+    LISTING_REVEAL_NOT_FOUND: 'The platform has no such contact unlock.',
+    LISTING_REVEAL_ALREADY_REFUNDED: 'This unlock was already refunded. A refund is made once per unlock.',
+    LISTING_REVEAL_BLOCK_EXISTS: 'This customer is already blocked on this listing.',
+    LISTING_REVEAL_BLOCK_NOT_FOUND: 'This customer is not blocked on this listing, so there is nothing to lift.',
 };
 
 export default platform;

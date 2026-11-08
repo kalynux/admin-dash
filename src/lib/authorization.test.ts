@@ -168,9 +168,11 @@ describe('the tier fixtures match the documented levels', () => {
         // Support holds `read` and `remind`, never the link or an intervention.
         // ⚠ **149 / 126 / 49 → 153 / 129 / 51 on 2026-11-02**: the `referrals` family —
         // Support holds `read` and `partners.decide`, Admin everything but the settings.
-        expect(TIER_1_PERMISSIONS.length).toBe(153);
-        expect(TIER_2_PERMISSIONS.length).toBe(129);
-        expect(TIER_3_PERMISSIONS.length).toBe(51);
+        // ⚠ **153 / 129 / 51 → 159 / 135 / 56 on 2026-11-07**: six `catalog.listings.*`
+        // names — five every tier, the refund (`financial`) tiers 1–2.
+        expect(TIER_1_PERMISSIONS.length).toBe(159);
+        expect(TIER_2_PERMISSIONS.length).toBe(135);
+        expect(TIER_3_PERMISSIONS.length).toBe(56);
     });
 
     it('withholds from Admin exactly what the doc says it withholds', () => {
@@ -224,7 +226,7 @@ describe('the tier fixtures match the documented levels', () => {
         expect(heldFixture(3).has('money.payments.read')).toBe(true);
     });
 
-    it('leaves Support holding 51 permissions, every one of them usable', () => {
+    it('leaves Support holding 56 permissions, every one of them usable', () => {
         // 24 held / 12 usable before Phase 5 built the `support` and `content`
         // surfaces; 29 until `files.content.read` was granted to all three tiers
         // at BR-011; 30 until `support.automation.lookup` arrived with
@@ -233,11 +235,12 @@ describe('the tier fixtures match the documented levels', () => {
         // `money.statements.send` (2026-09-27); 39 until `shipments.reassign`
         // (2026-10-02); 40 until `catalog.categories.read` and 41 until `money.splits.read` (both 2026-10-04);
         // 42 until the three `reviews.*` (2026-10-05). 45 until the refund queue's two (same day).
-        // 47 until `bookings.read` and `bookings.remind` (2026-10-27). Support holds none of the four `†` names,
+        // 47 until `bookings.read` and `bookings.remind` (2026-10-27). 51 until five
+        // `catalog.listings.*` names (2026-11-07). Support holds none of the four `†` names,
         // so there is nothing in their set they cannot reach.
         const unrouted = new Set<string>(UNROUTED_PERMISSION_NAMES);
         const usable = TIER_3_PERMISSIONS.filter((name) => !unrouted.has(name));
-        expect(usable.length).toBe(51);
+        expect(usable.length).toBe(56);
     });
 
     it('gives Support file resolution, but not the orphan listing', () => {

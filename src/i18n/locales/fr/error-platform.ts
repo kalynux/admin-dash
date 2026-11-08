@@ -319,6 +319,15 @@ const platform = {
     REFERRAL_PARTNER_NOT_FOUND: 'La plateforme n’a pas ce partenaire de parrainage.',
     ACCOUNT_CLOSURE_REFERRAL_BALANCE:
         'Le portefeuille de parrainage de ce compte contient ou doit encore de l’argent ; le compte ne peut pas encore être fermé.',
+
+    // Annonces de services (2026-11-07).
+    LISTING_NOT_FOUND: 'La plateforme n’a plus cette annonce.',
+    LISTING_STATUS_CONFLICT:
+        'Cette annonce a changé pendant que ceci était ouvert — quelqu’un a peut-être décidé avant vous. Rechargez pour voir où elle en est.',
+    LISTING_REVEAL_NOT_FOUND: 'La plateforme n’a pas ce déblocage de contact.',
+    LISTING_REVEAL_ALREADY_REFUNDED: 'Ce déblocage a déjà été remboursé. Un remboursement ne se fait qu’une fois par déblocage.',
+    LISTING_REVEAL_BLOCK_EXISTS: 'Ce client est déjà bloqué sur cette annonce.',
+    LISTING_REVEAL_BLOCK_NOT_FOUND: 'Ce client n’est pas bloqué sur cette annonce ; il n’y a rien à lever.',
 };
 
 export default platform;

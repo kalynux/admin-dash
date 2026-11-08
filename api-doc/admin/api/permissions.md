@@ -1,5 +1,7 @@
 # Permissions and administrator levels
 
+⚠ **2026-11-07 (merge of service listings onto production, `npm run authz:matrix`): 159 permissions across 25 families, tier totals 159 / 135 / 56.** Six are new in the `catalog` family (`PRODUCTION-READINESS/SERVICE-LISTINGS-PLAN.md` § C-6): `catalog.listings.read`, `catalog.listings.contacts.read` (every view audited before the read), `catalog.listings.review`, `catalog.listings.suspend` and `catalog.listings.reveal-block`, all five held by **every** tier by owner decision (O-12…O-14), and `catalog.listings.reveals.refund` (**financial**, tiers 1 + 2, named in the tier-2 money block). No new family, no dual control. Re-derive rather than quoting.
+
 ⚠ **2026-11-02: 153 permissions across 25 families, tier totals 153 / 129 / 51.** Four are new, in a new `referrals` family ([§ referrals](#referrals), [referrals.md](referrals.md)): `referrals.read` and `referrals.partners.decide` (every tier, Support included, by the owner's decision), `referrals.partners.balance` (**financial**, tiers 1 + 2) and `referrals.settings.write` (**financial**, tier 1 only). Re-derive with `npm run authz:matrix` rather than quoting.
 
 ⚠ **2026-10-27: 149 permissions across 24 families, tier totals 149 / 126 / 49.** Five are new, in a new `bookings` family ([§ bookings](#bookings), [bookings.md](bookings.md)): `bookings.read` and `bookings.remind` (every tier, Support included), `bookings.access.read` and `bookings.intervene` (unflagged, tiers 1 + 2 through the family grant — Support does **not** name them), and `bookings.settle` (**financial**, named into the tier-2 money block, refused to Support at boot). Re-derive with `npm run authz:matrix` rather than quoting.
@@ -45,9 +47,9 @@ Design records: [`../../docs/ADR-003-GRANULAR-PERMISSIONS.md`](../../docs/ADR-00
 
 | Level (`tier`) | Label | Holds | Shape of the job |
 |---|---|---|---|
-| **1** | Developer | 153 of 153 | Everything, including the developer tools and every escalation-flagged action |
-| **2** | Admin | 129 of 153 | The operational tier — runs the platform day to day, including the money |
-| **3** | Support | 51 of 153 | Ticket work, **reading service bookings and resending their reminder**, **reading the referral program and approving, rejecting, suspending or terminating its partners**, **raising refund requests** for an approver (which holds the seller's earnings), the lookups needed to answer a ticket, sending an account holder their statement, editorial write on articles and bylines, resetting the customer bot's memory of a chat, **moderating reviews** (hide, put back, delete), and **pre-screening** a declared COD handover or a payout request. Nothing destructive except deleting a review (the one named exception), publishing stays a level above, and the two `financial` permissions it holds cannot send money anywhere |
+| **1** | Developer | 159 of 159 | Everything, including the developer tools and every escalation-flagged action |
+| **2** | Admin | 135 of 159 | The operational tier — runs the platform day to day, including the money |
+| **3** | Support | 56 of 159 | Ticket work, **reviewing service listings** (approve, reject, take offline, block a customer on one, seeing the hidden contacts with every view recorded), **reading service bookings and resending their reminder**, **reading the referral program and approving, rejecting, suspending or terminating its partners**, **raising refund requests** for an approver (which holds the seller's earnings), the lookups needed to answer a ticket, sending an account holder their statement, editorial write on articles and bylines, resetting the customer bot's memory of a chat, **moderating reviews** (hide, put back, delete), and **pre-screening** a declared COD handover or a payout request. Nothing destructive except deleting a review (the one named exception), publishing stays a level above, and the two `financial` permissions it holds cannot send money anywhere |
 
 A level is an administrator's **entire** authorization state. `tier` appears on the profile
 returned by `GET /auth/me`.
@@ -205,7 +207,7 @@ record were one decision, not two. See [ADR-020](../../docs/ADR-020-ADMIN-DATA-D
 ## The matrix
 
 ● granted  ·  not granted  ·  **†** = catalogued policy with **no endpoint built yet**
-(**4** of 153 permissions — down from 27, and the four that remain each have a written reason
+(**4** of 159 permissions — down from 27, and the four that remain each have a written reason
 below. The policy is decided ahead of the surface, deliberately.)
 
 ### `agents`
@@ -482,6 +484,12 @@ a category belongs to no vendor, and a merge rewrites many vendors' products at 
 |---|---|:-:|:-:|:-:|---|---|
 | `catalog.categories.read` | read | ● | ● | ● | — | List the shared product categories, with how many products use each |
 | `catalog.categories.manage` | write | ● | ● | · | destructive | Rename, merge or delete a shared product category (a merge moves every product) |
+| `catalog.listings.read` | read | ● | ● | ● | — | The service-listing review queue and each listing, public fields only |
+| `catalog.listings.contacts.read` | read | ● | ● | ● | — | A listing's hidden contacts (WhatsApp, phone, email, links, pin, video); every view audited before the read |
+| `catalog.listings.review` | write | ● | ● | ● | — | Approve or reject a submitted listing or revision |
+| `catalog.listings.suspend` | write | ● | ● | ● | — | Take a live listing offline, and put it back |
+| `catalog.listings.reveals.refund` | write | ● | ● | · | financial | Refund a contact reveal from a provider's report (credits back to the provider's wallet) |
+| `catalog.listings.reveal-block` | write | ● | ● | ● | — | Block a customer from unlocking one listing's contacts, and lift the block |
 
 `catalog.categories.manage` is **destructive**, so `allInFamily('catalog')` leaves it out and
 tier 2 names it by hand. A merge has no undo.

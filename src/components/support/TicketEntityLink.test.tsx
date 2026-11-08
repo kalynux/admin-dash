@@ -127,6 +127,20 @@ describe('a booking opens its own screen (2026-10-27)', () => {
     });
 });
 
+describe('a listing lead (2026-11-07)', () => {
+    const id = '6720aabbccddeeff00112233';
+
+    it('opens the lead page, which shows the customer in full', () => {
+        show(ticketEntityFixture({ type: 'LISTING_LEAD', id }));
+        expect(href(id)).toBe(`/dashboard/listings/leads/${id}`);
+    });
+
+    it('gates it on catalog.listings.read', () => {
+        show(ticketEntityFixture({ type: 'LISTING_LEAD', id }), new Set(['support.tickets.read']));
+        expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    });
+});
+
 describe('the two types that do not open', () => {
 
     it('renders DELIVERY as a value, having no screen', () => {
@@ -214,11 +228,12 @@ describe('no entity at all', () => {
 describe('the vocabulary this table is written against', () => {
     /**
      * A guard on the *count*, not the members: `support-vocabularies.test.ts`
-     * already diffs the eleven against jovi-mall's mirror. This one fails if a
-     * twelfth arrives, which is the moment somebody has to decide whether it
-     * routes — the decision this file exists to record.
+     * already diffs the twelve against jovi-mall's mirror. This one fails if a
+     * thirteenth arrives, which is the moment somebody has to decide whether it
+     * routes — the decision this file exists to record. The twelfth,
+     * `LISTING_LEAD` (2026-11-07), was decided: it opens the lead page.
      */
-    it('still has eleven members', () => {
-        expect(TICKET_ENTITY_TYPES).toHaveLength(11);
+    it('still has twelve members', () => {
+        expect(TICKET_ENTITY_TYPES).toHaveLength(12);
     });
 });

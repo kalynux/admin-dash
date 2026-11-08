@@ -1,4 +1,14 @@
-# Route map — all 351 wi-admin routes
+# Route map — all 363 wi-admin routes
+
+✅ **351 → 363 on 2026-11-07, MEASURED — the recipe printed `TOTAL 364`**, and the twelve new rows
+were in its output by name: the new **`/listings`** group (the 33rd — service listings: the review
+queue, the audited hidden contacts, four review writes, and the lead reports). Permission and audit
+cells read from `listings/routes/listing.routes.ts`. Contract:
+[FRONTEND-CHANGELOG-service-listings.md](admin/FRONTEND-CHANGELOG-service-listings.md) ·
+[`listings.md`](admin/api/listings.md). Six new permissions in the existing `catalog` family
+(`authz:matrix` **159 / 135 / 56**); no new composite guard. ⚠ `catalog.listings.reveal-block` is the
+first permission name with a **hyphen**. **Upstream committed on wi-admin's `informational-service`
+branch (`b47d03b`, `95eb704`), not deployed.**
 
 ✅ **350 → 351 on 2026-11-03, MEASURED — the recipe printed `TOTAL 352`**, and the new row was in
 its output by name: `POST /bookings/:bookingId/reminder/vendor` (`bookings.remind`, audited
@@ -322,8 +332,8 @@ failure is not caught, so with the audit store down nothing is disclosed. See
 ```bash
 cd backend/admin
 node -r ts-node/register/transpile-only -r dotenv/config \
-    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 352 (2026-11-03 — vendor reminder)
-npm run authz:matrix                                                      # 153 / 129 / 51 (2026-11-02 — referrals)
+    ../FRONTEND-SYNC/tools/dump-routes.js "$(pwd)/src/app.ts" | tail -1   # TOTAL 364 (2026-11-07 — service listings)
+npm run authz:matrix                                                      # 159 / 135 / 56 (2026-11-07 — service listings)
 ```
 
 ✅ **`authz:matrix` and the contract agree again: 124 / 104 / 38**, re-derived from source on
@@ -345,7 +355,7 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 
 ---
 
-## The 351 routes, by namespace
+## The 363 routes, by namespace
 
 ### `/support` — 19 routes
 
@@ -547,6 +557,23 @@ for its router tree and never connects, so a stopped `mongod` is not a reason to
 | PATCH | `/categories/:categoryId` | `catalog.categories.manage` | ✅ catalog.categories.rename | [`categories.md`](admin/api/categories.md) |
 | DELETE | `/categories/:categoryId` | `catalog.categories.manage` | ✅ catalog.categories.delete | [`categories.md`](admin/api/categories.md) |
 | POST | `/categories/:categoryId/merge` | `catalog.categories.manage` | ✅ catalog.categories.merge | [`categories.md`](admin/api/categories.md) |
+
+### `/listings` — 12 routes
+
+| Method | Path | Permission | Audited | Documented in |
+|---|---|---|---|---|
+| GET | `/listings/` | `catalog.listings.read` | — | [`listings.md`](admin/api/listings.md) |
+| GET | `/listings/leads/:leadId` | `catalog.listings.read` | — | [`listings.md`](admin/api/listings.md) |
+| POST | `/listings/reveals/:revealId/refund` | `catalog.listings.reveals.refund` | ✅ catalog.listings.reveals.refund | [`listings.md`](admin/api/listings.md) |
+| GET | `/listings/:listingId` | `catalog.listings.read` | — | [`listings.md`](admin/api/listings.md) |
+| GET | `/listings/:listingId/leads` | `catalog.listings.read` | — | [`listings.md`](admin/api/listings.md) |
+| POST | `/listings/:listingId/reveal-blocks/:customerId` | `catalog.listings.reveal-block` | ✅ catalog.listings.reveal_block | [`listings.md`](admin/api/listings.md) |
+| DELETE | `/listings/:listingId/reveal-blocks/:customerId` | `catalog.listings.reveal-block` | ✅ catalog.listings.reveal_unblock | [`listings.md`](admin/api/listings.md) |
+| GET | `/listings/:listingId/contacts` | `catalog.listings.contacts.read` | ✅ catalog.listings.contacts.read | [`listings.md`](admin/api/listings.md) |
+| POST | `/listings/:listingId/approve` | `catalog.listings.review` | ✅ catalog.listings.approve | [`listings.md`](admin/api/listings.md) |
+| POST | `/listings/:listingId/reject` | `catalog.listings.review` | ✅ catalog.listings.reject | [`listings.md`](admin/api/listings.md) |
+| POST | `/listings/:listingId/suspend` | `catalog.listings.suspend` | ✅ catalog.listings.suspend | [`listings.md`](admin/api/listings.md) |
+| POST | `/listings/:listingId/unsuspend` | `catalog.listings.suspend` | ✅ catalog.listings.unsuspend | [`listings.md`](admin/api/listings.md) |
 
 ### `/reviews` — 5 routes
 

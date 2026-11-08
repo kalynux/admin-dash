@@ -39,7 +39,7 @@ const doc = readFileSync(DOC_PATH, 'utf8');
  * endpoint tables (`| \`GET /users/:userId/activity\` |`) and the flag table
  * (`| \`financial\` |`) cannot match.
  */
-const ROW = /^\| `([a-z_]+(?:\.[a-z_]+)+)`( †)? \|/gm;
+const ROW = /^\| `([a-z_]+(?:\.[a-z_-]+)+)`( †)? \|/gm;
 
 /**
  * The same row, with its three tier columns — `| kind | ● | ● | · |`.
@@ -48,7 +48,7 @@ const ROW = /^\| `([a-z_]+(?:\.[a-z_]+)+)`( †)? \|/gm;
  * checked against them rather than transcribed a second time. Groups 3–5 are the
  * tiers; group 2 is the optional ` †`.
  */
-const TIER_ROW = /^\| `[a-z_]+(?:\.[a-z_]+)+`( †)? \| *[a-z]+ *\| *([●·]) *\| *([●·]) *\| *([●·]) *\|/gm;
+const TIER_ROW = /^\| `[a-z_]+(?:\.[a-z_-]+)+`( †)? \| *[a-z]+ *\| *([●·]) *\| *([●·]) *\| *([●·]) *\|/gm;
 
 const FAMILY_HEADING = /^### `([a-z_]+)`/gm;
 
@@ -185,10 +185,14 @@ describe('the permission catalogue matches api-doc/admin/api/permissions.md', ()
         // `referrals` family (the 25th). `read` and `partners.decide` every tier,
         // `partners.balance` (`financial`) tiers 1–2, `settings.write` (`financial`)
         // tier 1.
-        expect(PERMISSION_NAMES.length).toBe(153);
+        //
+        // ⚠ **Moved 153 → 159 on 2026-11-07** — 159 / 135 / 56 by `authz:matrix`:
+        // six `catalog.listings.*` names, no new family. Five every tier, the
+        // refund (`financial`) tiers 1–2.
+        expect(PERMISSION_NAMES.length).toBe(159);
         expect(UNROUTED_PERMISSION_NAMES.length).toBe(4);
         expect(PERMISSION_FAMILIES.length).toBe(25);
-        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(149);
+        expect(PERMISSION_NAMES.length - UNROUTED_PERMISSION_NAMES.length).toBe(155);
     });
 
     /**
@@ -340,7 +344,7 @@ describe('the composite-guard tables match the prose that counts them', () => {
         const declared = new Set<string>(PERMISSION_NAMES);
         const cells = section('## Composite guards', '\n## ');
         const named = new Set(
-            [...cells.matchAll(/`([a-z_]+(?:\.[a-z_]+)+)`/g)].map((match) => match[1]),
+            [...cells.matchAll(/`([a-z_]+(?:\.[a-z_-]+)+)`/g)].map((match) => match[1]),
         );
 
         // ⚠ One name the page mentions in order to say it does NOT exist: *"No

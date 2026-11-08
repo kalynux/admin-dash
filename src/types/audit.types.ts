@@ -85,6 +85,11 @@ export const AUDIT_TARGET_TYPES: readonly string[] = [
     // does not list them yet.
     'referral_partner',
     'referral_settings',
+    // Service listings (2026-11-07): a listing (approve, reject, take offline, put
+    // back, the hidden-contacts view, a block) and one contact unlock (its refund).
+    // In wi-admin's `audit.types.ts`; ⚠ `audit.md` does not list them yet.
+    'listing',
+    'listing_reveal',
     'ticket',
     'article',
     'plan',

@@ -3,6 +3,7 @@ import {
     Bot,
     Building2,
     ClipboardCheck,
+    Megaphone,
     Coins,
     CreditCard,
     Images,
@@ -350,6 +351,22 @@ export const NAV_SECTIONS: NavSection[] = [
                 icon: Tags,
                 path: '/dashboard/categories',
                 permission: 'catalog.categories.read',
+                implemented: true,
+                phase: 9,
+            },
+            {
+                /**
+                 * Service listings (2026-11-07): the review queue for service
+                 * providers' listings, and the leads behind a provider's report.
+                 * On the read, so Support reaches it; every write is gated per
+                 * button inside. Beside Categories by the owner's choice — the
+                 * brief said "Catalog", and there is no Catalog section.
+                 */
+                id: 'listings',
+                label: 'Listings',
+                icon: Megaphone,
+                path: '/dashboard/listings',
+                permission: 'catalog.listings.read',
                 implemented: true,
                 phase: 9,
             },
