@@ -18,12 +18,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAsyncData } from '@/hooks/use-async-data';
 import { resolveTimeZone } from '@/lib/datetime';
-import { formatInstantInZone, formatMoney } from '@/lib/format';
+import { formatInstantInZone, formatMoney, humaniseEnum } from '@/lib/format';
 import { getReferralReward } from '@/services/referrals.service';
 import { useAdmin, useCan } from '@/store';
 import {
     referralPartnerPath,
     referralCategoryLabel,
+    referralCommissionWithheld,
+    referralPaymentKindLabel,
+    referralRewardPayment,
     referralSourceLabel,
     type ReferralReward,
 } from '@/types/referrals.types';
@@ -83,7 +86,10 @@ export function ReferralRewardDetailScreen() {
     }
 
     const others = detail.data.onSameCommission;
-    const withheld = reward.commissionWithheld || others.some((row) => row.commissionWithheld);
+    const withheld = referralCommissionWithheld(reward) || others.some(referralCommissionWithheld);
+    // A provider reward (2026-11-08) comes from a plan purchase or a credit pack, not a commission.
+    const payment = referralRewardPayment(reward);
+    const same = payment ? 'payment' : 'commission';
 
     return (
         <PageContainer
@@ -120,16 +126,27 @@ export function ReferralRewardDetailScreen() {
                                 </span>
                             </Definition>
                             <Definition label="From">{referralSourceLabel(reward.sourceType)}</Definition>
-                            <Definition label="Order or booking">
+                            <Definition label={payment ? 'Payment' : 'Order or booking'}>
                                 <ReferralRewardSource reward={reward} />
                             </Definition>
-                            <Definition label="Vendor">
+                            <Definition label={payment ? 'Provider' : 'Vendor'}>
                                 <CopyableValue
                                     value={reward.vendorId}
                                     label="vendor ID"
                                     to={can('vendors.read') ? `/dashboard/vendors/${reward.vendorId}` : undefined}
                                 />
                             </Definition>
+                            {payment ? (
+                                <Definition label="Price paid">
+                                    <span className="tabular-nums">
+                                        {formatMoney(payment.amountPaid, reward.currency)}
+                                    </span>
+                                    <span className="text-muted-foreground block text-xs">
+                                        The full price of the {referralPaymentKindLabel(payment.kind).toLowerCase()}, which
+                                        the reward is a percentage of.
+                                    </span>
+                                </Definition>
+                            ) : (
                             <Definition label="Commission">
                                 <span className="flex flex-wrap items-center gap-2">
                                     <ReferralCommission
@@ -141,21 +158,24 @@ export function ReferralRewardDetailScreen() {
                                         value={reward.commissionId}
                                         label="commission ID"
                                         to={
-                                            can('money.earnings.read')
+                                            can('money.earnings.read') && reward.commissionId
                                                 ? `/dashboard/money/allocations/${reward.commissionId}`
                                                 : undefined
                                         }
                                     />
                                 </span>
                             </Definition>
+                            )}
                             <Definition label="Rate">
-                                {reward.ratePercent}% ({reward.rateSource === 'custom' ? 'this partner’s own' : 'global'}
-                                ), saved when it was earned
+                                {reward.ratePercent}%{payment ? ' of the price paid' : ''} (
+                                {reward.rateSource === 'custom' ? 'this partner’s own' : 'global'}), saved when it was earned
                             </Definition>
-                            <Definition label="Share of the commission">
-                                {reward.sharePercent}%
-                                {reward.sharePercent !== 100 ? ' (a prepaid order with two agencies, by parcel value)' : ''}
-                            </Definition>
+                            {payment ? null : (
+                                <Definition label="Share of the commission">
+                                    {reward.sharePercent}%
+                                    {reward.sharePercent !== 100 ? ' (a prepaid order with two agencies, by parcel value)' : ''}
+                                </Definition>
+                            )}
                             <Definition label="First calculated">
                                 {formatMoney(reward.amount, reward.currency)}
                             </Definition>
@@ -187,19 +207,23 @@ export function ReferralRewardDetailScreen() {
 
                 <section className="space-y-2" aria-labelledby="referral-same-commission">
                     <h2 id="referral-same-commission" className="text-base font-semibold">
-                        On the same commission
+                        {same === 'payment' ? 'Other rewards on this payment' : 'On the same commission'}
                     </h2>
                     <p className="text-muted-foreground text-sm">
-                        Every other referred account that generated a reward on this commission.
+                        {same === 'payment'
+                            ? 'Every other reward that came from this same plan purchase or credit pack.'
+                            : 'Every other referred account that generated a reward on this commission.'}
                     </p>
                     <ReferralRewardsTable
-                        caption="Other rewards on the same commission"
+                        caption={same === 'payment' ? 'Other rewards on this payment' : 'Other rewards on the same commission'}
                         rows={others}
                         timeZone={timeZone}
                         isLoading={false}
                         empty={
                             <p className="text-muted-foreground p-6 text-center text-sm">
-                                No other reward came from this commission.
+                                {same === 'payment'
+                                    ? 'No other reward came from this payment.'
+                                    : 'No other reward came from this commission.'}
                             </p>
                         }
                     />
@@ -210,12 +234,15 @@ export function ReferralRewardDetailScreen() {
 }
 
 function Adjustments({ reward, timeZone }: { reward: ReferralReward; timeZone: string }) {
+    const payment = referralRewardPayment(reward);
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Refund adjustments</CardTitle>
+                <CardTitle>{payment ? 'Reversals' : 'Refund adjustments'}</CardTitle>
                 <CardDescription>
-                    Each refund recalculates the reward from what Wi-Mall kept, at the rate saved on the reward.
+                    {payment
+                        ? 'A reversed payment — a lost card dispute or a completed refund — takes the whole reward back.'
+                        : 'Each refund recalculates the reward from what Wi-Mall kept, at the rate saved on the reward.'}
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -227,12 +254,21 @@ function Adjustments({ reward, timeZone }: { reward: ReferralReward; timeZone: s
                                 {formatMoney(adjustment.amountAfter, reward.currency)}
                             </p>
                             <p className="text-muted-foreground">
-                                {formatInstantInZone(adjustment.at, timeZone)} · Commission kept:{' '}
-                                <ReferralCommission
-                                    withheld={reward.commissionWithheld}
-                                    amount={adjustment.commissionRetained}
-                                    currency={reward.currency}
-                                />
+                                {formatInstantInZone(adjustment.at, timeZone)}
+                                {payment ? (
+                                    // No commission on a provider reward: say what reversed it.
+                                    <> · {humaniseEnum(adjustment.refundKey) ?? 'Payment reversed'}</>
+                                ) : (
+                                    <>
+                                        {' '}
+                                        · Commission kept:{' '}
+                                        <ReferralCommission
+                                            withheld={reward.commissionWithheld}
+                                            amount={adjustment.commissionRetained}
+                                            currency={reward.currency}
+                                        />
+                                    </>
+                                )}
                             </p>
                         </li>
                     ))}

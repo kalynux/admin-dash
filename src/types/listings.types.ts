@@ -233,6 +233,13 @@ export interface ListingContactLocation {
 export interface ListingContactSet {
     whatsapp: string | null;
     phone: string | null;
+    /**
+     * A second phone number (2026-11-08), or `null` for none. ⚠ **Part of the
+     * one `phone` field** — unlocked and charged with it — so it is never an
+     * eighth entry in `LISTING_CONTACT_FIELDS`, a reveal row or a report.
+     * Read with `?? null`: a wi-admin older than this sends no key.
+     */
+    phone2: string | null;
     email: string | null;
     website: string | null;
     socials: Array<{ network: string | null; url: string | null }>;

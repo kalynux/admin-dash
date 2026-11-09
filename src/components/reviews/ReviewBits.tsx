@@ -3,6 +3,7 @@ import { Star } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useCan } from '@/store';
 import {
     DELIVERY_REVIEW_INTERNAL_NOTE,
     reviewAuthorRoleLabel,
@@ -133,16 +134,36 @@ export function ReviewSubject({ review }: { review: Review }) {
             </span>
         );
     }
+    if (review.subjectType === 'listing') {
+        if (!review.listing) return <span className="text-muted-foreground">—</span>;
+        return <ListingRefName listing={review.listing} />;
+    }
     return <span className="text-muted-foreground">{reviewSubjectTypeLabel(review.subjectType)}</span>;
 }
 
-/** The shop that sold it, linked to the vendor. */
+/** The listing's title, linked to its screen for a reader of listings. */
+function ListingRefName({ listing }: { listing: ReviewRef }) {
+    const can = useCan();
+    return (
+        <RefName
+            value={listing}
+            fallback="Untitled listing"
+            to={can('catalog.listings.read') ? `/dashboard/listings/${listing.id}` : undefined}
+        />
+    );
+}
+
+/**
+ * The shop that sold it, linked to the vendor. On a listing review it is the
+ * service provider, whose `name` is usually `null` (it is a shop name, and a
+ * provider has none) — said so, rather than "Unnamed shop".
+ */
 export function ReviewShop({ review }: { review: Review }) {
     if (!review.vendor) return <span className="text-muted-foreground">—</span>;
     return (
         <RefName
             value={review.vendor}
-            fallback="Unnamed shop"
+            fallback={review.subjectType === 'listing' ? 'Service provider' : 'Unnamed shop'}
             to={`/dashboard/vendors/${review.vendor.id}`}
         />
     );

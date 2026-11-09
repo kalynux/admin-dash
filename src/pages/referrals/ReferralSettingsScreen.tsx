@@ -27,6 +27,7 @@ import { getReferralSettings, updateReferralSettings } from '@/services/referral
 import { useAdmin, useCan } from '@/store';
 import {
     REFERRAL_EARNING_CATEGORIES,
+    referralTermCategories,
     referralCategoryLabel,
     referralSettingsDraft,
     referralSettingsDraftErrors,
@@ -169,7 +170,8 @@ function SettingsFacts({ settings }: { settings: ReferralSettings }) {
                 </CardHeader>
                 <CardContent>
                     <DefinitionList>
-                        {REFERRAL_EARNING_CATEGORIES.map((category) => {
+                        {/* Only the categories the server reports — an older wi-admin has no `provider`. */}
+                        {referralTermCategories(settings.terms).map((category) => {
                             const terms = settings.terms[category];
                             return (
                                 <Definition key={category} label={referralCategoryLabel(category)}>
@@ -216,7 +218,7 @@ function SettingsForm({
     const setTerm = (category: ReferralEarningCategory, field: 'rate' | 'duration', value: string) =>
         setDraft((current) => ({
             ...current,
-            terms: { ...current.terms, [category]: { ...current.terms[category], [field]: value } },
+            terms: { ...current.terms, [category]: { rate: '', duration: '', ...current.terms[category], [field]: value } },
         }));
 
     const found = referralSettingsDraftErrors(draft);
@@ -251,6 +253,10 @@ function SettingsForm({
                 </CardHeader>
                 <CardContent className="space-y-4">
                     {REFERRAL_EARNING_CATEGORIES.map((category) => {
+                        // A category the server did not report is not offered: a strict body
+                        // would refuse it, and an empty row would block every other save.
+                        const row = draft.terms[category];
+                        if (!row) return null;
                         const label = referralCategoryLabel(category);
                         return (
                             <fieldset key={category} className="grid gap-3 sm:grid-cols-[8rem_1fr_1fr]">
@@ -264,7 +270,7 @@ function SettingsForm({
                                     {(props) => (
                                         <Input
                                             inputMode="decimal"
-                                            value={draft.terms[category].rate}
+                                            value={row.rate}
                                             onChange={(event) => setTerm(category, 'rate', event.target.value)}
                                             {...props}
                                         />
@@ -278,7 +284,7 @@ function SettingsForm({
                                     {(props) => (
                                         <Input
                                             inputMode="numeric"
-                                            value={draft.terms[category].duration}
+                                            value={row.duration}
                                             onChange={(event) => setTerm(category, 'duration', event.target.value)}
                                             {...props}
                                         />

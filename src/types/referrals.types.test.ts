@@ -4,12 +4,17 @@ import {
     isReferralBalanceFrozen,
     parseReferralDuration,
     parseReferralRate,
+    referralCategoryLabel,
+    referralCommissionWithheld,
     referralCostTotals,
+    referralPaymentKindLabel,
     referralPartnerVerbs,
     referralSettingsDraft,
     referralSettingsDraftErrors,
     referralSettingsPatch,
+    referralSourceLabel,
     referralSummaryPartnerRows,
+    referralTermCategories,
     referredEarningLabel,
     type ReferralSettings,
 } from '@/types/referrals.types';
@@ -99,6 +104,46 @@ describe('the numbers on the forms', () => {
     });
 });
 
+describe('the provider category (2026-11-08)', () => {
+    const WITH_PROVIDER: ReferralSettings = {
+        ...SETTINGS,
+        terms: { ...SETTINGS.terms, provider: { ratePercent: 3, durationMonths: 6 } },
+    };
+
+    it('against an older wi-admin with no provider terms, offers no provider row and blocks nothing', () => {
+        // SETTINGS has no `provider` — what an older service answers.
+        const draft = referralSettingsDraft(SETTINGS);
+        expect(draft.terms.provider).toBeUndefined();
+        expect(referralSettingsDraftErrors(draft)).toEqual({});
+        draft.terms.vendor!.rate = '4';
+        expect(referralSettingsPatch(SETTINGS, draft)).toEqual({ terms: { vendor: { ratePercent: 4 } } });
+        expect(referralTermCategories(SETTINGS.terms)).toEqual(['vendor', 'customer', 'agency']);
+    });
+
+    it('edits the provider rate like any other, and sends only it', () => {
+        const draft = referralSettingsDraft(WITH_PROVIDER);
+        draft.terms.provider!.rate = '5';
+        expect(referralSettingsPatch(WITH_PROVIDER, draft)).toEqual({ terms: { provider: { ratePercent: 5 } } });
+        expect(referralTermCategories(WITH_PROVIDER.terms)).toContain('provider');
+    });
+
+    it('names the category, the two payment sources and the payment kinds', () => {
+        expect(referralCategoryLabel('provider')).toBe('Service provider');
+        expect(referralSourceLabel('plan_purchase')).toBe('Plan purchase');
+        expect(referralSourceLabel('credit_topup')).toBe('Credit pack');
+        expect(referralPaymentKindLabel('plan')).toBe('Plan purchase');
+        expect(referralPaymentKindLabel('credits')).toBe('Credit pack');
+    });
+
+    it('🔴 never reads a provider reward’s commission as hidden — it has none', () => {
+        const payment = { kind: 'credits', id: 'x', amountPaid: 3000 };
+        expect(referralCommissionWithheld({ commissionWithheld: true, payment })).toBe(false);
+        expect(referralCommissionWithheld({ commissionWithheld: true, payment: null })).toBe(true);
+        // An older wi-admin sends no `payment` key: a commission reward, as before.
+        expect(referralCommissionWithheld({ commissionWithheld: true })).toBe(true);
+    });
+});
+
 describe('the settings form', () => {
     it('sends nothing for a draft nobody changed', () => {
         expect(referralSettingsPatch(SETTINGS, referralSettingsDraft(SETTINGS))).toEqual({});
@@ -106,13 +151,13 @@ describe('the settings form', () => {
 
     it('sends only the field that changed, never the whole form', () => {
         const draft = referralSettingsDraft(SETTINGS);
-        draft.terms.customer.rate = '4';
+        draft.terms.customer!.rate = '4';
         expect(referralSettingsPatch(SETTINGS, draft)).toEqual({ terms: { customer: { ratePercent: 4 } } });
     });
 
     it('treats 2.50 as the 2.5 already stored', () => {
         const draft = referralSettingsDraft(SETTINGS);
-        draft.terms.customer.rate = '2.50';
+        draft.terms.customer!.rate = '2.50';
         expect(referralSettingsPatch(SETTINGS, draft)).toEqual({});
     });
 
@@ -126,8 +171,8 @@ describe('the settings form', () => {
 
     it('names each bad field', () => {
         const draft = referralSettingsDraft(SETTINGS);
-        draft.terms.vendor.rate = '30';
-        draft.terms.agency.duration = '0';
+        draft.terms.vendor!.rate = '30';
+        draft.terms.agency!.duration = '0';
         draft.minPayout = '0';
         draft.waitDays = '366';
         expect(Object.keys(referralSettingsDraftErrors(draft)).sort()).toEqual([

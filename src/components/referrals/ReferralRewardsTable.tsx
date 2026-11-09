@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { CopyableValue } from '@/components/common/CopyableValue';
 import { DataTable, type Column } from '@/components/common/DataTable';
 import {
-    ReferralCommission,
+    ReferralRewardBase,
     ReferralRewardSource,
     ReferralRewardStatusBadge,
     ReferredPersonLink,
@@ -76,22 +76,16 @@ export function ReferralRewardsTable({
             },
             {
                 id: 'source',
-                header: 'Order or booking',
+                header: 'From',
                 className: 'align-top',
                 cell: (row) => <ReferralRewardSource reward={row} />,
             },
             {
                 id: 'commission',
-                header: 'Commission',
+                header: 'Commission or price paid',
                 numeric: true,
                 className: 'align-top',
-                cell: (row) => (
-                    <ReferralCommission
-                        withheld={row.commissionWithheld}
-                        amount={row.commissionEarned}
-                        currency={row.currency}
-                    />
-                ),
+                cell: (row) => <ReferralRewardBase reward={row} />,
             },
             {
                 id: 'rate',

@@ -88,7 +88,11 @@ const SCOPE_LABELS: Record<(typeof SCOPE_KEYS)[number], string> = {
     agencyId: 'one agency',
 };
 
-const SUBJECT_FILTER_LABELS: Record<string, string> = { product: 'Products', delivery: 'Deliveries' };
+const SUBJECT_FILTER_LABELS: Record<string, string> = {
+    product: 'Products',
+    delivery: 'Deliveries',
+    listing: 'Service listings',
+};
 
 const isOneOf = <T extends string>(list: readonly T[], value: string): value is T =>
     (list as readonly string[]).includes(value);

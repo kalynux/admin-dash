@@ -32,6 +32,7 @@ import {
     referralCategoryLabel,
     referralRewardStatusLabel,
     type ReferralRewardListQuery,
+    referralCommissionWithheld,
 } from '@/types/referrals.types';
 
 /**
@@ -170,7 +171,7 @@ export function ReferralRewardsList() {
                     </p>
                 ) : null}
 
-                {rows.some((row) => row.commissionWithheld) ? <CommissionWithheldNote /> : null}
+                {rows.some(referralCommissionWithheld) ? <CommissionWithheldNote /> : null}
 
                 <ReferralRewardsTable
                     caption="Referral rewards"

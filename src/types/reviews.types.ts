@@ -27,7 +27,8 @@ export const REVIEW_STATUSES = ['published', 'unpublished'] as const;
 /** Open: an added status is an additive change. Render an unknown one raw. */
 export type ReviewStatus = (typeof REVIEW_STATUSES)[number] | (string & {});
 
-export const REVIEW_SUBJECT_TYPES = ['product', 'delivery'] as const;
+/** `listing` since 2026-11-08: a customer's review of a service listing (`reviews.md`). */
+export const REVIEW_SUBJECT_TYPES = ['product', 'delivery', 'listing'] as const;
 export type ReviewSubjectType = (typeof REVIEW_SUBJECT_TYPES)[number] | (string & {});
 
 export const REVIEW_AUTHOR_ROLES = ['customer', 'vendor', 'agency'] as const;
@@ -56,6 +57,7 @@ export const REVIEW_REASON_MAX = 500;
 const SUBJECT_TYPE_LABELS: Record<string, string> = {
     product: 'Product',
     delivery: 'Delivery',
+    listing: 'Service listing',
 };
 
 export function reviewSubjectTypeLabel(type: ReviewSubjectType): string {
@@ -139,8 +141,10 @@ export interface Review {
     subjectType: ReviewSubjectType;
     status: ReviewStatus;
     /**
-     * `true` only for a **published product** review. A delivery review is always
-     * `false`, whatever its status — no page shows delivery reviews.
+     * `true` for a **published product or listing** review. A delivery review is
+     * always `false`, whatever its status — no page shows delivery reviews.
+     * ⚠ On a listing review it does not check that the listing itself is live:
+     * a paused listing's reviews are on no page until it is back.
      */
     publiclyVisible: boolean;
     /** 1–5. */
@@ -152,8 +156,17 @@ export interface Review {
     author: ReviewAuthor;
     /** Product reviews only. `name` survives the product's deletion. */
     product: ReviewRef | null;
-    /** The shop that sold it — set on both kinds. */
+    /**
+     * The shop that sold it on a product or delivery review; on a listing review,
+     * the **service provider** — and `name` is then usually `null`, because it is
+     * a shop name and a provider has no shop.
+     */
     vendor: ReviewRef | null;
+    /**
+     * Listing reviews only (2026-11-08): the listing and its title — never a
+     * contact. Optional: a wi-admin older than this sends no key.
+     */
+    listing?: ReviewRef | null;
     /** Delivery reviews only: who carried the parcel. */
     agent: ReviewRef | null;
     agency: ReviewRef | null;

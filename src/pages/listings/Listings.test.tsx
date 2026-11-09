@@ -169,6 +169,64 @@ describe('the listing detail', () => {
         expect(screen.getAllByText('Changed').length).toBeGreaterThanOrEqual(2);
     });
 
+    describe('the second phone number (2026-11-08)', () => {
+        const revision = listingDetailFixture({
+            status: 'live',
+            isRevision: true,
+            published: listingContentFixture(),
+            pending: listingContentFixture(),
+        });
+
+        async function reveal(contacts: ReturnType<typeof listingContactsFixture>) {
+            stub(revision, (call) => (pathOf(call).endsWith('/contacts') ? successResponse(contacts) : undefined));
+            open(`/dashboard/listings/${LISTING_ID}`);
+            await userEvent.click(await screen.findByRole('button', { name: /Show hidden contacts/ }));
+            await screen.findByText('In the change under review');
+        }
+
+        /** The "Second phone" row of one copy. */
+        const secondPhoneRow = (copyTitle: string) =>
+            within(screen.getByText(copyTitle, { selector: 'h4' }).closest('section')!).getByText('Second phone').closest('div')!.parentElement!;
+
+        it('shows a number added in a revision, under the phone row, marked as changed', async () => {
+            await reveal(
+                listingContactsFixture({
+                    published: contactSetFixture({ phone2: null }),
+                    pending: contactSetFixture({ phone2: '+237655443322' }),
+                }),
+            );
+            expect(screen.getByText('+237655443322')).toBeInTheDocument();
+            expect(within(secondPhoneRow('In the change under review')).getByText('Changed')).toBeInTheDocument();
+            expect(within(secondPhoneRow('Live now')).getByText('No second number')).toBeInTheDocument();
+            expect(within(secondPhoneRow('Live now')).queryByText('Changed')).not.toBeInTheDocument();
+        });
+
+        it('marks a number removed in a revision', async () => {
+            await reveal(
+                listingContactsFixture({
+                    published: contactSetFixture({ phone2: '+237655443322' }),
+                    pending: contactSetFixture({ phone2: null }),
+                }),
+            );
+            const change = secondPhoneRow('In the change under review');
+            expect(within(change).getByText('No second number')).toBeInTheDocument();
+            expect(within(change).getByText('Changed')).toBeInTheDocument();
+        });
+
+        it('reads an older service that sends no key as no second number, and marks nothing', async () => {
+            const { phone2: _omitted, ...withoutKey } = contactSetFixture();
+            void _omitted;
+            await reveal(
+                listingContactsFixture({
+                    published: withoutKey as ReturnType<typeof contactSetFixture>,
+                    pending: contactSetFixture({ phone2: null }),
+                }),
+            );
+            expect(within(secondPhoneRow('In the change under review')).queryByText('Changed')).not.toBeInTheDocument();
+            expect(within(secondPhoneRow('Live now')).getByText('No second number')).toBeInTheDocument();
+        });
+    });
+
     it('rejects with every reason typed, and says the provider reads them', async () => {
         const calls = stub(listingDetailFixture(), (call) =>
             call.method === 'POST' ? successResponse(listingDetailFixture({ status: 'rejected', availableActions: [] })) : undefined,

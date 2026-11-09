@@ -206,6 +206,38 @@ permission name with a HYPHEN**, and the doc parsers in `permissions.types.test.
 copy in both `error-platform.ts`. Measured: `dump-routes.js` **`TOTAL 364` = 363 routes**, `authz:matrix`
 **159 / 135 / 56**; no new composite guard.
 
+✅ **Listing reviews and provider referrals, built 2026-11-09 — no route, no permission.** Contract:
+[FRONTEND-CHANGELOG-listing-reviews-saves-referrals.md](api-doc/admin/FRONTEND-CHANGELOG-listing-reviews-saves-referrals.md)
+(the owner said to work from it, 2026-11-09); `reviews.md`, `referrals.md` and the admin README re-copied (its one dead
+link is still `wi-mall-protection`). **Upstream `a083a0d` on `informational-service`, not deployed.** **Reviews:**
+`listing` is the third subject (`REVIEW_SUBJECT_TYPES`, filter label *Service listings*); a listing review carries
+`listing: { id, name }`, linked to the listing on `catalog.listings.read`; `vendor` is the provider and its `name` is
+usually `null`, so the cell reads *Service provider*, never *Unnamed shop*. Hide / Show again say *the listing's page*,
+and the detail says public means *while the listing itself is live* (`reviews.md`'s caveat). ⚠ No `listingId` filter
+exists upstream, so a listing has **no Reviews tab**; the provider's vendor page already lists them. **Referrals:**
+`provider` is the fourth earning category (*Service provider*) — Settings, partner terms, both category filters.
+⚠ **Settings shows and edits only the categories the server reports** (`referralTermCategories`): against an older
+wi-admin with no `terms.provider` an empty row would have blocked every save, and a strict body refuses the key
+(tested both ways). A provider reward has `commissionId: null` and `payment: { kind, id, amountPaid }`; it renders
+*Plan purchase* / *Credit pack* and the **price paid** where a commission reward shows its order and commission
+(`ReferralRewardBase`), *of the price paid* on the rate, *Reversals* with the `refundKey` instead of *Commission
+kept*, and *Other rewards on this payment* (`onSameCommission` kept its name). 🔴 **wi-admin sets
+`commissionWithheld: true` below tier 1 on a provider reward too**, which has no commission — read it with
+`referralCommissionWithheld()`, or Admin and Support see *Hidden* on a credit pack (perturbation-tested).
+`payment.amountPaid` is shown to every tier, as the changelog says.
+
+✅ **A listing's second phone number, built 2026-11-08 (later the same day).** Contract:
+[FRONTEND-CHANGELOG-listing-two-phones.md](api-doc/admin/FRONTEND-CHANGELOG-listing-two-phones.md); `listings.md`
+and the `listing-contacts-dto.ts` mirror re-copied. **Upstream `a083a0d` on `informational-service`, not deployed.**
+Each contacts copy carries `phone2` (E.164 or `null`); the hidden-contacts card shows it as **Second phone** under
+Phone, in both copies, marked `Changed` when a revision adds, changes or removes it (perturbation-tested). `null` —
+and an older wi-admin's missing key — read as *No second number*. ⛔ **It is part of the one `phone` field**:
+never an eighth `LISTING_CONTACT_FIELDS` entry, reveal row or report field (tested). 🔴 **The mirror-key parser in
+`listings.types.test.ts` matched `[a-zA-Z]+` and could not see `phone2`** — a key with a digit — the hyphen lesson
+again; it now reads digits. No route or permission moved (`TOTAL 364`, 159 / 135 / 56). ⚠ The same upstream commit
+carries `FRONTEND-CHANGELOG-listing-reviews-saves-referrals.md` (listing reviews, provider referral rewards) — **not
+mirrored or built here**, and the README was not re-copied because it links it.
+
 ✅ **BR-032 and BR-033 answered 2026-11-01 and built the same day — the permission guard is GREEN
 again, and a cancel now says what its refund did.** Reply:
 [RESPONSE-2026-11-01-BR-032-033.md](api-doc/admin/dashboard/backend-requests/RESPONSE-2026-11-01-BR-032-033.md).
@@ -1312,7 +1344,7 @@ machine, not the code.
 npm run dev       # 5175, strictPort
 npm run build     # tsc -b && vite build   ← the typecheck runs here
 npm run lint      # eslint .
-npm test          # vitest run — 3629 tests in 229 files with --maxWorkers=3 (2026-11-08, the service-listings round, 26 node processes up, 941 s): 1 failure, an ArticleCreateDialog cover test at the 20 s timeout, which passed alone (3/3) — the recorded contention residue. 3559 tests in 225 files, ALL GREEN, on 2026-11-03 (the booking reminders and prices round, 27 node processes up, 1113 s). 3526 in 225 earlier that day (the referrals round, 15 node processes up, 807 s): 1 failure, a hand-written count in MyAccess.test.tsx, fixed and green alone; the whole suite was not re-run after that one-line fix. 3447 in 221, ALL GREEN, on 2026-11-02 (the partial-payment round, 15 node processes up, 753 s). 3431 in 220, green, on 2026-11-01 (the BR-032/033 round, nothing else running, 628 s). At default workers the same code failed 3 ArticleCreateDialog cover tests, which take ~14 s of the 20 s limit on an idle machine and pass alone: the suite's own workers are enough load to trip them. No sibling dashboard has one.
+npm test          # vitest run — 3648 tests in 229 files with --maxWorkers=3 (2026-11-09, the listing-reviews and provider-referrals round, 34 node processes up, 1086 s): 3 failures, in App.test.tsx (2) and ArticleCreateDialog.test.tsx (1) — App passed alone; the cover test failed alone once at 20.4 s, passed at HEAD (d24913c) in a throwaway worktree at 16.3 s and then passed on this code at 10.8 s: load, near the limit. 3629 tests in 229 files on 2026-11-08 (the service-listings round, 26 node processes up, 941 s): 1 failure, an ArticleCreateDialog cover test at the 20 s timeout, which passed alone (3/3) — the recorded contention residue. 3559 tests in 225 files, ALL GREEN, on 2026-11-03 (the booking reminders and prices round, 27 node processes up, 1113 s). 3526 in 225 earlier that day (the referrals round, 15 node processes up, 807 s): 1 failure, a hand-written count in MyAccess.test.tsx, fixed and green alone; the whole suite was not re-run after that one-line fix. 3447 in 221, ALL GREEN, on 2026-11-02 (the partial-payment round, 15 node processes up, 753 s). 3431 in 220, green, on 2026-11-01 (the BR-032/033 round, nothing else running, 628 s). At default workers the same code failed 3 ArticleCreateDialog cover tests, which take ~14 s of the 20 s limit on an idle machine and pass alone: the suite's own workers are enough load to trip them. No sibling dashboard has one.
 ```
 
 **Every phase closes the same way**: typecheck, lint, tests, build, then a written summary naming

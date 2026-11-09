@@ -440,3 +440,68 @@ describe('delete', () => {
         expect(warning).toHaveBeenCalledWith('This review was already deleted', expect.anything());
     });
 });
+
+describe('a service listing review (2026-11-08)', () => {
+    const LISTING_REVIEW = '6700a1b2c3d4e5f6a7b8c904';
+    const LISTING_ID = '6730aabbccddeeff00112201';
+    const PROVIDER_ID = '6730aabbccddeeff00112202';
+
+    const LISTING = review({
+        id: LISTING_REVIEW,
+        subjectType: 'listing',
+        publiclyVisible: true,
+        title: 'Fixed my leak the same day',
+        body: null,
+        product: null,
+        // A provider has no shop, so the shop name is usually null.
+        vendor: { id: PROVIDER_ID, name: null },
+        listing: { id: LISTING_ID, name: 'Plumbing repairs in Akwa' },
+        orderId: null,
+    });
+
+    it('links the listing by its title and names the provider without calling it a shop', async () => {
+        stub(() => undefined, [LISTING]);
+        list();
+
+        const listing = await row('Fixed my leak the same day');
+        expect(within(listing).getByRole('link', { name: 'Plumbing repairs in Akwa' })).toHaveAttribute(
+            'href',
+            `/dashboard/listings/${LISTING_ID}`,
+        );
+        expect(within(listing).getByText('Service listing')).toBeInTheDocument();
+        expect(within(listing).getByRole('link', { name: 'Service provider' })).toHaveAttribute(
+            'href',
+            `/dashboard/vendors/${PROVIDER_ID}`,
+        );
+        expect(within(listing).queryByText('Unnamed shop')).not.toBeInTheDocument();
+    });
+
+    it('shows the title unlinked to a reader of reviews who cannot open listings', async () => {
+        stub(() => undefined, [LISTING]);
+        list(without('catalog.listings.read'));
+
+        const listing = await row('Fixed my leak the same day');
+        expect(within(listing).getByText('Plumbing repairs in Akwa')).toBeInTheDocument();
+        expect(within(listing).queryByRole('link', { name: 'Plumbing repairs in Akwa' })).not.toBeInTheDocument();
+    });
+
+    it('sends subjectType=listing from the address', async () => {
+        const calls = stub(() => undefined, [LISTING]);
+        list(heldFixture(3), '/dashboard/reviews?subjectType=listing');
+
+        await row('Fixed my leak the same day');
+        expect(calls.filter(isList).every((call) => params(call).get('subjectType') === 'listing')).toBe(true);
+    });
+
+    it('words Hide for the listing’s page, not a product page', async () => {
+        const user = userEvent.setup();
+        stub(() => undefined, [LISTING]);
+        list();
+
+        const listing = await row('Fixed my leak the same day');
+        await user.click(within(listing).getByRole('button', { name: 'Hide' }));
+        const dialog = await screen.findByRole('dialog');
+        expect(within(dialog).getByText(/comes off the listing’s page/)).toBeInTheDocument();
+        expect(within(dialog).queryByText(/product page/)).not.toBeInTheDocument();
+    });
+});

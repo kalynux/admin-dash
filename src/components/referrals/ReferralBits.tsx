@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { useCan } from '@/store';
 import {
     isReferralBalanceFrozen,
+    referralPaymentKindLabel,
     referralPartnerStatusLabel,
     referralRewardStatusLabel,
     type ReferralBalances,
@@ -73,6 +74,36 @@ export function ReferralCommission({
     return <span className="tabular-nums">{formatMoney(amount, currency)}</span>;
 }
 
+/**
+ * What a reward was calculated on: the commission, or — on a provider reward
+ * (2026-11-08) — the full price the provider paid for a plan or a credit pack.
+ *
+ * ⚠ The price is shown to every tier (plan prices are public), and a provider
+ * reward is never "Hidden": wi-admin sets `commissionWithheld` below tier 1 on
+ * it too, but there is no commission to hide.
+ */
+export function ReferralRewardBase({
+    reward,
+}: {
+    reward: Pick<ReferralReward, 'payment' | 'commissionWithheld' | 'commissionEarned' | 'currency'>;
+}) {
+    if (reward.payment) {
+        return (
+            <span className="flex flex-col items-end gap-0.5">
+                <span className="tabular-nums">{formatMoney(reward.payment.amountPaid, reward.currency)}</span>
+                <span className="text-muted-foreground text-xs">price paid</span>
+            </span>
+        );
+    }
+    return (
+        <ReferralCommission
+            withheld={reward.commissionWithheld}
+            amount={reward.commissionEarned}
+            currency={reward.currency}
+        />
+    );
+}
+
 /** The four balances, each printed as sent. Nothing is added up. */
 export function ReferralBalanceList({ balances }: { balances: ReferralBalances }) {
     const { currency } = balances;
@@ -126,9 +157,18 @@ export function ReferralFrozenNotice({
 export function ReferralRewardSource({
     reward,
 }: {
-    reward: Pick<ReferralReward, 'orderId' | 'bookingId'>;
+    reward: Pick<ReferralReward, 'orderId' | 'bookingId' | 'payment'>;
 }) {
     const can = useCan();
+    // A provider reward (2026-11-08) comes from a plan purchase or a credit pack, not an order.
+    if (reward.payment) {
+        return (
+            <div className="min-w-0 space-y-0.5">
+                <p className="text-sm">{referralPaymentKindLabel(reward.payment.kind)}</p>
+                <CopyableValue value={reward.payment.id} label="payment ID" />
+            </div>
+        );
+    }
     return (
         <div className="min-w-0 space-y-0.5">
             {reward.orderId ? (

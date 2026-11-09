@@ -71,6 +71,7 @@ import {
     type ReferralPartnerWriteResult,
     type ReferralStatusChange,
     type ReferredAccount,
+    referralCommissionWithheld,
 } from '@/types/referrals.types';
 
 /**
@@ -542,7 +543,7 @@ function PartnerRewardsPanel({ partnerId, timeZone }: { partnerId: string; timeZ
                 </SelectContent>
             </Select>
 
-            {rows.some((row) => row.commissionWithheld) ? <CommissionWithheldNote /> : null}
+            {rows.some(referralCommissionWithheld) ? <CommissionWithheldNote /> : null}
 
             <ReferralRewardsTable
                 caption="This partner’s rewards"

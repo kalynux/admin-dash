@@ -157,3 +157,32 @@ describe('the per-record Reviews tab', () => {
         expect(window.location.search).not.toContain('status=');
     });
 });
+
+describe('a service listing review’s detail (2026-11-08)', () => {
+    it('names the listing and the provider, and says public means while the listing is live', async () => {
+        stubFetch(() =>
+            successResponse(
+                review({
+                    subjectType: 'listing',
+                    status: 'published',
+                    publiclyVisible: true,
+                    product: null,
+                    vendor: { id: '66f2aaaaaaaaaaaaaaaaaa33', name: null },
+                    listing: { id: '6730aabbccddeeff00112201', name: 'Plumbing repairs in Akwa' },
+                    orderId: null,
+                    lastModeration: null,
+                    availableActions: ['unpublish', 'delete'],
+                }),
+            ),
+        );
+        detail();
+
+        expect(await screen.findByRole('link', { name: 'Plumbing repairs in Akwa' })).toHaveAttribute(
+            'href',
+            '/dashboard/listings/6730aabbccddeeff00112201',
+        );
+        expect(screen.getByText('Listing', { selector: 'dt' })).toBeInTheDocument();
+        expect(screen.getByText('Provider', { selector: 'dt' })).toBeInTheDocument();
+        expect(screen.getByText(/while the listing itself is live/)).toBeInTheDocument();
+    });
+});

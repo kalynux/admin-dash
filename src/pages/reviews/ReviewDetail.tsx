@@ -101,6 +101,13 @@ export function ReviewDetail() {
                             <ReviewStars rating={record.rating} className="[&>svg]:size-5" />
                             <ReviewStatusBadge review={record} withNote />
                         </div>
+                        {record.subjectType === 'listing' && record.publiclyVisible ? (
+                            // `reviews.md`: "public" does not check the listing itself — a paused
+                            // listing's reviews are on no page until it is live again.
+                            <p className="text-muted-foreground text-xs">
+                                Shown on the listing’s page while the listing itself is live.
+                            </p>
+                        ) : null}
                     </CardHeader>
                     <CardContent>
                         <ReviewText review={record} />
@@ -117,10 +124,18 @@ export function ReviewDetail() {
                                 <Definition label="Kind">
                                     {reviewSubjectTypeLabel(record.subjectType)}
                                 </Definition>
-                                <Definition label={record.subjectType === 'delivery' ? 'Agent · agency' : 'Product'}>
+                                <Definition
+                                    label={
+                                        record.subjectType === 'delivery'
+                                            ? 'Agent · agency'
+                                            : record.subjectType === 'listing'
+                                              ? 'Listing'
+                                              : 'Product'
+                                    }
+                                >
                                     <ReviewSubject review={record} />
                                 </Definition>
-                                <Definition label="Shop">
+                                <Definition label={record.subjectType === 'listing' ? 'Provider' : 'Shop'}>
                                     <ReviewShop review={record} />
                                 </Definition>
                                 <Definition label="Order">

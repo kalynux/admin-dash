@@ -156,6 +156,16 @@ function ContactSetView({
             <Row label="Phone" changed={differs((s) => s.phone)}>
                 <CopyableValue variant="phone" value={set.phone} label="phone number" />
             </Row>
+            {/* The second number (2026-11-08) is part of the same `phone` field — unlocked and
+                charged with it — so it sits under it rather than as a field of its own. Marked on a
+                revision when it is added, changed or removed, like the first. */}
+            <Row label="Second phone" changed={differs((s) => s.phone2 ?? null)}>
+                {set.phone2 ? (
+                    <CopyableValue variant="phone" value={set.phone2} label="second phone number" />
+                ) : (
+                    <NotSet>No second number</NotSet>
+                )}
+            </Row>
             <Row label="Email" changed={differs((s) => s.email)}>
                 <CopyableValue variant="email" value={set.email} label="email address" />
             </Row>

@@ -158,6 +158,7 @@ export function contactSetFixture(overrides: Partial<ListingContactSet> = {}): L
     return {
         whatsapp: '+237690000111',
         phone: '+237690000222',
+        phone2: null,
         email: 'contact@akwa-plomberie.test',
         website: 'https://akwa-plomberie.test',
         socials: [{ network: 'facebook', url: 'https://facebook.com/akwaplomberie' }],

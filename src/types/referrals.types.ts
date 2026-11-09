@@ -24,8 +24,14 @@ export const REFERRAL_PARTNER_STATUSES = [
     'terminated',
 ] as const;
 
-/** The three categories that can earn, and so the three rows of terms. */
-export const REFERRAL_EARNING_CATEGORIES = ['vendor', 'customer', 'agency'] as const;
+/**
+ * The categories that can earn, and so the rows of terms. `provider` since
+ * 2026-11-08: a service provider, who earns their partner a percentage of the
+ * **full price** they pay Wi-Mall for a plan or credit pack — not a commission.
+ * ⚠ Against a wi-admin older than that, `terms.provider` is absent: screens show
+ * and edit only the categories the server reports (`referralTermCategories`).
+ */
+export const REFERRAL_EARNING_CATEGORIES = ['vendor', 'customer', 'agency', 'provider'] as const;
 export type ReferralEarningCategory = (typeof REFERRAL_EARNING_CATEGORIES)[number];
 
 /**
@@ -73,6 +79,7 @@ const CATEGORY_LABELS: Record<string, string> = {
     customer: 'Customer',
     agency: 'Agency',
     agent: 'Agent',
+    provider: 'Service provider',
 };
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -87,6 +94,14 @@ const SOURCE_LABELS: Record<string, string> = {
     cod_collection: 'Cash collected at delivery',
     shipment: 'Delivery',
     agency_claim: 'Damage claim',
+    // A provider reward's source (2026-11-08).
+    plan_purchase: 'Plan purchase',
+    credit_topup: 'Credit pack',
+};
+
+const PAYMENT_KIND_LABELS: Record<string, string> = {
+    plan: 'Plan purchase',
+    credits: 'Credit pack',
 };
 
 const labelOf = (labels: Record<string, string>, value: string | null | undefined): string =>
@@ -102,6 +117,8 @@ export const referralChannelLabel = (channel: string | null | undefined) =>
     labelOf(CHANNEL_LABELS, channel);
 export const referralSourceLabel = (source: string | null | undefined) =>
     labelOf(SOURCE_LABELS, source);
+export const referralPaymentKindLabel = (kind: string | null | undefined) =>
+    labelOf(PAYMENT_KIND_LABELS, kind);
 
 // ─── Wire shapes ──────────────────────────────────────────────────────────────
 
@@ -220,6 +237,13 @@ export interface ReferralRewardAdjustment {
     amountAfter: number;
 }
 
+export interface ReferralRewardPayment {
+    kind: string;
+    id: string;
+    /** The full price paid, the reward's base. Printed as sent. */
+    amountPaid: number;
+}
+
 /** A row of `GET /referrals/rewards`, and of `onSameCommission`. */
 export interface ReferralReward {
     id: string;
@@ -231,11 +255,25 @@ export interface ReferralReward {
     sourceType: string;
     orderId: string | null;
     bookingId: string | null;
+    /** On a provider reward, the provider. */
     vendorId: string;
-    commissionId: string;
-    /** ⚠ `true` below tier 1, where the commission figures are `null` and never zero. */
+    /** ⚠ `null` on a provider reward (2026-11-08), which comes from a payment. */
+    commissionId: string | null;
+    /**
+     * ⚠ `true` below tier 1, where the commission figures are `null` and never zero.
+     * 🔴 **Also `true` below tier 1 on a provider reward**, which has no commission
+     * at all — so never render "Hidden" from it alone: read it with
+     * {@link referralCommissionWithheld}.
+     */
     commissionWithheld: boolean;
     commissionEarned: number | null;
+    /**
+     * A provider reward's source (2026-11-08): `plan` | `credits`, `null` on a
+     * commission reward. Optional: an older wi-admin sends neither key.
+     */
+    paymentKind?: string | null;
+    /** The plan purchase or credit top-up and the full price paid — every tier sees it. */
+    payment?: ReferralRewardPayment | null;
     sharePercent: number;
     ratePercent: number;
     rateSource: string;
@@ -254,10 +292,35 @@ export interface ReferralReward {
 /**
  * `GET /referrals/rewards/:rewardId`. ⚠ `reward` can be `null`: the service reads
  * at most fifty rewards of one commission and looks for this one among them.
+ * ⚠ For a provider reward `onSameCommission` holds the rewards on the same
+ * **payment** — the key kept its name; `reward.payment` says which it is.
  */
 export interface ReferralRewardDetail {
     reward: ReferralReward | null;
     onSameCommission: ReferralReward[];
+}
+
+/** The payment a provider reward came from, or `null` on a commission reward. */
+export function referralRewardPayment(reward: Pick<ReferralReward, 'payment'>): ReferralRewardPayment | null {
+    return reward.payment ?? null;
+}
+
+/**
+ * Whether a commission figure is being held back from this reader. ⚠ Never on a
+ * provider reward: it has no commission, so there is nothing to hide, even though
+ * wi-admin still sets `commissionWithheld` below tier 1.
+ */
+export function referralCommissionWithheld(reward: Pick<ReferralReward, 'commissionWithheld' | 'payment'>): boolean {
+    return reward.commissionWithheld && !reward.payment;
+}
+
+/**
+ * The earning categories whose terms the server reported — the rows to show and
+ * edit. A category it does not report (an older wi-admin and `provider`) is
+ * neither shown as "not set" nor sent, because a strict body would refuse it.
+ */
+export function referralTermCategories(terms: Record<string, unknown>): ReferralEarningCategory[] {
+    return REFERRAL_EARNING_CATEGORIES.filter((category) => terms[category] !== undefined);
 }
 
 export interface ReferralSummaryRewardRow {
@@ -474,18 +537,19 @@ export const REFERRAL_WAIT_ERROR = `From 0 to ${REFERRAL_WAIT_MAX} whole days`;
 
 /** The settings form's text, one string per input. */
 export interface ReferralSettingsDraft {
-    terms: Record<ReferralEarningCategory, { rate: string; duration: string }>;
+    /** Only the categories the server reported (`referralTermCategories`). */
+    terms: Partial<Record<ReferralEarningCategory, { rate: string; duration: string }>>;
     minPayout: string;
     waitDays: string;
 }
 
 export function referralSettingsDraft(settings: ReferralSettings): ReferralSettingsDraft {
-    const terms = {} as ReferralSettingsDraft['terms'];
-    for (const category of REFERRAL_EARNING_CATEGORIES) {
+    const terms: ReferralSettingsDraft['terms'] = {};
+    for (const category of referralTermCategories(settings.terms)) {
         const current = settings.terms[category];
         terms[category] = {
-            rate: current ? String(current.ratePercent) : '',
-            duration: current ? String(current.durationMonths) : '',
+            rate: String(current.ratePercent),
+            duration: String(current.durationMonths),
         };
     }
     return {
@@ -499,10 +563,12 @@ export function referralSettingsDraft(settings: ReferralSettings): ReferralSetti
 export function referralSettingsDraftErrors(draft: ReferralSettingsDraft): Record<string, string> {
     const errors: Record<string, string> = {};
     for (const category of REFERRAL_EARNING_CATEGORIES) {
-        if (parseReferralRate(draft.terms[category].rate) === null) {
+        const row = draft.terms[category];
+        if (!row) continue;
+        if (parseReferralRate(row.rate) === null) {
             errors[`${category}.rate`] = REFERRAL_RATE_ERROR;
         }
-        if (parseReferralDuration(draft.terms[category].duration) === null) {
+        if (parseReferralDuration(row.duration) === null) {
             errors[`${category}.duration`] = REFERRAL_DURATION_ERROR;
         }
     }
@@ -529,9 +595,11 @@ export function referralSettingsPatch(
     const terms: NonNullable<UpdateReferralSettingsBody['terms']> = {};
 
     for (const category of REFERRAL_EARNING_CATEGORIES) {
+        const row = draft.terms[category];
+        if (!row) continue;
         const current = settings.terms[category];
-        const rate = parseReferralRate(draft.terms[category].rate);
-        const duration = parseReferralDuration(draft.terms[category].duration);
+        const rate = parseReferralRate(row.rate);
+        const duration = parseReferralDuration(row.duration);
         const change: Partial<ReferralGlobalCategoryTerms> = {};
         if (rate !== null && rate !== current?.ratePercent) change.ratePercent = rate;
         if (duration !== null && duration !== current?.durationMonths) change.durationMonths = duration;

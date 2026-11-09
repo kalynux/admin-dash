@@ -139,7 +139,8 @@ function ActionDialog({
         defaultValues: { reason: '' },
     });
 
-    const delivery = review.subjectType === 'delivery';
+    const subject: Subject =
+        review.subjectType === 'delivery' ? 'delivery' : review.subjectType === 'listing' ? 'listing' : 'product';
 
     async function onSubmit(values: Values) {
         setFormError(null);
@@ -196,7 +197,7 @@ function ActionDialog({
     const unreachable =
         formError instanceof ApiError && (formError.status === 502 || formError.status === 503);
 
-    const copy = COPY[kind](delivery);
+    const copy = COPY[kind](subject);
 
     return (
         <Dialog open onOpenChange={(open) => (open ? null : onClose())}>
@@ -264,23 +265,32 @@ function ActionDialog({
     );
 }
 
+/** What a review is about, for the wording. An unknown subject reads as a product. */
+type Subject = 'product' | 'delivery' | 'listing';
+
 const COPY: Record<
     ReviewActionKind,
-    (delivery: boolean) => { title: string; description: string; confirm: string; placeholder: string }
+    (subject: Subject) => { title: string; description: string; confirm: string; placeholder: string }
 > = {
-    unpublish: (delivery) => ({
+    unpublish: (subject) => ({
         title: 'Hide this review?',
-        description: delivery
-            ? "Its stars stop counting towards the agent's and agency's rating straight away. You can show it again later. Its author sees it marked hidden, without your note, and cannot write another review of this delivery."
-            : 'It comes off the product page and its stars stop counting towards the rating straight away. You can show it again later. Its author sees it marked hidden, without your note, and cannot write another review of this product.',
+        description:
+            subject === 'delivery'
+                ? "Its stars stop counting towards the agent's and agency's rating straight away. You can show it again later. Its author sees it marked hidden, without your note, and cannot write another review of this delivery."
+                : subject === 'listing'
+                  ? 'It comes off the listing’s page and its stars stop counting towards the listing’s rating straight away. You can show it again later. Its author sees it marked hidden, without your note, and cannot write another review of this listing.'
+                  : 'It comes off the product page and its stars stop counting towards the rating straight away. You can show it again later. Its author sees it marked hidden, without your note, and cannot write another review of this product.',
         confirm: 'Hide review',
         placeholder: 'Abusive language',
     }),
-    republish: (delivery) => ({
+    republish: (subject) => ({
         title: 'Show this review again?',
-        description: delivery
-            ? "Its stars count towards the agent's and agency's rating again. Delivery reviews are never shown on any page."
-            : 'It goes back on the product page and its stars count towards the rating again.',
+        description:
+            subject === 'delivery'
+                ? "Its stars count towards the agent's and agency's rating again. Delivery reviews are never shown on any page."
+                : subject === 'listing'
+                  ? 'It goes back on the listing’s page — while the listing itself is live — and its stars count towards the listing’s rating again.'
+                  : 'It goes back on the product page and its stars count towards the rating again.',
         confirm: 'Show again',
         placeholder: 'Hidden by mistake',
     }),

@@ -599,3 +599,138 @@ describe('the money screens', () => {
         expect(screen.getByRole('button', { name: /write off/i })).toBeInTheDocument();
     });
 });
+
+describe('the provider category (2026-11-08)', () => {
+    const PAYMENT_ID = '6900a1b2c3d4e5f6a7b8c9bb';
+    const WITH_PROVIDER: ReferralSettings = {
+        ...SETTINGS,
+        terms: { ...SETTINGS.terms, provider: { ratePercent: 3, durationMonths: 6 } },
+    };
+
+    /** A provider reward as wi-admin sends it below tier 1: `commissionWithheld` is still true. */
+    const providerReward = (overrides: Partial<ReferralReward> = {}) =>
+        reward({
+            category: 'provider',
+            sourceType: 'credit_topup',
+            orderId: null,
+            bookingId: null,
+            commissionId: null,
+            commissionWithheld: true,
+            commissionEarned: null,
+            paymentKind: 'credits',
+            payment: { kind: 'credits', id: PAYMENT_ID, amountPaid: 3000 },
+            amount: 90,
+            clawedAmount: 0,
+            remaining: 90,
+            ...overrides,
+        });
+
+    it('lets tier 1 set the service provider rate, and sends only it', async () => {
+        const user = userEvent.setup();
+        vi.spyOn(notify, 'success').mockImplementation(() => 'id');
+        const calls = stubFetch(() => successResponse(WITH_PROVIDER));
+        render(<ReferralSettingsScreen />, 1);
+
+        const rate = await screen.findByLabelText('Service provider rate (%)');
+        await user.clear(rate);
+        await user.type(rate, '4');
+        await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+        await waitFor(() => expect(writes(calls)).toHaveLength(1));
+        expect(JSON.parse(writes(calls)[0].body as string)).toEqual({ terms: { provider: { ratePercent: 4 } } });
+    });
+
+    it('offers no provider row against an older service that reports none, and still saves the rest', async () => {
+        const user = userEvent.setup();
+        vi.spyOn(notify, 'success').mockImplementation(() => 'id');
+        const calls = stubFetch(() => successResponse(SETTINGS));
+        render(<ReferralSettingsScreen />, 1);
+
+        const rate = await screen.findByLabelText('Vendor rate (%)');
+        expect(screen.queryByLabelText('Service provider rate (%)')).not.toBeInTheDocument();
+        await user.clear(rate);
+        await user.type(rate, '4');
+        await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+        await waitFor(() => expect(writes(calls)).toHaveLength(1));
+        expect(JSON.parse(writes(calls)[0].body as string)).toEqual({ terms: { vendor: { ratePercent: 4 } } });
+    });
+
+    it('🔴 shows Admin a provider reward’s credit pack and price paid — never "Hidden"', async () => {
+        stubFetch(() => successResponse([providerReward()], { meta: meta(1) }));
+        render(<ReferralRewardsList />, 2);
+
+        expect(await screen.findByText('Credit pack')).toBeInTheDocument();
+        expect(screen.getByText('Service provider')).toBeInTheDocument();
+        expect(screen.getByText('price paid')).toBeInTheDocument();
+        expect(screen.getByText(/3\D?000/)).toBeInTheDocument();
+        expect(screen.queryByText('Hidden')).not.toBeInTheDocument();
+        expect(screen.queryByText(/hidden is not zero/i)).not.toBeInTheDocument();
+    });
+
+    it('still says Hidden for a commission reward beside it', async () => {
+        stubFetch(() =>
+            successResponse(
+                [providerReward(), reward({ id: '6900a1b2c3d4e5f6a7b8c9cc', commissionWithheld: true, commissionEarned: null })],
+                { meta: meta(2) },
+            ),
+        );
+        render(<ReferralRewardsList />, 2);
+
+        expect(await screen.findByText('Credit pack')).toBeInTheDocument();
+        expect(screen.getAllByText('Hidden')).toHaveLength(1);
+    });
+
+    it('shows Support a provider reward by its payment, and its siblings as the same payment', async () => {
+        stubFetch(() =>
+            successResponse({
+                reward: providerReward({ paymentKind: 'plan', payment: { kind: 'plan', id: PAYMENT_ID, amountPaid: 15000 }, sourceType: 'plan_purchase' }),
+                onSameCommission: [],
+            }),
+        );
+        render(
+            <Routes>
+                <Route path="/dashboard/referrals/rewards/:rewardId" element={<ReferralRewardDetailScreen />} />
+            </Routes>,
+            3,
+            `/dashboard/referrals/rewards/${REWARD_ID}`,
+        );
+
+        expect(await screen.findByText('Price paid')).toBeInTheDocument();
+        expect(screen.getAllByText('Plan purchase').length).toBeGreaterThan(0);
+        expect(screen.getByText(/of the price paid/)).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Other rewards on this payment' })).toBeInTheDocument();
+        expect(screen.getByText('No other reward came from this payment.')).toBeInTheDocument();
+        expect(screen.queryByText('Hidden')).not.toBeInTheDocument();
+        expect(screen.queryByText('Commission')).not.toBeInTheDocument();
+        expect(document.querySelector('a[href^="/dashboard/money/allocations/"]')).toBeNull();
+    });
+
+    it('says what reversed a provider reward, with no commission line', async () => {
+        stubFetch(() =>
+            successResponse({
+                reward: providerReward({
+                    status: 'reversed',
+                    reversedAt: '2026-11-05T10:00:00.000Z',
+                    clawedAmount: 90,
+                    remaining: 0,
+                    adjustments: [
+                        { at: '2026-11-05T10:00:00.000Z', refundKey: 'credit_topup_reversed', commissionRetained: null, amountBefore: 90, amountAfter: 0 },
+                    ],
+                }),
+                onSameCommission: [],
+            }),
+        );
+        render(
+            <Routes>
+                <Route path="/dashboard/referrals/rewards/:rewardId" element={<ReferralRewardDetailScreen />} />
+            </Routes>,
+            2,
+            `/dashboard/referrals/rewards/${REWARD_ID}`,
+        );
+
+        expect(await screen.findByText('Reversals')).toBeInTheDocument();
+        expect(screen.getByText(/credit topup reversed/)).toBeInTheDocument();
+        expect(screen.queryByText(/Commission kept/)).not.toBeInTheDocument();
+    });
+});

@@ -77,16 +77,20 @@ function list(source: string, name: string): string[] {
 function objectKeys(source: string, name: string): string[] {
     const declaration = new RegExp(`export const ${name} = \\{([\\s\\S]*?)\\} as const;`).exec(source);
     if (!declaration) throw new Error(`${name} is not declared in the mirror`);
-    return [...declaration[1].matchAll(/^ {4}([a-zA-Z]+):/gm)].map((match) => match[1]);
+    return [...declaration[1].matchAll(/^ {4}([a-zA-Z][a-zA-Z0-9]*):/gm)].map((match) => match[1]);
 }
 
-/** The top-level keys of `export interface NAME [extends …] { … }`, comments stripped. */
+/**
+ * The top-level keys of `export interface NAME [extends …] { … }`, comments stripped.
+ * ⚠ Keys may hold a digit (`phone2`, 2026-11-08) — a letters-only pattern silently
+ * dropped it from the mirror's side.
+ */
 function keys(source: string, name: string): string[] {
     const head = new RegExp(`export interface ${name}(?: extends [A-Za-z]+)? \\{`).exec(source);
     if (!head) throw new Error(`${name} is not declared in the mirror`);
     const end = source.indexOf('\n}', head.index);
     const body = source.slice(head.index + head[0].length, end).replace(/\/\*[\s\S]*?\*\//g, '');
-    return [...body.matchAll(/^ {4}([a-zA-Z]+)\??:/gm)].map((match) => match[1]);
+    return [...body.matchAll(/^ {4}([a-zA-Z][a-zA-Z0-9]*)\??:/gm)].map((match) => match[1]);
 }
 
 /** The keys of the object a block between `start` and `stop` builds at `indent` spaces. */
@@ -95,7 +99,7 @@ function builtKeys(source: string, start: string, stop: string, indent: number):
     if (from === -1) throw new Error(`"${start}" is not in the mirror`);
     const to = source.indexOf(stop, from + start.length);
     const body = source.slice(from, to);
-    return [...body.matchAll(new RegExp(`^ {${indent}}([a-zA-Z]+)(?:,|:)`, 'gm'))].map((match) => match[1]);
+    return [...body.matchAll(new RegExp(`^ {${indent}}([a-zA-Z][a-zA-Z0-9]*)(?:,|:)`, 'gm'))].map((match) => match[1]);
 }
 
 const sorted = (values: readonly string[]) => [...values].sort();
@@ -111,6 +115,14 @@ describe('the vocabularies wi-admin pins', () => {
         ['PROVIDER_CONSENT_STATES', REPORTS, PROVIDER_CONSENT_STATES],
     ] as const)('%s matches the mirror, order included', (name, source, ours) => {
         expect([...ours]).toEqual(list(source, name));
+    });
+
+    it('keeps the second phone number inside the one `phone` field (2026-11-08)', () => {
+        // Unlocked and charged with `phone`: never an eighth field in filters, reveal rows or reports.
+        expect(LISTING_CONTACT_FIELDS).toHaveLength(7);
+        expect(LISTING_CONTACT_FIELDS).not.toContain('phone2');
+        // And the mirror's audit field list names `phone` once for either number.
+        expect(CONTACTS).toContain("if (set.phone || set.phone2) present.push('phone');");
     });
 
     it('sorts on exactly the keys each list allows', () => {
